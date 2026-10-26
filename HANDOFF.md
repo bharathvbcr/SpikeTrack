@@ -129,3 +129,14 @@ Briefs updated: gp-vision-backbone, gp-domain-lora, gp-tracker-multiplex. COMPON
 ## 11. Ojas ops (2026-10-25, Bharath's decision)
 
 Bharath will build the missing vision ops in Ojas himself, so SAM 3.1 can run through Ojas's Backend (Metal via tessl kernels). Briefs in the Ojas repo: `tasks/gp-bidirectional-attention.md` (P0), `tasks/gp-vision-norm-act-bias.md` (P0), `tasks/gp-spatial-ops.md` (P1). This supersedes §3 rule 7 for these three briefs only. Until they land, SpikeTrack lanes may call tessl directly; switch to the Ojas ops as each passes parity. Record when each was built (before or during the hackathon) in CONTRIBUTIONS.md.
+
+## 12. D1 findings (2026-10-26, session tessl-45)
+
+Labels as above. Detail: tools/reference/README.md; open items: gaps.jsonl.
+
+1. **Reference runs on the Mac CPU [V].** Official sam3 f1647e8 plus `tools/reference/cpu_shims.py` and `sam3-cpu.patch`: the full 3.1 multiplex stack loads with 0 missing and 0 unexpected keys, and an fp32 trunk forward takes 6.6 s. CUDA is no longer needed for backbone fixtures. The video path on CPU is still untested.
+2. **Backbone fixtures exist [V].** `fixtures/backbone/*.safetensors` (5 images, fp32, 5.0 GB, git-ignored) and `fixtures/MANIFEST.json`. `check_fixtures.py` recomputes 27 tensors with independent torch math; all pass. Sent to session ojas-78 for its Ojas op parity tests.
+3. **Architecture corrections [V]:** three FPN necks (`convs`, `interactive_convs`, `propagation_convs`) with no 0.5 level. The 3x3 conv is part of the neck. Abs pos embed is tiled 3x3 from 24x24. `ln_pre` eps is 1e-5 (blocks use 1e-6). RoPE uses interleaved pairs and fractional positions in the global layers, and the tables are stored per block. There is no QK-norm. Multiplex bucket is 16. Video heuristics come from the official builder (0.4 / 0.65), not config.json (0.5 / 0.7).
+4. **Upstream runs the ViT MLP in bf16 [V].** The fp32 fixtures are an fp32 oracle; see GAP-UPSTREAM-BF16-MLP.
+5. **Gating ceiling [V, bench/results/gating-change-rates/summary.md].** At tau 8, about 1% of 14x14 patches change frame to frame, but 55% of the 3x3 attention windows do (20 videos, 300 frames each). Exact window-level skipping can save at most about 45% of the windowed layers. The ≥1.5x gate likely needs token-level (approximate) gating. Low-change showcase clips: 29, 23, 52.
+6. **Ojas ops:** session ojas-78 owns gp-bidirectional-attention, gp-vision-norm-act-bias and gp-spatial-ops. This session holds no Ojas or tessl files.

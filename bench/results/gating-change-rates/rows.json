@@ -1,0 +1,4502 @@
+[
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.07311527879304744,
+  "window_changed_mean": 0.9945175438596491,
+  "frames_all_windows_changed": 0.9506578947368421,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.03176334571962313,
+  "window_changed_mean": 0.8647660818713451,
+  "frames_all_windows_changed": 0.20394736842105263,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.012589343729694606,
+  "window_changed_mean": 0.7547514619883041,
+  "frames_all_windows_changed": 0.03289473684210526,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.004800956384015595,
+  "window_changed_mean": 0.6564327485380117,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.0012487816764132553,
+  "window_changed_mean": 0.4137426900584795,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.11146508169335452,
+  "window_changed_mean": 0.9996332966629996,
+  "frames_all_windows_changed": 0.9966996699669967,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.049238199282891255,
+  "window_changed_mean": 0.9266593325999266,
+  "frames_all_windows_changed": 0.45544554455445546,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.021953815751945566,
+  "window_changed_mean": 0.821048771543821,
+  "frames_all_windows_changed": 0.09900990099009901,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.00924970969319154,
+  "window_changed_mean": 0.7169050238357169,
+  "frames_all_windows_changed": 0.0033003300330033004,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.0035505286639775087,
+  "window_changed_mean": 0.6303630363036303,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.19886638374485596,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.07903677983539095,
+  "window_changed_mean": 0.9907407407407407,
+  "frames_all_windows_changed": 0.9166666666666666,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.034455375514403294,
+  "window_changed_mean": 0.8988888888888888,
+  "frames_all_windows_changed": 0.3233333333333333,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.016431970164609053,
+  "window_changed_mean": 0.7785185185185185,
+  "frames_all_windows_changed": 0.03333333333333333,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "11",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.007024819958847736,
+  "window_changed_mean": 0.6992592592592592,
+  "frames_all_windows_changed": 0.006666666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.14721790732618584,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.0776110197368421,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.034447464871669914,
+  "window_changed_mean": 0.9978070175438597,
+  "frames_all_windows_changed": 0.9802631578947368,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.015467633203378817,
+  "window_changed_mean": 0.9868421052631579,
+  "frames_all_windows_changed": 0.8881578947368421,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.005613806652046784,
+  "window_changed_mean": 0.902046783625731,
+  "frames_all_windows_changed": 0.375,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.1853290653139388,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.1012884274538565,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.04947630179684635,
+  "window_changed_mean": 0.9992665933259993,
+  "frames_all_windows_changed": 0.9933993399339934,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.02525287250947317,
+  "window_changed_mean": 0.9944994499449945,
+  "frames_all_windows_changed": 0.9504950495049505,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.011210553925762947,
+  "window_changed_mean": 0.9812981298129813,
+  "frames_all_windows_changed": 0.8448844884488449,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.2341184413580247,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.12665830761316874,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.0671141975308642,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.03807741769547325,
+  "window_changed_mean": 0.9992592592592593,
+  "frames_all_windows_changed": 0.9933333333333333,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "12",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.017851723251028805,
+  "window_changed_mean": 0.9944444444444445,
+  "frames_all_windows_changed": 0.95,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.04974948221247563,
+  "window_changed_mean": 0.9853801169590644,
+  "frames_all_windows_changed": 0.8782894736842105,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.017727877274204027,
+  "window_changed_mean": 0.8753654970760234,
+  "frames_all_windows_changed": 0.2631578947368421,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.007018051494476933,
+  "window_changed_mean": 0.7810672514619883,
+  "frames_all_windows_changed": 0.12171052631578948,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.0029798164392462636,
+  "window_changed_mean": 0.6140350877192983,
+  "frames_all_windows_changed": 0.019736842105263157,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.0007430504792072775,
+  "window_changed_mean": 0.2880116959064328,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.046052631578947366
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.07621190359776718,
+  "window_changed_mean": 0.9996332966629996,
+  "frames_all_windows_changed": 0.9966996699669967,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.029306344986350485,
+  "window_changed_mean": 0.9097909790979097,
+  "frames_all_windows_changed": 0.40924092409240925,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.01220561871001915,
+  "window_changed_mean": 0.8492849284928493,
+  "frames_all_windows_changed": 0.20132013201320131,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.00579213013893982,
+  "window_changed_mean": 0.755042170883755,
+  "frames_all_windows_changed": 0.09570957095709572,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.0023358238601637943,
+  "window_changed_mean": 0.5581224789145581,
+  "frames_all_windows_changed": 0.006600660066006601,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.12067515432098766,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.04643132716049383,
+  "window_changed_mean": 0.9851851851851852,
+  "frames_all_windows_changed": 0.8733333333333333,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.02075810185185185,
+  "window_changed_mean": 0.8981481481481481,
+  "frames_all_windows_changed": 0.36,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.010375514403292182,
+  "window_changed_mean": 0.84,
+  "frames_all_windows_changed": 0.2,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "13",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.005291923868312757,
+  "window_changed_mean": 0.7485185185185185,
+  "frames_all_windows_changed": 0.08333333333333333,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.0304168443388564,
+  "window_changed_mean": 0.9883040935672515,
+  "frames_all_windows_changed": 0.9013157894736842,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.01115844805880442,
+  "window_changed_mean": 0.4612573099415205,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.0051004609324236515,
+  "window_changed_mean": 0.385233918128655,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.0025369050519818063,
+  "window_changed_mean": 0.34539473684210525,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.0008667864684860298,
+  "window_changed_mean": 0.2711988304093567,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.009868421052631578
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.04495108075622377,
+  "window_changed_mean": 0.9992665933259993,
+  "frames_all_windows_changed": 0.9933993399339934,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.013578209672819135,
+  "window_changed_mean": 0.5053171983865054,
+  "frames_all_windows_changed": 0.0033003300330033004,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.006496251476999552,
+  "window_changed_mean": 0.4000733406674001,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.003709051460701626,
+  "window_changed_mean": 0.3619361936193619,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.0016488917410259543,
+  "window_changed_mean": 0.32636596993032635,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.07859953703703704,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.01624164094650206,
+  "window_changed_mean": 0.6907407407407408,
+  "frames_all_windows_changed": 0.006666666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.0081127829218107,
+  "window_changed_mean": 0.4325925925925926,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.004884259259259259,
+  "window_changed_mean": 0.37592592592592594,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "14",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.0025578703703703705,
+  "window_changed_mean": 0.3459259259259259,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.016139614806692657,
+  "window_changed_mean": 0.8574561403508771,
+  "frames_all_windows_changed": 0.23355263157894737,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.005482456140350877,
+  "window_changed_mean": 0.43932748538011696,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.002340196556205328,
+  "window_changed_mean": 0.3519736842105263,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.0007113233024691358,
+  "window_changed_mean": 0.22002923976608188,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.049342105263157895
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 4.124532975958414e-05,
+  "window_changed_mean": 0.02046783625730994,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.8355263157894737
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.02846089007048853,
+  "window_changed_mean": 0.982031536486982,
+  "frames_all_windows_changed": 0.8514851485148515,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.00871493399339934,
+  "window_changed_mean": 0.5225522552255225,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.004254013364299393,
+  "window_changed_mean": 0.40704070407040704,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.0017647598093142648,
+  "window_changed_mean": 0.33626696002933626,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.0004424632278042619,
+  "window_changed_mean": 0.1664833149981665,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.1353135313531353
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.06292631172839507,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.013510159465020577,
+  "window_changed_mean": 0.6492592592592593,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.006742541152263374,
+  "window_changed_mean": 0.4662962962962963,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.0032118055555555554,
+  "window_changed_mean": 0.3962962962962963,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "15",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.0013560956790123458,
+  "window_changed_mean": 0.31407407407407406,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.11229072754223522,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.027432586094866797,
+  "window_changed_mean": 0.7774122807017544,
+  "frames_all_windows_changed": 0.08881578947368421,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.011454779889538661,
+  "window_changed_mean": 0.6447368421052632,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.004179103719948018,
+  "window_changed_mean": 0.5255847953216374,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.0008528265107212475,
+  "window_changed_mean": 0.2675438596491228,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.009868421052631578
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.18923547447337327,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.04267573748115552,
+  "window_changed_mean": 0.8635863586358636,
+  "frames_all_windows_changed": 0.22112211221122113,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.018591095220633173,
+  "window_changed_mean": 0.6941694169416942,
+  "frames_all_windows_changed": 0.006600660066006601,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.008039461353542762,
+  "window_changed_mean": 0.6035936927026035,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.002535091472110174,
+  "window_changed_mean": 0.4660799413274661,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.33930812757201645,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.07043338477366255,
+  "window_changed_mean": 0.9711111111111111,
+  "frames_all_windows_changed": 0.7666666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.028989840534979425,
+  "window_changed_mean": 0.7618518518518519,
+  "frames_all_windows_changed": 0.056666666666666664,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.012908307613168725,
+  "window_changed_mean": 0.6625925925925926,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "19",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.0046103395061728395,
+  "window_changed_mean": 0.572962962962963,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.03128680352501625,
+  "window_changed_mean": 0.9152046783625731,
+  "frames_all_windows_changed": 0.40789473684210525,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.014541199642625081,
+  "window_changed_mean": 0.64546783625731,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.006449500487329435,
+  "window_changed_mean": 0.5043859649122807,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.0026314520386614684,
+  "window_changed_mean": 0.3885233918128655,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.0008103120938921378,
+  "window_changed_mean": 0.23684210526315788,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.013157894736842105
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.04486577129935216,
+  "window_changed_mean": 0.9838650531719839,
+  "frames_all_windows_changed": 0.858085808580858,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.020425885181110704,
+  "window_changed_mean": 0.7088375504217088,
+  "frames_all_windows_changed": 0.013201320132013201,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.009865975023428269,
+  "window_changed_mean": 0.5691235790245691,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.004613077048445585,
+  "window_changed_mean": 0.4536120278694536,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.001943655013649513,
+  "window_changed_mean": 0.3502016868353502,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.07329603909465021,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.02857831790123457,
+  "window_changed_mean": 0.8181481481481482,
+  "frames_all_windows_changed": 0.08,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.01380979938271605,
+  "window_changed_mean": 0.6337037037037037,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.007281378600823046,
+  "window_changed_mean": 0.5037037037037037,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "21",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.0033423353909465023,
+  "window_changed_mean": 0.4022222222222222,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.03970592714424951,
+  "window_changed_mean": 0.9901315789473685,
+  "frames_all_windows_changed": 0.9111842105263158,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.01634647599902534,
+  "window_changed_mean": 0.7101608187134503,
+  "frames_all_windows_changed": 0.006578947368421052,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.005677261005523067,
+  "window_changed_mean": 0.5515350877192983,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.0019969085038986354,
+  "window_changed_mean": 0.39071637426900585,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.003289473684210526
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.00042260599415204676,
+  "window_changed_mean": 0.14802631578947367,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.17105263157894737
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.057773601434217496,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.022496867742329788,
+  "window_changed_mean": 0.8093142647598093,
+  "frames_all_windows_changed": 0.0891089108910891,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.008606068940227356,
+  "window_changed_mean": 0.6329299596626329,
+  "frames_all_windows_changed": 0.006600660066006601,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.003495777818522593,
+  "window_changed_mean": 0.49174917491749176,
+  "frames_all_windows_changed": 0.006600660066006601,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.0012350772114248462,
+  "window_changed_mean": 0.321965529886322,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.09304591049382716,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.029776877572016462,
+  "window_changed_mean": 0.9848148148148148,
+  "frames_all_windows_changed": 0.87,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.011896862139917695,
+  "window_changed_mean": 0.7377777777777778,
+  "frames_all_windows_changed": 0.03666666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.005488683127572017,
+  "window_changed_mean": 0.5622222222222222,
+  "frames_all_windows_changed": 0.006666666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "22",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.00225244341563786,
+  "window_changed_mean": 0.4103703703703704,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.00827381314977258,
+  "window_changed_mean": 0.5,
+  "frames_all_windows_changed": 0.006578947368421052,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.003351658950617284,
+  "window_changed_mean": 0.14181286549707603,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.049342105263157895
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.0013287341617933724,
+  "window_changed_mean": 0.1111111111111111,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.13815789473684212
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.000508903914879792,
+  "window_changed_mean": 0.09576023391812866,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.22039473684210525
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.00011612146686159843,
+  "window_changed_mean": 0.05299707602339181,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.5328947368421053
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.012388970378519333,
+  "window_changed_mean": 0.7392739273927392,
+  "frames_all_windows_changed": 0.056105610561056105,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.0050230717516196064,
+  "window_changed_mean": 0.15254858819215256,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.006600660066006601
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.0021550187426150023,
+  "window_changed_mean": 0.12211221122112212,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.08250825082508251
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.0009657794483152019,
+  "window_changed_mean": 0.10854418775210854,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.1485148514851485
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.00033805463879721306,
+  "window_changed_mean": 0.09057572423909058,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.24092409240924093
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.021212705761316872,
+  "window_changed_mean": 0.9374074074074074,
+  "frames_all_windows_changed": 0.5666666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.007040895061728395,
+  "window_changed_mean": 0.19111111111111112,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.0032034465020576133,
+  "window_changed_mean": 0.1325925925925926,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.016666666666666666
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.0016171553497942386,
+  "window_changed_mean": 0.11925925925925926,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.06
+ },
+ {
+  "video": "23",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.0006352880658436214,
+  "window_changed_mean": 0.1025925925925926,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.17
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.07648407041910331,
+  "window_changed_mean": 0.9970760233918129,
+  "frames_all_windows_changed": 0.9769736842105263,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.036997060794346975,
+  "window_changed_mean": 0.9089912280701754,
+  "frames_all_windows_changed": 0.3848684210526316,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.016432139376218322,
+  "window_changed_mean": 0.797514619883041,
+  "frames_all_windows_changed": 0.07894736842105263,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.006491380360623781,
+  "window_changed_mean": 0.7108918128654971,
+  "frames_all_windows_changed": 0.009868421052631578,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.0017684728313840156,
+  "window_changed_mean": 0.5317982456140351,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.10807243918836328,
+  "window_changed_mean": 0.9996332966629996,
+  "frames_all_windows_changed": 0.9966996699669967,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.053240104103002894,
+  "window_changed_mean": 0.9607627429409608,
+  "frames_all_windows_changed": 0.7128712871287128,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.025743720205353867,
+  "window_changed_mean": 0.8617528419508618,
+  "frames_all_windows_changed": 0.19141914191419143,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.011894939493949395,
+  "window_changed_mean": 0.7722772277227723,
+  "frames_all_windows_changed": 0.039603960396039604,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.004192896141465998,
+  "window_changed_mean": 0.6791345801246791,
+  "frames_all_windows_changed": 0.0033003300330033004,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.16393454218106995,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.07913065843621399,
+  "window_changed_mean": 0.9933333333333333,
+  "frames_all_windows_changed": 0.9433333333333334,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.03926054526748971,
+  "window_changed_mean": 0.9388888888888889,
+  "frames_all_windows_changed": 0.5566666666666666,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.02015753600823045,
+  "window_changed_mean": 0.8514814814814815,
+  "frames_all_windows_changed": 0.13,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "24",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.007820216049382716,
+  "window_changed_mean": 0.7577777777777778,
+  "frames_all_windows_changed": 0.023333333333333334,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.006357491674788824,
+  "window_changed_mean": 0.8801169590643275,
+  "frames_all_windows_changed": 0.28289473684210525,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.00012817779402209226,
+  "window_changed_mean": 0.006578947368421052,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.9671052631578947
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 4.949439571150097e-05,
+  "window_changed_mean": 0.0029239766081871343,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.9967105263157895
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 1.3325414230019492e-05,
+  "window_changed_mean": 0.001827485380116959,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.9967105263157895
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 1.269087069525666e-06,
+  "window_changed_mean": 0.0003654970760233918,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.9967105263157895
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.011523779692784094,
+  "window_changed_mean": 0.9838650531719839,
+  "frames_all_windows_changed": 0.8613861386138614,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.00014197021554007252,
+  "window_changed_mean": 0.009900990099009901,
+  "frames_all_windows_changed": 0.0033003300330033004,
+  "frames_no_window_changed": 0.9438943894389439
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 4.902110581428513e-05,
+  "window_changed_mean": 0.0029336266960029336,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.9966996699669967
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 1.2732754756957177e-05,
+  "window_changed_mean": 0.0018335166850018336,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.9966996699669967
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 1.2732754756957177e-06,
+  "window_changed_mean": 0.0003667033370003667,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.9966996699669967
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.027002314814814816,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.00023791152263374487,
+  "window_changed_mean": 0.05740740740740741,
+  "frames_all_windows_changed": 0.0033333333333333335,
+  "frames_no_window_changed": 0.6166666666666667
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 5.4655349794238684e-05,
+  "window_changed_mean": 0.0033333333333333335,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.9933333333333333
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 1.2860082304526749e-05,
+  "window_changed_mean": 0.001851851851851852,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.9966666666666667
+ },
+ {
+  "video": "29",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 1.286008230452675e-06,
+  "window_changed_mean": 0.00037037037037037035,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.9966666666666667
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.04928499634502924,
+  "window_changed_mean": 0.9945175438596491,
+  "frames_all_windows_changed": 0.9539473684210527,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.02208465318388564,
+  "window_changed_mean": 0.6823830409356725,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.010114623944119558,
+  "window_changed_mean": 0.5906432748538012,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.0029531656107862248,
+  "window_changed_mean": 0.46710526315789475,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.0003331353557504873,
+  "window_changed_mean": 0.097953216374269,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.33881578947368424
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.07304144766328485,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.02953489793423787,
+  "window_changed_mean": 0.755042170883755,
+  "frames_all_windows_changed": 0.0165016501650165,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.014320529275149737,
+  "window_changed_mean": 0.62999633296663,
+  "frames_all_windows_changed": 0.006600660066006601,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.005704274131116816,
+  "window_changed_mean": 0.5265859919325265,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.0015782249521248421,
+  "window_changed_mean": 0.3773377337733773,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.1254861111111111,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.0415625,
+  "window_changed_mean": 0.9211111111111111,
+  "frames_all_windows_changed": 0.41,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.01922582304526749,
+  "window_changed_mean": 0.7233333333333334,
+  "frames_all_windows_changed": 0.006666666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.008584104938271605,
+  "window_changed_mean": 0.5777777777777777,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "30",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.003460005144032922,
+  "window_changed_mean": 0.4985185185185185,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.07143310388239116,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.020967222019168293,
+  "window_changed_mean": 0.7923976608187134,
+  "frames_all_windows_changed": 0.13486842105263158,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.008917874837556855,
+  "window_changed_mean": 0.58296783625731,
+  "frames_all_windows_changed": 0.013157894736842105,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.002872578581871345,
+  "window_changed_mean": 0.3782894736842105,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.003289473684210526
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.0004695622157244964,
+  "window_changed_mean": 0.1286549707602339,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.24342105263157895
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.14722884325469585,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.03409831723913132,
+  "window_changed_mean": 0.9526952695269527,
+  "frames_all_windows_changed": 0.6996699669966997,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.014020672900623395,
+  "window_changed_mean": 0.7000366703337,
+  "frames_all_windows_changed": 0.07260726072607261,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.005429246628366541,
+  "window_changed_mean": 0.49284928492849284,
+  "frames_all_windows_changed": 0.009900990099009901,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.001394236645886811,
+  "window_changed_mean": 0.2684268426842684,
+  "frames_all_windows_changed": 0.0033003300330033004,
+  "frames_no_window_changed": 0.006600660066006601
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.41137602880658436,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.068974408436214,
+  "window_changed_mean": 0.9992592592592593,
+  "frames_all_windows_changed": 0.9933333333333333,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.024038708847736626,
+  "window_changed_mean": 0.8992592592592593,
+  "frames_all_windows_changed": 0.3466666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.00914866255144033,
+  "window_changed_mean": 0.6262962962962964,
+  "frames_all_windows_changed": 0.06666666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "35",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.003169367283950617,
+  "window_changed_mean": 0.3562962962962963,
+  "frames_all_windows_changed": 0.006666666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.0724807352582846,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.030080536265432098,
+  "window_changed_mean": 0.9565058479532164,
+  "frames_all_windows_changed": 0.6151315789473685,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.012757497766406757,
+  "window_changed_mean": 0.8947368421052632,
+  "frames_all_windows_changed": 0.2730263157894737,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.004326952363547758,
+  "window_changed_mean": 0.7258771929824561,
+  "frames_all_windows_changed": 0.03289473684210526,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.0004847912605588044,
+  "window_changed_mean": 0.19956140350877194,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.14802631578947367
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.11207434400847492,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.0478274100558204,
+  "window_changed_mean": 0.9856985698569857,
+  "frames_all_windows_changed": 0.8712871287128713,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.022102788982601963,
+  "window_changed_mean": 0.9343601026769344,
+  "frames_all_windows_changed": 0.429042904290429,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.009553385894144971,
+  "window_changed_mean": 0.8632196552988632,
+  "frames_all_windows_changed": 0.2079207920792079,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.0027133500387075743,
+  "window_changed_mean": 0.6354968830216355,
+  "frames_all_windows_changed": 0.006600660066006601,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.1837236368312757,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.07700810185185185,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.03560699588477366,
+  "window_changed_mean": 0.9725925925925926,
+  "frames_all_windows_changed": 0.7533333333333333,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.01664673353909465,
+  "window_changed_mean": 0.912962962962963,
+  "frames_all_windows_changed": 0.34,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "36",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.006995241769547325,
+  "window_changed_mean": 0.7981481481481482,
+  "frames_all_windows_changed": 0.13666666666666666,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.033670783585120205,
+  "window_changed_mean": 0.952485380116959,
+  "frames_all_windows_changed": 0.6513157894736842,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.014683971937946719,
+  "window_changed_mean": 0.5526315789473685,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.006660803484405458,
+  "window_changed_mean": 0.472953216374269,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.002670793737816764,
+  "window_changed_mean": 0.39437134502923976,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.0005799727907732293,
+  "window_changed_mean": 0.19371345029239767,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.12828947368421054
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.04597606751415882,
+  "window_changed_mean": 0.9933993399339934,
+  "frames_all_windows_changed": 0.9405940594059405,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.019707121175080472,
+  "window_changed_mean": 0.5962596259625963,
+  "frames_all_windows_changed": 0.006600660066006601,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.010132089597848674,
+  "window_changed_mean": 0.5009167583425009,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.004915479973923318,
+  "window_changed_mean": 0.44774477447744776,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.0018366998736910728,
+  "window_changed_mean": 0.365969930326366,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.06617669753086419,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.025034079218106995,
+  "window_changed_mean": 0.642962962962963,
+  "frames_all_windows_changed": 0.006666666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.01443672839506173,
+  "window_changed_mean": 0.5322222222222223,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.008416923868312757,
+  "window_changed_mean": 0.4825925925925926,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "38",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.0040637860082304526,
+  "window_changed_mean": 0.4425925925925926,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.045076069078947366,
+  "window_changed_mean": 0.9948830409356725,
+  "frames_all_windows_changed": 0.9539473684210527,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.020612512183235867,
+  "window_changed_mean": 0.722953216374269,
+  "frames_all_windows_changed": 0.009868421052631578,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.010714902128005199,
+  "window_changed_mean": 0.6151315789473685,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.003314220882066277,
+  "window_changed_mean": 0.44992690058479534,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.0003997624269005848,
+  "window_changed_mean": 0.12097953216374269,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.28289473684210525
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.06634210874791183,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.028461526708226378,
+  "window_changed_mean": 0.8815548221488816,
+  "frames_all_windows_changed": 0.2739273927392739,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.014937431243124312,
+  "window_changed_mean": 0.6604327099376605,
+  "frames_all_windows_changed": 0.006600660066006601,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.0061683830420079045,
+  "window_changed_mean": 0.5155848918225155,
+  "frames_all_windows_changed": 0.0033003300330033004,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.0018882675304567494,
+  "window_changed_mean": 0.359002566923359,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.11531635802469135,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.040855195473251026,
+  "window_changed_mean": 0.9944444444444445,
+  "frames_all_windows_changed": 0.95,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.020768389917695473,
+  "window_changed_mean": 0.8718518518518519,
+  "frames_all_windows_changed": 0.24666666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.00911522633744856,
+  "window_changed_mean": 0.5866666666666667,
+  "frames_all_windows_changed": 0.0033333333333333335,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "47",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.004324845679012345,
+  "window_changed_mean": 0.4714814814814815,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.01722658788174139,
+  "window_changed_mean": 0.9287280701754386,
+  "frames_all_windows_changed": 0.506578947368421,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.0046994294184535415,
+  "window_changed_mean": 0.3132309941520468,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.0017754528102664068,
+  "window_changed_mean": 0.2185672514619883,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.01644736842105263
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.0004410077566601689,
+  "window_changed_mean": 0.09758771929824561,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.3355263157894737
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 6.028163580246913e-05,
+  "window_changed_mean": 0.005847953216374269,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.9638157894736842
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.029476327262355866,
+  "window_changed_mean": 0.9948661532819949,
+  "frames_all_windows_changed": 0.9537953795379538,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.007265946502057613,
+  "window_changed_mean": 0.3909057572423909,
+  "frames_all_windows_changed": 0.0033003300330033004,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.0030507680397669395,
+  "window_changed_mean": 0.2753942060872754,
+  "frames_all_windows_changed": 0.0033003300330033004,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.0010122540031780956,
+  "window_changed_mean": 0.182984965163183,
+  "frames_all_windows_changed": 0.0033003300330033004,
+  "frames_no_window_changed": 0.0594059405940594
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.0001718921892189219,
+  "window_changed_mean": 0.048038137147048035,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.6204620462046204
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.06656828703703704,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.012181712962962964,
+  "window_changed_mean": 0.6292592592592593,
+  "frames_all_windows_changed": 0.02,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.004684927983539095,
+  "window_changed_mean": 0.32555555555555554,
+  "frames_all_windows_changed": 0.0033333333333333335,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.0016338734567901234,
+  "window_changed_mean": 0.22814814814814816,
+  "frames_all_windows_changed": 0.0033333333333333335,
+  "frames_no_window_changed": 0.013333333333333334
+ },
+ {
+  "video": "52",
+  "fps": 48.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.0004320987654320988,
+  "window_changed_mean": 0.09222222222222222,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.32666666666666666
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.0910233664311241,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.02168108349577648,
+  "window_changed_mean": 0.7690058479532164,
+  "frames_all_windows_changed": 0.023026315789473683,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.008089795524691358,
+  "window_changed_mean": 0.6505847953216374,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.002508985136452242,
+  "window_changed_mean": 0.4722222222222222,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.0005875873131903833,
+  "window_changed_mean": 0.22441520467836257,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.04276315789473684
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.15547521187303914,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.03319047182496027,
+  "window_changed_mean": 0.8588192152548588,
+  "frames_all_windows_changed": 0.10561056105610561,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.014056961251680723,
+  "window_changed_mean": 0.7117711771177118,
+  "frames_all_windows_changed": 0.0033003300330033004,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.004907203683331296,
+  "window_changed_mean": 0.607994132746608,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.001506284887748034,
+  "window_changed_mean": 0.3766043270993766,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.2948321759259259,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.053319187242798355,
+  "window_changed_mean": 0.9774074074074074,
+  "frames_all_windows_changed": 0.7966666666666666,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.021464763374485597,
+  "window_changed_mean": 0.7737037037037037,
+  "frames_all_windows_changed": 0.0033333333333333335,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.008092206790123457,
+  "window_changed_mean": 0.6714814814814815,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "54",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.002749485596707819,
+  "window_changed_mean": 0.5044444444444445,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.0474981217511371,
+  "window_changed_mean": 0.9806286549707602,
+  "frames_all_windows_changed": 0.8322368421052632,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.018816119436322287,
+  "window_changed_mean": 0.7134502923976608,
+  "frames_all_windows_changed": 0.006578947368421052,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.007243314449317739,
+  "window_changed_mean": 0.5043859649122807,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.002375096450617284,
+  "window_changed_mean": 0.3684210526315789,
+  "frames_all_windows_changed": 0.003289473684210526,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.0003597861842105263,
+  "window_changed_mean": 0.1301169590643275,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.17763157894736842
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.07312675712015645,
+  "window_changed_mean": 0.9996332966629996,
+  "frames_all_windows_changed": 0.9966996699669967,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.029124903231063846,
+  "window_changed_mean": 0.8302163549688302,
+  "frames_all_windows_changed": 0.0594059405940594,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.012758220266471092,
+  "window_changed_mean": 0.5603226989365603,
+  "frames_all_windows_changed": 0.006600660066006601,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.005189870838935746,
+  "window_changed_mean": 0.47378071140447375,
+  "frames_all_windows_changed": 0.006600660066006601,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.0014279784459927474,
+  "window_changed_mean": 0.3120645397873121,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0033003300330033004
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.126650591563786,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.04174639917695473,
+  "window_changed_mean": 0.9518518518518518,
+  "frames_all_windows_changed": 0.5766666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.01851658950617284,
+  "window_changed_mean": 0.687037037037037,
+  "frames_all_windows_changed": 0.006666666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.00833912037037037,
+  "window_changed_mean": 0.52,
+  "frames_all_windows_changed": 0.006666666666666667,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "60",
+  "fps": 49.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.0029063786008230452,
+  "window_changed_mean": 0.4414814814814815,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 2,
+  "frames": 304,
+  "patch_changed_mean": 0.030612918291098117,
+  "window_changed_mean": 0.9155701754385965,
+  "frames_all_windows_changed": 0.3815789473684211,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 4,
+  "frames": 304,
+  "patch_changed_mean": 0.012317124553281352,
+  "window_changed_mean": 0.5815058479532164,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 8,
+  "frames": 304,
+  "patch_changed_mean": 0.005030026600064978,
+  "window_changed_mean": 0.5036549707602339,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 16,
+  "frames": 304,
+  "patch_changed_mean": 0.0017862400503573749,
+  "window_changed_mean": 0.40058479532163743,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 1,
+  "tau": 32,
+  "frames": 304,
+  "patch_changed_mean": 0.00021511025828460038,
+  "window_changed_mean": 0.09137426900584796,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.40131578947368424
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 2,
+  "frames": 303,
+  "patch_changed_mean": 0.04597861406511022,
+  "window_changed_mean": 0.9831316464979831,
+  "frames_all_windows_changed": 0.8514851485148515,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 4,
+  "frames": 303,
+  "patch_changed_mean": 0.017734180825489956,
+  "window_changed_mean": 0.6817015034836817,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 8,
+  "frames": 303,
+  "patch_changed_mean": 0.007782259707452227,
+  "window_changed_mean": 0.5357535753575358,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 16,
+  "frames": 303,
+  "patch_changed_mean": 0.0035199700525608115,
+  "window_changed_mean": 0.4833149981664833,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 2,
+  "tau": 32,
+  "frames": 303,
+  "patch_changed_mean": 0.0009664160860530498,
+  "window_changed_mean": 0.3043637697103044,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.006600660066006601
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 2,
+  "frames": 300,
+  "patch_changed_mean": 0.07782793209876543,
+  "window_changed_mean": 1.0,
+  "frames_all_windows_changed": 1.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 4,
+  "frames": 300,
+  "patch_changed_mean": 0.027103909465020577,
+  "window_changed_mean": 0.8681481481481481,
+  "frames_all_windows_changed": 0.1,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 8,
+  "frames": 300,
+  "patch_changed_mean": 0.011433899176954733,
+  "window_changed_mean": 0.6074074074074074,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 16,
+  "frames": 300,
+  "patch_changed_mean": 0.005792181069958848,
+  "window_changed_mean": 0.5107407407407407,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ },
+ {
+  "video": "82",
+  "fps": 50.0,
+  "src_hw": [
+   480,
+   640
+  ],
+  "stride": 5,
+  "tau": 32,
+  "frames": 300,
+  "patch_changed_mean": 0.00231738683127572,
+  "window_changed_mean": 0.45,
+  "frames_all_windows_changed": 0.0,
+  "frames_no_window_changed": 0.0
+ }
+]

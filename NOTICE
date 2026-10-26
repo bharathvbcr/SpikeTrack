@@ -1,0 +1,23 @@
+SpikeTrack
+Copyright 2026 Bharath Chandra Vaddaram
+
+SpikeTrack's own source code is offered under the MIT or Apache-2.0 licence (LICENSE-MIT,
+LICENSE-APACHE). Whether that holds for a reimplementation of SAM 3.1 under the SAM License has not
+been settled; see gaps.jsonl GAP-SAM-LICENSE-PORT-TERMS.
+
+This project runs Meta's SAM 3.1 (Segment Anything Model 3.1, Object Multiplex). SAM 3.1 model
+weights and code are SAM Materials provided by Meta under the SAM License
+(https://huggingface.co/facebook/sam3.1, https://github.com/facebookresearch/sam3). Terms that
+apply to anyone redistributing SAM Materials or derivative works (SAM License, section 1.b):
+
+  - Distribute them only under the SAM License, with a copy of that agreement.
+  - Acknowledge the use of SAM Materials in any publication of results.
+  - Follow applicable law and trade controls. No ITAR or other prohibited end uses.
+  - Do not reverse engineer, decompile or discover the underlying components of the SAM
+    Materials, and do not encourage others to.
+
+The weights are not included in this repository. Obtain them from Hugging Face after accepting the
+SAM License.
+
+Evaluation uses VISEM-Tracking (Thambawita et al., "VISEM-Tracking, a human spermatozoa tracking
+dataset", Scientific Data 10, 2023), CC BY 4.0, Zenodo record 7293726. The data is not included.

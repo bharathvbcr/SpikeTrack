@@ -1,0 +1,500 @@
+From 6a2df99535cc1a2eee62667ceeeb162f8e520cc4 Mon Sep 17 00:00:00 2001
+From: BHARATH CHANDRA VADDARAM <bharath.vbcr@gmail.com>
+Date: Mon, 26 Oct 2026 13:42:56 -0500
+Subject: [PATCH] SpikeTrack: route hardcoded CUDA placements through
+ SAM3_DEVICE
+
+---
+ sam3/_device.py                             |  9 +++++++
+ sam3/model/decoder.py                       |  5 ++--
+ sam3/model/io_utils.py                      | 27 +++++++++++----------
+ sam3/model/position_encoding.py             |  3 ++-
+ sam3/model/sam3_image_processor.py          |  3 ++-
+ sam3/model/sam3_multiplex_tracking.py       |  3 ++-
+ sam3/model/sam3_tracker_base.py             |  3 ++-
+ sam3/model/sam3_tracking_predictor.py       |  5 ++--
+ sam3/model/sam3_video_predictor.py          |  5 ++--
+ sam3/model/utils/sam2_utils.py              |  7 +++---
+ sam3/model/video_tracking_multiplex.py      |  5 ++--
+ sam3/model/video_tracking_multiplex_demo.py | 11 +++++----
+ sam3/model/vl_combiner.py                   |  7 +++---
+ sam3/model_builder.py                       |  5 ++--
+ sam3/sam/transformer.py                     |  3 ++-
+ 15 files changed, 62 insertions(+), 39 deletions(-)
+ create mode 100644 sam3/_device.py
+
+diff --git a/sam3/_device.py b/sam3/_device.py
+new file mode 100644
+index 0000000..f27e733
+--- /dev/null
++++ b/sam3/_device.py
+@@ -0,0 +1,9 @@
++"""Device for placements the upstream code hardcodes to CUDA (SpikeTrack CPU patch)."""
++
++import os
++
++import torch
++
++
++def _sam3_device():
++    return torch.device(os.environ.get("SAM3_DEVICE", "cuda"))
+diff --git a/sam3/model/decoder.py b/sam3/model/decoder.py
+index dfd1cae..a984fb1 100644
+--- a/sam3/model/decoder.py
++++ b/sam3/model/decoder.py
+@@ -6,6 +6,7 @@ Transformer decoder.
+ Inspired from Pytorch's version, adds the pre-norm variant
+ """
+ 
++from sam3._device import _sam3_device
+ import math
+ from functools import partial
+ from typing import Any, Dict, List, Optional, Union
+@@ -300,7 +301,7 @@ class TransformerDecoder(nn.Module):
+             if resolution is not None and stride is not None:
+                 feat_size = resolution // stride
+                 coords_h, coords_w = self._get_coords(
+-                    feat_size, feat_size, device="cuda"
++                    feat_size, feat_size, device=_sam3_device()
+                 )
+                 self.compilable_cord_cache = (coords_h, coords_w)
+                 self.compilable_stored_size = (feat_size, feat_size)
+@@ -1096,7 +1097,7 @@ class SimpleRoPEAttention(nn.Module):
+         self.compute_cis = partial(
+             compute_axial_cis, dim=d_model // num_heads, theta=rope_theta
+         )
+-        device = torch.device("cuda") if torch.cuda.is_available() else None
++        device = _sam3_device() if torch.cuda.is_available() else None
+         self.freqs_cis = self.compute_cis(
+             end_x=feat_sizes[0], end_y=feat_sizes[1], device=device
+         )
+diff --git a/sam3/model/io_utils.py b/sam3/model/io_utils.py
+index 4e76f04..830f31f 100644
+--- a/sam3/model/io_utils.py
++++ b/sam3/model/io_utils.py
+@@ -2,6 +2,7 @@
+ 
+ # pyre-unsafe
+ 
++from sam3._device import _sam3_device
+ import contextlib
+ import os
+ import queue
+@@ -69,7 +70,7 @@ def load_resource_as_video_frames(
+             images.append(img)
+         images = torch.stack(images)
+         if not offload_video_to_cpu:
+-            images = images.cuda()
++            images = images.to(_sam3_device())
+         return images, orig_height, orig_width
+ 
+     is_image = (
+@@ -112,11 +113,11 @@ def load_image_as_single_frame_video(
+     # pyrefly: ignore [bad-assignment]
+     img_std = torch.tensor(img_std, dtype=torch.float16)[:, None, None]
+     if not offload_video_to_cpu:
+-        images = images.cuda()
++        images = images.to(_sam3_device())
+         # pyrefly: ignore [missing-attribute]
+-        img_mean = img_mean.cuda()
++        img_mean = img_mean.to(_sam3_device())
+         # pyrefly: ignore [missing-attribute]
+-        img_std = img_std.cuda()
++        img_std = img_std.to(_sam3_device())
+     # normalize by mean and std
+     # pyrefly: ignore [unsupported-operation]
+     images -= img_mean
+@@ -236,9 +237,9 @@ def load_video_frames_from_image_folder(
+     ):
+         images[n], video_height, video_width = _load_img_as_tensor(img_path, image_size)
+     if not offload_video_to_cpu:
+-        images = images.cuda()
+-        img_mean = img_mean.cuda()
+-        img_std = img_std.cuda()
++        images = images.to(_sam3_device())
++        img_mean = img_mean.to(_sam3_device())
++        img_std = img_std.to(_sam3_device())
+     # normalize by mean and std
+     images -= img_mean
+     images /= img_std
+@@ -350,11 +351,11 @@ def load_video_frames_from_video_file_using_cv2(
+     # pyrefly: ignore [bad-assignment]
+     img_std = torch.tensor(img_std, dtype=torch.float16).view(1, 3, 1, 1)
+     if not offload_video_to_cpu:
+-        video_tensor = video_tensor.cuda()
++        video_tensor = video_tensor.to(_sam3_device())
+         # pyrefly: ignore [missing-attribute]
+-        img_mean = img_mean.cuda()
++        img_mean = img_mean.to(_sam3_device())
+         # pyrefly: ignore [missing-attribute]
+-        img_std = img_std.cuda()
++        img_std = img_std.to(_sam3_device())
+     # normalize by mean and std
+     # pyrefly: ignore [unsupported-operation]
+     video_tensor -= img_mean
+@@ -374,7 +375,7 @@ def load_dummy_video(image_size, offload_video_to_cpu, num_frames=60, do_zeros=F
+     else:
+         images = torch.zeros(num_frames, 3, image_size, image_size, dtype=torch.float16)
+     if not offload_video_to_cpu:
+-        images = images.cuda()
++        images = images.to(_sam3_device())
+     return images, video_height, video_width
+ 
+ 
+@@ -447,7 +448,7 @@ class AsyncImageFrameLoader:
+         img -= self.img_mean
+         img /= self.img_std
+         if not self.offload_video_to_cpu:
+-            img = img.cuda()
++            img = img.to(_sam3_device())
+         self.images[index] = img
+         return img
+ 
+@@ -580,7 +581,7 @@ class AsyncVideoFileLoaderWithTorchCodec:
+         if offload_video_to_cpu:
+             out_device = torch.device("cpu")
+         else:
+-            out_device = torch.device("cuda") if gpu_device is None else gpu_device
++            out_device = _sam3_device() if gpu_device is None else gpu_device
+         self.out_device = out_device
+         self.gpu_acceleration = gpu_acceleration
+         self.gpu_id = gpu_id
+diff --git a/sam3/model/position_encoding.py b/sam3/model/position_encoding.py
+index f38c62b..f8e3a52 100644
+--- a/sam3/model/position_encoding.py
++++ b/sam3/model/position_encoding.py
+@@ -2,6 +2,7 @@
+ 
+ # pyre-unsafe
+ 
++from sam3._device import _sam3_device
+ import math
+ from typing import Optional
+ 
+@@ -52,7 +53,7 @@ class PositionEmbeddingSine(nn.Module):
+                 (precompute_resolution // 32, precompute_resolution // 32),
+             ]
+             for size in precompute_sizes:
+-                tensors = torch.zeros((1, 1) + size, device="cuda")
++                tensors = torch.zeros((1, 1) + size, device=_sam3_device())
+                 self.forward(tensors)
+                 # further clone and detach it in the cache (just to be safe)
+                 self.cache[size] = self.cache[size].clone().detach()
+diff --git a/sam3/model/sam3_image_processor.py b/sam3/model/sam3_image_processor.py
+index f8439f5..4fb7cbf 100644
+--- a/sam3/model/sam3_image_processor.py
++++ b/sam3/model/sam3_image_processor.py
+@@ -1,6 +1,7 @@
+ # Copyright (c) Meta Platforms, Inc. and affiliates. All Rights Reserved
+ 
+ # pyre-unsafe
++from sam3._device import _sam3_device
+ from typing import Dict, List
+ 
+ import numpy as np
+@@ -14,7 +15,7 @@ from torchvision.transforms import v2
+ class Sam3Processor:
+     """ """
+ 
+-    def __init__(self, model, resolution=1008, device="cuda", confidence_threshold=0.5):
++    def __init__(self, model, resolution=1008, device=_sam3_device(), confidence_threshold=0.5):
+         self.model = model
+         self.resolution = resolution
+         self.device = device
+diff --git a/sam3/model/sam3_multiplex_tracking.py b/sam3/model/sam3_multiplex_tracking.py
+index 1b6ce7d..b8126d3 100644
+--- a/sam3/model/sam3_multiplex_tracking.py
++++ b/sam3/model/sam3_multiplex_tracking.py
+@@ -1,3 +1,4 @@
++from sam3._device import _sam3_device
+ from collections import defaultdict
+ from functools import reduce
+ from typing import Dict
+@@ -232,7 +233,7 @@ class Sam3MultiplexTracking(Sam3MultiplexBase):
+         inference_state = {}
+         inference_state["image_size"] = self.image_size
+         inference_state["num_frames"] = len(images)
+-        inference_state["device"] = torch.device("cuda")
++        inference_state["device"] = _sam3_device()
+         inference_state["orig_height"] = orig_height
+         inference_state["orig_width"] = orig_width
+         inference_state["constants"] = {}
+diff --git a/sam3/model/sam3_tracker_base.py b/sam3/model/sam3_tracker_base.py
+index c7f40b7..5324d58 100644
+--- a/sam3/model/sam3_tracker_base.py
++++ b/sam3/model/sam3_tracker_base.py
+@@ -2,6 +2,7 @@
+ 
+ # pyre-unsafe
+ 
++from sam3._device import _sam3_device
+ import logging
+ 
+ import torch
+@@ -660,7 +661,7 @@ class Sam3TrackerBase(torch.nn.Module):
+                     torch.zeros(B, seq_len, device=device, dtype=bool)
+                 )
+                 # Spatial positional encoding (it might have been offloaded to CPU in eval)
+-                maskmem_enc = prev["maskmem_pos_enc"][-1].cuda()
++                maskmem_enc = prev["maskmem_pos_enc"][-1].to(_sam3_device())
+                 maskmem_enc = maskmem_enc.flatten(2).permute(2, 0, 1)
+ 
+                 if (
+diff --git a/sam3/model/sam3_tracking_predictor.py b/sam3/model/sam3_tracking_predictor.py
+index 43b068b..6f315ed 100644
+--- a/sam3/model/sam3_tracking_predictor.py
++++ b/sam3/model/sam3_tracking_predictor.py
+@@ -2,6 +2,7 @@
+ 
+ # pyre-unsafe
+ 
++from sam3._device import _sam3_device
+ import logging
+ from collections import OrderedDict
+ 
+@@ -79,7 +80,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
+         if offload_state_to_cpu:
+             inference_state["storage_device"] = torch.device("cpu")
+         else:
+-            inference_state["storage_device"] = torch.device("cuda")
++            inference_state["storage_device"] = _sam3_device()
+ 
+         if video_path is not None:
+             images, video_height, video_width = load_video_frames(
+@@ -1022,7 +1023,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
+                 )
+             else:
+                 # Cache miss -- we will run inference on a single image
+-                image = inference_state["images"][frame_idx].cuda().float().unsqueeze(0)
++                image = inference_state["images"][frame_idx].to(_sam3_device()).float().unsqueeze(0)
+                 backbone_out = self.forward_image(image)
+                 # Cache the most recent frame's feature (for repeated interactions with
+                 # a frame; we can use an LRU cache for more frames in the future).
+diff --git a/sam3/model/sam3_video_predictor.py b/sam3/model/sam3_video_predictor.py
+index dcb53b0..3d493f2 100644
+--- a/sam3/model/sam3_video_predictor.py
++++ b/sam3/model/sam3_video_predictor.py
+@@ -2,6 +2,7 @@
+ 
+ # pyre-unsafe
+ 
++from sam3._device import _sam3_device
+ import datetime
+ import gc
+ import multiprocessing as mp
+@@ -50,7 +51,7 @@ class Sam3VideoPredictor(Sam3BasePredictor):
+                 apply_temporal_disambiguation=apply_temporal_disambiguation,
+                 compile=compile,
+             )
+-            .cuda()
++            .to(_sam3_device())
+             .eval()
+         )
+ 
+@@ -249,7 +250,7 @@ class Sam3VideoPredictorMultiGPU(Sam3VideoPredictor):
+             device_id=self.device,
+         )
+         # warm-up the NCCL process group by running a dummy all-reduce
+-        tensor = torch.ones(1024, 1024).cuda()
++        tensor = torch.ones(1024, 1024).to(_sam3_device())
+         torch.distributed.all_reduce(tensor)
+         logger.debug(f"started NCCL process group on {rank=} with {world_size=}")
+ 
+diff --git a/sam3/model/utils/sam2_utils.py b/sam3/model/utils/sam2_utils.py
+index e824fe1..a0bc015 100644
+--- a/sam3/model/utils/sam2_utils.py
++++ b/sam3/model/utils/sam2_utils.py
+@@ -6,6 +6,7 @@
+ # This source code is licensed under the license found in the
+ # LICENSE file in the root directory of this source tree.
+ 
++from sam3._device import _sam3_device
+ import os
+ from threading import Thread
+ 
+@@ -102,7 +103,7 @@ def load_video_frames(
+     img_mean=(0.5, 0.5, 0.5),
+     img_std=(0.5, 0.5, 0.5),
+     async_loading_frames=False,
+-    compute_device=torch.device("cuda"),
++    compute_device=_sam3_device(),
+ ):
+     """
+     Load the video frames from video_path. The frames are resized to image_size as in
+@@ -143,7 +144,7 @@ def load_video_frames_from_jpg_images(
+     img_mean=(0.5, 0.5, 0.5),
+     img_std=(0.5, 0.5, 0.5),
+     async_loading_frames=False,
+-    compute_device=torch.device("cuda"),
++    compute_device=_sam3_device(),
+ ):
+     """
+     Load the video frames from a directory of JPEG files ("<frame_index>.jpg" format).
+@@ -209,7 +210,7 @@ def load_video_frames_from_video_file(
+     offload_video_to_cpu,
+     img_mean=(0.5, 0.5, 0.5),
+     img_std=(0.5, 0.5, 0.5),
+-    compute_device=torch.device("cuda"),
++    compute_device=_sam3_device(),
+ ):
+     """Load the video frames from a video file."""
+     import decord
+diff --git a/sam3/model/video_tracking_multiplex.py b/sam3/model/video_tracking_multiplex.py
+index 869ed22..2bd1012 100644
+--- a/sam3/model/video_tracking_multiplex.py
++++ b/sam3/model/video_tracking_multiplex.py
+@@ -1,3 +1,4 @@
++from sam3._device import _sam3_device
+ from collections import defaultdict
+ 
+ """
+@@ -1464,8 +1465,8 @@ class VideoTrackingMultiplex(nn.Module):
+ 
+                 if self.save_image_features:
+                     # image features are in (HW)BC
+-                    image_feat = prev["image_features"].cuda()
+-                    image_pos_embed = prev["image_pos_enc"].cuda() + tpos_enc
++                    image_feat = prev["image_features"].to(_sam3_device())
++                    image_pos_embed = prev["image_pos_enc"].to(_sam3_device()) + tpos_enc
+                     # pyrefly: ignore [unbound-name]
+                     to_cat_image_feat.append(image_feat)
+                     # pyrefly: ignore [unbound-name]
+diff --git a/sam3/model/video_tracking_multiplex_demo.py b/sam3/model/video_tracking_multiplex_demo.py
+index 8afa7c2..c7bc329 100644
+--- a/sam3/model/video_tracking_multiplex_demo.py
++++ b/sam3/model/video_tracking_multiplex_demo.py
+@@ -1,3 +1,4 @@
++from sam3._device import _sam3_device
+ import logging
+ from collections import OrderedDict
+ from copy import deepcopy
+@@ -95,11 +96,11 @@ class VideoTrackingMultiplexDemo(VideoTrackingDynamicMultiplex):
+         # the original video height and width, used for resizing final output scores
+         inference_state["video_height"] = video_height
+         inference_state["video_width"] = video_width
+-        inference_state["device"] = torch.device("cuda")
++        inference_state["device"] = _sam3_device()
+         if offload_state_to_cpu:
+             inference_state["storage_device"] = torch.device("cpu")
+         else:
+-            inference_state["storage_device"] = torch.device("cuda")
++            inference_state["storage_device"] = _sam3_device()
+         # inputs on each frame
+         inference_state["point_inputs_per_obj"] = {}
+         inference_state["mask_inputs_per_obj"] = {}
+@@ -2634,7 +2635,7 @@ class VideoTrackingMultiplexDemo(VideoTrackingDynamicMultiplex):
+         )
+         if backbone_out is None:
+             # Cache miss -- we will run inference on a single image
+-            image = inference_state["images"][frame_idx].cuda().float().unsqueeze(0)
++            image = inference_state["images"][frame_idx].to(_sam3_device()).float().unsqueeze(0)
+             # TODO: We should optimize this because we don't always need all three outs
+             backbone_out = self.forward_image(
+                 NestedTensor(tensors=image, mask=None),
+@@ -3252,11 +3253,11 @@ class Sam3VideoTrackingMultiplexDemo(VideoTrackingMultiplexDemo):
+         # the original video height and width, used for resizing final output scores
+         inference_state["video_height"] = video_height
+         inference_state["video_width"] = video_width
+-        inference_state["device"] = torch.device("cuda")
++        inference_state["device"] = _sam3_device()
+         if offload_state_to_cpu:
+             inference_state["storage_device"] = torch.device("cpu")
+         else:
+-            inference_state["storage_device"] = torch.device("cuda")
++            inference_state["storage_device"] = _sam3_device()
+         # inputs on each frame
+         inference_state["point_inputs_per_obj"] = {}
+         inference_state["mask_inputs_per_obj"] = {}
+diff --git a/sam3/model/vl_combiner.py b/sam3/model/vl_combiner.py
+index c07fe91..4c1c2d1 100644
+--- a/sam3/model/vl_combiner.py
++++ b/sam3/model/vl_combiner.py
+@@ -4,6 +4,7 @@
+ 
+ """Provides utility to combine a vision backbone with a language backbone."""
+ 
++from sam3._device import _sam3_device
+ from copy import copy
+ from typing import List, Optional
+ 
+@@ -122,7 +123,7 @@ class SAM3VLBackbone(nn.Module):
+         return output
+ 
+     def forward_text(
+-        self, captions, input_boxes=None, additional_text=None, device="cuda"
++        self, captions, input_boxes=None, additional_text=None, device=_sam3_device()
+     ):
+         return activation_ckpt_wrapper(self._forward_text_no_ack_ckpt)(
+             captions=captions,
+@@ -137,7 +138,7 @@ class SAM3VLBackbone(nn.Module):
+         captions,
+         input_boxes=None,
+         additional_text=None,
+-        device="cuda",
++        device=_sam3_device(),
+     ):
+         output = {}
+ 
+@@ -326,7 +327,7 @@ class VisionOnly(nn.Module):
+         captions,
+         input_boxes=None,
+         additional_text=None,
+-        device="cuda",
++        device=_sam3_device(),
+     ):
+         bs = len(captions)
+         output = {
+diff --git a/sam3/model_builder.py b/sam3/model_builder.py
+index 64c6308..a23e2d0 100644
+--- a/sam3/model_builder.py
++++ b/sam3/model_builder.py
+@@ -2,6 +2,7 @@
+ 
+ # pyre-unsafe
+ 
++from sam3._device import _sam3_device
+ import os
+ from typing import Optional
+ 
+@@ -564,7 +565,7 @@ def _load_checkpoint(model, checkpoint_path):
+ def _setup_device_and_mode(model, device, eval_mode):
+     """Setup model device and evaluation mode."""
+     if device == "cuda":
+-        model = model.cuda()
++        model = model.to(_sam3_device())
+     if eval_mode:
+         model.eval()
+     return model
+@@ -1230,7 +1231,7 @@ def build_sam3_multiplex_video_predictor(
+                 f"Unexpected keys ({len(unexpected_keys)}): {unexpected_keys[:10]}..."
+             )
+ 
+-    demo_model.cuda().eval()
++    demo_model.to(_sam3_device()).eval()
+ 
+     # Wrap in predictor
+     predictor = Sam3MultiplexVideoPredictor(
+diff --git a/sam3/sam/transformer.py b/sam3/sam/transformer.py
+index 9babcee..1298d0c 100644
+--- a/sam3/sam/transformer.py
++++ b/sam3/sam/transformer.py
+@@ -2,6 +2,7 @@
+ 
+ # pyre-unsafe
+ 
++from sam3._device import _sam3_device
+ import math
+ from functools import partial
+ from typing import Tuple, Type
+@@ -284,7 +285,7 @@ class RoPEAttention(Attention):
+         self.compute_cis = partial(
+             compute_axial_cis, dim=self.internal_dim // self.num_heads, theta=rope_theta
+         )
+-        device = torch.device("cuda") if torch.cuda.is_available() else None
++        device = _sam3_device() if torch.cuda.is_available() else None
+         self.freqs_cis = self.compute_cis(
+             end_x=feat_sizes[0], end_y=feat_sizes[1], device=device
+         )
+-- 
+2.54.0 (Apple Git-157)
+
