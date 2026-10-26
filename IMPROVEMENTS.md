@@ -44,3 +44,19 @@ What the numbers say:
 - The presence head stays quiet on absent concepts (0 detections for "car" and "cell nucleus").
 - The cheapest next test is exemplar prompts (gp-exemplar-prompts), boxed sperm from frame 0, which may lift precision without training. Run it in the reference before committing to LoRA.
 - Report all of this as zero-shot, never against the supervised HOTA 74.3.
+
+### Exemplar check (2026-10-26) [V]
+
+Upstream's `add_geometric_prompt`, given 3 ground-truth sperm boxes from the same frame as positive exemplars, no training. Scored on the frame's other sperm at IoU 0.5. Same 50 frames as above; 41 used (9 have fewer than 4 sperm); 920 held-out sperm. `tools/reference/exemplar_check.py`, `bench/results/exemplar/summary.json`.
+
+| prompt | recall (score ≥ 0.3) | precision | recall (score ≥ 0.5) | precision |
+|---|---|---|---|---|
+| exemplars only ("visual") | **0.591** | 0.173 | 0.487 | 0.271 |
+| "sperm" + exemplars | 0.490 | 0.179 | 0.179 | 0.186 |
+| "cell" + exemplars | 0.553 | 0.140 | 0.382 | 0.181 |
+
+- Exemplars lift recall at IoU 0.5 from 0.233 (best text prompt) to 0.591, training-free.
+- Text hurts when combined with exemplars.
+- Recall is still below 0.7 and precision below 0.3, so gp-domain-lora stays P0.
+- gp-exemplar-prompts moves up: it is the training-free fallback if LoRA training cannot run in the window.
+- Not yet tested: exemplars from frame 0 reused on later frames (the video use case), and exemplars combined with tiling.

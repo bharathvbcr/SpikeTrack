@@ -1,0 +1,49 @@
+{
+ "frames_used": 41,
+ "k_exemplars": 3,
+ "iou": 0.5,
+ "conditions": {
+  "None": {
+   "0.3": {
+    "recall": 0.5913,
+    "precision": 0.1726,
+    "predictions": 3152,
+    "held_out_gt": 920
+   },
+   "0.5": {
+    "recall": 0.487,
+    "precision": 0.2709,
+    "predictions": 1654,
+    "held_out_gt": 920
+   }
+  },
+  "sperm": {
+   "0.3": {
+    "recall": 0.4902,
+    "precision": 0.1793,
+    "predictions": 2515,
+    "held_out_gt": 920
+   },
+   "0.5": {
+    "recall": 0.1793,
+    "precision": 0.1856,
+    "predictions": 889,
+    "held_out_gt": 920
+   }
+  },
+  "cell": {
+   "0.3": {
+    "recall": 0.5533,
+    "precision": 0.14,
+    "predictions": 3637,
+    "held_out_gt": 920
+   },
+   "0.5": {
+    "recall": 0.3815,
+    "precision": 0.181,
+    "predictions": 1939,
+    "held_out_gt": 920
+   }
+  }
+ }
+}
