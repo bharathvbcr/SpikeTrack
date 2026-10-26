@@ -49,6 +49,17 @@ Run everything with `SAM3_DEVICE=cpu`.
 | `convert_checkpoint.py` | `.pt` → `~/Code/research/models/sam3.1/sam3.1_multiplex.safetensors` (SHA-256 `6f0e46e4…b160`), plus the committed `weights_manifest.json` (names/shapes/dtypes, no values). It checks the source SHA-256 first. The 32 complex64 RoPE tables become f32 `[T,32,2]` and are listed in the file metadata under `complex64_as_f32_pairs`. |
 | `dump_fixtures.py` | fp32 backbone fixtures for 5 images → `fixtures/backbone/*.safetensors` and `fixtures/MANIFEST.json` (shape, op, SHA-256, command). Image 0 (VISEM 22 frame 0) also gets every block output, the per-op internals of block 0 (windowed) and block 7 (global), and the neck-level-0 chain. |
 | `check_fixtures.py` | Recomputes fixture tensors from their recorded inputs with independent torch math. **27/27 pass** [V]. |
+| `positive_control.py` | Detector sanity check on upstream's images. Upstream's notebook oracle: `test_image.jpg` with "shoe" finds **12** objects at threshold 0.5 (SAM 3 image model). This CPU 3.1 pipeline also finds **12** [V]. `truck.jpg`: "truck" 0.78, "wheel" 4 detections at 0.88–0.94, "zebra" 0. |
+| `zero_shot_check.py` | gp-zero-shot-check, run locally through upstream's `Sam3Processor` (no API key). Results go to `bench/results/zero-shot/`. |
+| `dump_text_fixtures.py` | Tokenizer ids and text-encoder outputs for 13 prompts → `fixtures/text/prompts.safetensors`; the ids are also committed as `tokenizer_cases.json` (the Rust BPE oracle). |
+
+### Preprocessing: two upstream paths
+- The image path (`Sam3Processor`): `torchvision.transforms.v2.Resize((1008, 1008))` on a uint8
+  image tensor, then /255 and mean/std 0.5 [V sam3_image_processor.py]. That is v2's default
+  antialiased bilinear on a tensor, not PIL. The backbone fixtures were made with PIL bilinear. That
+  does not affect backbone parity (Rust gets the same input tensor), but the Rust preprocessor must
+  match v2.Resize for end-to-end parity [U, not yet compared].
+- The video path loads frames through `io_utils.py`. Check it separately before video fixtures [U].
 
 ## Architecture, from the checkpoint and upstream code
 
