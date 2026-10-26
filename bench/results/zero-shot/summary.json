@@ -1,0 +1,147 @@
+{
+ "frames": 50,
+ "videos": 10,
+ "seed": 20261026,
+ "iou": 0.5,
+ "seconds_total": 1549.2,
+ "prompts": {
+  "sperm": {
+   "0.3": {
+    "recall": 0.0,
+    "precision": 0.0,
+    "predictions": 3,
+    "gt": 1066,
+    "frames_with_any_detection": 2
+   },
+   "0.4": {
+    "recall": 0.0,
+    "precision": null,
+    "predictions": 0,
+    "gt": 1066,
+    "frames_with_any_detection": 0
+   },
+   "0.5": {
+    "recall": 0.0,
+    "precision": null,
+    "predictions": 0,
+    "gt": 1066,
+    "frames_with_any_detection": 0
+   }
+  },
+  "sperm cell": {
+   "0.3": {
+    "recall": 0.015,
+    "precision": 0.0241,
+    "predictions": 663,
+    "gt": 1066,
+    "frames_with_any_detection": 34
+   },
+   "0.4": {
+    "recall": 0.0019,
+    "precision": 0.0059,
+    "predictions": 339,
+    "gt": 1066,
+    "frames_with_any_detection": 27
+   },
+   "0.5": {
+    "recall": 0.0,
+    "precision": 0.0,
+    "predictions": 157,
+    "gt": 1066,
+    "frames_with_any_detection": 21
+   }
+  },
+  "spermatozoon": {
+   "0.3": {
+    "recall": 0.0,
+    "precision": null,
+    "predictions": 0,
+    "gt": 1066,
+    "frames_with_any_detection": 0
+   },
+   "0.4": {
+    "recall": 0.0,
+    "precision": null,
+    "predictions": 0,
+    "gt": 1066,
+    "frames_with_any_detection": 0
+   },
+   "0.5": {
+    "recall": 0.0,
+    "precision": null,
+    "predictions": 0,
+    "gt": 1066,
+    "frames_with_any_detection": 0
+   }
+  },
+  "cell": {
+   "0.3": {
+    "recall": 0.2326,
+    "precision": 0.0646,
+    "predictions": 3840,
+    "gt": 1066,
+    "frames_with_any_detection": 50
+   },
+   "0.4": {
+    "recall": 0.1548,
+    "precision": 0.0648,
+    "predictions": 2548,
+    "gt": 1066,
+    "frames_with_any_detection": 50
+   },
+   "0.5": {
+    "recall": 0.0919,
+    "precision": 0.0664,
+    "predictions": 1477,
+    "gt": 1066,
+    "frames_with_any_detection": 50
+   }
+  },
+  "car": {
+   "0.3": {
+    "recall": 0.0,
+    "precision": null,
+    "predictions": 0,
+    "gt": 1066,
+    "frames_with_any_detection": 0
+   },
+   "0.4": {
+    "recall": 0.0,
+    "precision": null,
+    "predictions": 0,
+    "gt": 1066,
+    "frames_with_any_detection": 0
+   },
+   "0.5": {
+    "recall": 0.0,
+    "precision": null,
+    "predictions": 0,
+    "gt": 1066,
+    "frames_with_any_detection": 0
+   }
+  },
+  "cell nucleus": {
+   "0.3": {
+    "recall": 0.0,
+    "precision": null,
+    "predictions": 0,
+    "gt": 1066,
+    "frames_with_any_detection": 0
+   },
+   "0.4": {
+    "recall": 0.0,
+    "precision": null,
+    "predictions": 0,
+    "gt": 1066,
+    "frames_with_any_detection": 0
+   },
+   "0.5": {
+    "recall": 0.0,
+    "precision": null,
+    "predictions": 0,
+    "gt": 1066,
+    "frames_with_any_detection": 0
+   }
+  }
+ }
+}

@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = ["crates/st-weights", "crates/st-model", "crates/st-eval"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.97"
+publish = false
+
+# Pre-existing libraries, pinned to the commits listed in CONTRIBUTIONS.md.
+# d2922fb is ojas main with the SAM-oriented ops (attention_forward, conv2d,
+# conv_transpose2d, layer_norm, gelu_erf, linear_bias, rope_interleaved).
+[workspace.dependencies]
+ojas-core = { git = "file:///Users/bharath/Code/research/ojas", rev = "d2922fb" }
+ojas-cpu = { git = "file:///Users/bharath/Code/research/ojas", rev = "d2922fb" }
+ojas-io = { git = "file:///Users/bharath/Code/research/ojas", rev = "d2922fb" }
+st-weights = { path = "crates/st-weights" }

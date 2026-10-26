@@ -1,0 +1,11 @@
+[package]
+name = "st-weights"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "SAM 3.1 multiplex checkpoint (safetensors) mapped to typed Rust structs"
+
+[dependencies]
+ojas-io.workspace = true

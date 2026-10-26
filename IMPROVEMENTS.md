@@ -22,3 +22,25 @@ Zero-shot SAM 3 can fail badly in niche domains: on a structural-crack dataset i
 
 - Do not compare zero-shot SAM 3.1 HOTA to the supervised 74.3 as if like for like; report it as zero-shot vs supervised, and LoRA separately.
 - LoRA on SAM 3 is not new (SAM3-LoRA, MedSAM3 LoRA); the new part is sperm-motility video, multiplex tracking, and running it with no Python on a laptop.
+
+## Zero-shot check result (2026-10-26, gp-zero-shot-check) [V]
+
+Local run of the official SAM 3.1 detector (multiplex checkpoint, CPU, upstream `Sam3Processor`; no Meta Model API key, see gaps.jsonl). 50 frames (5 from each of 10 videos, seed 20261026), 1,066 ground-truth sperm (class 0). Command and per-frame output: `tools/reference/zero_shot_check.py`, `bench/results/zero-shot/`. Pipeline check: it reproduces upstream's notebook oracle ("shoe" gives 12 objects).
+
+| prompt | recall @IoU 0.5 (score ≥ 0.3) | precision | recall @IoU 0.1 | centre ≤ 10 px | predictions |
+|---|---|---|---|---|---|
+| sperm | 0.000 | 0.000 | 0.002 | 0.000 | 3 |
+| sperm cell | 0.015 | 0.024 | 0.267 | 0.058 | 663 |
+| spermatozoon | 0.000 | – | 0.000 | 0.000 | 0 |
+| cell | 0.233 | 0.065 | 0.814 | 0.542 | 3,840 |
+| car (absent) | – | – | – | – | 0 |
+| cell nucleus (absent) | – | – | – | – | 0 |
+
+**Decision: recall < 0.7 for every prompt, so gp-domain-lora becomes P0** (the rule above).
+
+What the numbers say:
+- The sperm vocabulary does not ground. "sperm" and "spermatozoon" return almost nothing.
+- The generic "cell" does see most sperm: 54% within 10 px, 81% at IoU ≥ 0.1. It also fires on debris (3.6 predictions per sperm) and boxes tighter than VISEM's head-plus-neck boxes (median 18x19 vs 21x20 px).
+- The presence head stays quiet on absent concepts (0 detections for "car" and "cell nucleus").
+- The cheapest next test is exemplar prompts (gp-exemplar-prompts), boxed sperm from frame 0, which may lift precision without training. Run it in the reference before committing to LoRA.
+- Report all of this as zero-shot, never against the supervised HOTA 74.3.
