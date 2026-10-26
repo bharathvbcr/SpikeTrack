@@ -1,7 +1,7 @@
 ---
 id: "gp-tracker-multiplex"
 title: "Video tracker with SAM 3.1 Object Multiplex"
-status: "backlog"
+status: "in-progress"
 priority: 0
 severity: "critical"
 type: "feature"
@@ -34,7 +34,7 @@ Video tracker with SAM 3.1 Object Multiplex
 
 Task: gp-tracker-multiplex
 Type: feature
-Status: backlog
+Status: in-progress
 Priority: 0 (Urgent)
 Severity: critical
 Owner: unassigned
@@ -61,6 +61,13 @@ Port the SAM 2-derived tracker [V] and SAM 3.1's Object Multiplex (fixed-capacit
 - Memory attention and the SAM 2-style mask decoder are non-causal: use tessl `encoder_attn`, not Ojas.
 
 See HANDOFF.md for rules, schedule and dependencies.
+
+## Progress
+- 2026-10-26: module parity on CPU vs upstream's recorded inputs (DAVIS judo, 8 frames): memory attention, memory encoder and interactive decoder at cosine 1.0000000; multiplex mask decoder rerun queued after a fixture-key fix in the test.
+- VOS driver (crates/st-model/src/tracker/vos.rs) wired; per-frame stage check (tests/vos_stages.rs) and the J&F gate (tests/vos_gate.rs) queued.
+- Reference J&F (upstream, CPU): judo 0.9107, shooting 0.9456, gold-fish 0.9513, mean 0.9359 (bench/results/vos-reference).
+- **Substitution:** the gate runs on 3 DAVIS 2017 val clips, not SA-V, because the SA-V access form is not yet submitted (GAP-SAV-ACCESS). It does not meet the SA-V criterion as written.
+- Detect-track (text prompt) loop: spec in tools/reference/DETECT_TRACK_SPEC.md; oracle tools/reference/detect_track_reference.py queued; Rust port not started.
 
 ## Acceptance criteria
 - [ ] J&F within 2 points of reference on 3 SA-V clips (30 frames each) [V]

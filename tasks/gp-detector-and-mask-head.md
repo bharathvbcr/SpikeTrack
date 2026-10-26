@@ -1,7 +1,7 @@
 ---
 id: "gp-detector-and-mask-head"
 title: "DETR detector, presence head and mask head (image mode)"
-status: "backlog"
+status: "in-progress"
 priority: 0
 severity: "critical"
 type: "feature"
@@ -31,7 +31,7 @@ DETR detector, presence head and mask head (image mode)
 
 Task: gp-detector-and-mask-head
 Type: feature
-Status: backlog
+Status: in-progress
 Priority: 0 (Urgent)
 Severity: critical
 Owner: unassigned
@@ -50,9 +50,13 @@ Complete image-mode SAM 3.1: concept prompt → boxes, scores, masks.
 
 See HANDOFF.md for rules, schedule and dependencies.
 
+## Progress
+- 2026-10-26: D3 gate passed on CPU f32 (bench/results/d3-gate/cpu-f32.log): mean mask IoU 0.9999 over 20 VISEM frames, kept sets identical on 20/20, worst single mask 0.984. Detector stage parity: 96 stages, worst cosine 0.9999998 (bench/results/parity-detector).
+- Open: the `spiketrack image` command (lands with gp-cli-and-no-python-proof); Metal run of the same gate.
+
 ## Acceptance criteria
-- [ ] Mean mask IoU ≥ 0.95 vs reference on 20 frames; per-frame table committed [V]
-- [ ] Box/score agreement: same instances above threshold on ≥ 19/20 frames
+- [x] Mean mask IoU ≥ 0.95 vs reference on 20 frames; per-frame table committed [V]
+- [x] Box/score agreement: same instances above threshold on ≥ 19/20 frames
 - [ ] `spiketrack image <img> --prompt <text>` writes masks and an overlay PNG
 
 ## Planned files
