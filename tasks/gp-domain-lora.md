@@ -1,8 +1,8 @@
 ---
 id: "gp-domain-lora"
 title: "LoRA domain adaptation on VISEM, with honest presence calibration"
-status: "backlog"
-priority: 1
+status: "ready"
+priority: 0
 severity: "high"
 type: "research"
 owner: "unassigned"
@@ -31,8 +31,8 @@ LoRA domain adaptation on VISEM, with honest presence calibration
 
 Task: gp-domain-lora
 Type: research
-Status: backlog
-Priority: 1 (High)
+Status: ready
+Priority: 0 (Urgent; zero-shot recall < 0.7, 2026-10-26)
 Severity: high
 Owner: unassigned
 Due: 2026-11-01

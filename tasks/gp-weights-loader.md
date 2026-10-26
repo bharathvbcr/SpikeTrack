@@ -1,7 +1,7 @@
 ---
 id: "gp-weights-loader"
 title: "SAM 3.1 checkpoint loader into Ojas/tessl tensors"
-status: "ready"
+status: "done"
 priority: 0
 severity: "high"
 type: "feature"
@@ -29,7 +29,7 @@ SAM 3.1 checkpoint loader into Ojas/tessl tensors
 
 Task: gp-weights-loader
 Type: feature
-Status: ready
+Status: done
 Priority: 0 (Urgent)
 Severity: high
 Owner: unassigned
@@ -51,9 +51,9 @@ Map every checkpoint tensor to typed Rust structs using `ojas-io` safetensors (`
 See HANDOFF.md for rules, schedule and dependencies.
 
 ## Acceptance criteria
-- [ ] Every tensor in the checkpoint is claimed by exactly one field; a test fails on any unclaimed or missing name
-- [ ] Loads the full checkpoint on the M5 Pro; peak RSS and load time recorded
-- [ ] Shape/dtype of each field matches tools/reference manifest [V]
+- [x] Every tensor in the checkpoint is claimed by exactly one field; a test fails on any unclaimed or missing name [V: crates/st-weights/tests/load.rs, schema test + full load, commit 297a4d8]
+- [x] Loads the full checkpoint on the M5 Pro; peak RSS and load time recorded [V: 1.38 s, peak RSS 3.27 GiB, release build, 2026-10-26]
+- [x] Shape/dtype of each field matches tools/reference manifest [V: schema test against tools/reference/weights_manifest.json]
 
 ## Planned files
 - crates/st-weights/src/lib.rs

@@ -1,7 +1,7 @@
 ---
 id: "gp-zero-shot-check"
 title: "Zero-shot check: can SAM 3.1 find sperm at all?"
-status: "ready"
+status: "done"
 priority: 0
 severity: "critical"
 type: "research"
@@ -29,7 +29,7 @@ Zero-shot check: can SAM 3.1 find sperm at all?
 
 Task: gp-zero-shot-check
 Type: research
-Status: ready
+Status: done
 Priority: 0 (Urgent)
 Severity: critical
 Owner: unassigned
@@ -50,9 +50,9 @@ The showcase depends on SAM 3.1 detecting sperm. Zero-shot SAM 3 has collapsed o
 See HANDOFF.md, COMPONENTS.md and IMPROVEMENTS.md.
 
 ## Acceptance criteria
-- [ ] Recall/precision at IoU 0.5 for each prompt on 50 frames, in bench/results/zero-shot/
-- [ ] False-positive rate for 2 absent-concept prompts recorded
-- [ ] Decision written into IMPROVEMENTS.md: recall ≥ 0.7 → LoRA stays stretch; below → gp-domain-lora becomes P0
+- [x] Recall/precision at IoU 0.5 for each prompt on 50 frames, in bench/results/zero-shot/ [V: local official detector on CPU, not the Meta Model API (no key); see IMPROVEMENTS.md]
+- [x] False-positive rate for 2 absent-concept prompts recorded [V: "car" and "cell nucleus" gave 0 detections on 50 frames]
+- [x] Decision written into IMPROVEMENTS.md (recall < 0.7 for every prompt: gp-domain-lora is P0): recall ≥ 0.7 → LoRA stays stretch; below → gp-domain-lora becomes P0
 
 ## Planned files
 - tools/reference/zero_shot_check.py

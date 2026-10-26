@@ -49,24 +49,24 @@ Stretch (only if every gate above is green): gp-cuda-smoke, gp-meta-model-report
 
 | Order | Task | Priority | Status | Depends on |
 |---|---|---|---|---|
-| 0 | gp-rules-repo-and-access | 0 | ready | — |
-| 1 | gp-reference-oracle | 0 | ready | access granted |
-| 2 | gp-weights-loader | 0 | ready | access granted |
+| 0 | gp-rules-repo-and-access | 0 | in progress (repo, licences, NOTICE, CONTRIBUTIONS done; Official Rules unread) | — |
+| 1 | gp-reference-oracle | 0 | in progress (CPU reference, safetensors, backbone + text fixtures done; video fixtures, CoreML/MPS baselines open) | access granted |
+| 2 | gp-weights-loader | 0 | done | access granted |
 | 3 | gp-vision-backbone | 0 | ready | 1, 2 |
 | 4 | gp-prompt-encoders | 0 | backlog | 2, 3 |
 | 5 | gp-detector-and-mask-head | 0 | backlog | 3, 4 |
 | 6 | gp-tracker-multiplex | 0 | backlog | 5 |
-| 7 | gp-eval-harness | 1 | ready | 1 |
+| 7 | gp-eval-harness | 1 | in progress (HOTA = TrackEval, J&F port + oracle, VISEM loader; SA-V/DAVIS loaders and CLI open) | 1 |
 | 8 | gp-tensorops-hot-path | 1 | backlog | 6 |
 | 9 | gp-event-gating | 1 | backlog | 6, 7 |
 | 10 | gp-cli-and-no-python-proof | 1 | backlog | 6 |
 | 11 | gp-demo-and-submission | 0 | backlog | 7–10 |
 | 12 | gp-cuda-smoke | 3 | backlog | 8 (stretch) |
 | 13 | gp-meta-model-report | 3 | backlog | 10 (stretch) |
-| 14 | gp-zero-shot-check | 0 | ready | — (runs before weights arrive) |
+| 14 | gp-zero-shot-check | 0 | done (recall < 0.7) | — (runs before weights arrive) |
 | 15 | gp-exemplar-prompts | 1 | backlog | 4 |
 | 16 | gp-motion-aware-memory | 1 | backlog | 6 |
-| 17 | gp-domain-lora | 1 (P0 if zero-shot recall < 0.7) | backlog | 14, 2 |
+| 17 | gp-domain-lora | 0 (zero-shot recall < 0.7) | ready | 14, 2 |
 | 18 | gp-weight-quantization | 3 | backlog | 8 (stretch) |
 
 Component map: COMPONENTS.md. Improvement research and options: IMPROVEMENTS.md.
