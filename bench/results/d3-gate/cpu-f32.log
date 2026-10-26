@@ -1,0 +1,49 @@
+warning: unused imports: `AttentionOpts` and `Conv2dParams`
+  --> crates/st-model/src/detector.rs:12:17
+   |
+12 | use ojas_core::{AttentionOpts, Backend, Conv2dParams, OjasError, Tensor};
+   |                 ^^^^^^^^^^^^^           ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Weight`
+  --> crates/st-model/src/detector.rs:13:31
+   |
+13 | use st_weights::{TensorGroup, Weight};
+   |                               ^^^^^^
+
+warning: `st-model` (lib) generated 2 warnings (run `cargo fix --lib -p st-model` to apply 2 suggestions)
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+    Finished `release` profile [optimized] target(s) in 1.69s
+     Running tests/d3_gate.rs (target/release/deps/d3_gate-29f0466075295c0e)
+
+running 1 test
+test image_mode_masks_match_upstream_on_20_visem_frames ... 
+| frame | upstream kept @0.5 | ours | kept-set differences | max abs prob diff | mean mask IoU | min mask IoU | s (CPU, 8 threads) |
+|---|---|---|---|---|---|---|---|
+| 0 | 0 | 0 | 0 | 4.08e-4 | 1.0000 | 1.0000 | 27.3 |
+| 1 | 20 | 20 | 0 | 1.15e-3 | 0.9998 | 0.9964 | 21.7 |
+| 2 | 41 | 41 | 0 | 1.98e-3 | 1.0000 | 1.0000 | 20.6 |
+| 3 | 12 | 12 | 0 | 1.61e-4 | 1.0000 | 1.0000 | 20.4 |
+| 4 | 26 | 26 | 0 | 9.64e-4 | 1.0000 | 1.0000 | 20.5 |
+| 5 | 71 | 71 | 0 | 1.78e-4 | 1.0000 | 1.0000 | 20.5 |
+| 6 | 34 | 34 | 0 | 1.13e-3 | 1.0000 | 1.0000 | 26.5 |
+| 7 | 30 | 30 | 0 | 1.79e-3 | 1.0000 | 1.0000 | 31.0 |
+| 8 | 17 | 17 | 0 | 6.77e-4 | 1.0000 | 1.0000 | 26.2 |
+| 9 | 36 | 36 | 0 | 3.24e-3 | 0.9999 | 0.9957 | 21.3 |
+| 10 | 12 | 12 | 0 | 5.62e-4 | 1.0000 | 1.0000 | 20.0 |
+| 11 | 22 | 22 | 0 | 6.22e-4 | 1.0000 | 1.0000 | 20.5 |
+| 12 | 53 | 53 | 0 | 1.38e-2 | 0.9999 | 0.9954 | 21.6 |
+| 13 | 52 | 52 | 0 | 2.90e-4 | 0.9997 | 0.9912 | 19.4 |
+| 14 | 34 | 34 | 0 | 1.76e-4 | 1.0000 | 0.9991 | 19.7 |
+| 15 | 7 | 7 | 0 | 4.27e-4 | 1.0000 | 1.0000 | 19.4 |
+| 16 | 49 | 49 | 0 | 8.09e-4 | 0.9994 | 0.9841 | 19.4 |
+| 17 | 43 | 43 | 0 | 2.61e-3 | 1.0000 | 1.0000 | 18.8 |
+| 18 | 16 | 16 | 0 | 3.00e-3 | 1.0000 | 1.0000 | 24.7 |
+| 19 | 37 | 37 | 0 | 3.61e-3 | 0.9997 | 0.9935 | 19.9 |
+
+D3 gate: mean mask IoU 0.9999 over 20 frames (gate >= 0.95), prompt "cell"
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 440.90s
+
