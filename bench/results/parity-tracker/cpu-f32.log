@@ -1,0 +1,78 @@
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+warning: unused imports: `AttentionOpts` and `Conv2dParams`
+  --> crates/st-model/src/detector.rs:12:17
+   |
+12 | use ojas_core::{AttentionOpts, Backend, Conv2dParams, OjasError, Tensor};
+   |                 ^^^^^^^^^^^^^           ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Weight`
+  --> crates/st-model/src/detector.rs:13:31
+   |
+13 | use st_weights::{TensorGroup, Weight};
+   |                               ^^^^^^
+
+warning: `st-model` (lib) generated 2 warnings (run `cargo fix --lib -p st-model` to apply 2 suggestions)
+    Finished `release` profile [optimized] target(s) in 1.94s
+     Running tests/tracker_parity.rs (target/release/deps/tracker_parity-d2511abeebd72cdf)
+
+running 4 tests
+test interactive_decoder_matches_upstream_on_the_conditioning_frame ... interactive mask 0: cosine 1.0000000, max abs 6.533e-5, rel 3.938e-6
+interactive iou 0: cosine 1.0000000, max abs 4.530e-6, rel 1.570e-6
+interactive token 0: cosine 1.0000000, max abs 8.059e-5, rel 7.738e-6
+interactive object score: cosine 1.0000000, max abs 1.049e-5, rel 1.501e-6
+ok
+test memory_attention_matches_upstream ... | frame | memory frames | pointer tokens | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|---|
+| 1 | 1 | 16 | 1.0000000 | 6.860e-5 | 7.719e-6 |
+| 2 | 2 | 32 | 1.0000000 | 2.027e-4 | 2.177e-5 |
+| 3 | 3 | 48 | 1.0000000 | 2.220e-4 | 2.382e-5 |
+| 4 | 4 | 64 | 1.0000000 | 2.527e-4 | 2.751e-5 |
+| 5 | 5 | 80 | 1.0000000 | 3.538e-4 | 3.754e-5 |
+| 6 | 6 | 96 | 1.0000000 | 5.655e-4 | 6.052e-5 |
+| 7 | 7 | 112 | 1.0000000 | 6.180e-4 | 6.533e-5 |
+
+memory attention worst cosine 1.0000000
+ok
+test memory_encoder_matches_upstream ... | frame | output | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|
+| 0 | features | 1.0000000 | 1.311e-5 | 1.694e-6 |
+| 0 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 1 | features | 1.0000000 | 6.437e-5 | 8.200e-6 |
+| 1 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 2 | features | 1.0000000 | 4.578e-5 | 5.732e-6 |
+| 2 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 3 | features | 1.0000000 | 5.531e-5 | 6.857e-6 |
+| 3 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 4 | features | 1.0000000 | 6.700e-5 | 8.442e-6 |
+| 4 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 5 | features | 1.0000000 | 6.104e-5 | 7.464e-6 |
+| 5 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 6 | features | 1.0000000 | 5.293e-5 | 6.574e-6 |
+| 6 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 7 | features | 1.0000000 | 4.935e-5 | 6.076e-6 |
+| 7 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+
+memory encoder worst cosine 1.0000000
+ok
+test multiplex_mask_decoder_matches_upstream ... | frame | output | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|
+| 1 | masks | 1.0000000 | 3.548e-4 | 9.060e-6 |
+| 1 | iou_pred | 1.0000000 | 1.926e-4 | 4.965e-6 |
+| 1 | object_score_logits | 1.0000000 | 2.432e-5 | 1.778e-6 |
+| 1 | sam_tokens | 1.0000000 | 9.537e-5 | 8.128e-6 |
+
+thread 'multiplex_mask_decoder_matches_upstream' (15782669) panicked at crates/st-model/tests/tracker_parity.rs:53:63:
+f2.mask_decoder.call0.kw.extra_per_object_embeddings: no tensor "f2.mask_decoder.call0.kw.extra_per_object_embeddings"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    multiplex_mask_decoder_matches_upstream
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 99.70s
+
+error: test failed, to rerun pass `-p st-model --test tracker_parity`
