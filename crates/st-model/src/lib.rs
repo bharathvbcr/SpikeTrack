@@ -7,8 +7,10 @@ use ojas_core::OjasError;
 pub mod backbone;
 pub mod detector;
 pub mod host;
+pub mod layers;
 pub mod text;
 pub mod tokenizer;
+pub mod tracker;
 
 pub use backbone::{Backbone, Neck, Taps, IMAGE_SIZE};
 pub use detector::{Detector, DetectorOut, DetectorTaps, DetectorWeights};

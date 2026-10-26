@@ -1,0 +1,44 @@
+{
+ "clips": {
+  "judo": {
+   "frames": 34,
+   "objects": [
+    1,
+    2
+   ],
+   "J": 0.8940819151790973,
+   "F": 0.9272275113562107,
+   "JF": 0.910654713267654,
+   "seconds_cpu": 247.0
+  },
+  "shooting": {
+   "frames": 40,
+   "objects": [
+    1,
+    2,
+    3
+   ],
+   "J": 0.9300162342656906,
+   "F": 0.9611860438763041,
+   "JF": 0.9456011390709973,
+   "seconds_cpu": 310.6
+  },
+  "gold-fish": {
+   "frames": 78,
+   "objects": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "J": 0.9374806844654131,
+   "F": 0.9652140439844213,
+   "JF": 0.9513473642249173,
+   "seconds_cpu": 611.6
+  }
+ },
+ "loader": "io_utils.load_video_frames (PIL bilinear, float16 storage)",
+ "missing_keys": [],
+ "mean_JF": 0.9358677388545228
+}

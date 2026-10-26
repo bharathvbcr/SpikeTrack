@@ -16,3 +16,5 @@ ojas-core = { git = "file:///Users/bharath/Code/research/ojas", rev = "d2922fb" 
 ojas-cpu = { git = "file:///Users/bharath/Code/research/ojas", rev = "d2922fb" }
 ojas-io = { git = "file:///Users/bharath/Code/research/ojas", rev = "d2922fb" }
 st-weights = { path = "crates/st-weights" }
+st-eval = { path = "crates/st-eval" }
+st-video = { path = "crates/st-video" }

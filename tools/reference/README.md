@@ -103,3 +103,12 @@ Tokenizer: upstream ships `assets/bpe_simple_vocab_16e6.txt.gz` (CLIP's SimpleTo
 ## Not yet done (see gaps.jsonl)
 Text, detector, mask and video fixtures; CoreML and PyTorch-MPS baselines; an fp32 vs bf16
 reference comparison; DAVIS / SA-V clips.
+
+### Tracker (multiplex VOS), from the live model and the checkpoint [V]
+- Config read from the built model: `num_maskmem` 7, `max_cond_frames_in_attn` 4, `memory_temporal_stride_for_eval` 1, no memory selection, `max_obj_ptrs_in_encoder` 16 (pointers from frames before *and after* the current frame: `only_obj_ptrs_in_the_past_for_eval` False), unsigned temporal positions, sine tpos encoding projected by `obj_ptr_tpos_proj`, `use_maskmem_tpos_v2`, image features saved per memory frame, object-score threshold 0.0, no stability attenuation, multimask on in tracking (0-1 points), pointer from the chosen multimask token, linear no-object pointer, memory mask = `sigmoid(logit) * 2 - 1`, conditioning channel 1.0 / 0.0, output-suppression embeddings, output non-overlap on, no hole filling, `input_mask_size` 1152, no shared necks.
+- The interactive decoder uses dynamic multimask (stability) and the multiplex decoder does not. In VOS the interactive decoder only supplies frame 0's pointers, which always come from mask token 0.
+- Multiplex decoder: 16 slots x 3 masks (48 mask tokens), 16 IoU and 16 object-score tokens, two-way transformer depth 2 (ReLU MLP 2048, cross-attention width 128). Memory attention: 4 layers, 8 heads of 32 (config.json says 1), RoPE 72x72, GELU FFN. Memory encoder: 32-channel input (16 masks + 16 condition flags) resized to 1152, 4 stride-2 3x3 convs to 1024 channels, 1x1 to 256, plus `pix_feat_proj`, 2 ConvNeXt blocks. Memories are stored in bf16.
+- Padding slots: their object score is 0, which is not above the 0.0 threshold. So `no_obj_embed_spatial` for every padding slot is added to each frame's memory.
+- `get_1d_sine_pe` concatenates `[sin, cos]` halves (not interleaved).
+- Upstream's standalone demo fails on a feature-cache miss (`video_tracking_multiplex.py:1095` at f1647e8). `sam3_ref.TrackerFeatureCache` supplies features the way the full predictor does.
+- VOS reference J&F on DAVIS 2017 val, upstream on CPU: `bench/results/vos-reference/`.

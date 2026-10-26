@@ -13,6 +13,7 @@ use ojas_core::{AttentionOpts, Backend, Conv2dParams, OjasError, Tensor};
 use st_weights::{TensorGroup, Weight};
 
 use crate::host;
+use crate::layers::{get, host_of, relu, up, Conv, Lin, Mha, Mlp, Norm};
 use crate::ModelError;
 
 pub const D: usize = 256;
@@ -26,165 +27,17 @@ pub const LN_EPS: f32 = 1e-5;
 pub const GN_GROUPS: usize = 8;
 pub const GN_EPS: f32 = 1e-5;
 
-fn get<'a>(g: &'a TensorGroup, name: &str, shape: &[usize]) -> Result<&'a Weight, ModelError> {
-    let w = g.tensors.get(name).ok_or_else(|| ModelError::MissingWeight(name.to_string()))?;
-    if w.shape != shape {
-        return Err(ModelError::WeightShape { name: name.to_string(), expected: shape.to_vec(), found: w.shape.clone() });
-    }
-    Ok(w)
-}
 
-fn up<B: Backend + ?Sized>(be: &B, data: &[f32], shape: &[usize]) -> Result<Tensor, OjasError> {
-    be.upload(&Tensor::from_f32(data, shape, be.budget())?)
-}
 
-fn host_of<B: Backend + ?Sized>(t: &Tensor, be: &B) -> Result<Vec<f32>, OjasError> {
-    t.to_host(be.budget())?.to_f32_vec()
-}
 
-/// ReLU through the host until Ojas `relu_forward` lands (ojas-78, lane B);
-/// then this becomes `be.relu_forward(x)`.
-fn relu<B: Backend + ?Sized>(be: &B, x: &Tensor) -> Result<Tensor, OjasError> {
-    let mut v = host_of(x, be)?;
-    host::relu_in_place(&mut v);
-    up(be, &v, x.shape())
-}
 
-struct Lin {
-    w: Tensor,
-    b: Tensor,
-    /// Host copies for the per-query paths.
-    hw: Vec<f32>,
-    hb: Vec<f32>,
-    out: usize,
-}
 
-impl Lin {
-    fn load<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str, out: usize, inp: usize) -> Result<Self, ModelError> {
-        let w = get(g, &format!("{p}.weight"), &[out, inp])?;
-        let b = get(g, &format!("{p}.bias"), &[out])?;
-        Self::from_parts(be, &w.data, &b.data, out, inp)
-    }
 
-    fn from_parts<B: Backend + ?Sized>(be: &B, w: &[f32], b: &[f32], out: usize, inp: usize) -> Result<Self, ModelError> {
-        Ok(Self { w: up(be, w, &[out, inp])?, b: up(be, b, &[out])?, hw: w.to_vec(), hb: b.to_vec(), out })
-    }
 
-    fn fwd<B: Backend + ?Sized>(&self, be: &B, x: &Tensor) -> Result<Tensor, OjasError> {
-        be.linear_bias_forward(x, &self.w, &self.b)
-    }
 
-    fn host(&self, x: &[f32], n: usize) -> Vec<f32> {
-        host::linear(x, n, &self.hw, &self.hb, self.out)
-    }
-}
 
-struct Norm {
-    w: Tensor,
-    b: Tensor,
-    hw: Vec<f32>,
-    hb: Vec<f32>,
-}
 
-impl Norm {
-    fn load<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str) -> Result<Self, ModelError> {
-        let w = get(g, &format!("{p}.weight"), &[D])?;
-        let b = get(g, &format!("{p}.bias"), &[D])?;
-        Ok(Self { w: up(be, &w.data, &[D])?, b: up(be, &b.data, &[D])?, hw: w.data.clone(), hb: b.data.clone() })
-    }
 
-    fn fwd<B: Backend + ?Sized>(&self, be: &B, x: &Tensor) -> Result<Tensor, OjasError> {
-        be.layer_norm_forward(x, &self.w, &self.b, LN_EPS)
-    }
-
-    fn host(&self, x: &[f32]) -> Vec<f32> {
-        host::layer_norm(x, D, &self.hw, &self.hb, LN_EPS)
-    }
-}
-
-/// `nn.MultiheadAttention` / sam3 `MultiheadAttention` with packed `in_proj`.
-struct Mha {
-    q: Lin,
-    k: Lin,
-    v: Lin,
-    out: Lin,
-}
-
-impl Mha {
-    fn load<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str) -> Result<Self, ModelError> {
-        let w = get(g, &format!("{p}.in_proj_weight"), &[3 * D, D])?;
-        let b = get(g, &format!("{p}.in_proj_bias"), &[3 * D])?;
-        let part = |i: usize| Lin::from_parts(be, &w.data[i * D * D..(i + 1) * D * D], &b.data[i * D..(i + 1) * D], D, D);
-        Ok(Self { q: part(0)?, k: part(1)?, v: part(2)?, out: Lin::load(be, g, &format!("{p}.out_proj"), D, D)? })
-    }
-
-    /// `query` `[1, Tq, D]`, `key`/`value` `[1, Tk, D]`, optional additive
-    /// `bias` `[1, HEADS, Tq, Tk]`.
-    fn fwd<B: Backend + ?Sized>(&self, be: &B, query: &Tensor, key: &Tensor, value: &Tensor, bias: Option<&Tensor>) -> Result<Tensor, OjasError> {
-        let heads = |l: &Lin, x: &Tensor| -> Result<Tensor, OjasError> {
-            let t = x.shape()[1];
-            be.permute(&l.fwd(be, x)?.reshape(&[1, t, HEADS, D / HEADS])?, &[0, 2, 1, 3])
-        };
-        let (q, k, v) = (heads(&self.q, query)?, heads(&self.k, key)?, heads(&self.v, value)?);
-        let opts = AttentionOpts { bias, ..AttentionOpts::default() };
-        let a = be.attention_forward(&q, &k, &v, opts)?;
-        let tq = query.shape()[1];
-        self.out.fwd(be, &be.permute(&a, &[0, 2, 1, 3])?.reshape(&[1, tq, D])?)
-    }
-}
-
-/// `MLP` from `model_misc.py`: ReLU between layers, optional residual and out norm.
-struct Mlp {
-    layers: Vec<Lin>,
-    residual: bool,
-    out_norm: Option<Norm>,
-}
-
-impl Mlp {
-    fn load<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str, dims: &[usize], residual: bool, out_norm: bool) -> Result<Self, ModelError> {
-        let layers = dims
-            .windows(2)
-            .enumerate()
-            .map(|(i, io)| Lin::load(be, g, &format!("{p}.layers.{i}"), io[1], io[0]))
-            .collect::<Result<_, _>>()?;
-        let out_norm = if out_norm { Some(Norm::load(be, g, &format!("{p}.out_norm"))?) } else { None };
-        Ok(Self { layers, residual, out_norm })
-    }
-
-    fn fwd<B: Backend + ?Sized>(&self, be: &B, x: &Tensor) -> Result<Tensor, OjasError> {
-        let mut y = x.clone();
-        for (i, l) in self.layers.iter().enumerate() {
-            y = l.fwd(be, &y)?;
-            if i + 1 < self.layers.len() {
-                y = relu(be, &y)?;
-            }
-        }
-        if self.residual {
-            y = be.residual_add_forward(&y, x)?;
-        }
-        match &self.out_norm {
-            Some(n) => n.fwd(be, &y),
-            None => Ok(y),
-        }
-    }
-
-    fn host(&self, x: &[f32], n: usize) -> Vec<f32> {
-        let mut y = x.to_vec();
-        for (i, l) in self.layers.iter().enumerate() {
-            y = l.host(&y, n);
-            if i + 1 < self.layers.len() {
-                host::relu_in_place(&mut y);
-            }
-        }
-        if self.residual {
-            y.iter_mut().zip(x).for_each(|(a, b)| *a += b);
-        }
-        match &self.out_norm {
-            Some(nm) => nm.host(&y),
-            None => y,
-        }
-    }
-}
 
 /// Pre-norm `TransformerEncoderLayer` (encoder.py): self-attention, cross-attention, ReLU FFN.
 struct EncLayer {
@@ -272,24 +125,7 @@ impl DecLayer {
     }
 }
 
-struct Conv {
-    w: Tensor,
-    b: Tensor,
-}
 
-impl Conv {
-    fn load<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str, shape: [usize; 4]) -> Result<Self, ModelError> {
-        let w = get(g, &format!("{p}.weight"), &shape)?;
-        let b = get(g, &format!("{p}.bias"), &[shape[0]])?;
-        Ok(Self { w: up(be, &w.data, &shape)?, b: up(be, &b.data, &[shape[0]])? })
-    }
-
-    fn fwd<B: Backend + ?Sized>(&self, be: &B, x: &Tensor, padding: usize) -> Result<Tensor, OjasError> {
-        let mut p = Conv2dParams::new();
-        p.padding = [padding, padding];
-        be.conv2d_forward(x, &self.w, Some(&self.b), p)
-    }
-}
 
 /// Per-stage values kept for parity tests.
 #[derive(Default)]

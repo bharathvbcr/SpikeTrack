@@ -135,6 +135,54 @@ pub fn resize_bilinear_pil(src: &Rgb8, out_w: usize, out_h: usize) -> Rgb8 {
     Rgb8::new(w, out_h, out)
 }
 
+/// Per output index: first source index and normalized f64 weights (torch's
+/// `_compute_indices_min_size_weights_aa` for bilinear: Pillow's triangle filter).
+fn aa_weights(in_size: usize, out_size: usize) -> Vec<(usize, Vec<f64>)> {
+    let scale = in_size as f64 / out_size as f64;
+    let support = if scale >= 1.0 { scale } else { 1.0 };
+    let inv = if scale >= 1.0 { 1.0 / scale } else { 1.0 };
+    (0..out_size)
+        .map(|i| {
+            let center = scale * (i as f64 + 0.5);
+            let xmin = ((center - support + 0.5) as i64).max(0) as usize;
+            let xmax = ((center + support + 0.5) as i64).min(in_size as i64) as usize;
+            let mut w: Vec<f64> = (xmin..xmax).map(|j| bilinear((j as f64 - center + 0.5) * inv)).collect();
+            let total: f64 = w.iter().sum();
+            if total != 0.0 {
+                w.iter_mut().for_each(|v| *v /= total);
+            }
+            (xmin, w)
+        })
+        .collect()
+}
+
+/// `F.interpolate(x, size, mode="bilinear", align_corners=False, antialias=True)`
+/// for `planes` channel planes of `h x w` f32 (row-major, plane after plane).
+/// Width first, then height, accumulating in f64 and rounding to f32 once per pass.
+pub fn resize_bilinear_aa_f32(src: &[f32], planes: usize, h: usize, w: usize, oh: usize, ow: usize) -> Vec<f32> {
+    assert_eq!(src.len(), planes * h * w, "source is not {planes} x {h} x {w}");
+    let wx = aa_weights(w, ow);
+    let wy = aa_weights(h, oh);
+    let mut out = vec![0f32; planes * oh * ow];
+    let mut tmp = vec![0f32; h * ow];
+    for p in 0..planes {
+        let s = &src[p * h * w..(p + 1) * h * w];
+        for y in 0..h {
+            for (x, (x0, ws)) in wx.iter().enumerate() {
+                let row = &s[y * w + x0..y * w + x0 + ws.len()];
+                tmp[y * ow + x] = row.iter().zip(ws).map(|(&v, &k)| f64::from(v) * k).sum::<f64>() as f32;
+            }
+        }
+        let o = &mut out[p * oh * ow..(p + 1) * oh * ow];
+        for (y, (y0, ws)) in wy.iter().enumerate() {
+            for x in 0..ow {
+                o[y * ow + x] = ws.iter().enumerate().map(|(k, &kw)| f64::from(tmp[(y0 + k) * ow + x]) * kw).sum::<f64>() as f32;
+            }
+        }
+    }
+    out
+}
+
 /// SAM 3's model input from 8-bit RGB: resize to `size x size`, scale to
 /// [0, 1], normalize with mean 0.5 and std 0.5: NCHW `[1, 3, size, size]`.
 pub fn sam_input(src: &Rgb8, size: usize) -> Vec<f32> {
