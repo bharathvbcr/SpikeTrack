@@ -68,6 +68,9 @@ Port the shared vision encoder (detector and tracker share it [V]).
 
 See HANDOFF.md for rules, schedule and dependencies.
 
+### D1 result (2026-10-26)
+- CPU gate passed: st-model on ojas d2922fb CpuBackend, cosine >= 0.9999999 at all 95 stages on 5 images (bench/results/parity-backbone/cpu-f32.md, commit 3debd07). The brief stays open: Metal (conv2d/convT/rope Metal paths due D2 from ojas-78), bf16 and latency are not done.
+
 ## Acceptance criteria
 - [ ] Backbone output cosine > 0.999 vs fixture on all 5 images, f32 [V]
 - [ ] Per-stage error table (embed, each block group, neck) committed under bench/results/parity-backbone/
