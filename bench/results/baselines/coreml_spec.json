@@ -1,0 +1,176 @@
+{
+ "backbone": {
+  "inputs": {
+   "image": {
+    "shape": [
+     1,
+     3,
+     1008,
+     1008
+    ],
+    "dtype": "FLOAT32"
+   }
+  },
+  "outputs": {
+   "vis72": {
+    "shape": [
+     5184,
+     1,
+     256
+    ],
+    "dtype": "FLOAT16"
+   },
+   "hires0": {
+    "shape": [
+     1,
+     32,
+     288,
+     288
+    ],
+    "dtype": "FLOAT16"
+   },
+   "hires1": {
+    "shape": [
+     1,
+     64,
+     144,
+     144
+    ],
+    "dtype": "FLOAT16"
+   }
+  },
+  "states": {}
+ },
+ "tracker": {
+  "inputs": {
+   "vis72": {
+    "shape": [
+     5184,
+     1,
+     256
+    ],
+    "dtype": "FLOAT32"
+   },
+   "hires0": {
+    "shape": [
+     1,
+     32,
+     288,
+     288
+    ],
+    "dtype": "FLOAT32"
+   },
+   "hires1": {
+    "shape": [
+     1,
+     64,
+     144,
+     144
+    ],
+    "dtype": "FLOAT32"
+   },
+   "cond_mem": {
+    "shape": [
+     1,
+     256,
+     72,
+     72
+    ],
+    "dtype": "FLOAT32"
+   },
+   "cond_img": {
+    "shape": [
+     5184,
+     1,
+     256
+    ],
+    "dtype": "FLOAT32"
+   },
+   "cond_ptr": {
+    "shape": [
+     1,
+     16,
+     256
+    ],
+    "dtype": "FLOAT32"
+   },
+   "frame_pos": {
+    "shape": [
+     1
+    ],
+    "dtype": "FLOAT32"
+   }
+  },
+  "outputs": {
+   "unsqueeze_15": {
+    "shape": [
+     16,
+     1,
+     288,
+     288
+    ],
+    "dtype": "FLOAT16"
+   },
+   "unsqueeze_16": {
+    "shape": [
+     16,
+     1,
+     1008,
+     1008
+    ],
+    "dtype": "FLOAT16"
+   },
+   "view_173": {
+    "shape": [
+     16,
+     1
+    ],
+    "dtype": "FLOAT16"
+   },
+   "view_171": {
+    "shape": [
+     16,
+     3
+    ],
+    "dtype": "FLOAT16"
+   }
+  },
+  "states": {
+   "mem_bank": {
+    "shape": [
+     6,
+     1,
+     256,
+     72,
+     72
+    ]
+   },
+   "img_bank": {
+    "shape": [
+     6,
+     5184,
+     1,
+     256
+    ]
+   },
+   "ptr_bank": {
+    "shape": [
+     15,
+     1,
+     16,
+     256
+    ]
+   },
+   "mem_valid": {
+    "shape": [
+     6
+    ]
+   },
+   "ptr_valid": {
+    "shape": [
+     15
+    ]
+   }
+  }
+ }
+}

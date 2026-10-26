@@ -13,7 +13,9 @@ import torch.nn.functional as F
 from safetensors import safe_open
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-CKPT = pathlib.Path("~/Code/research/models/sam3.1/sam3.1_multiplex.pt").expanduser()
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+import sam3_ref  # noqa: E402
+
 P = "detector.backbone.vision_backbone."
 
 
@@ -44,7 +46,7 @@ def report(name, got, want):
 
 
 def main():
-    ck = torch.load(CKPT, map_location="cpu", weights_only=True, mmap=True)
+    ck = sam3_ref.load_state_dict()
     f = safe_open(str(REPO / "fixtures/backbone/visem_22_f0.safetensors"), "pt")
     g = f.get_tensor
     ok = True

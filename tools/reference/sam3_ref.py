@@ -15,7 +15,24 @@ import cpu_shims
 
 cpu_shims.install()
 
-CKPT = os.path.expanduser("~/Code/research/models/sam3.1/sam3.1_multiplex.pt")
+CKPT = os.path.expanduser("~/Code/research/models/sam3.1/sam3.1_multiplex.safetensors")
+
+
+def load_state_dict(path=CKPT):
+    """The converted checkpoint (convert_checkpoint.py) as upstream's state dict:
+    the complex64 RoPE tables listed in the metadata are restored from their
+    f32 (re, im) pairs, so upstream loads it exactly as it loads the .pt."""
+    import json
+
+    from safetensors import safe_open
+
+    sd = {}
+    with safe_open(path, "pt") as f:
+        complex_keys = set(json.loads(f.metadata()["complex64_as_f32_pairs"]))
+        for k in f.keys():
+            t = f.get_tensor(k)
+            sd[k] = torch.view_as_complex(t.contiguous()) if k in complex_keys else t
+    return sd
 
 
 def use_fp32_mlp():
@@ -123,10 +140,7 @@ def build_reference(checkpoint_path=CKPT, multiplex_count=16, max_num_objects=16
         image_std=(0.5, 0.5, 0.5),
         compile_model=False,
     )
-    ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True, mmap=True)
-    if "model" in ckpt and isinstance(ckpt["model"], dict):
-        ckpt = ckpt["model"]
-    missing, unexpected = demo_model.load_state_dict(ckpt, strict=False)
+    missing, unexpected = demo_model.load_state_dict(load_state_dict(checkpoint_path), strict=False)
     demo_model.eval()
     return demo_model, list(missing), list(unexpected)
 

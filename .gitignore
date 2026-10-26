@@ -6,3 +6,4 @@ target/
 tools/reference/.venv/
 __pycache__/
 bench/results/**/*.npy
+tools/baselines/.venv/
