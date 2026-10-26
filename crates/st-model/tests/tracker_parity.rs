@@ -54,7 +54,7 @@ fn multiplex_mask_decoder_matches_upstream() {
     let mut worst = f64::INFINITY;
     println!("| frame | output | cosine | max abs | max abs / max ref |\n|---|---|---|---|---|");
     for f in 1..8 {
-        let p = format!("f{f}.mask_decoder.call0");
+        let p = format!("f{f}.mask_decoder.call{}", f - 1);
         let extra = h(&format!("{p}.kw.extra_per_object_embeddings"));
         assert_eq!(extra.len(), MUX * D);
         let out = dec

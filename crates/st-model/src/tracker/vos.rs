@@ -46,6 +46,10 @@ pub struct FrameOut {
     /// `[N, H, W]` at the video's resolution, after the non-overlap constraint.
     pub video_res: Vec<f32>,
     pub object_scores: Vec<f32>,
+    /// What the frame stored for later frames: memory features `[256, 72, 72]`
+    /// (bf16-rounded) and muxed object pointers `[16, 256]`.
+    pub maskmem: Vec<f32>,
+    pub obj_ptr: Vec<f32>,
 }
 
 pub struct Vos<'b, B: Backend + ?Sized> {
@@ -262,11 +266,11 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         let video_logits: Vec<f32> = masks0.iter().map(|&v| if v > 0.5 { -NO_OBJ_SCORE } else { NO_OBJ_SCORE }).collect();
         let low = st_video::resize_bilinear_aa_f32(&video_logits, n, h, w, LOW, LOW);
         let maskmem = self.encode_memory(&prop[2], &low, &scores, n, &(0..n).collect::<Vec<_>>(), true, slot_valid)?;
-        mem.push(Some(FrameMem { maskmem, image: prop_tokens.to_vec(), image_pos: pos_tokens.to_vec(), obj_ptr: ptrs }));
+        mem.push(Some(FrameMem { maskmem: maskmem.clone(), image: prop_tokens.to_vec(), image_pos: pos_tokens.to_vec(), obj_ptr: ptrs.clone() }));
         // Output: bilinear to the video's size (an upscale; upstream does not antialias it).
         let mut video_res = host_of(&be.interpolate_bilinear_forward(&up(be, &low, &[n, 1, LOW, LOW])?, [h, w], false)?, be)?;
         non_overlap(&mut video_res, n, h * w);
-        Ok(FrameOut { frame: 0, low_res: low, video_res, object_scores: scores })
+        Ok(FrameOut { frame: 0, low_res: low, video_res, object_scores: scores, maskmem, obj_ptr: ptrs })
     }
 
     /// `_encode_new_memory` + bf16 storage for `n` objects' low-res logits.
@@ -407,10 +411,9 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
             ptrs[o * D..(o + 1) * D].copy_from_slice(&ptr);
         }
         let maskmem = self.encode_memory(prop72, &low, &scores, n, &[], false, slot_valid)?;
-        mem.push(Some(FrameMem { maskmem, image: prop_tokens.to_vec(), image_pos: pos_tokens.to_vec(), obj_ptr: ptrs }));
+        mem.push(Some(FrameMem { maskmem: maskmem.clone(), image: prop_tokens.to_vec(), image_pos: pos_tokens.to_vec(), obj_ptr: ptrs.clone() }));
         let mut video_res = host_of(&be.interpolate_bilinear_forward(&up(be, &low, &[n, 1, LOW, LOW])?, [h, w], false)?, be)?;
         non_overlap(&mut video_res, n, h * w);
-        Ok(FrameOut { frame: fi, low_res: low, video_res, object_scores: scores })
+        Ok(FrameOut { frame: fi, low_res: low, video_res, object_scores: scores, maskmem, obj_ptr: ptrs })
     }
-
 }

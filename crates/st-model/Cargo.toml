@@ -11,6 +11,8 @@ description = "SAM 3.1 image model on the Ojas Backend: PE ViT trunk and tri-nec
 ojas-core.workspace = true
 ojas-io.workspace = true
 st-weights.workspace = true
+st-video.workspace = true
 
 [dev-dependencies]
 ojas-cpu.workspace = true
+st-eval.workspace = true
