@@ -61,23 +61,27 @@ fn fixture(st: &SafeTensors<'_>, name: &str) -> (Vec<usize>, Vec<f32>) {
 #[test]
 #[ignore = "needs the gated checkpoint and fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_FIXTURES"]
 fn backbone_matches_pytorch_fp32_on_five_images() {
+    let be = CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu backend");
+    run_parity(&be, "cpu");
+}
+
+/// The gate on any backend: same fixtures, same stages, same threshold.
+fn run_parity<B: Backend>(be: &B, label: &str) {
     let weights = env_path("SPIKETRACK_WEIGHTS");
     let fixtures = env_path("SPIKETRACK_FIXTURES");
     let t0 = Instant::now();
     let ck = Checkpoint::open(&weights).expect("open checkpoint");
     let vision = VisionBackbone::load(&ck).expect("vision weights");
-    let budget = Budget::new(24 << 30);
-    let be = CpuBackend::new(budget);
-    let model = Backbone::new(&be, &vision).expect("upload backbone");
+    let model = Backbone::new(be, &vision).expect("upload backbone");
     drop(vision);
-    println!("weights loaded and uploaded in {:.1} s", t0.elapsed().as_secs_f64());
+    println!("[{label}] weights loaded and uploaded in {:.1} s", t0.elapsed().as_secs_f64());
 
     let mut rows = Vec::new();
     let mut worst = f64::INFINITY;
     for (i, name) in IMAGES.iter().enumerate() {
         let st = SafeTensors::open(&Path::new(&fixtures).join(format!("{name}.safetensors"))).expect("fixture file");
         let (shape, img) = fixture(&st, "input.image");
-        let image = Tensor::from_f32(&img, &shape, be.budget()).expect("image");
+        let image = be.upload(&Tensor::from_f32(&img, &shape, be.budget()).expect("image")).expect("upload image");
         let keep: Vec<usize> = if i == 0 { (0..32).collect() } else { vec![7, 15, 23, 31] };
         let mut taps = Taps::default();
         let t = Instant::now();
@@ -111,12 +115,12 @@ fn backbone_matches_pytorch_fp32_on_five_images() {
                 check(format!("{tag}[{lvl}]"), t, &format!("neck.{tag}.{lvl}.out"));
             }
         }
-        println!("{name}: trunk + 3 necks {secs:.1} s on CPU");
+        println!("[{label}] {name}: trunk + 3 necks {secs:.1} s (one run, not a benchmark)");
     }
     println!("\n| image | stage | cosine | max abs | max abs / max ref | gate |\n|---|---|---|---|---|---|");
     for r in &rows {
         println!("{r}");
     }
-    println!("\nworst cosine {worst:.7} over {} stages (gate > {COS_GATE})", rows.len());
+    println!("\n[{label}] worst cosine {worst:.7} over {} stages (gate > {COS_GATE})", rows.len());
     assert!(worst > COS_GATE, "worst cosine {worst} <= {COS_GATE}");
 }

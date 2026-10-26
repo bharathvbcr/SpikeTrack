@@ -80,8 +80,10 @@ def instrument(det, rec):
 
 def run(proc, det, img, prompt, detail):
     seen = {}
-    pre = det.backbone.vision_backbone.register_forward_pre_hook(
-        lambda _m, args: seen.__setitem__("image", f32(args[0]))
+    # SAM3VLBackboneTri calls the neck's .forward() directly (no hooks), and the
+    # neck calls self.trunk(...) normally: hook the trunk's input.
+    pre = det.backbone.vision_backbone.trunk.register_forward_pre_hook(
+        lambda _m, args: seen.__setitem__("image", f32(getattr(args[0], "tensors", args[0])))
     )
     state = proc.set_image(img)
     pre.remove()

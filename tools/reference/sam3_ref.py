@@ -56,6 +56,7 @@ def use_fp32_mlp():
 
 
 def build_reference(checkpoint_path=CKPT, multiplex_count=16, max_num_objects=16):
+    use_fp32_mlp()  # the fp32 reference policy (see use_fp32_mlp); idempotent
     import pkg_resources  # noqa: F401  (sam3 resolves its BPE path through it)
     from sam3 import model_builder as mb
     from sam3.model.sam3_multiplex_base import Sam3MultiplexPredictorWrapper
@@ -143,6 +144,38 @@ def build_reference(checkpoint_path=CKPT, multiplex_count=16, max_num_objects=16
     missing, unexpected = demo_model.load_state_dict(load_state_dict(checkpoint_path), strict=False)
     demo_model.eval()
     return demo_model, list(missing), list(unexpected)
+
+
+def build_tracker_vos(checkpoint_path=CKPT, multiplex_count=16):
+    """The multiplex video tracker with its own copy of the vision backbone, for
+    semi-supervised VOS (masks on frame 0, then propagation): upstream's
+    `build_sam3_multiplex_video_model` (FA3 off, complex RoPE, CPU). Checkpoint
+    keys map as `tracker.model.*` -> `*` and `detector.backbone.vision_backbone.*`
+    -> `backbone.vision_backbone.*` (the tracker shares the detector's trunk and
+    tri-neck)."""
+    use_fp32_mlp()
+    from sam3 import model_builder as mb
+
+    model = mb.build_sam3_multiplex_video_model(
+        checkpoint_path=None,
+        load_from_HF=False,
+        multiplex_count=multiplex_count,
+        use_fa3=False,
+        use_rope_real=False,
+        compile=False,
+        strict_state_dict_loading=False,
+        device="cpu",
+    )
+    sd = load_state_dict(checkpoint_path)
+    remapped = {}
+    for k, v in sd.items():
+        if k.startswith("tracker.model."):
+            remapped[k[len("tracker.model."):]] = v
+        elif k.startswith("detector.backbone.vision_backbone."):
+            remapped["backbone.vision_backbone." + k[len("detector.backbone.vision_backbone."):]] = v
+    missing, unexpected = model.load_state_dict(remapped, strict=False)
+    model.eval()
+    return model, list(missing), list(unexpected)
 
 
 def load_image(path, size=1008):

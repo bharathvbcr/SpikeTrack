@@ -1,0 +1,4 @@
+# DAVIS 2017 val clips for the J&F gate (gp-tracker-multiplex): <= 16 objects, short enough for CPU fixtures.
+judo
+shooting
+gold-fish

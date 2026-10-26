@@ -1,26 +1,26 @@
-From 6a2df99535cc1a2eee62667ceeeb162f8e520cc4 Mon Sep 17 00:00:00 2001
+From 7af056ff41759ce40fd53c381211d5f0d7e42bde Mon Sep 17 00:00:00 2001
 From: BHARATH CHANDRA VADDARAM <bharath.vbcr@gmail.com>
-Date: Mon, 26 Oct 2026 13:42:56 -0500
+Date: Mon, 26 Oct 2026 17:11:51 -0500
 Subject: [PATCH] SpikeTrack: route hardcoded CUDA placements through
  SAM3_DEVICE
 
 ---
  sam3/_device.py                             |  9 +++++++
  sam3/model/decoder.py                       |  5 ++--
- sam3/model/io_utils.py                      | 27 +++++++++++----------
+ sam3/model/io_utils.py                      | 29 +++++++++++----------
  sam3/model/position_encoding.py             |  3 ++-
  sam3/model/sam3_image_processor.py          |  3 ++-
  sam3/model/sam3_multiplex_tracking.py       |  3 ++-
- sam3/model/sam3_tracker_base.py             |  3 ++-
- sam3/model/sam3_tracking_predictor.py       |  5 ++--
+ sam3/model/sam3_tracker_base.py             |  5 ++--
+ sam3/model/sam3_tracking_predictor.py       |  7 ++---
  sam3/model/sam3_video_predictor.py          |  5 ++--
- sam3/model/utils/sam2_utils.py              |  7 +++---
- sam3/model/video_tracking_multiplex.py      |  5 ++--
- sam3/model/video_tracking_multiplex_demo.py | 11 +++++----
- sam3/model/vl_combiner.py                   |  7 +++---
+ sam3/model/utils/sam2_utils.py              |  7 ++---
+ sam3/model/video_tracking_multiplex.py      |  9 ++++---
+ sam3/model/video_tracking_multiplex_demo.py | 15 ++++++-----
+ sam3/model/vl_combiner.py                   |  7 ++---
  sam3/model_builder.py                       |  5 ++--
  sam3/sam/transformer.py                     |  3 ++-
- 15 files changed, 62 insertions(+), 39 deletions(-)
+ 15 files changed, 69 insertions(+), 46 deletions(-)
  create mode 100644 sam3/_device.py
 
 diff --git a/sam3/_device.py b/sam3/_device.py
@@ -69,7 +69,7 @@ index dfd1cae..a984fb1 100644
              end_x=feat_sizes[0], end_y=feat_sizes[1], device=device
          )
 diff --git a/sam3/model/io_utils.py b/sam3/model/io_utils.py
-index 4e76f04..830f31f 100644
+index 4e76f04..a84b0ac 100644
 --- a/sam3/model/io_utils.py
 +++ b/sam3/model/io_utils.py
 @@ -2,6 +2,7 @@
@@ -150,7 +150,13 @@ index 4e76f04..830f31f 100644
          self.images[index] = img
          return img
  
-@@ -580,7 +581,7 @@ class AsyncVideoFileLoaderWithTorchCodec:
+@@ -575,12 +576,12 @@ class AsyncVideoFileLoaderWithTorchCodec:
+         gpu_id = (
+             gpu_device.index
+             if gpu_device is not None and gpu_device.index is not None
+-            else torch.cuda.current_device()
++            else (torch.cuda.current_device() if torch.cuda.is_available() else None)
+         )
          if offload_video_to_cpu:
              out_device = torch.device("cpu")
          else:
@@ -220,7 +226,7 @@ index 1b6ce7d..b8126d3 100644
          inference_state["orig_width"] = orig_width
          inference_state["constants"] = {}
 diff --git a/sam3/model/sam3_tracker_base.py b/sam3/model/sam3_tracker_base.py
-index c7f40b7..5324d58 100644
+index c7f40b7..a9a1e81 100644
 --- a/sam3/model/sam3_tracker_base.py
 +++ b/sam3/model/sam3_tracker_base.py
 @@ -2,6 +2,7 @@
@@ -231,7 +237,15 @@ index c7f40b7..5324d58 100644
  import logging
  
  import torch
-@@ -660,7 +661,7 @@ class Sam3TrackerBase(torch.nn.Module):
+@@ -653,14 +654,14 @@ class Sam3TrackerBase(torch.nn.Module):
+                     continue  # skip padding frames
+                 # "maskmem_features" might have been offloaded to CPU in demo use cases,
+                 # so we load it back to GPU (it's a no-op if it's already on GPU).
+-                feats = prev["maskmem_features"].cuda(non_blocking=True)
++                feats = prev["maskmem_features"].to(_sam3_device(), non_blocking=True)
+                 seq_len = feats.shape[-2] * feats.shape[-1]
+                 to_cat_prompt.append(feats.flatten(2).permute(2, 0, 1))
+                 to_cat_prompt_mask.append(
                      torch.zeros(B, seq_len, device=device, dtype=bool)
                  )
                  # Spatial positional encoding (it might have been offloaded to CPU in eval)
@@ -241,7 +255,7 @@ index c7f40b7..5324d58 100644
  
                  if (
 diff --git a/sam3/model/sam3_tracking_predictor.py b/sam3/model/sam3_tracking_predictor.py
-index 43b068b..6f315ed 100644
+index 43b068b..938d12b 100644
 --- a/sam3/model/sam3_tracking_predictor.py
 +++ b/sam3/model/sam3_tracking_predictor.py
 @@ -2,6 +2,7 @@
@@ -261,6 +275,15 @@ index 43b068b..6f315ed 100644
  
          if video_path is not None:
              images, video_height, video_width = load_video_frames(
+@@ -301,7 +302,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
+                     prev_out = obj_output_dict["non_cond_frame_outputs"].get(frame_idx)
+ 
+             if prev_out is not None and prev_out["pred_masks"] is not None:
+-                prev_sam_mask_logits = prev_out["pred_masks"].cuda(non_blocking=True)
++                prev_sam_mask_logits = prev_out["pred_masks"].to(_sam3_device(), non_blocking=True)
+                 # Clamp the scale of prev_sam_mask_logits to avoid rare numerical issues.
+                 prev_sam_mask_logits = torch.clamp(prev_sam_mask_logits, -32.0, 32.0)
+         current_out, _ = self._run_single_frame_inference(
 @@ -1022,7 +1023,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
                  )
              else:
@@ -340,7 +363,7 @@ index e824fe1..a0bc015 100644
      """Load the video frames from a video file."""
      import decord
 diff --git a/sam3/model/video_tracking_multiplex.py b/sam3/model/video_tracking_multiplex.py
-index 869ed22..2bd1012 100644
+index 869ed22..99a2798 100644
 --- a/sam3/model/video_tracking_multiplex.py
 +++ b/sam3/model/video_tracking_multiplex.py
 @@ -1,3 +1,4 @@
@@ -348,6 +371,24 @@ index 869ed22..2bd1012 100644
  from collections import defaultdict
  
  """
+@@ -1420,7 +1421,7 @@ class VideoTrackingMultiplex(nn.Module):
+                     continue
+                 # "maskmem_features" might have been offloaded to CPU in demo use cases,
+                 # so we load it back to GPU (it's a no-op if it's already on GPU).
+-                feats = feats.cuda(non_blocking=True)
++                feats = feats.to(_sam3_device(), non_blocking=True)
+                 if feats.dim() == 5:
+                     feats = multiplex_state.demux(feats).contiguous()
+                     prev["maskmem_features"] = (
+@@ -1439,7 +1440,7 @@ class VideoTrackingMultiplex(nn.Module):
+                 maskmem_enc = maskmem_pos_list[-1]
+                 if maskmem_enc is None:
+                     continue
+-                maskmem_enc = maskmem_enc.cuda(non_blocking=True)
++                maskmem_enc = maskmem_enc.to(_sam3_device(), non_blocking=True)
+                 if maskmem_enc.dim() == 5:
+                     maskmem_enc = multiplex_state.demux(maskmem_enc).contiguous()
+                     prev["maskmem_pos_enc"][-1] = (
 @@ -1464,8 +1465,8 @@ class VideoTrackingMultiplex(nn.Module):
  
                  if self.save_image_features:
@@ -360,7 +401,7 @@ index 869ed22..2bd1012 100644
                      to_cat_image_feat.append(image_feat)
                      # pyrefly: ignore [unbound-name]
 diff --git a/sam3/model/video_tracking_multiplex_demo.py b/sam3/model/video_tracking_multiplex_demo.py
-index 8afa7c2..c7bc329 100644
+index 8afa7c2..060232f 100644
 --- a/sam3/model/video_tracking_multiplex_demo.py
 +++ b/sam3/model/video_tracking_multiplex_demo.py
 @@ -1,3 +1,4 @@
@@ -382,6 +423,17 @@ index 8afa7c2..c7bc329 100644
          # inputs on each frame
          inference_state["point_inputs_per_obj"] = {}
          inference_state["mask_inputs_per_obj"] = {}
+@@ -1417,8 +1418,8 @@ class VideoTrackingMultiplexDemo(VideoTrackingDynamicMultiplex):
+                     )
+ 
+                 if prev_out is not None and prev_out["pred_masks"] is not None:
+-                    prev_sam_mask_logits_singleton = prev_out["pred_masks"].cuda(
+-                        non_blocking=True
++                    prev_sam_mask_logits_singleton = prev_out["pred_masks"].to(
++                        _sam3_device(), non_blocking=True
+                     )
+                     prev_sam_mask_logits_singleton = torch.clamp(
+                         prev_sam_mask_logits_singleton, -32.0, 32.0
 @@ -2634,7 +2635,7 @@ class VideoTrackingMultiplexDemo(VideoTrackingDynamicMultiplex):
          )
          if backbone_out is None:

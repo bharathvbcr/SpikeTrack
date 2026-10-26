@@ -21,9 +21,17 @@ helper.write_text(
 
 rules = [
     (re.compile(r"\.cuda\(\)"), ".to(_sam3_device())"),
+    # .cuda(non_blocking=True) and friends (the memory path in video_tracking_multiplex.py).
+    (re.compile(r"\.cuda\(([^)]+)\)"), r".to(_sam3_device(), \1)"),
+    # io_utils' video loader asks for the current CUDA device unconditionally.
+    (
+        re.compile(r"else torch\.cuda\.current_device\(\)$"),
+        "else (torch.cuda.current_device() if torch.cuda.is_available() else None)",
+    ),
     (re.compile(r'torch\.device\("cuda"\)'), "_sam3_device()"),
     (re.compile(r'device="cuda"(?!\s+if)(?=\s*(?:[,)]|$))'), "device=_sam3_device()"),
 ]
+multiline_cuda = re.compile(r"\.cuda\((\s*\n\s*)([^)]+?)(\s*)\)")
 skip = {"_device.py"}
 changed = []
 for path in sorted(root.rglob("*.py")):
@@ -44,8 +52,11 @@ for path in sorted(root.rglob("*.py")):
             new = pat.sub(rep, new)
         n += new != line
         out_lines.append(new)
+    text = "".join(out_lines)
+    # A call split over lines: `.cuda(\n    non_blocking=True\n)`.
+    text, k = multiline_cuda.subn(r".to(\1_sam3_device(), \2\3)", text)
+    n += k
     if n:
-        text = "".join(out_lines)
         # Insert the import after the module docstring / first import block.
         m = re.search(r"^(import |from )", text, re.M)
         assert m, path

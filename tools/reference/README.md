@@ -59,7 +59,9 @@ Run everything with `SAM3_DEVICE=cpu`.
   antialiased bilinear on a tensor, not PIL. The backbone fixtures were made with PIL bilinear. That
   does not affect backbone parity (Rust gets the same input tensor), but the Rust preprocessor must
   match v2.Resize for end-to-end parity [U, not yet compared].
-- The video path loads frames through `io_utils.py`. Check it separately before video fixtures [U].
+- The video path (`io_utils.load_video_frames` -> `_load_img_as_tensor`): `TF.resize` on the PIL image, which is PIL bilinear (identical output, checked on 3 images), then `to_tensor`, **float16 storage**, and mean/std 0.5 applied in float16 [V io_utils.py]. Frames are cast back with `.float()` at use.
+- The two resamplers disagree slightly [V, 2026-10-26: 640x480 VISEM, 854x480 DAVIS and 1800x1200 truck, resized to 1008]. PIL bilinear vs torchvision v2 on a uint8 tensor: max difference 1 grey level, in 0.10-0.41% of pixels. A Rust port of Pillow's fixed-point bilinear matches the video path bit for bit and the image path to within that.
+- The tracker stores memories as **bfloat16** each frame (gaps.jsonl GAP-UPSTREAM-BF16-MEMORY).
 
 ## Architecture, from the checkpoint and upstream code
 

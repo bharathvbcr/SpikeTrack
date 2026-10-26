@@ -47,6 +47,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "st-video"
+version = "0.1.0"
+dependencies = [
+ "ojas-io",
+]
+
+[[package]]
 name = "st-weights"
 version = "0.1.0"
 dependencies = [
