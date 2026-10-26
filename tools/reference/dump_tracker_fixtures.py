@@ -93,6 +93,7 @@ def main():
     with torch.inference_mode():
         state = model.init_state(video_height=H, video_width=W, num_frames=n)
         state["images"] = images[:n]
+        state["cached_features"] = sam3_ref.TrackerFeatureCache(model, images[:n])
         masks0 = torch.from_numpy(np.stack([gt0 == o for o in obj_ids])).float()
         rec["f0.input_masks"] = masks0.contiguous()
         frame_of["f"] = 0
@@ -101,9 +102,10 @@ def main():
         # Hook calls so far (add_new_masks, preflight) belong to frame 0. Each loop
         # step computes frame fi (frame 0, the conditioning frame, computes nothing
         # here) and then yields it, so the next compute is frame fi + 1.
-        for fi, ids, low, video_res in model.propagate_in_video(state, start_frame_idx=0, max_frame_num_to_track=n, reverse=False, tqdm_disable=True):
+        for fi, ids, low, video_res, obj_scores in model.propagate_in_video(state, start_frame_idx=0, max_frame_num_to_track=n, reverse=False, tqdm_disable=True):
             rec[f"f{fi}.out.low_res_masks"] = keep(low)
             rec[f"f{fi}.out.video_res_masks"] = keep(video_res)
+            rec[f"f{fi}.out.object_score_logits"] = keep(obj_scores)
             frame_of["f"] = fi + 1
         for kind in ("cond_frame_outputs", "non_cond_frame_outputs"):
             for fi, out in state["output_dict"][kind].items():

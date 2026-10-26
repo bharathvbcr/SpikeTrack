@@ -178,6 +178,38 @@ def build_tracker_vos(checkpoint_path=CKPT, multiplex_count=16):
     return model, list(missing), list(unexpected)
 
 
+class TrackerFeatureCache(dict):
+    """`inference_state["cached_features"]` for standalone VOS.
+
+    Upstream's demo computes features on a cache miss with
+    `forward_image(need_sam3_out=True, ...)`, whose top-level detector entries
+    then break its own per-output loop (video_tracking_multiplex.py:1095, at
+    f1647e8). The full predictor never takes that path: it hands the tracker
+    features computed by the detector's backbone. This cache does the same
+    through upstream's own `forward_image`, asking only for the interactive and
+    propagation necks the tracker reads."""
+
+    def __init__(self, model, images):
+        super().__init__()
+        self.model, self.images = model, images
+
+    def get(self, frame_idx, default=None):
+        if frame_idx not in self:
+            from sam3.model.data_misc import NestedTensor
+
+            image = self.images[frame_idx].to(torch.device("cpu")).float().unsqueeze(0)
+            out = self.model.forward_image(
+                NestedTensor(tensors=image, mask=None),
+                need_sam3_out=False,
+                need_interactive_out=True,
+                need_propagation_out=True,
+            )
+            # Keep one frame: the tracker asks for each frame once, in order.
+            self.clear()
+            self[frame_idx] = (image, out)
+        return super().get(frame_idx, default)
+
+
 def load_image(path, size=1008):
     """Official preprocessing: RGB, straight resize to 1008x1008, /255, mean/std 0.5.
 

@@ -55,12 +55,13 @@ def main():
         with torch.inference_mode():
             state = model.init_state(video_height=H, video_width=W, num_frames=n)
             state["images"] = images[:n]
+            state["cached_features"] = sam3_ref.TrackerFeatureCache(model, images[:n])
             masks0 = torch.from_numpy(np.stack([gt[0] == o for o in obj_ids])).float()
             model.add_new_masks(state, frame_idx=0, obj_ids=obj_ids, masks=masks0)
             model.propagate_in_video_preflight(state, run_mem_encoder=True)
             preds = {}
             t0 = time.time()
-            for fi, ids, _low, video_res in model.propagate_in_video(state, start_frame_idx=0, max_frame_num_to_track=n, reverse=False, tqdm_disable=True):
+            for fi, ids, _low, video_res, _scores in model.propagate_in_video(state, start_frame_idx=0, max_frame_num_to_track=n, reverse=False, tqdm_disable=True):
                 preds[fi] = {int(o): (video_res[i, 0] > 0).cpu().numpy() for i, o in enumerate(ids)}
                 if fi % 10 == 0:
                     print(f"{clip} frame {fi}/{n} ({time.time() - t0:.0f} s)", flush=True)
