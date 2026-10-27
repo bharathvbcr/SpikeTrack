@@ -28,6 +28,12 @@ on the tracker path today, see [profile-cbd5565](bench/results/profile-cbd5565))
 adaptation result (training), and HOTA on the held-out VISEM videos beyond an 8-frame smoke
 (zero-shot HOTA 0.18, [track/smoke-8f](bench/results/track/smoke-8f)). Open issues are in gaps.jsonl.
 
+VISEM's ground truth is sperm-head boxes, while upstream's track boxes are the extent of the
+whole-sperm mask, tail included, so zero-shot HOTA with upstream's boxes mostly measures that
+mismatch. `track --boxes detector` (opt-in, not upstream) reports each track's assigned detection
+box instead, which is where a detector LoRA shows. Every VISEM number states its box source; see
+[track/box-convention](bench/results/track/box-convention).
+
 ## Layout
 
 | Path | What |
@@ -64,7 +70,8 @@ target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/imag
 
 # The same with a detector LoRA adapter (trained offline by tools/reference/train_lora.py)
 target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/images \
-  --prompt cell --backend metal --max-frames 64 --lora fixtures/lora_runs/visem-lora-r16/adapter.safetensors --out out/track-lora
+  --prompt cell --backend metal --max-frames 64 --lora fixtures/lora_runs/visem-lora-r16/adapter.safetensors \
+  --boxes detector --out out/track-lora
 
 # HOTA against VISEM-Tracking's boxes
 target/release/spiketrack eval-visem --pred out/track --split tools/reference/visem_split.json --set held_out
