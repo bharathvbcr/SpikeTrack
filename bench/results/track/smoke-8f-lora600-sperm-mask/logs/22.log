@@ -1,0 +1,12 @@
+model loaded in 0.7 s on metal; tracking 8 frame(s) of "22"
+frame 0 (1/8): 5.43 s, 12 active track(s), 0 frame(s) released
+frame 1 (2/8): 4.72 s, 12 active track(s), 0 frame(s) released
+frame 2 (3/8): 4.43 s, 13 active track(s), 0 frame(s) released
+frame 3 (4/8): 4.25 s, 13 active track(s), 0 frame(s) released
+frame 4 (5/8): 4.54 s, 13 active track(s), 0 frame(s) released
+frame 5 (6/8): 6.95 s, 13 active track(s), 0 frame(s) released
+frame 6 (7/8): 6.36 s, 13 active track(s), 0 frame(s) released
+frame 7 (8/8): 9.42 s, 13 active track(s), 8 frame(s) released
+8 frame(s) of "22" tracked on metal: 13 track(s) born, 5.76 s/frame (model, mean), 47.2 s total
+  bench/results/track/smoke-8f-lora600-sperm-mask/run/22.json
+  bench/results/track/smoke-8f-lora600-sperm-mask/run/22.run.json

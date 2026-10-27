@@ -1,0 +1,12 @@
+model loaded in 1.1 s on metal; tracking 8 frame(s) of "82"
+frame 0 (1/8): 7.88 s, 16 active track(s), 0 frame(s) released
+frame 1 (2/8): 4.26 s, 16 active track(s), 0 frame(s) released
+frame 2 (3/8): 6.89 s, 16 active track(s), 0 frame(s) released
+frame 3 (4/8): 7.03 s, 16 active track(s), 0 frame(s) released
+frame 4 (5/8): 6.19 s, 16 active track(s), 0 frame(s) released
+frame 5 (6/8): 5.98 s, 16 active track(s), 0 frame(s) released
+frame 6 (7/8): 7.00 s, 16 active track(s), 0 frame(s) released
+frame 7 (8/8): 6.11 s, 16 active track(s), 8 frame(s) released
+8 frame(s) of "82" tracked on metal: 16 track(s) born, 6.42 s/frame (model, mean), 52.6 s total
+  bench/results/track/smoke-8f-lora600-sperm-detector/run/82.json
+  bench/results/track/smoke-8f-lora600-sperm-detector/run/82.run.json

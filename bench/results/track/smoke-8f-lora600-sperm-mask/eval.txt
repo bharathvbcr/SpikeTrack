@@ -1,0 +1,8 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+21           8       153         117        0  0.2634 0.1730 0.4649 0.6487
+22           8       101         102        0  0.3129 0.2717 0.3779 0.6841
+36           8       353          86        0  0.2356 0.1084 0.5539 0.6686
+47           8        64          35        0  0.1332 0.0977 0.1834 0.7390
+82           8       208         128        0  0.4888 0.3340 0.8226 0.7038
+all         40       879         468        0  0.3299 0.1874 0.7442 0.6507
+wrote bench/results/track/smoke-8f-lora600-sperm-mask/eval.json

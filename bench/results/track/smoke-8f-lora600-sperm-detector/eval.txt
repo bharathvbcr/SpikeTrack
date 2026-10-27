@@ -1,0 +1,8 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+21           8       153         117        0  0.5792 0.4328 0.8015 0.7694
+22           8       101         102        0  0.6299 0.5743 0.7187 0.7489
+36           8       353          86        0  0.3089 0.1476 0.7147 0.7133
+47           8        64          35        0  0.5095 0.3805 0.6875 0.7663
+82           8       208         128        0  0.4670 0.2902 0.9216 0.6994
+all         40       879         468        0  0.4694 0.2997 0.8028 0.7305
+wrote bench/results/track/smoke-8f-lora600-sperm-detector/eval.json
