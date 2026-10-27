@@ -16,6 +16,7 @@ mod json;
 mod mask;
 mod overlay;
 mod png;
+mod procinfo;
 mod track_cmd;
 mod weights;
 

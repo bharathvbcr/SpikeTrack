@@ -61,7 +61,7 @@ use std::time::Instant;
 
 use ojas_core::{Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
-use ojas_metal::MetalBackend;
+use ojas_metal::{MetalBackend, WaitCounts};
 use st_model::tracker::session::{Session, SessionConfig, YieldedFrame};
 use st_model::tracker::vos::Vos;
 use st_model::{Backbone, Detector, DetectorWeights, Text, Tokenizer};
@@ -74,12 +74,13 @@ use crate::json;
 use crate::mask::Rle;
 use crate::overlay::{self, Drawn};
 use crate::png;
+use crate::procinfo::phys_footprint_bytes;
 use crate::weights::{self, lora_json};
 
 pub const USAGE: &str = "\
 spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--max-frames N]
                  [--start F] [--overlay K] [--video ID] [--boxes mask|detector] [--weights FILE]
-                 [--lora FILE] [--model-dir DIR] [--threads N]
+                 [--lora FILE] [--model-dir DIR] [--threads N] [--trim-pool-every K]
 
   Tracks every instance of <text> through a video with SAM 3.1's multiplex tracker, forward
   from the first frame processed. <input> is a folder of <video>_frame_<n>.jpg frames
@@ -103,6 +104,12 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
   --lora FILE       fold this detector LoRA adapter (spiketrack-lora-v1) into the weights
   --model-dir DIR   folder with the tokenizer's vocab.json and merges.txt (default: $SPIKETRACK_MODEL_DIR)
   --threads N       CPU worker threads for --backend cpu, 1 to 256 (default 8)
+  --trim-pool-every K  diagnostic, --backend metal only: hand Ojas's cached free buffers back to
+                    the device after every K-th frame (MetalBackend::trim_pool)
+
+  Each frame's progress line ends with this process's physical footprint and, on Metal, the
+  frame's change in Ojas's wait counts (by cause) and dispatches and the device memory Metal
+  reports (allocated after the frame, peak during it): Ojas telemetry, not a stable interface.
 
   Preprocessing: every frame is resized with Pillow-style bilinear and normalised in
   float16, as upstream's video loader stores frames (float16 -> f32 for the model;
@@ -525,6 +532,7 @@ struct Options {
     threads: usize,
     weights: PathBuf,
     model_dir: PathBuf,
+    trim_pool_every: Option<u32>,
 }
 
 struct Timing {
@@ -532,7 +540,98 @@ struct Timing {
     frame_seconds: Vec<f64>,
 }
 
-fn track_on<B: Backend>(be: &B, w: &Sam31Weights, stream: &mut FrameStream, opts: &Options, collector: &mut Collector) -> Result<Timing, CliError> {
+const MIB: f64 = (1u64 << 20) as f64;
+
+/// The process footprint, for every backend's frame line.
+fn footprint_field() -> String {
+    match phys_footprint_bytes() {
+        Some(b) => format!("footprint {:.0} MiB", b as f64 / MIB),
+        None => "footprint unreadable".to_string(),
+    }
+}
+
+/// Per-frame Metal telemetry (Ojas's doc-hidden counters): the change in each wait cause and in
+/// dispatches since the previous call, and Metal's allocated bytes now and their peak since the
+/// previous call (`memory_and_reset_peak`), then `pool` when `trim` says the pool was trimmed.
+struct MetalProbe {
+    waits: WaitCounts,
+    dispatches: u64,
+}
+
+impl MetalProbe {
+    fn new(be: &MetalBackend) -> Result<Self, CliError> {
+        be.memory_and_reset_peak().map_err(CliError::from_err)?;
+        Ok(Self { waits: be.wait_counts(), dispatches: be.dispatches() })
+    }
+
+    fn frame(&mut self, be: &MetalBackend) -> Result<String, CliError> {
+        let (w, d) = (be.wait_counts(), be.dispatches());
+        let p = self.waits;
+        let causes = [
+            ("upload", w.upload - p.upload),
+            ("read", w.read - p.read),
+            ("sync", w.sync - p.sync),
+            ("clip_norm", w.clip_norm - p.clip_norm),
+            ("mem_cap", w.mem_cap - p.mem_cap),
+            ("working_set", w.working_set - p.working_set),
+            ("slab_full", w.slab_full - p.slab_full),
+            ("recycle", w.recycle - p.recycle),
+            ("freed", w.freed - p.freed),
+        ];
+        let nonzero: Vec<String> = causes.iter().filter(|c| c.1 > 0).map(|(k, v)| format!("{k} {v}")).collect();
+        let m = be.memory_and_reset_peak().map_err(CliError::from_err)?;
+        let out = format!(
+            "waits +{} ({}), dispatches +{}, metal allocated {:.0} MiB (frame peak {:.0} MiB)",
+            w.total() - p.total(),
+            if nonzero.is_empty() { "none".to_string() } else { nonzero.join(", ") },
+            d - self.dispatches,
+            m.allocated as f64 / MIB,
+            m.peak_allocated as f64 / MIB
+        );
+        self.waits = w;
+        self.dispatches = d;
+        Ok(out)
+    }
+}
+
+/// What a backend adds to each frame's progress line, and the optional pool trim.
+trait FrameTelemetry<B> {
+    fn after_frame(&mut self, be: &B, index: usize) -> Result<String, CliError>;
+}
+
+/// CPU: the footprint only.
+struct Footprint;
+
+impl<B: Backend> FrameTelemetry<B> for Footprint {
+    fn after_frame(&mut self, _: &B, _: usize) -> Result<String, CliError> {
+        Ok(footprint_field())
+    }
+}
+
+struct MetalTelemetry {
+    probe: MetalProbe,
+    trim_every: Option<u32>,
+}
+
+impl FrameTelemetry<MetalBackend> for MetalTelemetry {
+    fn after_frame(&mut self, be: &MetalBackend, index: usize) -> Result<String, CliError> {
+        let mut line = format!("{}, {}", self.probe.frame(be)?, footprint_field());
+        if self.trim_every.is_some_and(|k| (index + 1) % k as usize == 0) {
+            be.trim_pool().map_err(CliError::from_err)?;
+            line.push_str(&format!(", pool trimmed (metal allocated {:.0} MiB)", be.memory().map_err(CliError::from_err)?.allocated as f64 / MIB));
+        }
+        Ok(line)
+    }
+}
+
+fn track_on<B: Backend>(
+    be: &B,
+    w: &Sam31Weights,
+    stream: &mut FrameStream,
+    opts: &Options,
+    collector: &mut Collector,
+    telemetry: &mut dyn FrameTelemetry<B>,
+) -> Result<Timing, CliError> {
     let t_load = Instant::now();
     let backbone = Backbone::new(be, &w.vision).map_err(CliError::from_err)?;
     let text = Text::new(be, &w.text).map_err(CliError::from_err)?;
@@ -562,7 +661,8 @@ fn track_on<B: Backend>(be: &B, w: &Sam31Weights, stream: &mut FrameStream, opts
         be.sync().map_err(CliError::from_err)?;
         let secs = t0.elapsed().as_secs_f64();
         frame_seconds.push(secs);
-        println!("frame {n} ({}/{}): {secs:.2} s, {} active track(s), {} frame(s) released", index + 1, stream.len, session.book().obj_ids().len(), released.len());
+        let extra = telemetry.after_frame(be, index)?;
+        println!("frame {n} ({}/{}): {secs:.2} s, {} active track(s), {} frame(s) released; {extra}", index + 1, stream.len, session.book().obj_ids().len(), released.len());
         for y in released {
             collector.accept(y)?;
         }
@@ -575,7 +675,7 @@ fn track_on<B: Backend>(be: &B, w: &Sam31Weights, stream: &mut FrameStream, opts
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
-    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "video", "boxes", "weights", "lora", "model-dir", "threads"], 1)?;
+    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "video", "boxes", "weights", "lora", "model-dir", "threads", "trim-pool-every"], 1)?;
     if args.help {
         println!("{USAGE}");
         return Ok(());
@@ -587,6 +687,13 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     }
     let backend = BackendChoice::parse(args.get("backend").unwrap_or("metal"))?;
     let boxes = BoxSource::parse(args.get("boxes").unwrap_or("mask"))?;
+    let trim_pool_every = args.get("trim-pool-every").map(|_| args.parsed("trim-pool-every", 0u32)).transpose()?;
+    if trim_pool_every == Some(0) {
+        return Err(CliError::usage("--trim-pool-every must be at least 1"));
+    }
+    if trim_pool_every.is_some() && backend != BackendChoice::Metal {
+        return Err(CliError::usage("--trim-pool-every is for --backend metal"));
+    }
     let threads: usize = args.parsed("threads", 8)?;
     if !(1..=256).contains(&threads) {
         return Err(CliError::usage(format!("--threads {threads} is outside 1..=256")));
@@ -613,14 +720,18 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     let weights = existing_path(args.get("weights"), "SPIKETRACK_WEIGHTS", "weights", "weights")?;
     let lora = weights::lora_path(args.get("lora"))?;
     let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
-    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir };
+    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir, trim_pool_every };
 
     let (w, applied) = weights::load(&opts.weights, lora.as_deref())?;
     let mut collector = Collector::new(&opts.out, &stream.video, stream.first_n, stream.height, stream.width, opts.overlay_every, opts.boxes)?;
     let t_all = Instant::now();
     let timing = match opts.backend {
-        BackendChoice::Cpu => track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector)?,
-        BackendChoice::Metal => track_on(&MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector)?,
+        BackendChoice::Cpu => track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector, &mut Footprint)?,
+        BackendChoice::Metal => {
+            let be = MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?;
+            let mut telemetry = MetalTelemetry { probe: MetalProbe::new(&be)?, trim_every: opts.trim_pool_every };
+            track_on(&be, &w, &mut stream, &opts, &mut collector, &mut telemetry)?
+        }
     };
     let total_seconds = t_all.elapsed().as_secs_f64();
 
