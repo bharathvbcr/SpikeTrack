@@ -5,7 +5,8 @@
 # the held-out evaluation. Stops at the first failed step. Run it outside the lock:
 #   nohup bash tools/jobs/lora_train_chunked.sh > lora_chunks.log 2>&1 &
 # Env: LORA_STEPS (default 600), CHUNK (default 100), SKIP_VERIFY (non-empty: skip the cache
-# verify, e.g. after it has passed); the rest as in lora_train.sh.
+# verify, e.g. after it has passed), CHUNK_GAP_S (pause between chunks so other sessions get the
+# lock, default 600); the rest as in lora_train.sh.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 steps=${LORA_STEPS:-600}
@@ -23,5 +24,7 @@ while [ "$done_steps" -lt "$steps" ]; do
   tools/locked.sh "lora-train-$i" bash tools/jobs/lora_train.sh ${resume[@]+"${resume[@]}"} --stop-after "$chunk" || { echo "chunk $i failed at or after step $done_steps"; exit 1; }
   done_steps=$((done_steps + chunk))
   i=$((i + 1))
+  # Leave the shared lock to other sessions between chunks.
+  [ "$done_steps" -lt "$steps" ] && sleep "${CHUNK_GAP_S:-600}"
 done
 echo "all $steps steps trained; evaluation ran in the last chunk"
