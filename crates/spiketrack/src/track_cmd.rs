@@ -47,7 +47,7 @@
 //!   "area", "counts"}]}`, each mask a COCO uncompressed RLE (column-major, zeros first) at
 //!   the frame's own resolution.
 //! * `DIR/<video>.run.json`: the run's provenance (input, prompt, backend, window,
-//!   timings, preprocessing note, frame precision).
+//!   timings, preprocessing note, frame precision, the `--lora` adapter or null).
 //! * with `--overlay K`: `DIR/overlay/<video>_frame_<n>.png` for every frame whose number is
 //!   a multiple of K, masks and boxes coloured by track id.
 //!
@@ -66,7 +66,7 @@ use st_model::tracker::session::{Session, SessionConfig, YieldedFrame};
 use st_model::tracker::vos::Vos;
 use st_model::{Backbone, Detector, DetectorWeights, Text, Tokenizer};
 use st_video::{decode_image, resize_bilinear_pil, Rgb8, VideoReader};
-use st_weights::{Checkpoint, Sam31Weights};
+use st_weights::Sam31Weights;
 
 use crate::cli::{existing_path, Args, CliError};
 use crate::image_cmd::BackendChoice;
@@ -74,11 +74,12 @@ use crate::json;
 use crate::mask::Rle;
 use crate::overlay::{self, Drawn};
 use crate::png;
+use crate::weights::{self, lora_json};
 
 pub const USAGE: &str = "\
 spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--max-frames N]
-                 [--start F] [--overlay K] [--video ID] [--weights FILE] [--model-dir DIR]
-                 [--threads N]
+                 [--start F] [--overlay K] [--video ID] [--weights FILE] [--lora FILE]
+                 [--model-dir DIR] [--threads N]
 
   Tracks every instance of <text> through a video with SAM 3.1's multiplex tracker, forward
   from the first frame processed. <input> is a folder of <video>_frame_<n>.jpg frames
@@ -94,6 +95,7 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
   --video ID        the video id used in file names and \"video\" (default: from the frame
                     names, or the mp4's file name without extension)
   --weights FILE    the converted checkpoint (default: $SPIKETRACK_WEIGHTS)
+  --lora FILE       fold this detector LoRA adapter (spiketrack-lora-v1) into the weights
   --model-dir DIR   folder with the tokenizer's vocab.json and merges.txt (default: $SPIKETRACK_MODEL_DIR)
   --threads N       CPU worker threads for --backend cpu, 1 to 256 (default 8)
 
@@ -507,7 +509,7 @@ fn track_on<B: Backend>(be: &B, w: &Sam31Weights, stream: &mut FrameStream, opts
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
-    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "video", "weights", "model-dir", "threads"], 1)?;
+    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "video", "weights", "lora", "model-dir", "threads"], 1)?;
     if args.help {
         println!("{USAGE}");
         return Ok(());
@@ -542,11 +544,11 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     // path or a gap in the frames fails in a second, not after the weights are loaded.
     let mut stream = FrameStream::open(&input, start, max_frames, args.get("video"))?;
     let weights = existing_path(args.get("weights"), "SPIKETRACK_WEIGHTS", "weights", "weights")?;
+    let lora = weights::lora_path(args.get("lora"))?;
     let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
     let opts = Options { prompt, out, overlay_every, backend, threads, weights, model_dir };
 
-    let ck = Checkpoint::open(&opts.weights).map_err(|e| CliError::failed(format!("checkpoint {}: {e}", opts.weights.display())))?;
-    let w = Sam31Weights::load(&ck).map_err(|e| CliError::failed(format!("checkpoint {}: {e}", opts.weights.display())))?;
+    let (w, applied) = weights::load(&opts.weights, lora.as_deref())?;
     let mut collector = Collector::new(&opts.out, &stream.video, stream.first_n, stream.height, stream.width, opts.overlay_every)?;
     let t_all = Instant::now();
     let timing = match opts.backend {
@@ -567,7 +569,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
-        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {}\n}}\n",
+        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"lora\": {}\n}}\n",
         json::string(&stream.video),
         json::string(&input.to_string_lossy()),
         json::string(&opts.prompt),
@@ -582,6 +584,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         json::number(mean, "mean time").map_err(CliError::failed)?,
         json::number(total_seconds, "total time").map_err(CliError::failed)?,
         json::string(if stream.from_video { PREPROCESSING_VIDEO } else { PREPROCESSING_FOLDER }),
+        lora_json(applied.as_ref()),
     );
     let run_path = opts.out.join(format!("{}.run.json", stream.video));
     std::fs::write(&run_path, run_text).map_err(|e| CliError::failed(format!("{}: {e}", run_path.display())))?;
@@ -980,8 +983,7 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let weights = std::env::var("SPIKETRACK_WEIGHTS").expect("set SPIKETRACK_WEIGHTS");
         let model_dir = PathBuf::from(std::env::var("SPIKETRACK_MODEL_DIR").expect("set SPIKETRACK_MODEL_DIR"));
-        let ck = Checkpoint::open(Path::new(&weights)).expect("checkpoint");
-        let w = Sam31Weights::load(&ck).expect("weights");
+        let (w, _) = weights::load(Path::new(&weights), None).expect("weights");
         let fx = ojas_io::SafeTensors::open(&root.join("fixtures/detect_track/22.safetensors")).expect("oracle fixture");
         let (_, oracle) = fx.read_f32_widened("frames").expect("frames");
         let px = 3 * 1008 * 1008;

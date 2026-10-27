@@ -34,6 +34,7 @@
 //! { "image": <path as given>, "width": W, "height": H, "prompt": <text>,
 //!   "threshold": t, "backend": "cpu", "presence_probability": p,
 //!   "preprocessing": <one-line description>,
+//!   "lora": null | {"adapter", "targets", "tensors", "base_sha256"},   // what --lora folded in
 //!   "detections": [            // kept queries, highest score first
 //!     { "query": 0..199,       // index into the detector's 200 queries
 //!       "score": s,            // sigmoid(logit) * sigmoid(presence)
@@ -58,13 +59,14 @@ use ojas_metal::MetalBackend;
 use st_model::detector::{Detector, DetectorTaps, DetectorWeights, D, MASK, QUERIES};
 use st_model::{Backbone, Neck, Taps, Text, Tokenizer};
 use st_video::{decode_image, sam_input, Rgb8};
-use st_weights::{Checkpoint, Sam31Weights};
+use st_weights::Sam31Weights;
 
 use crate::cli::{existing_path, Args, CliError};
 use crate::json;
 use crate::mask::{ResizedMask, Rle};
 use crate::overlay::{self, Drawn};
 use crate::png;
+use crate::weights::{self, lora_json, Applied};
 
 /// Where the model runs: Ojas's CPU backend, or its Metal backend (on tessl). Both pass
 /// the same upstream parity gates (bench/results/module-gates).
@@ -97,7 +99,7 @@ const PREPROCESSING: &str = "ImageIO decode to sRGB RGB8; Pillow-exact bilinear 
 
 pub const USAGE: &str = "\
 spiketrack image <img> --prompt <text> [--out DIR] [--threshold 0.5] [--backend metal|cpu]
-                 [--weights FILE] [--model-dir DIR] [--threads N]
+                 [--weights FILE] [--lora FILE] [--model-dir DIR] [--threads N]
 
   Detects every instance of <text> in <img> with SAM 3.1 and writes
   DIR/detections.json (score, box, COCO RLE mask per kept query) and DIR/overlay.png.
@@ -106,6 +108,7 @@ spiketrack image <img> --prompt <text> [--out DIR] [--threshold 0.5] [--backend 
   --threshold T     keep queries with probability > T, 0 <= T < 1 (default 0.5)
   --backend B       metal (Ojas on tessl, default) or cpu
   --weights FILE    the converted checkpoint (default: $SPIKETRACK_WEIGHTS)
+  --lora FILE       fold this detector LoRA adapter (spiketrack-lora-v1) into the weights
   --model-dir DIR   folder with the tokenizer's vocab.json and merges.txt (default: $SPIKETRACK_MODEL_DIR)
   --threads N       CPU worker threads for --backend cpu, 1 to 256 (default 8)
 
@@ -167,6 +170,7 @@ pub struct Report<'a> {
     pub threshold: f32,
     pub backend: BackendChoice,
     pub presence: f32,
+    pub lora: Option<&'a Applied>,
     pub detections: &'a [Detection],
 }
 
@@ -174,7 +178,7 @@ pub struct Report<'a> {
 pub fn detections_json(r: &Report<'_>) -> Result<String, String> {
     let mut out = String::new();
     out.push_str(&format!(
-        "{{\n  \"image\": {},\n  \"width\": {},\n  \"height\": {},\n  \"prompt\": {},\n  \"threshold\": {},\n  \"backend\": {},\n  \"presence_probability\": {},\n  \"preprocessing\": {},\n  \"detections\": [",
+        "{{\n  \"image\": {},\n  \"width\": {},\n  \"height\": {},\n  \"prompt\": {},\n  \"threshold\": {},\n  \"backend\": {},\n  \"presence_probability\": {},\n  \"preprocessing\": {},\n  \"lora\": {},\n  \"detections\": [",
         json::string(r.image),
         r.width,
         r.height,
@@ -183,6 +187,7 @@ pub fn detections_json(r: &Report<'_>) -> Result<String, String> {
         json::string(r.backend.name()),
         json::number32(r.presence, "presence probability")?,
         json::string(PREPROCESSING),
+        lora_json(r.lora),
     ));
     for (i, d) in r.detections.iter().enumerate() {
         let norm_text: Result<Vec<String>, String> = d.box_norm.iter().map(|&v| json::number32(v, "box")).collect();
@@ -217,12 +222,10 @@ struct Inference {
     seconds: f64,
 }
 
-fn infer(image: &Rgb8, prompt: &str, weights: &Path, model_dir: &Path, backend: BackendChoice, threads: usize) -> Result<Inference, CliError> {
-    let ck = Checkpoint::open(weights).map_err(|e| CliError::failed(format!("checkpoint {}: {e}", weights.display())))?;
-    let w = Sam31Weights::load(&ck).map_err(|e| CliError::failed(format!("checkpoint {}: {e}", weights.display())))?;
+fn infer(image: &Rgb8, prompt: &str, w: &Sam31Weights, model_dir: &Path, backend: BackendChoice, threads: usize) -> Result<Inference, CliError> {
     match backend {
-        BackendChoice::Cpu => infer_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), threads).map_err(CliError::from_err)?, &w, image, prompt, model_dir),
-        BackendChoice::Metal => infer_on(&MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?, &w, image, prompt, model_dir),
+        BackendChoice::Cpu => infer_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), threads).map_err(CliError::from_err)?, w, image, prompt, model_dir),
+        BackendChoice::Metal => infer_on(&MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?, w, image, prompt, model_dir),
     }
 }
 
@@ -267,7 +270,7 @@ fn infer_on<B: Backend>(be: &B, w: &Sam31Weights, image: &Rgb8, prompt: &str, mo
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
-    let args = Args::parse(raw, &["prompt", "out", "threshold", "backend", "weights", "model-dir", "threads"], 1)?;
+    let args = Args::parse(raw, &["prompt", "out", "threshold", "backend", "weights", "lora", "model-dir", "threads"], 1)?;
     if args.help {
         println!("{USAGE}");
         return Ok(());
@@ -288,10 +291,12 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     }
     let out_dir = PathBuf::from(args.get("out").unwrap_or("spiketrack-out"));
     let weights = existing_path(args.get("weights"), "SPIKETRACK_WEIGHTS", "weights", "weights")?;
+    let lora = weights::lora_path(args.get("lora"))?;
     let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
 
     let image = decode_image(&image_path).map_err(CliError::from_err)?;
-    let inf = infer(&image, &prompt, &weights, &model_dir, backend, threads)?;
+    let (w, applied) = weights::load(&weights, lora.as_deref())?;
+    let inf = infer(&image, &prompt, &w, &model_dir, backend, threads)?;
     let n = inf.probabilities.len();
     if n != QUERIES || inf.masks.len() != QUERIES * MASK * MASK {
         return Err(CliError::failed(format!("the detector returned {n} queries and {} mask values, expected {QUERIES} and {}", inf.masks.len(), QUERIES * MASK * MASK)));
@@ -307,6 +312,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         threshold,
         backend,
         presence: inf.presence,
+        lora: applied.as_ref(),
         detections: &detections,
     };
     let text = detections_json(&report).map_err(CliError::failed)?;
@@ -381,7 +387,7 @@ mod tests {
         let (probs, boxes, masks) = raw_fixture();
         let raw = RawDetections { probabilities: &probs, boxes_cxcywh: &boxes, masks: &masks, mask_side: 2 };
         let d = select(&raw, 0.5, 4, 8).unwrap();
-        let text = detections_json(&Report { image: "a \"b\".jpg", width: 8, height: 4, prompt: "cell", threshold: 0.5, backend: BackendChoice::Cpu, presence: 0.99, detections: &d }).unwrap();
+        let text = detections_json(&Report { image: "a \"b\".jpg", width: 8, height: 4, prompt: "cell", threshold: 0.5, backend: BackendChoice::Cpu, presence: 0.99, lora: None, detections: &d }).unwrap();
         let v = parse_json(&text).expect("valid JSON");
         assert_eq!(v.get_str("image").unwrap(), "a \"b\".jpg");
         assert_eq!(v.get_str("backend").unwrap(), "cpu");
@@ -397,7 +403,7 @@ mod tests {
         assert_eq!(mask.get_array("size").unwrap().len(), 2);
         assert_eq!(dets[1].get_u64("mask_area").unwrap(), 32);
         // No detections is still valid JSON with an empty list.
-        let empty = detections_json(&Report { image: "x", width: 1, height: 1, prompt: "p", threshold: 0.5, backend: BackendChoice::Cpu, presence: 0.0, detections: &[] }).unwrap();
+        let empty = detections_json(&Report { image: "x", width: 1, height: 1, prompt: "p", threshold: 0.5, backend: BackendChoice::Cpu, presence: 0.0, lora: None, detections: &[] }).unwrap();
         assert_eq!(parse_json(&empty).unwrap().get_array("detections").unwrap().len(), 0);
     }
 
@@ -406,7 +412,7 @@ mod tests {
         let (probs, boxes, masks) = raw_fixture();
         let raw = RawDetections { probabilities: &probs, boxes_cxcywh: &boxes, masks: &masks, mask_side: 2 };
         let d = select(&raw, 0.5, 4, 8).unwrap();
-        let r = Report { image: "x", width: 8, height: 4, prompt: "p", threshold: 0.5, backend: BackendChoice::Cpu, presence: f32::NAN, detections: &d };
+        let r = Report { image: "x", width: 8, height: 4, prompt: "p", threshold: 0.5, backend: BackendChoice::Cpu, presence: f32::NAN, lora: None, detections: &d };
         assert!(detections_json(&r).unwrap_err().contains("presence"));
     }
 

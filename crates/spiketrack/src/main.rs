@@ -17,6 +17,7 @@ mod mask;
 mod overlay;
 mod png;
 mod track_cmd;
+mod weights;
 
 use std::process::ExitCode;
 
