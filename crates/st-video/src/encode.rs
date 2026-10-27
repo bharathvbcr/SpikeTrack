@@ -270,7 +270,8 @@ static NOOP_BLOCK: GlobalBlock = GlobalBlock { isa: &raw const _NSConcreteGlobal
 /// What [`VideoWriter::create`] does beyond the defaults.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct WriterOptions {
-    /// Replace an existing regular file at the output path (the default refuses).
+    /// Replace an existing regular file at the output path (the default refuses). The old file is
+    /// removed before the new one is started, so a failure in between leaves neither.
     pub overwrite: bool,
 }
 
@@ -327,7 +328,9 @@ fn inspect_output(path: &Path, overwrite: bool) -> Result<(PathBuf, bool), Encod
     }
 }
 
-/// [`check_output`], then remove the file being replaced.
+/// [`check_output`], then remove the file being replaced. With `overwrite`, the old file is gone
+/// before AVFoundation is asked to write the new one: if [`VideoWriter::create_with`] then fails,
+/// nothing replaces it.
 fn prepare_output(path: &Path, overwrite: bool) -> Result<PathBuf, EncodeError> {
     let (full, exists) = inspect_output(path, overwrite)?;
     if exists {

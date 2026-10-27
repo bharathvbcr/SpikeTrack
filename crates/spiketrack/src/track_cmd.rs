@@ -908,6 +908,10 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     // path or a gap in the frames fails in a second, not after the weights are loaded.
     let mut stream = FrameStream::open(&input, start, max_frames, args.get("video"))?;
     // So is the overlay video: its size, frame rate and file name are checked before the weights load.
+    // The video usually goes under `--out`, which may not exist yet: its parent must, to be checked.
+    if overlay_video.is_some() {
+        std::fs::create_dir_all(&out).map_err(|e| CliError::failed(format!("{}: {e}", out.display())))?;
+    }
     let overlay_spec = overlay_video.map(|path| plan_overlay_video(path, overlay_fps, &stream)).transpose()?;
     let weights = existing_path(args.get("weights"), "SPIKETRACK_WEIGHTS", "weights", "weights")?;
     let lora = weights::lora_path(args.get("lora"))?;
@@ -1438,6 +1442,25 @@ mod tests {
         let e = plan_overlay_video(d.join("taken.mp4"), None, &stream_of(640, 480, None)).unwrap_err().to_string();
         assert!(e.contains("already exists"), "{e}");
         assert_eq!(std::fs::read(d.join("taken.mp4")).unwrap(), b"x");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn the_overlay_video_may_go_under_an_out_directory_that_does_not_exist_yet() {
+        // The README's example: `--out out/track --overlay-video out/track/22-overlay.mp4` on a first run.
+        let d = temp("video-newout");
+        let frames = d.join("frames");
+        std::fs::create_dir_all(&frames).unwrap();
+        std::fs::write(frames.join("v_frame_0.png"), png::encode_rgb(16, 16, &[90; 16 * 16 * 3]).unwrap()).unwrap();
+        let (out, video) = (d.join("newout"), d.join("newout/o.mp4"));
+        // The run stops at the missing weights, after the video has been checked and before it is created.
+        let r = run(&args(&[frames.to_str().unwrap(), "--prompt", "p", "--out", out.to_str().unwrap(), "--weights", "/nonexistent/weights", "--overlay-video", video.to_str().unwrap()]));
+        assert!(matches!(&r, Err(CliError::Failed(m)) if m.contains("weights") && m.contains("does not exist")), "{r:?}");
+        assert!(out.is_dir(), "--out was created for the video's sake");
+        assert!(!video.exists());
+        // A bad video request is refused at the same point, ahead of the weights.
+        let r = run(&args(&[frames.to_str().unwrap(), "--prompt", "p", "--out", out.to_str().unwrap(), "--weights", "/nonexistent/weights", "--overlay-video", out.join("o.mov").to_str().unwrap()]));
+        assert!(matches!(&r, Err(CliError::Failed(m)) if m.contains("--overlay-video") && m.contains(".mp4")), "{r:?}");
         let _ = std::fs::remove_dir_all(&d);
     }
 
