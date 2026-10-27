@@ -967,4 +967,72 @@ mod tests {
         println!("HOTA on frames 0..8 of video 22: {:.4}", e.videos[0].hota.summary().hota);
         let _ = std::fs::remove_dir_all(&out);
     }
+
+    /// Bisects the VISEM 22 mask balloon (a track whose first propagated mask grows to a
+    /// 0.42 x 0.70 box in the CLI run, where upstream's stays put): the same 8-frame Session
+    /// on {upstream's f16 frames from the oracle, ImageIO-decoded frames through
+    /// `upstream_input`} x {CPU, Metal}. Prints every yielded id's mask area per frame; the
+    /// configuration where an area jumps is the cause.
+    #[test]
+    #[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and fixtures/detect_track/22.safetensors"]
+    fn bisect_visem_22_mask_balloon() {
+        const N: usize = 8;
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let weights = std::env::var("SPIKETRACK_WEIGHTS").expect("set SPIKETRACK_WEIGHTS");
+        let model_dir = PathBuf::from(std::env::var("SPIKETRACK_MODEL_DIR").expect("set SPIKETRACK_MODEL_DIR"));
+        let ck = Checkpoint::open(Path::new(&weights)).expect("checkpoint");
+        let w = Sam31Weights::load(&ck).expect("weights");
+        let fx = ojas_io::SafeTensors::open(&root.join("fixtures/detect_track/22.safetensors")).expect("oracle fixture");
+        let (_, oracle) = fx.read_f32_widened("frames").expect("frames");
+        let px = 3 * 1008 * 1008;
+        let imageio: Vec<Vec<f32>> = (0..N)
+            .map(|t| upstream_input(&decode_image(&root.join(format!("data/visem/VISEM_Tracking_Train_v4/Train/22/images/22_frame_{t}.jpg"))).expect("decode"), 1008))
+            .collect();
+        for t in 0..N {
+            let d = oracle[t * px..(t + 1) * px].iter().zip(&imageio[t]).filter(|(a, b)| a != b).count();
+            println!("frame {t}: ImageIO input differs from upstream's on {d} of {px} samples");
+        }
+        let (h, wd) = (480, 640);
+
+        fn areas<B: Backend>(be: &B, w: &Sam31Weights, model_dir: &Path, frames: &dyn Fn(usize) -> Vec<f32>, label: &str) -> Vec<Vec<(i64, u32)>> {
+            let backbone = Backbone::new(be, &w.vision).expect("backbone");
+            let text = Text::new(be, &w.text).expect("text");
+            let det = Detector::new(be, DetectorWeights { transformer: &w.detector_transformer, geometry: &w.geometry_encoder, segmentation: &w.segmentation_head, scoring: &w.dot_prod_scoring }).expect("detector");
+            let vos = Vos::new(be, &backbone, &w.tracker).expect("tracker");
+            let tok = Tokenizer::from_hf_files(&model_dir.join("vocab.json"), &model_dir.join("merges.txt")).expect("tokenizer");
+            let prompt = Session::encode_prompt(be, &text, &tok, "cell").expect("prompt");
+            let mut session = Session::new(&vos, &det, prompt, SessionConfig::new(N, 480, 640));
+            let mut out = vec![Vec::new(); N];
+            let mut take = |ys: Vec<YieldedFrame>| {
+                for y in ys {
+                    out[y.frame] = y.obj_ids.iter().zip(&y.masks).map(|(&id, m)| (id, m.area())).collect();
+                }
+            };
+            for t in 0..N {
+                let x = be.upload(&Tensor::from_f32(&frames(t), &[1, 3, 1008, 1008], be.budget()).expect("t")).expect("up");
+                take(session.push_frame(&x).expect("push"));
+            }
+            take(session.finish());
+            println!("[{label}] done");
+            out
+        }
+        let oracle_frame = |t: usize| oracle[t * px..(t + 1) * px].to_vec();
+        let imageio_frame = |t: usize| imageio[t].clone();
+        let cpu = || CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu");
+        let metal = || MetalBackend::new(Budget::new(28 << 30)).expect("metal");
+        let runs = [
+            ("upstream frames, CPU", areas(&cpu(), &w, &model_dir, &oracle_frame, "upstream frames, CPU")),
+            ("upstream frames, Metal", areas(&metal(), &w, &model_dir, &oracle_frame, "upstream frames, Metal")),
+            ("ImageIO frames, Metal", areas(&metal(), &w, &model_dir, &imageio_frame, "ImageIO frames, Metal")),
+            ("ImageIO frames, CPU", areas(&cpu(), &w, &model_dir, &imageio_frame, "ImageIO frames, CPU")),
+        ];
+        let px_frame = (h * wd) as f64;
+        for (label, a) in &runs {
+            println!("\n[{label}] per frame: id:area (largest area / frame {:.0} px)", px_frame);
+            for (t, row) in a.iter().enumerate() {
+                let max = row.iter().map(|&(_, ar)| ar).max().unwrap_or(0);
+                println!("frame {t}: {} objects, max area {max} ({:.2}% of frame): {:?}", row.len(), 100.0 * max as f64 / px_frame, row);
+            }
+        }
+    }
 }
