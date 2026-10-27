@@ -11,7 +11,7 @@
 use ojas_core::{Backend, ConvTranspose2dParams, OjasError, Tensor};
 use st_weights::TensorGroup;
 
-use crate::layers::{get, relu, up, Lin, Mha, Mlp, Norm};
+use crate::layers::{get, up, Lin, Mha, Mlp, Norm};
 use crate::ModelError;
 
 pub const D: usize = 256;
@@ -80,7 +80,7 @@ impl TwoWay {
             q = blk.norm1.fwd(be, &q)?;
             let (qp, kp) = (add(&q, tokens)?, add(&k, image_pe)?);
             q = blk.norm2.fwd(be, &add(&q, &blk.t2i.fwd(be, &qp, &kp, &k, None)?)?)?;
-            let m = blk.mlp.1.fwd(be, &relu(be, &blk.mlp.0.fwd(be, &q)?)?)?;
+            let m = blk.mlp.1.fwd(be, &be.relu_forward(&blk.mlp.0.fwd(be, &q)?)?)?;
             q = blk.norm3.fwd(be, &add(&q, &m)?)?;
             let (qp, kp) = (add(&q, tokens)?, add(&k, image_pe)?);
             k = blk.norm4.fwd(be, &add(&k, &blk.i2t.fwd(be, &kp, &qp, &q, None)?)?)?;

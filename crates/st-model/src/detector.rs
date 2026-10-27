@@ -13,7 +13,7 @@ use ojas_core::{AttentionOpts, Backend, Conv2dParams, OjasError, Tensor};
 use st_weights::{TensorGroup, Weight};
 
 use crate::host;
-use crate::layers::{get, host_of, relu, up, Conv, Lin, Mha, Mlp, Norm};
+use crate::layers::{get, host_of, up, Conv, Lin, Mha, Mlp, Norm};
 use crate::ModelError;
 
 pub const D: usize = 256;
@@ -79,7 +79,7 @@ impl EncLayer {
         };
         let x = be.residual_add_forward(&x, &self.ca.fwd(be, &t, &keys, memory, None)?)?;
         let t = self.n3.fwd(be, &x)?;
-        let f = self.l2.fwd(be, &relu(be, &self.l1.fwd(be, &t)?)?)?;
+        let f = self.l2.fwd(be, &be.relu_forward(&self.l1.fwd(be, &t)?)?)?;
         be.residual_add_forward(&x, &f)
     }
 }
@@ -120,7 +120,7 @@ impl DecLayer {
         let x = self.catext_norm.fwd(be, &be.residual_add_forward(&x, &self.ca_text.fwd(be, &q, prompt, prompt, None)?)?)?;
         let q = be.residual_add_forward(&x, pos)?;
         let x = self.norm1.fwd(be, &be.residual_add_forward(&x, &self.ca.fwd(be, &q, mem_keys, memory, Some(rpb))?)?)?;
-        let f = self.l2.fwd(be, &relu(be, &self.l1.fwd(be, &x)?)?)?;
+        let f = self.l2.fwd(be, &be.relu_forward(&self.l1.fwd(be, &x)?)?)?;
         self.norm3.fwd(be, &be.residual_add_forward(&x, &f)?)
     }
 }
@@ -363,7 +363,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             let upsampled = self.nearest2x(&prev)?;
             prev = be.residual_add_forward(bb, &upsampled)?;
             prev = self.pd_convs[i].fwd(be, &prev, 1)?;
-            prev = relu(be, &self.group_norm(&prev, &self.pd_gn[i])?)?;
+            prev = be.relu_forward(&self.group_norm(&prev, &self.pd_gn[i])?)?;
         }
         taps.pixel_embed = Some(prev.clone());
         let instance = self.instance_head.fwd(be, &prev, 0)?; // [1, 256, 288, 288]

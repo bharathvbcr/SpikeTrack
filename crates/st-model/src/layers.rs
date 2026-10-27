@@ -25,14 +25,6 @@ pub(crate) fn host_of<B: Backend + ?Sized>(t: &Tensor, be: &B) -> Result<Vec<f32
     t.to_host(be.budget())?.to_f32_vec()
 }
 
-/// ReLU through the host until Ojas `relu_forward` lands (ojas-78, lane B);
-/// then this becomes `be.relu_forward(x)`.
-pub(crate) fn relu<B: Backend + ?Sized>(be: &B, x: &Tensor) -> Result<Tensor, OjasError> {
-    let mut v = host_of(x, be)?;
-    host::relu_in_place(&mut v);
-    up(be, &v, x.shape())
-}
-
 pub(crate) struct Lin {
     pub(crate) w: Tensor,
     pub(crate) b: Tensor,
@@ -154,7 +146,7 @@ impl Mlp {
         for (i, l) in self.layers.iter().enumerate() {
             y = l.fwd(be, &y)?;
             if i + 1 < self.layers.len() {
-                y = relu(be, &y)?;
+                y = be.relu_forward(&y)?;
             }
         }
         if self.residual {
