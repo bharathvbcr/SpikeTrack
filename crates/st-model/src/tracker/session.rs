@@ -675,9 +675,11 @@ mod tests {
     /// `round_bf16` (Backend::cast_bf16) equals the host rounding it replaced, `vos::bf16_round`,
     /// bit for bit on every non-NaN input: random values over the whole exponent range, ties
     /// (exactly half an ulp, even and odd), subnormals, the largest finite values, infinities and
-    /// zeros. (A NaN goes to a quiet NaN under cast_bf16; the tracker features are finite.) The
-    /// Metal kernel runs the same formula (ojas_backend.metal `ojas_bf16`); the Metal session
-    /// parity gate checks it end to end.
+    /// zeros. (A NaN goes to a quiet NaN under cast_bf16; the tracker features are finite.) On
+    /// Metal, Ojas pins cast_bf16 to the same host rounding bit for bit over every upper half-word
+    /// and the ties (`ojas-metal/tests/cast_bf16.rs`, cast_bf16_matches_the_host_round_...), so
+    /// Metal equals the old host path by transitivity; the Metal session parity gate is unchanged
+    /// (32/32 id sets, IoU 0.99855, bench/results/parity-tracker/metal-f32-detect-track-visem22.log).
     #[test]
     fn device_bf16_rounding_equals_the_host_rounding_it_replaced() {
         let be = ojas_cpu::CpuBackend::new(ojas_core::Budget::new(64 << 20));
