@@ -46,6 +46,14 @@ if [ "$which" != cpu ]; then
     run "metal-$m" t tracker_parity "${m}_on_metal"
   done
 fi
+if [ "$which" != metal ]; then
+  run cpu-vit-layer-norm-eps t backbone_parity vit_layer_norm_eps_matches_upstream
+fi
+if [ "$which" != cpu ]; then
+  run metal-d3 t d3_gate image_mode_masks_match_upstream_on_20_visem_frames_on_metal
+  run metal-bf16-d3 t d3_gate image_mode_masks_match_upstream_on_20_visem_frames_on_metal_bf16
+  run metal-bf16-backbone t backbone_parity backbone_matches_pytorch_fp32_on_five_images_on_metal_bf16
+fi
 grep -h "== FAILED" "$out"/*.log 2>/dev/null
 uptime
 exit $status

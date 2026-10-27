@@ -9,7 +9,7 @@
 //! (attention keys, mean pooling) ignores padded tokens, so attending to the
 //! valid tokens alone is the same computation.
 
-use ojas_core::{Backend, OjasError, Tensor};
+use ojas_core::{Backend, DType, OjasError, Tensor};
 use st_weights::TensorGroup;
 
 use crate::host;
@@ -225,7 +225,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
         let gn = |i: usize| -> Result<(Tensor, Tensor), ModelError> {
             let wv = get(s, &format!("{sp}.pixel_decoder.norms.{i}.weight"), &[D])?;
             let bv = get(s, &format!("{sp}.pixel_decoder.norms.{i}.bias"), &[D])?;
-            Ok((up(be, &wv.data, &[1, D, 1, 1])?, up(be, &bv.data, &[1, D, 1, 1])?))
+            Ok((up(be, &wv.data, &[D])?, up(be, &bv.data, &[D])?))
         };
         Ok(Self {
             be,
@@ -418,22 +418,12 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
         let &[n, c, h, w] = x.shape() else {
             return Err(OjasError::OutOfRange { op: "st_model::nearest2x", detail: format!("rank {:?}", x.shape()) });
         };
-        let zeros = up(be, &[0.0; 4], &[1, 1, 1, 2, 1, 2])?;
+        let zeros = be.fill(&[1, 1, 1, 2, 1, 2], DType::F32, 0.0)?;
         be.broadcast_add_forward(&x.reshape(&[n, c, h, 1, w, 1])?, &zeros)?.reshape(&[n, c, 2 * h, 2 * w])
     }
 
-    /// `nn.GroupNorm(8, 256)`: LayerNorm over each group's `C/G * H * W`
-    /// values (no affine), then the per-channel affine.
+    /// `nn.GroupNorm(8, 256)` through Ojas's `group_norm_forward`.
     fn group_norm(&self, x: &Tensor, affine: &(Tensor, Tensor)) -> Result<Tensor, OjasError> {
-        let be = self.be;
-        let &[n, c, h, w] = x.shape() else {
-            return Err(OjasError::OutOfRange { op: "st_model::group_norm", detail: format!("rank {:?}", x.shape()) });
-        };
-        let width = c / GN_GROUPS * h * w;
-        let ones = up(be, &vec![1.0; width], &[width])?;
-        let zeros = up(be, &vec![0.0; width], &[width])?;
-        let y = be.layer_norm_forward(&x.reshape(&[n, GN_GROUPS, width])?, &ones, &zeros, GN_EPS)?;
-        let y = be.broadcast_mul_forward(&y.reshape(&[n, c, h, w])?, &affine.0)?;
-        be.broadcast_add_forward(&y, &affine.1)
+        self.be.group_norm_forward(x, &affine.0, &affine.1, GN_GROUPS, GN_EPS)
     }
 }

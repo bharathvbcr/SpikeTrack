@@ -9,7 +9,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use ojas_core::{Backend, Budget, Tensor};
+use ojas_core::{Autocast, AutocastMode, Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
 use ojas_metal::MetalBackend;
 use ojas_io::SafeTensors;
@@ -71,6 +71,53 @@ fn backbone_matches_pytorch_fp32_on_five_images() {
 fn backbone_matches_pytorch_fp32_on_five_images_on_metal() {
     let be = MetalBackend::new(Budget::new(24 << 30)).expect("metal backend");
     run_parity(&be, "metal");
+}
+
+/// The same gate inside an Ojas Autocast bf16 region (matmul-class operands and outputs
+/// rounded to bf16; norms, softmax and GELU stay f32): whether a half-precision trunk keeps
+/// D2's cosine > 0.999 at every stage.
+#[test]
+#[ignore = "needs a Metal GPU, the gated checkpoint and fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_FIXTURES"]
+fn backbone_matches_pytorch_fp32_on_five_images_on_metal_bf16() {
+    let be = Autocast::new(MetalBackend::new(Budget::new(24 << 30)).expect("metal backend"));
+    let _region = be.autocast_region(AutocastMode::Bf16).expect("bf16 region");
+    run_parity(&be, "metal-bf16");
+}
+
+/// The ViT's LayerNorms, op by op: each recorded norm input through `layer_norm_forward`
+/// with the checkpoint's affine weights, against upstream's recorded output. The bound sits
+/// between what the right epsilon gives (~1e-6 abs) and what the 1e-6 epsilon this port
+/// used until 2026-10-27 gives (~1e-5 abs); the old value is checked to fail it, so the test
+/// cannot pass with the wrong epsilon.
+#[test]
+#[ignore = "needs the gated checkpoint and fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_FIXTURES"]
+fn vit_layer_norm_eps_matches_upstream() {
+    const BOUND: f64 = 6e-6;
+    const OLD_EPS: f32 = 1e-6;
+    let be = CpuBackend::with_threads(Budget::new(8 << 30), 8).expect("cpu backend");
+    let ck = SafeTensors::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
+    let st = SafeTensors::open(&Path::new(&env_path("SPIKETRACK_FIXTURES")).join(format!("{}.safetensors", IMAGES[0]))).expect("fixture");
+    let up = |shape: &[usize], data: &[f32]| be.upload(&Tensor::from_f32(data, shape, be.budget()).expect("t")).expect("up");
+    // (input, output, weights, whether the old epsilon was used here): ln_pre always had 1e-5.
+    let norms: Vec<(String, String, String, bool)> = std::iter::once(("trunk.ln_pre.out.in".to_string(), "trunk.ln_pre.out".to_string(), "trunk.ln_pre".to_string(), false))
+        .chain([0usize, 7].into_iter().flat_map(|b| {
+            ["norm1", "norm2"].map(move |n| (format!("trunk.blocks.{b}.{n}.in"), format!("trunk.blocks.{b}.{n}"), format!("trunk.blocks.{b}.{n}"), true))
+        }))
+        .collect();
+    for (input, output, weights, had_old_eps) in &norms {
+        let (shape, x) = fixture(&st, input);
+        let (_, want) = fixture(&st, output);
+        let w = ck.read_f32(&format!("detector.backbone.vision_backbone.{weights}.weight")).expect("weight").1;
+        let b = ck.read_f32(&format!("detector.backbone.vision_backbone.{weights}.bias")).expect("bias").1;
+        let (xt, wt, bt) = (up(&shape, &x), up(&[w.len()], &w), up(&[b.len()], &b));
+        let run = |eps: f32| compare(&host(&be.layer_norm_forward(&xt, &wt, &bt, eps).expect("layer_norm"), be.budget()), &want).max_abs;
+        let (ours, old) = (run(st_model::backbone::VIT_LN_EPS), run(OLD_EPS));
+        println!("{weights}: max abs {ours:.3e} at eps {} (old eps {OLD_EPS}: {old:.3e})", st_model::backbone::VIT_LN_EPS);
+        assert!(ours < BOUND, "{weights}: max abs {ours:.3e} >= {BOUND:.0e} at eps {}", st_model::backbone::VIT_LN_EPS);
+        if *had_old_eps {
+            assert!(old >= BOUND, "{weights}: the old eps {OLD_EPS} also passes ({old:.3e}): the bound no longer discriminates");
+        }
+    }
 }
 
 /// The gate on any backend: same fixtures, same stages, same threshold.

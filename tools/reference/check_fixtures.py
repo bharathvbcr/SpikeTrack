@@ -77,8 +77,8 @@ def main():
         p = f"trunk.blocks.{b}"
         w = lambda n: ck[f"{P}{p}.{n}"]  # noqa: E731
         xin = g(f"{p}.norm1.in")
-        n1 = F.layer_norm(xin, (1024,), w("norm1.weight"), w("norm1.bias"), 1e-6)
-        ok &= report(f"{p}.norm1 = LayerNorm eps 1e-6", g(f"{p}.norm1"), n1)
+        n1 = F.layer_norm(xin, (1024,), w("norm1.weight"), w("norm1.bias"), 1e-5)
+        ok &= report(f"{p}.norm1 = LayerNorm eps 1e-5", g(f"{p}.norm1"), n1)
         if b == 0:
             t = n1.reshape(1, 3, 24, 3, 24, 1024).permute(0, 1, 3, 2, 4, 5).reshape(9, 576, 1024)
         else:

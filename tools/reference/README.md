@@ -75,10 +75,10 @@ and `external/sam3` f1647e8 `model_builder.py`, `vitdet.py`, `necks.py`. Rows ma
 | Input | 1008×1008, patch 14 → 72×72 = 5,184 tokens | V builder |
 | Patch embed | conv 3→1024, k14 s14, **no bias**, output NHWC | V check_fixtures |
 | Abs pos embed | `pos_embed [1,577,1024]` = cls + 24×24 pretrain grid, **tiled 3×3** (not interpolated), cls dropped, added before `ln_pre` | V check_fixtures |
-| `ln_pre` | LayerNorm **eps 1e-5** (torch default; the blocks use 1e-6) | V check_fixtures |
+| `ln_pre` | LayerNorm **eps 1e-5** (the builder's `norm_layer="LayerNorm"` -> `partial(nn.LayerNorm, eps=1e-5)`, vitdet.py:868-869; shared with the blocks) | V code |
 | Blocks | 32; dim 1024, 16 heads, **head dim 64**; MLP 4736; qkv bias; no layer scale; no QK-norm | V checkpoint |
 | Attention layout | 28 windowed (3×3 windows of 24×24 = batch 9 × 576) + global at 7, 15, 23, 31 (1 × 5,184) | V check_fixtures |
-| Block norms | LayerNorm eps 1e-6 | V check_fixtures |
+| Block norms | LayerNorm **eps 1e-5**, same norm layer as ln_pre (vitdet.py:868-869, :907). Corrected 2026-10-27: this row said 1e-6 and check_fixtures' tolerance hid the difference (found by ojas-78) | V code + backbone_parity `vit_layer_norm_eps_matches_upstream` |
 | GELU | exact erf in MLP and neck | V check_fixtures |
 | RoPE | 2-D axial, **interleaved pairs** (2i, 2i+1); first 16 pairs x, next 16 y; freq_i = 10000^(−4i/64). Windowed: integer grid 24×24. Global: 72×72 grid × (24/72), i.e. fractional positions. Tables stored per block (`attn.freqs_cis`, complex64); all windowed blocks share one table, all global blocks another | V check_fixtures (max diff 6e-8 vs formula) |
 | Upstream numerics | ViT MLP fc1+GELU runs in **bf16** in upstream inference (`perflib/fused.addmm_act` casts). On CPU `_addmm_activation`'s GELU is erf | V fused.py; V CPU test |

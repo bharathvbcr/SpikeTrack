@@ -9,8 +9,9 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
-use ojas_core::{Backend, Budget, Tensor};
+use ojas_core::{Autocast, AutocastGuard, AutocastMode, Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
+use ojas_metal::MetalBackend;
 use ojas_io::SafeTensors;
 use st_model::detector::{Detector, DetectorTaps, DetectorWeights, D, MASK, QUERIES};
 use st_model::{host, Backbone, Neck, Taps, Text, Tokenizer};
@@ -43,13 +44,32 @@ fn iou(a: &[f32], b: &[f32]) -> f64 {
 #[test]
 #[ignore = "needs the gated checkpoint, tokenizer files and detector fixtures"]
 fn image_mode_masks_match_upstream_on_20_visem_frames() {
+    d3(&CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu backend"), "CPU, 8 threads", || None);
+}
+
+#[test]
+#[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and detector fixtures"]
+fn image_mode_masks_match_upstream_on_20_visem_frames_on_metal() {
+    d3(&MetalBackend::new(Budget::new(28 << 30)).expect("metal backend"), "Metal", || None);
+}
+
+/// The same gate with each frame's trunk, detector neck and detector inside an Ojas
+/// Autocast bf16 region (matmul-class operands and outputs rounded to bf16; norms,
+/// softmax and GELU stay f32). The text prompt is encoded once, outside the region.
+#[test]
+#[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and detector fixtures"]
+fn image_mode_masks_match_upstream_on_20_visem_frames_on_metal_bf16() {
+    let be = Autocast::new(MetalBackend::new(Budget::new(28 << 30)).expect("metal backend"));
+    d3(be, "Metal, Autocast bf16", || Some(be.autocast_region(AutocastMode::Bf16).expect("bf16 region")));
+}
+
+fn d3<B: Backend>(be: &B, label: &str, region: impl Fn() -> Option<AutocastGuard>) {
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = Sam31Weights::load(&ck).expect("weights");
-    let be = CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu backend");
-    let backbone = Backbone::new(&be, &w.vision).expect("backbone");
-    let text = Text::new(&be, &w.text).expect("text");
+    let backbone = Backbone::new(be, &w.vision).expect("backbone");
+    let text = Text::new(be, &w.text).expect("text");
     let det = Detector::new(
-        &be,
+        be,
         DetectorWeights { transformer: &w.detector_transformer, geometry: &w.geometry_encoder, segmentation: &w.segmentation_head, scoring: &w.dot_prod_scoring },
     )
     .expect("detector");
@@ -72,9 +92,11 @@ fn image_mode_masks_match_upstream_on_20_visem_frames() {
         let shape: Vec<usize> = shape.into_iter().map(|d| d as usize).collect();
         let image = be.upload(&Tensor::from_f32(&img, &shape, be.budget()).expect("t")).expect("up");
         let t0 = Instant::now();
+        let guard = region();
         let trunk = backbone.trunk(&image, &[], &mut Taps::default()).expect("trunk");
         let fpn = backbone.neck(Neck::Detector, &trunk).expect("neck");
         let out = det.forward(&fpn, &prompt, &mut DetectorTaps::default()).expect("detector");
+        drop(guard);
         be.sync().expect("sync");
         let secs = t0.elapsed().as_secs_f64();
 
@@ -101,9 +123,9 @@ fn image_mode_masks_match_upstream_on_20_visem_frames() {
         rows.push(format!("| {i} | {} | {} | {sym_diff} | {max_dp:.2e} | {mean:.4} | {min:.4} | {secs:.1} |", ref_keep.len(), our_keep.len()));
         frame_ious.push(mean);
     }
-    println!("\n| frame | upstream kept @0.5 | ours | kept-set differences | max abs prob diff | mean mask IoU | min mask IoU | s (CPU, 8 threads) |\n|---|---|---|---|---|---|---|---|");
+    println!("\n| frame | upstream kept @0.5 | ours | kept-set differences | max abs prob diff | mean mask IoU | min mask IoU | s ({label}) |\n|---|---|---|---|---|---|---|---|");
     rows.iter().for_each(|r| println!("{r}"));
     let overall = frame_ious.iter().sum::<f64>() / frame_ious.len() as f64;
-    println!("\nD3 gate: mean mask IoU {overall:.4} over {FRAMES} frames (gate >= {GATE}), prompt {PROMPT:?}");
+    println!("\n[{label}] D3 gate: mean mask IoU {overall:.4} over {FRAMES} frames (gate >= {GATE}), prompt {PROMPT:?}");
     assert!(overall >= GATE, "D3 gate failed: {overall}");
 }

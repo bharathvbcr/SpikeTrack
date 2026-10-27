@@ -17,10 +17,10 @@ use st_weights::{Conv, FpnLevel, FpnNeck, LayerNorm, Linear, VisionBackbone, Vit
 pub const IMAGE_SIZE: usize = VIT_GRID * VIT_PATCH;
 pub const HEADS: usize = 16;
 pub const HEAD_DIM: usize = VIT_DIM / HEADS;
-/// Block LayerNorm epsilon (`vitdet.py` builds `partial(nn.LayerNorm, eps=1e-6)`).
-pub const BLOCK_LN_EPS: f32 = 1e-6;
-/// `ln_pre` is a plain `nn.LayerNorm` (torch's default eps).
-pub const LN_PRE_EPS: f32 = 1e-5;
+/// LayerNorm epsilon of `ln_pre` and of every block's norm1/norm2: the builder passes
+/// `norm_layer="LayerNorm"` (model_builder.py:88), which `vitdet.py:868-869` turns into
+/// `partial(nn.LayerNorm, eps=1e-5)` and hands to ln_pre and to each Block.
+pub const VIT_LN_EPS: f32 = 1e-5;
 
 /// Which of SAM 3.1's three necks to run on the trunk features.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -506,7 +506,7 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         let pe = be.conv2d_forward(image, &self.patch_embed, None, p)?; // [1, 1024, 72, 72]
         let pe = be.permute(&pe, &[0, 2, 3, 1])?; // NHWC
         let x = be.residual_add_forward(&pe, &self.pos_tiled)?;
-        let mut x = be.layer_norm_forward(&x, &self.ln_pre.w, &self.ln_pre.b, LN_PRE_EPS)?;
+        let mut x = be.layer_norm_forward(&x, &self.ln_pre.w, &self.ln_pre.b, VIT_LN_EPS)?;
         taps.patch_embed = Some(pe);
         taps.ln_pre = Some(x.clone());
         taps.blocks = vec![None; self.blocks.len()];
@@ -594,7 +594,7 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
     fn block_apply(&self, blk: &DevBlock, x: &Tensor, mix: Mix) -> Result<Tensor, OjasError> {
         debug_assert_eq!(blk.global, matches!(mix, Mix::Global), "a block is global exactly when it mixes globally");
         let be = self.be;
-        let h = be.layer_norm_forward(x, &blk.norm1.w, &blk.norm1.b, BLOCK_LN_EPS)?;
+        let h = be.layer_norm_forward(x, &blk.norm1.w, &blk.norm1.b, VIT_LN_EPS)?;
         // Windowed blocks attend within each 24x24 window: a batch of 9 x 576 (or k x 576).
         let (seqs, tokens) = match mix {
             Mix::Global => (1, VIT_GRID * VIT_GRID),
@@ -621,7 +621,7 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
             Mix::Gathered(_) => a.reshape(&[seqs, VIT_WINDOW, VIT_WINDOW, VIT_DIM])?,
         };
         let x = be.residual_add_forward(x, &a)?;
-        let m = be.layer_norm_forward(&x, &blk.norm2.w, &blk.norm2.b, BLOCK_LN_EPS)?;
+        let m = be.layer_norm_forward(&x, &blk.norm2.w, &blk.norm2.b, VIT_LN_EPS)?;
         let m = be.linear_bias_forward(&m, &blk.fc1.w, &blk.fc1.b)?;
         let m = be.gelu_erf_forward(&m)?;
         let m = be.linear_bias_forward(&m, &blk.fc2.w, &blk.fc2.b)?;
