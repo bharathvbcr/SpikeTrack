@@ -16,7 +16,7 @@ samples="$out/coreml_gpu_util.txt"
 for _ in 1 2 3 4 5; do echo "before $(date -u +%H:%M:%S) $(util)" >> "$samples"; sleep 2; done
 ( while :; do echo "during $(date -u +%H:%M:%S) $(util)" >> "$samples"; sleep 2; done ) &
 sampler=$!
-trap 'kill $sampler 2>/dev/null' EXIT
+trap 'kill $sampler 2>/dev/null || true' EXIT
 tools/baselines/.venv/bin/python -s tools/baselines/coreml_bench.py -n 5
 kill $sampler 2>/dev/null || true
 awk '{n[$1]++; s[$1]+=$3; if ($3>m[$1]) m[$1]=$3} END {for (k in n) printf "GPU utilization %s: mean %.1f%%, max %d%% over %d samples\n", k, s[k]/n[k], m[k], n[k]}' "$samples"

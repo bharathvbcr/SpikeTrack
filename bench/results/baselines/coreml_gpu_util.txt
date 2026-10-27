@@ -1,0 +1,14 @@
+before 03:50:05 16
+before 03:50:07 15
+before 03:50:09 15
+before 03:50:11 15
+before 03:50:13 15
+during 03:50:15 0
+during 03:50:17 14
+during 03:50:19 15
+during 03:50:21 16
+during 03:50:23 79
+during 03:50:25 98
+during 03:50:27 98
+during 03:50:29 58
+during 03:50:31 15
