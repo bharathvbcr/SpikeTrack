@@ -72,7 +72,7 @@ use crate::host;
 use crate::layers::{host_of, up};
 use crate::text::Text;
 use crate::tokenizer::Tokenizer;
-use crate::tracker::associate::{associate, nms_iom, not_close_to_boundary, AssocParams, Association, Bitmask};
+use crate::tracker::associate::{associate, nms_iom, not_close_to_boundary, track_detections, AssocParams, Association, Bitmask};
 use crate::tracker::bookkeeping::{BookParams, FrameInput, FramePlan, HideLog, TrackBook, YieldBuffer};
 use crate::tracker::state::{err, FrameCtx, TrackerState};
 use crate::tracker::vos::{bf16_round, Vos, INPUT_MASK, LOW};
@@ -122,6 +122,10 @@ pub struct YieldedFrame {
     pub boxes_xywh: Vec<f32>,
     /// One `height * width` mask per id.
     pub masks: Vec<Bitmask>,
+    /// Not upstream: per id, the normalized `x0, y0, x1, y1` box of the detection this frame
+    /// assigned to it (a newborn's own detection; for a track, [`track_detections`]), or `None`.
+    /// What `spiketrack track --boxes detector` reports in place of the mask box.
+    pub det_boxes_xyxy: Vec<Option<[f32; 4]>>,
 }
 
 /// A tracker state after a visit: what it stored for the visit's frame.
@@ -167,8 +171,8 @@ pub struct VisitTrace {
 /// A frame waiting in the yield buffer.
 struct Buffered {
     frame: usize,
-    /// Ascending ids with their mask, birth score and tracker score.
-    items: Vec<(i64, Bitmask, f32, f32)>,
+    /// Ascending ids with their mask, birth score, tracker score and assigned detection box.
+    items: Vec<(i64, Bitmask, f32, f32, Option<[f32; 4]>)>,
 }
 
 struct VisitOut {
@@ -374,8 +378,8 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         let (h, w) = self.cfg.video_hw;
         let hw = h * w;
         let hidden: Vec<i64> = self.hide.hidden_for(frame).map(|v| v.to_vec()).unwrap_or_default();
-        let kept: Vec<&(i64, Bitmask, f32, f32)> = buf.items.iter().filter(|(id, m, _, _)| m.area() > 0 && !hidden.contains(id)).collect();
-        let boxes: Vec<f32> = kept.iter().flat_map(|(_, m, _, _)| mask_box_xywh(m, h, w)).collect();
+        let kept: Vec<&(i64, Bitmask, f32, f32, Option<[f32; 4]>)> = buf.items.iter().filter(|(id, m, _, _, _)| m.area() > 0 && !hidden.contains(id)).collect();
+        let boxes: Vec<f32> = kept.iter().flat_map(|(_, m, _, _, _)| mask_box_xywh(m, h, w)).collect();
         // Object-wise non-overlap: at each pixel only the covering object with the highest
         // tracker score keeps it (first index on ties), and only if that score is positive.
         let masks: Vec<Bitmask> = if kept.len() > 1 {
@@ -394,7 +398,14 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         } else {
             kept.iter().map(|item| item.1.clone()).collect()
         };
-        YieldedFrame { frame: buf.frame, obj_ids: kept.iter().map(|k| k.0).collect(), probs: kept.iter().map(|k| k.2).collect(), boxes_xywh: boxes, masks }
+        YieldedFrame {
+            frame: buf.frame,
+            obj_ids: kept.iter().map(|k| k.0).collect(),
+            probs: kept.iter().map(|k| k.2).collect(),
+            boxes_xywh: boxes,
+            masks,
+            det_boxes_xyxy: kept.iter().map(|k| k.4).collect(),
+        }
     }
 
     fn ensure_inter(&self, trunk: &Tensor, ctx: &mut FrameCtx) -> Result<(), ModelError> {
@@ -472,6 +483,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         // 4. Plan.
         let trk_bits: Vec<Bitmask> = (0..n).map(|i| Bitmask::from_logits(&trk[i * px..(i + 1) * px])).collect();
         let association = associate(&ds.bits, &ds.scores, &ds.keep_re, &trk_bits, &self.cfg.assoc);
+        let trk_det = track_detections(&association, &ds.scores, &ds.keep_re, n);
         let plan = self.book.plan_frame(&FrameInput {
             frame_idx: t as i64,
             association: &association,
@@ -592,11 +604,17 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
                 outputs.push((id, Bitmask::from_logits(&video[i * h * w..(i + 1) * h * w])));
             }
         }
-        let mut items: Vec<(i64, Bitmask, f32, f32)> = Vec::with_capacity(total);
-        for (id, mask) in &outputs {
+        // The detection box each output id reports under `--boxes detector` (reordered index -> query).
+        let det_box = |d: usize| -> [f32; 4] {
+            let q = ds.order[d];
+            [ds.boxes_xyxy[q * 4], ds.boxes_xyxy[q * 4 + 1], ds.boxes_xyxy[q * 4 + 2], ds.boxes_xyxy[q * 4 + 3]]
+        };
+        let det_boxes: Vec<Option<[f32; 4]>> = trk_det.iter().map(|d| d.map(det_box)).chain(plan.births.iter().map(|b| Some(det_box(b.det)))).collect();
+        let mut items: Vec<(i64, Bitmask, f32, f32, Option<[f32; 4]>)> = Vec::with_capacity(total);
+        for (i, (id, mask)) in outputs.iter().enumerate() {
             let birth = *self.book.scores().get(id).ok_or_else(|| err(format!("no score for id {id}")))?;
             let sam2 = sam2_scores.iter().find(|(i, _)| i == id).map(|s| s.1).unwrap_or(0.0);
-            items.push((*id, mask.clone(), birth, sam2));
+            items.push((*id, mask.clone(), birth, sam2, det_boxes[i]));
         }
         items.sort_by_key(|i| i.0);
 

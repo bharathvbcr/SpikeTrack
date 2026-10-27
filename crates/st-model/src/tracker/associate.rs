@@ -216,6 +216,27 @@ pub fn associate(det_masks: &[Bitmask], det_scores: &[f32], det_keep: &[bool], t
     Association { trk_is_unmatched, trk_is_nonempty, is_new_det, det_to_max_trk, det_is_high_conf, det_is_high_overlap, im_mask }
 }
 
+/// Not upstream: the detection whose box a track reports under `--boxes detector`. Per track,
+/// the highest-scoring kept detection (first on ties) that `a` assigns to it: not a birth, its
+/// `det_to_max_trk` is the track, and that pair passes `im_mask` (overlap >= `assoc_thresh`
+/// after the ambiguity zeroing). `None` for a track no detection is assigned to. `nt` tracks.
+pub fn track_detections(a: &Association, det_scores: &[f32], det_keep: &[bool], nt: usize) -> Vec<Option<usize>> {
+    let mut best: Vec<Option<usize>> = vec![None; nt];
+    if nt == 0 {
+        return best;
+    }
+    for d in 0..det_scores.len() {
+        let t = a.det_to_max_trk[d];
+        if !det_keep[d] || a.is_new_det[d] || t >= nt || !a.im_mask[d * nt + t] {
+            continue;
+        }
+        if best[t].is_none_or(|b| det_scores[d] > det_scores[b]) {
+            best[t] = Some(d);
+        }
+    }
+    best
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -277,6 +298,36 @@ mod tests {
         assert_eq!(a.is_new_det, vec![false]);
         assert_eq!(a.det_is_high_overlap, vec![false]);
         assert_eq!(a.im_mask, vec![false, false]);
+    }
+
+    #[test]
+    fn each_track_takes_its_best_scoring_assigned_detection() {
+        let p = AssocParams::default();
+        let t0 = rect(20, 20, 0, 0, 10, 10);
+        let t1 = rect(20, 20, 10, 10, 20, 20);
+        let t2 = rect(20, 20, 0, 12, 6, 18);
+        // IoM 1/3 with t0: assigned to it, and not a second >= 0.5 overlap (which would make t0 ambiguous).
+        let low_on_t0 = rect(20, 20, 8, 0, 14, 2);
+        let high_on_t0 = rect(20, 20, 5, 5, 9, 9);
+        let unkept_on_t1 = rect(20, 20, 12, 12, 18, 18);
+        let newborn = rect(20, 20, 12, 0, 18, 5);
+        let dets = [low_on_t0, high_on_t0, unkept_on_t1, newborn];
+        let (scores, keep) = ([0.5, 0.7, 0.95, 0.9], [true, true, false, true]);
+        let a = associate(&dets, &scores, &keep, &[t0, t1, t2], &p);
+        assert_eq!(a.is_new_det, vec![false, false, false, true]);
+        // t0: the 0.7 detection beats the 0.5; t1: its only detection is not kept; t2: nothing.
+        assert_eq!(track_detections(&a, &scores, &keep, 3), vec![Some(1), None, None]);
+        // No tracks: nothing to assign.
+        let a = associate(&dets, &scores, &keep, &[], &p);
+        assert_eq!(track_detections(&a, &scores, &keep, 0), Vec::<Option<usize>>::new());
+    }
+
+    #[test]
+    fn an_ambiguous_detection_is_assigned_to_no_track() {
+        let p = AssocParams::default();
+        let both = rect(20, 20, 0, 0, 20, 20);
+        let a = associate(&[both], &[0.9], &[true], &[rect(20, 20, 0, 0, 10, 10), rect(20, 20, 10, 10, 20, 20)], &p);
+        assert_eq!(track_detections(&a, &[0.9], &[true], 2), vec![None, None]);
     }
 
     #[test]

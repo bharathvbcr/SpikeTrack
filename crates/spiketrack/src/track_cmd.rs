@@ -78,8 +78,8 @@ use crate::weights::{self, lora_json};
 
 pub const USAGE: &str = "\
 spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--max-frames N]
-                 [--start F] [--overlay K] [--video ID] [--weights FILE] [--lora FILE]
-                 [--model-dir DIR] [--threads N]
+                 [--start F] [--overlay K] [--video ID] [--boxes mask|detector] [--weights FILE]
+                 [--lora FILE] [--model-dir DIR] [--threads N]
 
   Tracks every instance of <text> through a video with SAM 3.1's multiplex tracker, forward
   from the first frame processed. <input> is a folder of <video>_frame_<n>.jpg frames
@@ -94,6 +94,11 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
   --overlay K       also write overlay/<video>_frame_<n>.png for every frame n divisible by K
   --video ID        the video id used in file names and \"video\" (default: from the frame
                     names, or the mp4's file name without extension)
+  --boxes SOURCE    mask (default, upstream's out_boxes_xywh: the extent of the track's mask
+                    before the non-overlap rule) or detector (not upstream: the box of the
+                    detection this frame's association assigned to the track, the mask box
+                    when none was; for datasets whose boxes are not mask extents, such as
+                    VISEM-Tracking's sperm-head boxes). Masks are the same either way.
   --weights FILE    the converted checkpoint (default: $SPIKETRACK_WEIGHTS)
   --lora FILE       fold this detector LoRA adapter (spiketrack-lora-v1) into the weights
   --model-dir DIR   folder with the tokenizer's vocab.json and merges.txt (default: $SPIKETRACK_MODEL_DIR)
@@ -317,6 +322,32 @@ impl FrameStream {
 // Outputs
 // ---------------------------------------------------------------------------
 
+/// Where a reported box comes from (`--boxes`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoxSource {
+    /// Upstream's `out_boxes_xywh`: the mask's extent.
+    Mask,
+    /// Not upstream: the assigned detection's box, else the mask's extent.
+    Detector,
+}
+
+impl BoxSource {
+    pub fn parse(s: &str) -> Result<Self, CliError> {
+        match s {
+            "mask" => Ok(Self::Mask),
+            "detector" => Ok(Self::Detector),
+            other => Err(CliError::usage(format!("--boxes: {other:?} is not a box source (choices: mask, detector)"))),
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Mask => "mask",
+            Self::Detector => "detector",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct TrackedObject {
     pub id: i64,
@@ -330,22 +361,36 @@ pub struct FrameResult {
     pub objects: Vec<TrackedObject>,
 }
 
-/// A released frame's objects with boxes as normalised xyxy, and how many boxes were
-/// widened to one pixel because the mask is a single pixel wide or high.
-pub fn objects_of(y: &YieldedFrame, height: usize, width: usize) -> Result<(Vec<TrackedObject>, usize), String> {
+/// A released frame's objects with boxes as normalised xyxy from `source`, how many boxes were
+/// widened to one pixel (a mask a single pixel wide or high, or a degenerate detection box), and
+/// how many came from a detection. Detection boxes are clipped to the frame.
+pub fn objects_of(y: &YieldedFrame, height: usize, width: usize, source: BoxSource) -> Result<(Vec<TrackedObject>, usize, usize), String> {
     let n = y.obj_ids.len();
-    if y.probs.len() != n || y.boxes_xywh.len() != n * 4 || y.masks.len() != n {
-        return Err(format!("frame {}: {n} ids, {} scores, {} box values, {} masks", y.frame, y.probs.len(), y.boxes_xywh.len(), y.masks.len()));
+    if y.probs.len() != n || y.boxes_xywh.len() != n * 4 || y.masks.len() != n || y.det_boxes_xyxy.len() != n {
+        return Err(format!(
+            "frame {}: {n} ids, {} scores, {} box values, {} masks, {} detection boxes",
+            y.frame,
+            y.probs.len(),
+            y.boxes_xywh.len(),
+            y.masks.len(),
+            y.det_boxes_xyxy.len()
+        ));
     }
-    let mut widened = 0;
+    let (mut widened, mut from_detector) = (0, 0);
     let mut out = Vec::with_capacity(n);
     for k in 0..n {
         let b = &y.boxes_xywh[k * 4..k * 4 + 4];
-        if !b.iter().all(|v| v.is_finite()) || !y.probs[k].is_finite() {
+        if !b.iter().all(|v| v.is_finite()) || !y.probs[k].is_finite() || y.det_boxes_xyxy[k].is_some_and(|d| !d.iter().all(|v| v.is_finite())) {
             return Err(format!("frame {}: id {} has a non-finite box or score", y.frame, y.obj_ids[k]));
         }
-        let (x0, y0) = (b[0], b[1]);
-        let (mut x1, mut y1) = (b[0] + b[2], b[1] + b[3]);
+        let ([x0, y0], [mut x1, mut y1]) = match (source, y.det_boxes_xyxy[k]) {
+            (BoxSource::Detector, Some(d)) => {
+                from_detector += 1;
+                let c = |v: f32| v.clamp(0.0, 1.0);
+                ([c(d[0]), c(d[1])], [c(d[2]), c(d[3])])
+            }
+            _ => ([b[0], b[1]], [b[0] + b[2], b[1] + b[3]]),
+        };
         let mut changed = false;
         if x1 <= x0 {
             x1 = x0 + 1.0 / width as f32;
@@ -358,7 +403,7 @@ pub fn objects_of(y: &YieldedFrame, height: usize, width: usize) -> Result<(Vec<
         widened += usize::from(changed);
         out.push(TrackedObject { id: y.obj_ids[k], score: y.probs[k], box_xyxy_norm: [x0, y0, x1, y1] });
     }
-    Ok((out, widened))
+    Ok((out, widened, from_detector))
 }
 
 /// `DIR/<video>.json`: the `spiketrack eval-visem` prediction schema.
@@ -396,19 +441,37 @@ pub struct Collector {
     height: usize,
     width: usize,
     overlay_every: Option<u32>,
+    boxes: BoxSource,
     images: BTreeMap<usize, Rgb8>,
     pub results: Vec<FrameResult>,
     pub widened: usize,
+    /// Boxes reported (all frames), and how many of them came from a detection.
+    pub reported: usize,
+    pub from_detector: usize,
     pub ids: BTreeSet<i64>,
 }
 
 impl Collector {
-    pub fn new(out: &Path, video: &str, first_n: u32, height: usize, width: usize, overlay_every: Option<u32>) -> Result<Collector, CliError> {
+    pub fn new(out: &Path, video: &str, first_n: u32, height: usize, width: usize, overlay_every: Option<u32>, boxes: BoxSource) -> Result<Collector, CliError> {
         std::fs::create_dir_all(out.join("masks")).map_err(|e| CliError::failed(format!("{}: {e}", out.display())))?;
         if overlay_every.is_some() {
             std::fs::create_dir_all(out.join("overlay")).map_err(|e| CliError::failed(format!("{}: {e}", out.display())))?;
         }
-        Ok(Collector { out: out.to_path_buf(), video: video.to_string(), first_n, height, width, overlay_every, images: BTreeMap::new(), results: Vec::new(), widened: 0, ids: BTreeSet::new() })
+        Ok(Collector {
+            out: out.to_path_buf(),
+            video: video.to_string(),
+            first_n,
+            height,
+            width,
+            overlay_every,
+            boxes,
+            images: BTreeMap::new(),
+            results: Vec::new(),
+            widened: 0,
+            reported: 0,
+            from_detector: 0,
+            ids: BTreeSet::new(),
+        })
     }
 
     /// Frame `index` (0-based within the run) was pushed: keep it if an overlay will want it.
@@ -421,8 +484,10 @@ impl Collector {
     pub fn accept(&mut self, y: YieldedFrame) -> Result<(), CliError> {
         let (h, w) = (self.height, self.width);
         let n = self.first_n + y.frame as u32;
-        let (objects, widened) = objects_of(&y, h, w).map_err(CliError::failed)?;
+        let (objects, widened, from_detector) = objects_of(&y, h, w, self.boxes).map_err(CliError::failed)?;
         self.widened += widened;
+        self.reported += objects.len();
+        self.from_detector += from_detector;
         self.ids.extend(objects.iter().map(|o| o.id));
         let rles: Vec<(i64, Rle)> = y.obj_ids.iter().zip(&y.masks).map(|(&id, m)| (id, Rle::from_fn(h, w, |r, c| m.get(r * w + c)))).collect();
         let path = self.out.join("masks").join(format!("{}_frame_{n}.json", self.video));
@@ -455,6 +520,7 @@ struct Options {
     prompt: String,
     out: PathBuf,
     overlay_every: Option<u32>,
+    boxes: BoxSource,
     backend: BackendChoice,
     threads: usize,
     weights: PathBuf,
@@ -509,7 +575,7 @@ fn track_on<B: Backend>(be: &B, w: &Sam31Weights, stream: &mut FrameStream, opts
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
-    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "video", "weights", "lora", "model-dir", "threads"], 1)?;
+    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "video", "boxes", "weights", "lora", "model-dir", "threads"], 1)?;
     if args.help {
         println!("{USAGE}");
         return Ok(());
@@ -520,6 +586,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         return Err(CliError::usage("--prompt is blank"));
     }
     let backend = BackendChoice::parse(args.get("backend").unwrap_or("metal"))?;
+    let boxes = BoxSource::parse(args.get("boxes").unwrap_or("mask"))?;
     let threads: usize = args.parsed("threads", 8)?;
     if !(1..=256).contains(&threads) {
         return Err(CliError::usage(format!("--threads {threads} is outside 1..=256")));
@@ -546,10 +613,10 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     let weights = existing_path(args.get("weights"), "SPIKETRACK_WEIGHTS", "weights", "weights")?;
     let lora = weights::lora_path(args.get("lora"))?;
     let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
-    let opts = Options { prompt, out, overlay_every, backend, threads, weights, model_dir };
+    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir };
 
     let (w, applied) = weights::load(&opts.weights, lora.as_deref())?;
-    let mut collector = Collector::new(&opts.out, &stream.video, stream.first_n, stream.height, stream.width, opts.overlay_every)?;
+    let mut collector = Collector::new(&opts.out, &stream.video, stream.first_n, stream.height, stream.width, opts.overlay_every, opts.boxes)?;
     let t_all = Instant::now();
     let timing = match opts.backend {
         BackendChoice::Cpu => track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector)?,
@@ -569,7 +636,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
-        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"lora\": {}\n}}\n",
+        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {}\n}}\n",
         json::string(&stream.video),
         json::string(&input.to_string_lossy()),
         json::string(&opts.prompt),
@@ -585,6 +652,9 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         json::number(total_seconds, "total time").map_err(CliError::failed)?,
         json::string(if stream.from_video { PREPROCESSING_VIDEO } else { PREPROCESSING_FOLDER }),
         lora_json(applied.as_ref()),
+        json::string(opts.boxes.name()),
+        collector.reported,
+        collector.from_detector,
     );
     let run_path = opts.out.join(format!("{}.run.json", stream.video));
     std::fs::write(&run_path, run_text).map_err(|e| CliError::failed(format!("{}: {e}", run_path.display())))?;
@@ -775,7 +845,7 @@ mod tests {
     }
 
     fn yielded(frame: usize, ids: &[i64], boxes_xywh: &[f32], masks: Vec<Bitmask>) -> YieldedFrame {
-        YieldedFrame { frame, obj_ids: ids.to_vec(), probs: ids.iter().map(|&i| 0.5 + i as f32 / 100.0).collect(), boxes_xywh: boxes_xywh.to_vec(), masks }
+        YieldedFrame { frame, obj_ids: ids.to_vec(), probs: ids.iter().map(|&i| 0.5 + i as f32 / 100.0).collect(), boxes_xywh: boxes_xywh.to_vec(), det_boxes_xyxy: vec![None; ids.len()], masks }
     }
 
     #[test]
@@ -783,7 +853,8 @@ mod tests {
         let m = || Bitmask::from_fn(4 * 8, |_| false);
         // 8 wide, 4 high: id 1 normal, id 2 zero width, id 3 zero height.
         let y = yielded(0, &[1, 2, 3], &[0.25, 0.5, 0.25, 0.25, 0.5, 0.0, 0.0, 0.25, 0.0, 0.5, 0.5, 0.0], vec![m(), m(), m()]);
-        let (o, widened) = objects_of(&y, 4, 8).unwrap();
+        let (o, widened, from_detector) = objects_of(&y, 4, 8, BoxSource::Mask).unwrap();
+        assert_eq!(from_detector, 0);
         assert_eq!(o[0].box_xyxy_norm, [0.25, 0.5, 0.5, 0.75]);
         assert_eq!(o[1].box_xyxy_norm, [0.5, 0.0, 0.625, 0.25], "one pixel wide = 1/8");
         assert_eq!(o[2].box_xyxy_norm, [0.0, 0.5, 0.5, 0.75], "one pixel high = 1/4");
@@ -794,9 +865,31 @@ mod tests {
     #[test]
     fn inconsistent_or_non_finite_frames_are_errors() {
         let m = || Bitmask::from_fn(4, |_| false);
-        assert!(objects_of(&yielded(0, &[1], &[0.1, 0.1], vec![m()]), 2, 2).is_err());
-        assert!(objects_of(&yielded(0, &[1], &[0.1, 0.1, f32::NAN, 0.1], vec![m()]), 2, 2).is_err());
-        assert!(objects_of(&yielded(0, &[1, 2], &[0.1, 0.1, 0.1, 0.1], vec![m()]), 2, 2).is_err());
+        assert!(objects_of(&yielded(0, &[1], &[0.1, 0.1], vec![m()]), 2, 2, BoxSource::Mask).is_err());
+        assert!(objects_of(&yielded(0, &[1], &[0.1, 0.1, f32::NAN, 0.1], vec![m()]), 2, 2, BoxSource::Mask).is_err());
+        assert!(objects_of(&yielded(0, &[1, 2], &[0.1, 0.1, 0.1, 0.1], vec![m()]), 2, 2, BoxSource::Mask).is_err());
+        let mut y = yielded(0, &[1], &[0.1, 0.1, 0.1, 0.1], vec![m()]);
+        y.det_boxes_xyxy = vec![];
+        assert!(objects_of(&y, 2, 2, BoxSource::Mask).is_err(), "a missing detection-box slot is an error under either source");
+        y.det_boxes_xyxy = vec![Some([0.1, f32::NAN, 0.2, 0.2])];
+        assert!(objects_of(&y, 2, 2, BoxSource::Detector).is_err());
+    }
+
+    #[test]
+    fn detector_boxes_replace_mask_boxes_where_assigned_and_are_clipped() {
+        let m = || Bitmask::from_fn(4 * 8, |_| false);
+        // id 1 has a detection (partly outside the frame), id 2 has none, id 3 a degenerate one.
+        let mut y = yielded(0, &[1, 2, 3], &[0.25, 0.5, 0.25, 0.25, 0.5, 0.25, 0.25, 0.25, 0.0, 0.0, 0.5, 0.5], vec![m(), m(), m()]);
+        y.det_boxes_xyxy = vec![Some([-0.1, 0.25, 0.375, 1.2]), None, Some([0.5, 0.5, 0.5, 0.75])];
+        let (o, widened, from_detector) = objects_of(&y, 4, 8, BoxSource::Detector).unwrap();
+        assert_eq!(o[0].box_xyxy_norm, [0.0, 0.25, 0.375, 1.0], "clipped to the frame");
+        assert_eq!(o[1].box_xyxy_norm, [0.5, 0.25, 0.75, 0.5], "no detection: the mask box");
+        assert_eq!(o[2].box_xyxy_norm, [0.5, 0.5, 0.625, 0.75], "zero width widened to one pixel");
+        assert_eq!((widened, from_detector), (1, 2));
+        // The same frame under --boxes mask ignores the detections.
+        let (o, _, from_detector) = objects_of(&y, 4, 8, BoxSource::Mask).unwrap();
+        assert_eq!((o[0].box_xyxy_norm, from_detector), ([0.25, 0.5, 0.5, 0.75], 0));
+        assert!(BoxSource::parse("detector").is_ok() && BoxSource::parse("box").is_err());
     }
 
     #[test]
@@ -825,7 +918,7 @@ mod tests {
     fn the_collector_writes_masks_and_overlays_and_numbers_frames_from_the_start() {
         let d = temp("collect");
         let (h, w) = (4usize, 6usize);
-        let mut c = Collector::new(&d, "9", 100, h, w, Some(2)).unwrap();
+        let mut c = Collector::new(&d, "9", 100, h, w, Some(2), BoxSource::Mask).unwrap();
         let image = Rgb8::new(w, h, vec![50; w * h * 3]);
         for i in 0..3 {
             c.keep_image(i, &image);
@@ -945,9 +1038,14 @@ mod tests {
         let run_json = ojas_io::parse_json(&std::fs::read_to_string(out.join("22.run.json")).unwrap()).unwrap();
         assert_eq!(run_json.get_str("backend").unwrap(), "metal");
         assert_eq!(run_json.get_u64("frames").unwrap(), 8);
+        assert_eq!(run_json.get_str("boxes").unwrap(), "mask");
 
         // Stability: print the id sets, then require that the ids of frame 0 are carried to
-        // frame 7 and that a track's box centre moves less than 0.1 of the frame per frame.
+        // frame 7 and that a track's written mask (its centroid) moves less than 0.1 of the frame
+        // per frame. Not the box: upstream's box is the extent of the mask *before* the
+        // non-overlap rule (sam3_multiplex_tracking.py:729-746), so a few raw-mask pixels on a
+        // neighbouring cell that the rule then gives to that cell stretch the box while the
+        // track's own mask stays put (VISEM 22 id 3, frame 2: bench/results/track/box-convention).
         let ids = |n: u32| -> BTreeSet<String> { p.frames[&n].iter().map(|(id, _)| id.clone()).collect() };
         for n in 0..8 {
             println!("frame {n}: {} objects", p.frames[&n].len());
@@ -956,12 +1054,32 @@ mod tests {
         let kept = ids(0).intersection(&ids(7)).count();
         println!("ids in frame 0: {}, still present in frame 7: {kept}", ids(0).len());
         assert!(kept * 10 >= ids(0).len() * 9, "only {kept} of {} ids of frame 0 reach frame 7", ids(0).len());
-        let centre = |b: &st_eval::Xywh| (b.x + b.w / 2.0, b.y + b.h / 2.0);
+        // id -> normalised centroid of its written mask, per frame.
+        let centroids = |n: u32| -> BTreeMap<i64, (f64, f64)> {
+            let v = ojas_io::parse_json(&std::fs::read_to_string(out.join(format!("masks/22_frame_{n}.json"))).unwrap()).unwrap();
+            let size = v.get_array("size").unwrap();
+            let (h, w) = (size[0].as_u64().unwrap() as usize, size[1].as_u64().unwrap() as usize);
+            let mut c = BTreeMap::new();
+            for o in v.get_array("objects").unwrap() {
+                let counts: Vec<u64> = o.get_array("counts").unwrap().iter().map(|x| x.as_u64().unwrap()).collect();
+                let bits = Rle { height: h, width: w, area: o.get_u64("area").unwrap(), counts }.decode();
+                let (mut sx, mut sy, mut k) = (0f64, 0f64, 0f64);
+                for (i, _) in bits.iter().enumerate().filter(|(_, &b)| b) {
+                    sx += (i % w) as f64;
+                    sy += (i / w) as f64;
+                    k += 1.0;
+                }
+                if k > 0.0 {
+                    c.insert(o.get_i64("id").unwrap(), (sx / k / w as f64, sy / k / h as f64));
+                }
+            }
+            c
+        };
         for n in 0..7u32 {
-            for (id, b0) in &p.frames[&n] {
-                if let Some((_, b1)) = p.frames[&(n + 1)].iter().find(|(i, _)| i == id) {
-                    let (c0, c1) = (centre(b0), centre(b1));
-                    assert!((c0.0 - c1.0).abs() < 0.1 && (c0.1 - c1.1).abs() < 0.1, "id {id} jumps between frames {n} and {}: {c0:?} -> {c1:?}", n + 1);
+            let (a, b) = (centroids(n), centroids(n + 1));
+            for (id, c0) in &a {
+                if let Some(c1) = b.get(id) {
+                    assert!((c0.0 - c1.0).abs() < 0.1 && (c0.1 - c1.1).abs() < 0.1, "id {id}'s mask jumps between frames {n} and {}: {c0:?} -> {c1:?}", n + 1);
                 }
             }
         }
@@ -971,11 +1089,14 @@ mod tests {
         let _ = std::fs::remove_dir_all(&out);
     }
 
-    /// Bisects the VISEM 22 mask balloon (a track whose first propagated mask grows to a
-    /// 0.42 x 0.70 box in the CLI run, where upstream's stays put): the same 8-frame Session
-    /// on {upstream's f16 frames from the oracle, ImageIO-decoded frames through
-    /// `upstream_input`} x {CPU, Metal}. Prints every yielded id's mask area per frame; the
-    /// configuration where an area jumps is the cause.
+    /// The same 8-frame Session on {upstream's f16 frames from the oracle, ImageIO-decoded frames
+    /// through `upstream_input`} x {CPU, Metal}, printing every yielded id's mask area per frame
+    /// and how many input samples the two frame sources differ on. Written to bisect the VISEM 22
+    /// "balloon" (a track whose box grows to 0.42 x 0.70 in the CLI run). Its result
+    /// (bench/results/track/balloon-bisect.log): no mask grows in any configuration, CPU and Metal
+    /// agree per frame source, and the frame sources give different frame-0 births. The balloon
+    /// was the box, not the mask: upstream boxes the mask before the non-overlap rule, so raw-mask
+    /// pixels on a neighbouring cell stretch it (bench/results/track/box-convention).
     #[test]
     #[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and fixtures/detect_track/22.safetensors"]
     fn bisect_visem_22_mask_balloon() {
