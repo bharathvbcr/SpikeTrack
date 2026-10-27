@@ -5,7 +5,7 @@
 # the held-out evaluation. Stops at the first failed step. Run it outside the lock:
 #   nohup bash tools/jobs/lora_train_chunked.sh > lora_chunks.log 2>&1 &
 # Env: LORA_STEPS (default 600), CHUNK (default 100), SKIP_VERIFY (non-empty: skip the cache
-# verify, e.g. after it has passed), CHUNK_GAP_S (pause between chunks so other sessions get the
+# verify, e.g. after it has passed), START_STEPS (steps already trained, to continue a stopped driver), CHUNK_GAP_S (pause between chunks so other sessions get the
 # lock, default 600); the rest as in lora_train.sh.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
@@ -15,7 +15,7 @@ export LORA_STEPS=$steps
 if [ -z "${SKIP_VERIFY:-}" ]; then
   tools/locked.sh lora-cache-verify bash tools/jobs/lora_cache.sh || { echo "cache verify failed; training not started"; exit 1; }
 fi
-done_steps=0
+done_steps=${START_STEPS:-0}
 i=1
 while [ "$done_steps" -lt "$steps" ]; do
   resume=()
