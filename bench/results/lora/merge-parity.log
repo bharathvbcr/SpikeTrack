@@ -1,0 +1,16 @@
+   Compiling st-weights v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-weights)
+    Finished `release` profile [optimized] target(s) in 0.62s
+     Running tests/lora_merge.rs (target/release/deps/lora_merge-0281b3bbad89a368)
+
+running 3 tests
+test a_target_the_checkpoint_does_not_have_is_refused ... ok
+test adapter_applies_to_the_fully_loaded_checkpoint ... ok
+test merged_tensors_match_pytorch_on_checkpoint_weights ... detector.transformer.decoder.layers.2.cross_attn.in_proj_weight: max |d| 1.49e-8 at 7896, 172390/196608 elements bit-identical to torch
+detector.transformer.decoder.layers.5.ca_text.in_proj_weight: max |d| 1.12e-8 at 42641, 167594/196608 elements bit-identical to torch
+detector.transformer.decoder.layers.5.ca_text.out_proj.weight: max |d| 7.45e-9 at 2450, 57998/65536 elements bit-identical to torch
+detector.transformer.encoder.layers.0.self_attn.in_proj_weight: max |d| 1.49e-8 at 14979, 119367/196608 elements bit-identical to torch
+detector.transformer.encoder.layers.0.self_attn.out_proj.weight: max |d| 1.49e-8 at 8015, 39526/65536 elements bit-identical to torch
+ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.76s
+

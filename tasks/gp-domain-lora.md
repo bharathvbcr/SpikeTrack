@@ -58,7 +58,7 @@ See HANDOFF.md, COMPONENTS.md and IMPROVEMENTS.md.
 ## Acceptance criteria
 - [ ] Detection recall/precision and HOTA on 5 held-out videos, zero-shot vs LoRA [recall/precision V: eval.md, "sperm" @0.3 recall 0.000 -> 0.761; HOTA only an 8-frame smoke so far (bench/results/track/box-convention), full held-out HOTA pending]
 - [x] Presence false-positive rate on absent-concept prompts before and after, plus calibration (ECE) [V: bench/results/lora/visem-lora-r16/eval.md; absent VISEM classes now detect on 16% of items (zero-shot 0), negatives stay 0; presence ECE 0.177 -> 0.045, detection ECE 0.072 -> 0.110]
-- [ ] LoRA weights load in Rust; merged-weight parity vs PyTorch on fixtures
+- [x] LoRA weights load in Rust; merged-weight parity vs PyTorch on fixtures [V: bench/results/lora/merge-parity.log, 3 tests pass, max |d| 1.5e-8 on the 5 fixture tensors; `spiketrack image|track --lora` (bench/results/lora/cli-check)]
 - [x] Write-up states that LoRA on SAM 3 is prior work (SAM3-LoRA, MedSAM3 LoRA) [V: bench/results/lora/README.md]
 
 ## Planned files
