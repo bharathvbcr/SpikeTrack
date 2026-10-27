@@ -9,8 +9,8 @@
 //! (attention keys, mean pooling) ignores padded tokens, so attending to the
 //! valid tokens alone is the same computation.
 
-use ojas_core::{AttentionOpts, Backend, Conv2dParams, OjasError, Tensor};
-use st_weights::{TensorGroup, Weight};
+use ojas_core::{Backend, OjasError, Tensor};
+use st_weights::TensorGroup;
 
 use crate::host;
 use crate::layers::{get, host_of, up, Conv, Lin, Mha, Mlp, Norm};
