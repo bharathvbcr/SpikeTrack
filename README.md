@@ -21,12 +21,15 @@ fp32 on CPU (tools/reference).
 | Semi-supervised VOS (D5), 3 DAVIS clips, Metal | J&F equal to upstream's (0.9107 / 0.9456 / 0.9514), mask IoU vs upstream 1.0000 | [vos-gate](bench/results/vos-gate) |
 | Text-prompted detect -> associate -> track session, VISEM 22, 32 frames (upstream's frame tensors), CPU and Metal | identical tracked-id sets on all 32 frames (13-15 objects, births included) on both, mask IoU 0.9985 (CPU 0.99854, Metal 0.99855) | [CPU](bench/results/parity-tracker/cpu-f32-detect-track-visem22.log), [Metal](bench/results/parity-tracker/metal-f32-detect-track-visem22.log) |
 | No Python | 8.4 MB binary linking only system frameworks; runs with no python on PATH | [packaging](bench/results/packaging) |
+| Detector LoRA (rank 16, 983k params, trained on this Mac), 120 frames of 5 held-out VISEM videos | sperm recall at IoU 0.5: prompt "sperm" 0.000 -> 0.761 (precision 0.584), "cell" 0.212 -> 0.576 at 0.5; absent VISEM classes now fire on 16% of items (was 0) | [lora](bench/results/lora) |
+| LoRA merged in Rust | merged tensors vs PyTorch max abs diff 1.5e-8 on the real checkpoint; `--lora` on `image` and `track` | [merge-parity.log](bench/results/lora/merge-parity.log) |
+| Tracking, 8-frame held-out smoke (40 frames) | HOTA 0.1838 zero-shot (upstream boxes) -> 0.4694 with the adapter, prompt "sperm" and `--boxes detector` | [box-convention](bench/results/track/box-convention) |
 | CoreML port on the same M5 Pro (the speed reference) | 0.272 s backbone + 0.0775 s track step per frame | [baselines](bench/results/baselines) |
 
 Not yet: the speed target (restated to parity-or-better with the CoreML port; we are ~6-8x behind
-on the tracker path today, see [profile-cbd5565](bench/results/profile-cbd5565)), the LoRA domain
-adaptation result (training), and HOTA on the held-out VISEM videos beyond an 8-frame smoke
-(zero-shot HOTA 0.18, [track/smoke-8f](bench/results/track/smoke-8f)). Open issues are in gaps.jsonl.
+on the tracker path today, see [profile-cbd5565](bench/results/profile-cbd5565)) and HOTA on the
+held-out VISEM videos beyond the 8-frame smoke (300-frame runs in progress). Open issues are in
+gaps.jsonl.
 
 VISEM's ground truth is sperm-head boxes, while upstream's track boxes are the extent of the
 whole-sperm mask, tail included, so zero-shot HOTA with upstream's boxes mostly measures that
