@@ -7,7 +7,7 @@
 //! planes of one to three samples, every upsampler libjpeg-turbo has (h2v1,
 //! h1v2, h2v2, whole-factor replication), grayscale, restart intervals,
 //! optimised Huffman tables, extreme quantisation, and multi-scan sequential
-//! files. `tests/jpeg_cases/make_cases.py` makes them, and only writes a case
+//! files. `tools/reference/jpeg_cases.py` makes them, and only writes a case
 //! when `djpeg` (libjpeg-turbo 3.2.0) agrees with Pillow on it.
 //!
 //! The rest of the file is the decoder's behaviour on damaged input, on real

@@ -32,6 +32,19 @@ commit on 2026-10-26.
 | 2026-10-26 | Repository, workspace, licences, this file | root |
 | 2026-10-26 | CPU-runnable reference: shims, device patch, model builder, checkpoint→safetensors converter, fp32 backbone fixtures, independent fixture checks | `tools/reference/` |
 | 2026-10-26 | Typed checkpoint loader with claim-every-tensor checks | `crates/st-weights/` |
+| 2026-10-26 | HOTA (TrackEval definition), DAVIS J&F, VISEM-Tracking loader | `crates/st-eval/` |
+| 2026-10-26 | SAM 3.1 on the Ojas `Backend`: PE ViT trunk and necks, CLIP tokenizer and text encoder, DETR detector and mask head | `crates/st-model/src/{backbone,text,tokenizer,detector}.rs` |
+| 2026-10-26 | Multiplex tracker (memory attention, mask decoders, memory encoder, interactive decoder), VOS driver, NMS/association, per-frame bookkeeping, the text-prompted detect-track session | `crates/st-model/src/tracker/` |
+| 2026-10-26 | Pillow-exact bilinear resize; ImageIO/AVFoundation decode (raw FFI) | `crates/st-video/` |
+| 2026-10-26 | Event gating: per-window change maps, recompute policies, gated trunk | `crates/st-gate/`, `crates/st-model/src/backbone.rs` |
+| 2026-10-26 | Per-op profiler over any backend | `crates/st-model/src/profile.rs` |
+| 2026-10-26 | `spiketrack image` and `eval-visem`; the no-Python proof | `crates/spiketrack/`, `scripts/no_python_check.sh` |
+| 2026-10-26 | LoRA pipeline (VISEM split, frozen-feature cache, PyTorch trainer on MPS) and the Rust adapter merge | `tools/reference/`, `crates/st-weights/src/lora.rs` |
+| 2026-10-26 | Parity gates and job scripts (module gates on CPU and Metal, D3, D5, detect-track, profiles), CoreML baseline tooling | `crates/st-model/tests/`, `tools/jobs/`, `tools/baselines/` |
+| 2026-10-27 | ViT LayerNorm eps fix; device-side memory assembly; Metal entry points for every gate | `crates/st-model/` |
+| 2026-10-27 | `spiketrack track` (frames or mp4), `--lora`, `--boxes detector` (`tracker::associate::track_detections`), per-frame telemetry | `crates/spiketrack/`, `crates/st-model/src/tracker/` |
+| 2026-10-27 | Pillow-exact JPEG decoder, a port of libjpeg-turbo 3.2.0's default decompression (IJG acknowledgement in NOTICE), and its fixtures | `crates/st-video/src/jpeg.rs`, `crates/st-video/tests/`, `tools/reference/jpeg_cases.py` |
+| 2026-10-27 | LoRA training (600 steps), held-out evaluation, write-up; box-convention analysis | `bench/results/lora/`, `bench/results/track/box-convention/` |
 
 ## Work in the pre-existing libraries during the window
 

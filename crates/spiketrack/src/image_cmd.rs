@@ -2,7 +2,8 @@
 //! detector, and the result on disk.
 //!
 //! Pipeline (the same wiring as `crates/st-model/tests/d3_gate.rs`, which is the
-//! gated end-to-end image test): ImageIO decode (`st_video::decode_image`) ->
+//! gated end-to-end image test): decode (`st_video::decode_image_with_source`: JPEG by the
+//! Pillow-exact native decoder, other images by ImageIO) ->
 //! `st_video::sam_input` (Pillow-exact bilinear resize to 1008 x 1008, /255,
 //! mean 0.5, std 0.5) -> `Backbone::trunk` -> `Backbone::neck(Neck::Detector)`;
 //! the prompt goes through `Tokenizer` and `Text`, and `Detector::forward`
@@ -16,7 +17,8 @@
 //!   Upstream's image path (`Sam3Processor`) resizes a uint8 tensor with
 //!   `torchvision.transforms.v2.Resize`, which is antialiased bilinear; the two
 //!   differ by at most one grey level in 0.1 to 0.4 % of pixels
-//!   (`tools/reference/README.md`). The decode itself is ImageIO's, not
+//!   (`tools/reference/README.md`). A JPEG decodes byte-identically to Pillow (`st_video::jpeg`);
+//!   other formats, and the JPEG variants that decoder refuses, go through ImageIO, not
 //!   Pillow's libjpeg-turbo; `crates/st-video/tests/decode.rs` measures that.
 //! * **A folder of JPEG frames (the future `track` command)**: upstream's
 //!   `load_video_frames` resizes with Pillow bilinear, which is what `sam_input` is.
@@ -58,7 +60,7 @@ use ojas_cpu::CpuBackend;
 use ojas_metal::MetalBackend;
 use st_model::detector::{Detector, DetectorTaps, DetectorWeights, D, MASK, QUERIES};
 use st_model::{Backbone, Neck, Taps, Text, Tokenizer};
-use st_video::{decode_image, sam_input, Rgb8};
+use st_video::{decode_image_with_source, sam_input, Rgb8};
 use st_weights::Sam31Weights;
 
 use crate::cli::{existing_path, Args, CliError};
@@ -95,7 +97,7 @@ impl BackendChoice {
 
 /// The footprint the backend may use, as in the gated tests.
 const BUDGET_BYTES: u64 = 28 << 30;
-const PREPROCESSING: &str = "ImageIO decode to sRGB RGB8; Pillow-exact bilinear resize to 1008x1008 (st_video::sam_input); mean 0.5, std 0.5";
+const PREPROCESSING: &str = "decode to RGB8 (see \"decoder\": pillow-exact-jpeg is byte-identical to Pillow 13 / libjpeg-turbo 3.2.0, imageio otherwise); Pillow-exact bilinear resize to 1008x1008 (st_video::sam_input); mean 0.5, std 0.5";
 
 pub const USAGE: &str = "\
 spiketrack image <img> --prompt <text> [--out DIR] [--threshold 0.5] [--backend metal|cpu]
@@ -112,7 +114,8 @@ spiketrack image <img> --prompt <text> [--out DIR] [--threshold 0.5] [--backend 
   --model-dir DIR   folder with the tokenizer's vocab.json and merges.txt (default: $SPIKETRACK_MODEL_DIR)
   --threads N       CPU worker threads for --backend cpu, 1 to 256 (default 8)
 
-  Preprocessing: image files are decoded by ImageIO and resized with Pillow-style
+  Preprocessing: JPEGs are decoded byte-identically to Pillow (other images by ImageIO) and
+  resized with Pillow-style
   bilinear, as upstream's JPEG-folder path does (upstream's single-image path uses
   torchvision v2.Resize, within one grey level). mp4 input (not in this command) would not
   match upstream, which decodes mp4 with OpenCV and resizes with INTER_CUBIC.";
@@ -170,6 +173,7 @@ pub struct Report<'a> {
     pub threshold: f32,
     pub backend: BackendChoice,
     pub presence: f32,
+    pub decoder: &'a str,
     pub lora: Option<&'a Applied>,
     pub detections: &'a [Detection],
 }
@@ -178,7 +182,7 @@ pub struct Report<'a> {
 pub fn detections_json(r: &Report<'_>) -> Result<String, String> {
     let mut out = String::new();
     out.push_str(&format!(
-        "{{\n  \"image\": {},\n  \"width\": {},\n  \"height\": {},\n  \"prompt\": {},\n  \"threshold\": {},\n  \"backend\": {},\n  \"presence_probability\": {},\n  \"preprocessing\": {},\n  \"lora\": {},\n  \"detections\": [",
+        "{{\n  \"image\": {},\n  \"width\": {},\n  \"height\": {},\n  \"prompt\": {},\n  \"threshold\": {},\n  \"backend\": {},\n  \"presence_probability\": {},\n  \"preprocessing\": {},\n  \"decoder\": {},\n  \"lora\": {},\n  \"detections\": [",
         json::string(r.image),
         r.width,
         r.height,
@@ -187,6 +191,7 @@ pub fn detections_json(r: &Report<'_>) -> Result<String, String> {
         json::string(r.backend.name()),
         json::number32(r.presence, "presence probability")?,
         json::string(PREPROCESSING),
+        json::string(r.decoder),
         lora_json(r.lora),
     ));
     for (i, d) in r.detections.iter().enumerate() {
@@ -294,7 +299,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     let lora = weights::lora_path(args.get("lora"))?;
     let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
 
-    let image = decode_image(&image_path).map_err(CliError::from_err)?;
+    let (image, decoder) = decode_image_with_source(&image_path).map_err(CliError::from_err)?;
     let (w, applied) = weights::load(&weights, lora.as_deref())?;
     let inf = infer(&image, &prompt, &w, &model_dir, backend, threads)?;
     let n = inf.probabilities.len();
@@ -312,6 +317,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         threshold,
         backend,
         presence: inf.presence,
+        decoder: decoder.name(),
         lora: applied.as_ref(),
         detections: &detections,
     };
@@ -387,10 +393,11 @@ mod tests {
         let (probs, boxes, masks) = raw_fixture();
         let raw = RawDetections { probabilities: &probs, boxes_cxcywh: &boxes, masks: &masks, mask_side: 2 };
         let d = select(&raw, 0.5, 4, 8).unwrap();
-        let text = detections_json(&Report { image: "a \"b\".jpg", width: 8, height: 4, prompt: "cell", threshold: 0.5, backend: BackendChoice::Cpu, presence: 0.99, lora: None, detections: &d }).unwrap();
+        let text = detections_json(&Report { image: "a \"b\".jpg", width: 8, height: 4, prompt: "cell", threshold: 0.5, backend: BackendChoice::Cpu, presence: 0.99, decoder: "pillow-exact-jpeg", lora: None, detections: &d }).unwrap();
         let v = parse_json(&text).expect("valid JSON");
         assert_eq!(v.get_str("image").unwrap(), "a \"b\".jpg");
         assert_eq!(v.get_str("backend").unwrap(), "cpu");
+        assert_eq!(v.get_str("decoder").unwrap(), "pillow-exact-jpeg");
         assert_eq!(v.get_u64("width").unwrap(), 8);
         let dets = v.get_array("detections").unwrap();
         assert_eq!(dets.len(), 2);
@@ -403,7 +410,7 @@ mod tests {
         assert_eq!(mask.get_array("size").unwrap().len(), 2);
         assert_eq!(dets[1].get_u64("mask_area").unwrap(), 32);
         // No detections is still valid JSON with an empty list.
-        let empty = detections_json(&Report { image: "x", width: 1, height: 1, prompt: "p", threshold: 0.5, backend: BackendChoice::Cpu, presence: 0.0, lora: None, detections: &[] }).unwrap();
+        let empty = detections_json(&Report { image: "x", width: 1, height: 1, prompt: "p", threshold: 0.5, backend: BackendChoice::Cpu, presence: 0.0, decoder: "imageio", lora: None, detections: &[] }).unwrap();
         assert_eq!(parse_json(&empty).unwrap().get_array("detections").unwrap().len(), 0);
     }
 
@@ -412,7 +419,7 @@ mod tests {
         let (probs, boxes, masks) = raw_fixture();
         let raw = RawDetections { probabilities: &probs, boxes_cxcywh: &boxes, masks: &masks, mask_side: 2 };
         let d = select(&raw, 0.5, 4, 8).unwrap();
-        let r = Report { image: "x", width: 8, height: 4, prompt: "p", threshold: 0.5, backend: BackendChoice::Cpu, presence: f32::NAN, lora: None, detections: &d };
+        let r = Report { image: "x", width: 8, height: 4, prompt: "p", threshold: 0.5, backend: BackendChoice::Cpu, presence: f32::NAN, decoder: "imageio", lora: None, detections: &d };
         assert!(detections_json(&r).unwrap_err().contains("presence"));
     }
 

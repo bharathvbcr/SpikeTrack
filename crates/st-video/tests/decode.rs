@@ -162,7 +162,7 @@ fn every_truncated_prefix_of_a_jpeg_is_an_error() {
     assert!(imageio_decoded.is_empty(), "ImageIO prefixes that decoded as pictures: {imageio_decoded:?}");
 }
 
-/// Small files made by Pillow 13.0.0 (see `tests/jpeg_cases/make_cases.py`): JPEG variants
+/// Small files made by Pillow 13.0.0 (see `tools/reference/jpeg_cases.py`): JPEG variants
 /// the native decoder refuses and a PNG. They must come back from ImageIO, and
 /// `decode_image_with_source` must say so.
 #[test]

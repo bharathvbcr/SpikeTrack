@@ -16,7 +16,7 @@ tables, and a multi-scan (one component per scan) sequential file.
 Every case is also decoded with `djpeg` (libjpeg-turbo 3.2.0) and must equal Pillow's decode, so a
 fixture is only written when the two oracles agree.
 
-    tools/reference/.venv/bin/python -s crates/st-video/tests/jpeg_cases/make_cases.py
+    tools/reference/.venv/bin/python -s tools/reference/jpeg_cases.py
 
 Needs Pillow 13.0.0 (libjpeg-turbo 3.2.0), and `cjpeg` and `djpeg` from libjpeg-turbo 3.2.0 on PATH.
 Offline fixture generation only: nothing here runs in the shipped binary.
@@ -31,7 +31,8 @@ from pathlib import Path
 
 from PIL import Image, features
 
-HERE = Path(__file__).resolve().parent
+# The fixtures live with the Rust tests that read them.
+HERE = Path(__file__).resolve().parents[2] / "crates" / "st-video" / "tests" / "jpeg_cases"
 CASES = HERE / "cases"
 FALLBACK = HERE / "fallback"
 

@@ -312,7 +312,8 @@ fn visem_dir() -> PathBuf {
 }
 
 /// The model-input frame (Pillow bilinear to 1008x1008, still `u8` RGB) and its normalized
-/// NCHW f32 tensor. Decoded with `st_video`'s ImageIO path, the in-tree route for JPEG; the
+/// NCHW f32 tensor. Decoded with `st_video::decode_image` (for JPEG the Pillow-exact native
+/// decoder; results logged before 2026-10-27 used ImageIO); the
 /// frame bytes the gate compares are the ones the tensor is built from, and that is checked
 /// against `sam_input` so the change map is on exactly the model input.
 struct Input {

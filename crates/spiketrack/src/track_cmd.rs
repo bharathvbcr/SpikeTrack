@@ -25,8 +25,10 @@
 //! (`spiketrack image` keeps f32: upstream's single-image path is torchvision in f32.)
 //!
 //! * **Frame folder**: upstream's JPEG-folder path (`load_video_frames`) resizes with Pillow
-//!   bilinear, the same resize. The difference left is ImageIO's JPEG decode instead of
-//!   Pillow's libjpeg-turbo (`st-video/tests/decode.rs` measures it).
+//!   bilinear, the same resize, and the JPEG decode is byte-identical to Pillow's
+//!   (`st_video::jpeg`, `st-video/tests/decode.rs`), so the model input is upstream's bit for
+//!   bit. Frames in other formats, or JPEG variants that decoder refuses, go through ImageIO;
+//!   `<video>.run.json` counts the frames per decoder.
 //! * **mp4**: upstream decodes with OpenCV and resizes with `cv2.resize(.., INTER_CUBIC)`
 //!   after BGR to RGB (`io_utils.py:313-333`). Here AVFoundation decodes and the resize is
 //!   bilinear, so **mp4 input does not match upstream's mp4 preprocessing**
@@ -65,7 +67,7 @@ use ojas_metal::{MetalBackend, WaitCounts};
 use st_model::tracker::session::{Session, SessionConfig, YieldedFrame};
 use st_model::tracker::vos::Vos;
 use st_model::{Backbone, Detector, DetectorWeights, Text, Tokenizer};
-use st_video::{decode_image, resize_bilinear_pil, Rgb8, VideoReader};
+use st_video::{decode_image_with_source, resize_bilinear_pil, Rgb8, VideoReader};
 use st_weights::Sam31Weights;
 
 use crate::cli::{existing_path, Args, CliError};
@@ -118,7 +120,7 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
   upstream does: upstream decodes mp4 with OpenCV and resizes with INTER_CUBIC, so mp4
   results do not match upstream's mp4 preprocessing (GAP-MP4-PREPROCESSING).";
 
-const PREPROCESSING_FOLDER: &str = "ImageIO decode; Pillow-exact bilinear resize to 1008x1008, as upstream's JPEG-folder path; /255, -0.5, /0.5 each rounded to float16 as upstream's loader stores frames (widened to f32 for the model)";
+const PREPROCESSING_FOLDER: &str = "decode per \"decoders\" (pillow-exact-jpeg: byte-identical to Pillow 13 / libjpeg-turbo 3.2.0); Pillow-exact bilinear resize to 1008x1008, as upstream's JPEG-folder path; /255, -0.5, /0.5 each rounded to float16 as upstream's loader stores frames (widened to f32 for the model)";
 const PREPROCESSING_VIDEO: &str = "AVFoundation decode (32BGRA); Pillow-exact bilinear resize to 1008x1008; float16 normalisation as upstream. NOT upstream's mp4 path (OpenCV decode, cv2.INTER_CUBIC): GAP-MP4-PREPROCESSING";
 const BUDGET_BYTES: u64 = 28 << 30;
 
@@ -243,8 +245,11 @@ pub struct FrameStream {
     pub height: usize,
     pub width: usize,
     pub from_video: bool,
+    /// Frames delivered so far, by decoder (`pillow-exact-jpeg`, `imageio`, `avfoundation`).
+    pub decoders: BTreeMap<&'static str, usize>,
     produced: usize,
-    pending: Option<Rgb8>,
+    /// A folder's first frame, decoded by `open` to learn the size, and its decoder.
+    pending: Option<(Rgb8, &'static str)>,
 }
 
 fn is_video_file(path: &Path) -> bool {
@@ -256,8 +261,9 @@ impl FrameStream {
         if input.is_dir() {
             let folder = discover_frames(input).map_err(CliError::failed)?;
             let files = select_window(&folder.frames, start, max).map_err(CliError::failed)?.to_vec();
-            let first = decode_image(&files[0].path).map_err(CliError::from_err)?;
+            let (first, decoder) = decode_image_with_source(&files[0].path).map_err(CliError::from_err)?;
             Ok(FrameStream {
+                decoders: BTreeMap::new(),
                 first_n: files[0].n,
                 len: files.len(),
                 height: first.height,
@@ -266,7 +272,7 @@ impl FrameStream {
                 kind: Kind::Folder { files },
                 from_video: false,
                 produced: 0,
-                pending: Some(first),
+                pending: Some((first, decoder.name())),
             })
         } else if input.is_file() && is_video_file(input) {
             let mut reader = VideoReader::open(input).map_err(CliError::from_err)?;
@@ -291,6 +297,7 @@ impl FrameStream {
                 video: video_override.map_or(stem, str::to_string),
                 kind: Kind::Video { reader },
                 from_video: true,
+                decoders: BTreeMap::new(),
                 produced: 0,
                 pending: None,
             })
@@ -308,12 +315,19 @@ impl FrameStream {
         }
         let n = self.first_n + self.produced as u32;
         let img = match &mut self.kind {
-            Kind::Folder { files } => match self.pending.take() {
-                Some(img) => img,
-                None => decode_image(&files[self.produced].path).map_err(CliError::from_err)?,
-            },
+            Kind::Folder { files } => {
+                let (img, decoder) = match self.pending.take() {
+                    Some(first) => first,
+                    None => decode_image_with_source(&files[self.produced].path).map(|(img, d)| (img, d.name())).map_err(CliError::from_err)?,
+                };
+                *self.decoders.entry(decoder).or_insert(0) += 1;
+                img
+            }
             Kind::Video { reader } => match reader.next_frame().map_err(CliError::from_err)? {
-                Some((i, _, rgb)) if i == n as usize => rgb,
+                Some((i, _, rgb)) if i == n as usize => {
+                    *self.decoders.entry("avfoundation").or_insert(0) += 1;
+                    rgb
+                }
                 Some((i, _, _)) => return Err(CliError::failed(format!("the video returned frame {i} where {n} was expected"))),
                 None => return Err(CliError::failed(format!("the video ended at frame {n}, before the {} frames asked for", self.len))),
             },
@@ -412,6 +426,12 @@ pub fn objects_of(y: &YieldedFrame, height: usize, width: usize, source: BoxSour
         out.push(TrackedObject { id: y.obj_ids[k], score: y.probs[k], box_xyxy_norm: [x0, y0, x1, y1] });
     }
     Ok((out, widened, from_detector))
+}
+
+/// `{"<decoder>": frames, ...}` for `<video>.run.json`.
+pub fn decoders_json(d: &BTreeMap<&'static str, usize>) -> String {
+    let parts: Vec<String> = d.iter().map(|(k, v)| format!("{}: {v}", json::string(k))).collect();
+    format!("{{{}}}", parts.join(", "))
 }
 
 /// `DIR/<video>.json`: the `spiketrack eval-visem` prediction schema.
@@ -766,7 +786,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
-        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {}\n}}\n",
+        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {}\n}}\n",
         json::string(&stream.video),
         json::string(&input.to_string_lossy()),
         json::string(&opts.prompt),
@@ -781,6 +801,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         json::number(mean, "mean time").map_err(CliError::failed)?,
         json::number(total_seconds, "total time").map_err(CliError::failed)?,
         json::string(if stream.from_video { PREPROCESSING_VIDEO } else { PREPROCESSING_FOLDER }),
+        decoders_json(&stream.decoders),
         lora_json(applied.as_ref()),
         json::string(opts.boxes.name()),
         collector.reported,
@@ -871,8 +892,9 @@ mod tests {
     /// Upstream's own input frames (`fixtures/detect_track/11.safetensors`, `frames`, float16,
     /// made by its folder loader from `11_frame_<n>.jpg`) against `upstream_input` of the same
     /// JPEG decoded by Pillow (`fixtures/decode/11_frame_0.rgb`, tools/reference/decode_oracle.py):
-    /// the resize and the float16 normalisation must agree bit for bit. Then the same frame
-    /// decoded by ImageIO: the difference the decoder alone makes.
+    /// the resize and the float16 normalisation must agree bit for bit. Then the same JPEG through
+    /// `decode_image_with_source`, which the CLI uses: the Pillow-exact decoder, so also bit for
+    /// bit.
     #[test]
     #[ignore = "needs fixtures/detect_track/11.safetensors, fixtures/decode/11_frame_0.rgb and data/visem"]
     fn upstream_input_matches_upstreams_loader_on_a_visem_frame() {
@@ -888,11 +910,13 @@ mod tests {
         let max = ours.iter().zip(want).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
         println!("Pillow-decoded frame 0: {differing} of {} samples differ from upstream's float16 frame (max {max})", want.len());
         assert_eq!(differing, 0, "the resize and float16 normalisation are not bit-identical to upstream's loader");
-        let imageio = decode_image(root.join("data/visem/VISEM_Tracking_Train_v4/Train/11/images/11_frame_0.jpg")).expect("jpeg");
-        let ours = upstream_input(&imageio, 1008);
+        let (decoded, decoder) = decode_image_with_source(root.join("data/visem/VISEM_Tracking_Train_v4/Train/11/images/11_frame_0.jpg")).expect("jpeg");
+        assert_eq!(decoder.name(), "pillow-exact-jpeg");
+        let ours = upstream_input(&decoded, 1008);
         let differing = ours.iter().zip(want).filter(|(a, b)| a != b).count();
         let max = ours.iter().zip(want).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
-        println!("ImageIO-decoded frame 0: {differing} of {} samples differ (max {max}); plain f32 sam_input differs from upstream by", want.len());
+        println!("CLI-decoded frame 0: {differing} of {} samples differ (max {max}); plain f32 sam_input differs from upstream by", want.len());
+        assert_eq!(differing, 0, "the CLI's decode + upstream_input is not bit-identical to upstream's loader");
         let plain = st_video::sam_input(&Rgb8::new(640, 480, std::fs::read(root.join("fixtures/decode/11_frame_0.rgb")).unwrap()), 1008);
         let max_plain = plain.iter().zip(want).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
         let diff_plain = plain.iter().zip(want).filter(|(a, b)| a != b).count();
@@ -1219,9 +1243,11 @@ mod tests {
         let _ = std::fs::remove_dir_all(&out);
     }
 
-    /// The same 8-frame Session on {upstream's f16 frames from the oracle, ImageIO-decoded frames
-    /// through `upstream_input`} x {CPU, Metal}, printing every yielded id's mask area per frame
-    /// and how many input samples the two frame sources differ on. Written to bisect the VISEM 22
+    /// The same 8-frame Session on {upstream's f16 frames from the oracle, frames the CLI decodes
+    /// (`decode_image_with_source`) through `upstream_input`} x {CPU, Metal}, printing every
+    /// yielded id's mask area per frame and how many input samples the two frame sources differ
+    /// on. With the Pillow-exact JPEG decoder the two sources must be identical (0 samples) and give
+    /// the same births; the committed log predates it (ImageIO decode, 7-9% of samples differed). Written to bisect the VISEM 22
     /// "balloon" (a track whose box grows to 0.42 x 0.70 in the CLI run). Its result
     /// (bench/results/track/balloon-bisect.log): no mask grows in any configuration, CPU and Metal
     /// agree per frame source, and the frame sources give different frame-0 births. The balloon
@@ -1239,11 +1265,11 @@ mod tests {
         let (_, oracle) = fx.read_f32_widened("frames").expect("frames");
         let px = 3 * 1008 * 1008;
         let imageio: Vec<Vec<f32>> = (0..N)
-            .map(|t| upstream_input(&decode_image(&root.join(format!("data/visem/VISEM_Tracking_Train_v4/Train/22/images/22_frame_{t}.jpg"))).expect("decode"), 1008))
+            .map(|t| upstream_input(&decode_image_with_source(root.join(format!("data/visem/VISEM_Tracking_Train_v4/Train/22/images/22_frame_{t}.jpg"))).map(|d| d.0).expect("decode"), 1008))
             .collect();
         for t in 0..N {
             let d = oracle[t * px..(t + 1) * px].iter().zip(&imageio[t]).filter(|(a, b)| a != b).count();
-            println!("frame {t}: ImageIO input differs from upstream's on {d} of {px} samples");
+            println!("frame {t}: CLI-decoded input differs from upstream's on {d} of {px} samples");
         }
         let (h, wd) = (480, 640);
 
@@ -1276,8 +1302,8 @@ mod tests {
         let runs = [
             ("upstream frames, CPU", areas(&cpu(), &w, &model_dir, &oracle_frame, "upstream frames, CPU")),
             ("upstream frames, Metal", areas(&metal(), &w, &model_dir, &oracle_frame, "upstream frames, Metal")),
-            ("ImageIO frames, Metal", areas(&metal(), &w, &model_dir, &imageio_frame, "ImageIO frames, Metal")),
-            ("ImageIO frames, CPU", areas(&cpu(), &w, &model_dir, &imageio_frame, "ImageIO frames, CPU")),
+            ("CLI-decoded frames, Metal", areas(&metal(), &w, &model_dir, &imageio_frame, "CLI-decoded frames, Metal")),
+            ("CLI-decoded frames, CPU", areas(&cpu(), &w, &model_dir, &imageio_frame, "CLI-decoded frames, CPU")),
         ];
         let px_frame = (h * wd) as f64;
         for (label, a) in &runs {
