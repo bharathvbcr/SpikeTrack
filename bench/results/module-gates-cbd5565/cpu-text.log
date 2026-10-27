@@ -1,0 +1,12 @@
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack-ci/crates/st-model)
+    Finished `release` profile [optimized] target(s) in 2.71s
+     Running tests/text_parity.rs (target/release/deps/text_parity-7a54d529fa126f2e)
+
+running 1 test
+test text_encoder_matches_upstream ... [cpu] upload + encode of 13 prompts: 3.11 s
+[cpu] encoder.tokens: cosine 1.000000000, max abs 9.251e-5, max abs / max ref 1.728e-6
+[cpu] resizer.out: cosine 1.000000000, max abs 4.283e-5, max abs / max ref 9.346e-6
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 3.46s
+

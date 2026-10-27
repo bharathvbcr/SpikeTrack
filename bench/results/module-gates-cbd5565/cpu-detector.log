@@ -1,0 +1,116 @@
+    Finished `release` profile [optimized] target(s) in 1.12s
+     Running tests/detector_parity.rs (target/release/deps/detector_parity-a607ad779d89c686)
+
+running 1 test
+test detector_matches_upstream_stage_by_stage ... 19 detector tensors not read on the text path (point/box/mask prompt encoders, pixel_decoder stage 3)
+
+| case | stage | cosine | max abs | max abs / max ref | gate |
+|---|---|---|---|---|---|
+| visem22_cell | sine pos 72x72 | 1.0000000 | 5.960e-8 | 5.960e-8 | pass |
+| visem22_cell | geometry CLS | 1.0000000 | 2.861e-6 | 2.735e-7 | pass |
+| visem22_cell | encoder layer 0 | 1.0000000 | 2.086e-6 | 3.295e-7 | pass |
+| visem22_cell | encoder layer 1 | 1.0000000 | 8.345e-6 | 1.045e-6 | pass |
+| visem22_cell | encoder layer 2 | 1.0000000 | 1.097e-5 | 1.191e-6 | pass |
+| visem22_cell | encoder layer 3 | 1.0000000 | 2.670e-5 | 2.276e-6 | pass |
+| visem22_cell | encoder layer 4 | 1.0000000 | 4.721e-5 | 2.809e-6 | pass |
+| visem22_cell | encoder layer 5 | 1.0000000 | 8.583e-5 | 4.113e-6 | pass |
+| visem22_cell | decoder 0 queries | 1.0000000 | 1.149e-4 | 1.679e-5 | pass |
+| visem22_cell | decoder 0 ref boxes in | 1.0000000 | 5.960e-8 | 9.531e-8 | pass |
+| visem22_cell | decoder 0 scores | 1.0000000 | 4.196e-5 | 1.097e-5 | pass |
+| visem22_cell | decoder 1 queries | 1.0000000 | 6.024e-4 | 9.107e-5 | pass |
+| visem22_cell | decoder 1 ref boxes in | 1.0000000 | 1.498e-5 | 1.514e-5 | pass |
+| visem22_cell | decoder 1 scores | 1.0000000 | 2.029e-4 | 5.416e-5 | pass |
+| visem22_cell | decoder 2 queries | 1.0000000 | 1.316e-3 | 1.823e-4 | pass |
+| visem22_cell | decoder 2 ref boxes in | 1.0000000 | 3.421e-5 | 3.458e-5 | pass |
+| visem22_cell | decoder 2 scores | 1.0000000 | 2.282e-4 | 6.435e-5 | pass |
+| visem22_cell | decoder 3 queries | 1.0000000 | 1.758e-3 | 2.309e-4 | pass |
+| visem22_cell | decoder 3 ref boxes in | 1.0000000 | 3.912e-5 | 3.954e-5 | pass |
+| visem22_cell | decoder 3 scores | 1.0000000 | 8.059e-4 | 2.095e-4 | pass |
+| visem22_cell | decoder 4 queries | 1.0000000 | 2.530e-3 | 3.277e-4 | pass |
+| visem22_cell | decoder 4 ref boxes in | 1.0000000 | 7.272e-5 | 7.349e-5 | pass |
+| visem22_cell | decoder 4 scores | 1.0000000 | 8.936e-4 | 2.457e-4 | pass |
+| visem22_cell | decoder 5 queries | 1.0000000 | 2.740e-3 | 4.071e-4 | pass |
+| visem22_cell | decoder 5 ref boxes in | 1.0000000 | 1.037e-4 | 1.047e-4 | pass |
+| visem22_cell | decoder 5 scores | 1.0000000 | 1.191e-3 | 3.166e-4 | pass |
+| visem22_cell | seg prompt cross-attn | 1.0000000 | 2.694e-5 | 6.741e-6 | pass |
+| visem22_cell | pixel embed | 1.0000000 | 3.034e-5 | 5.586e-6 | pass |
+| visem22_cell | semantic seg | 1.0000000 | 1.183e-4 | 3.993e-6 | pass |
+| visem22_cell | pred_logits | 1.0000000 | 1.187e-3 | 3.141e-4 | pass |
+| visem22_cell | pred_boxes | 1.0000000 | 2.030e-4 | 2.051e-4 | pass |
+| visem22_cell | pred_masks | 1.0000000 | 1.201e-1 | 4.738e-4 | pass |
+| testimage_shoe | sine pos 72x72 | 1.0000000 | 5.960e-8 | 5.960e-8 | pass |
+| testimage_shoe | geometry CLS | 1.0000000 | 1.550e-6 | 1.544e-7 | pass |
+| testimage_shoe | encoder layer 0 | 1.0000000 | 1.907e-6 | 2.879e-7 | pass |
+| testimage_shoe | encoder layer 1 | 1.0000000 | 1.717e-5 | 1.995e-6 | pass |
+| testimage_shoe | encoder layer 2 | 1.0000000 | 1.645e-5 | 1.572e-6 | pass |
+| testimage_shoe | encoder layer 3 | 1.0000000 | 2.432e-5 | 1.939e-6 | pass |
+| testimage_shoe | encoder layer 4 | 1.0000000 | 4.673e-5 | 2.697e-6 | pass |
+| testimage_shoe | encoder layer 5 | 1.0000000 | 5.531e-5 | 2.581e-6 | pass |
+| testimage_shoe | decoder 0 queries | 1.0000000 | 3.532e-5 | 5.412e-6 | pass |
+| testimage_shoe | decoder 0 ref boxes in | 1.0000000 | 5.960e-8 | 9.531e-8 | pass |
+| testimage_shoe | decoder 0 scores | 1.0000000 | 1.812e-5 | 2.297e-6 | pass |
+| testimage_shoe | decoder 1 queries | 1.0000000 | 1.704e-4 | 2.289e-5 | pass |
+| testimage_shoe | decoder 1 ref boxes in | 1.0000000 | 6.914e-6 | 7.490e-6 | pass |
+| testimage_shoe | decoder 1 scores | 1.0000000 | 8.821e-5 | 1.767e-5 | pass |
+| testimage_shoe | decoder 2 queries | 1.0000000 | 4.705e-4 | 5.845e-5 | pass |
+| testimage_shoe | decoder 2 ref boxes in | 1.0000000 | 1.079e-5 | 1.157e-5 | pass |
+| testimage_shoe | decoder 2 scores | 1.0000000 | 1.067e-4 | 2.231e-5 | pass |
+| testimage_shoe | decoder 3 queries | 1.0000000 | 4.734e-4 | 6.013e-5 | pass |
+| testimage_shoe | decoder 3 ref boxes in | 1.0000000 | 9.775e-6 | 1.051e-5 | pass |
+| testimage_shoe | decoder 3 scores | 1.0000000 | 5.102e-5 | 9.647e-6 | pass |
+| testimage_shoe | decoder 4 queries | 1.0000000 | 6.311e-4 | 7.493e-5 | pass |
+| testimage_shoe | decoder 4 ref boxes in | 1.0000000 | 1.907e-5 | 2.045e-5 | pass |
+| testimage_shoe | decoder 4 scores | 1.0000000 | 2.112e-4 | 4.132e-5 | pass |
+| testimage_shoe | decoder 5 queries | 1.0000000 | 3.297e-3 | 5.036e-4 | pass |
+| testimage_shoe | decoder 5 ref boxes in | 1.0000000 | 7.498e-5 | 8.007e-5 | pass |
+| testimage_shoe | decoder 5 scores | 1.0000000 | 6.156e-4 | 1.198e-4 | pass |
+| testimage_shoe | seg prompt cross-attn | 1.0000000 | 8.583e-6 | 1.854e-6 | pass |
+| testimage_shoe | pixel embed | 1.0000000 | 5.025e-5 | 4.946e-6 | pass |
+| testimage_shoe | semantic seg | 1.0000000 | 2.518e-4 | 2.984e-6 | pass |
+| testimage_shoe | pred_logits | 1.0000000 | 6.142e-4 | 1.161e-4 | pass |
+| testimage_shoe | pred_boxes | 1.0000000 | 3.349e-4 | 3.573e-4 | pass |
+| testimage_shoe | pred_masks | 1.0000000 | 2.485e-1 | 9.329e-4 | pass |
+| truck_wheel | sine pos 72x72 | 1.0000000 | 5.960e-8 | 5.960e-8 | pass |
+| truck_wheel | geometry CLS | 1.0000000 | 9.537e-7 | 9.468e-8 | pass |
+| truck_wheel | encoder layer 0 | 1.0000000 | 1.907e-6 | 2.640e-7 | pass |
+| truck_wheel | encoder layer 1 | 1.0000000 | 2.027e-5 | 2.273e-6 | pass |
+| truck_wheel | encoder layer 2 | 1.0000000 | 3.147e-5 | 2.957e-6 | pass |
+| truck_wheel | encoder layer 3 | 1.0000000 | 4.101e-5 | 3.003e-6 | pass |
+| truck_wheel | encoder layer 4 | 1.0000000 | 5.674e-5 | 3.107e-6 | pass |
+| truck_wheel | encoder layer 5 | 1.0000000 | 8.202e-5 | 3.540e-6 | pass |
+| truck_wheel | decoder 0 queries | 1.0000000 | 6.771e-5 | 9.901e-6 | pass |
+| truck_wheel | decoder 0 ref boxes in | 1.0000000 | 5.960e-8 | 9.531e-8 | pass |
+| truck_wheel | decoder 0 scores | 1.0000000 | 5.674e-5 | 5.942e-6 | pass |
+| truck_wheel | decoder 1 queries | 1.0000000 | 1.973e-4 | 2.705e-5 | pass |
+| truck_wheel | decoder 1 ref boxes in | 1.0000000 | 2.468e-5 | 2.611e-5 | pass |
+| truck_wheel | decoder 1 scores | 1.0000000 | 5.245e-5 | 9.077e-6 | pass |
+| truck_wheel | decoder 2 queries | 1.0000000 | 6.156e-4 | 7.681e-5 | pass |
+| truck_wheel | decoder 2 ref boxes in | 1.0000000 | 3.809e-5 | 4.054e-5 | pass |
+| truck_wheel | decoder 2 scores | 1.0000000 | 2.217e-4 | 4.402e-5 | pass |
+| truck_wheel | decoder 3 queries | 1.0000000 | 1.247e-3 | 1.508e-4 | pass |
+| truck_wheel | decoder 3 ref boxes in | 1.0000000 | 5.811e-5 | 6.174e-5 | pass |
+| truck_wheel | decoder 3 scores | 1.0000000 | 8.535e-4 | 1.587e-4 | pass |
+| truck_wheel | decoder 4 queries | 1.0000000 | 9.671e-4 | 1.134e-4 | pass |
+| truck_wheel | decoder 4 ref boxes in | 1.0000000 | 1.241e-4 | 1.318e-4 | pass |
+| truck_wheel | decoder 4 scores | 1.0000000 | 6.804e-4 | 1.244e-4 | pass |
+| truck_wheel | decoder 5 queries | 1.0000000 | 3.128e-3 | 4.632e-4 | pass |
+| truck_wheel | decoder 5 ref boxes in | 1.0000000 | 1.353e-4 | 1.432e-4 | pass |
+| truck_wheel | decoder 5 scores | 1.0000000 | 8.540e-4 | 1.394e-4 | pass |
+| truck_wheel | seg prompt cross-attn | 1.0000000 | 1.907e-5 | 4.263e-6 | pass |
+| truck_wheel | pixel embed | 1.0000000 | 3.386e-5 | 4.542e-6 | pass |
+| truck_wheel | semantic seg | 1.0000000 | 1.621e-4 | 2.804e-6 | pass |
+| truck_wheel | pred_logits | 1.0000000 | 8.540e-4 | 1.392e-4 | pass |
+| truck_wheel | pred_boxes | 1.0000000 | 6.872e-5 | 7.317e-5 | pass |
+| truck_wheel | pred_masks | 1.0000000 | 6.087e-2 | 2.720e-4 | pass |
+
+| case | upstream kept @0.5 | ours kept | only upstream (q:ref/ours) | only ours | mean mask IoU (upstream's kept) | detector s (CPU) |
+|---|---|---|---|---|---|---|
+| visem22_cell | 28 | 28 |  |  | 1.0000 | 2.0 |
+| testimage_shoe | 12 | 12 |  |  | 1.0000 | 1.9 |
+| truck_wheel | 4 | 4 |  |  | 1.0000 | 1.9 |
+
+worst cosine 1.0000000
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 6.80s
+

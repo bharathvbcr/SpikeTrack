@@ -1,0 +1,20 @@
+    Finished `release` profile [optimized] target(s) in 1.08s
+     Running tests/tracker_parity.rs (target/release/deps/tracker_parity-969385f32cb40849)
+
+running 1 test
+test memory_attention_matches_upstream_on_metal ... [Metal]
+| frame | memory frames | pointer tokens | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|---|
+| 1 | 1 | 16 | 1.0000000 | 2.623e-5 | 2.951e-6 |
+| 2 | 2 | 32 | 1.0000000 | 1.812e-5 | 1.946e-6 |
+| 3 | 3 | 48 | 1.0000000 | 1.192e-4 | 1.279e-5 |
+| 4 | 4 | 64 | 1.0000000 | 1.395e-4 | 1.518e-5 |
+| 5 | 5 | 80 | 1.0000000 | 1.931e-4 | 2.049e-5 |
+| 6 | 6 | 96 | 1.0000000 | 2.034e-4 | 2.176e-5 |
+| 7 | 7 | 112 | 1.0000000 | 2.847e-4 | 3.010e-5 |
+
+memory attention worst cosine 1.0000000
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 2.74s
+

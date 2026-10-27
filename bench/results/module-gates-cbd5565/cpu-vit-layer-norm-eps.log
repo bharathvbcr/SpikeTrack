@@ -1,0 +1,13 @@
+    Finished `release` profile [optimized] target(s) in 1.06s
+     Running tests/backbone_parity.rs (target/release/deps/backbone_parity-ef5bd91994fb9cd6)
+
+running 1 test
+test vit_layer_norm_eps_matches_upstream ... trunk.ln_pre: max abs 3.815e-6 at eps 0.00001 (old eps 0.000001: 7.320e-3)
+trunk.blocks.0.norm1: max abs 1.431e-6 at eps 0.00001 (old eps 0.000001: 2.718e-5)
+trunk.blocks.0.norm2: max abs 1.907e-6 at eps 0.00001 (old eps 0.000001: 2.670e-5)
+trunk.blocks.7.norm1: max abs 1.907e-6 at eps 0.00001 (old eps 0.000001: 2.480e-5)
+trunk.blocks.7.norm2: max abs 1.431e-6 at eps 0.00001 (old eps 0.000001: 1.144e-5)
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.11s
+

@@ -1,0 +1,114 @@
+    Finished `release` profile [optimized] target(s) in 1.45s
+     Running tests/backbone_parity.rs (target/release/deps/backbone_parity-ef5bd91994fb9cd6)
+
+running 1 test
+test backbone_matches_pytorch_fp32_on_five_images_on_metal ... [metal] weights loaded and uploaded in 0.5 s
+[metal] visem_22_f0: trunk + 3 necks 1.7 s (one run, not a benchmark)
+[metal] visem_47_f300: trunk + 3 necks 1.7 s (one run, not a benchmark)
+[metal] visem_82_f600: trunk + 3 necks 1.7 s (one run, not a benchmark)
+[metal] sam3_truck: trunk + 3 necks 1.7 s (one run, not a benchmark)
+[metal] sam3_groceries: trunk + 3 necks 1.7 s (one run, not a benchmark)
+
+| image | stage | cosine | max abs | max abs / max ref | gate |
+|---|---|---|---|---|---|
+| visem_22_f0 | patch_embed | 1.0000000 | 0.000e0 | 0.000e0 | pass |
+| visem_22_f0 | ln_pre | 1.0000000 | 3.815e-6 | 1.740e-7 | pass |
+| visem_22_f0 | block 0 | 1.0000000 | 3.910e-5 | 2.271e-6 | pass |
+| visem_22_f0 | block 1 | 1.0000000 | 4.959e-5 | 2.020e-6 | pass |
+| visem_22_f0 | block 2 | 1.0000000 | 6.676e-5 | 1.923e-6 | pass |
+| visem_22_f0 | block 3 | 1.0000000 | 6.866e-5 | 1.683e-6 | pass |
+| visem_22_f0 | block 4 | 1.0000000 | 6.104e-5 | 1.445e-6 | pass |
+| visem_22_f0 | block 5 | 1.0000000 | 5.722e-5 | 1.240e-6 | pass |
+| visem_22_f0 | block 6 | 1.0000000 | 6.104e-5 | 1.234e-6 | pass |
+| visem_22_f0 | block 7 | 1.0000000 | 5.341e-5 | 1.080e-6 | pass |
+| visem_22_f0 | block 8 | 1.0000000 | 6.104e-5 | 1.041e-6 | pass |
+| visem_22_f0 | block 9 | 1.0000000 | 1.450e-4 | 1.862e-6 | pass |
+| visem_22_f0 | block 10 | 1.0000000 | 1.755e-4 | 2.158e-6 | pass |
+| visem_22_f0 | block 11 | 1.0000000 | 2.632e-4 | 3.264e-6 | pass |
+| visem_22_f0 | block 12 | 1.0000000 | 6.866e-4 | 7.402e-6 | pass |
+| visem_22_f0 | block 13 | 1.0000000 | 1.614e-3 | 1.395e-5 | pass |
+| visem_22_f0 | block 14 | 1.0000000 | 1.961e-3 | 1.471e-5 | pass |
+| visem_22_f0 | block 15 | 1.0000000 | 4.028e-3 | 2.630e-5 | pass |
+| visem_22_f0 | block 16 | 1.0000000 | 1.391e-2 | 6.504e-5 | pass |
+| visem_22_f0 | block 17 | 1.0000000 | 2.984e-2 | 1.176e-4 | pass |
+| visem_22_f0 | block 18 | 1.0000000 | 4.990e-2 | 1.762e-4 | pass |
+| visem_22_f0 | block 19 | 1.0000000 | 5.179e-2 | 1.823e-4 | pass |
+| visem_22_f0 | block 20 | 1.0000000 | 5.194e-2 | 1.810e-4 | pass |
+| visem_22_f0 | block 21 | 1.0000000 | 4.976e-2 | 1.724e-4 | pass |
+| visem_22_f0 | block 22 | 1.0000000 | 4.812e-2 | 1.667e-4 | pass |
+| visem_22_f0 | block 23 | 1.0000000 | 4.402e-2 | 1.516e-4 | pass |
+| visem_22_f0 | block 24 | 1.0000000 | 4.244e-2 | 1.462e-4 | pass |
+| visem_22_f0 | block 25 | 1.0000000 | 4.055e-2 | 1.400e-4 | pass |
+| visem_22_f0 | block 26 | 1.0000000 | 3.834e-2 | 1.312e-4 | pass |
+| visem_22_f0 | block 27 | 1.0000000 | 3.544e-2 | 1.219e-4 | pass |
+| visem_22_f0 | block 28 | 1.0000000 | 3.150e-2 | 1.098e-4 | pass |
+| visem_22_f0 | block 29 | 1.0000000 | 2.687e-2 | 9.701e-5 | pass |
+| visem_22_f0 | block 30 | 1.0000000 | 2.637e-2 | 9.853e-5 | pass |
+| visem_22_f0 | block 31 | 1.0000000 | 2.528e-2 | 1.183e-4 | pass |
+| visem_22_f0 | convs[0] | 1.0000000 | 2.552e-5 | 1.340e-4 | pass |
+| visem_22_f0 | convs[1] | 1.0000000 | 2.659e-3 | 2.711e-4 | pass |
+| visem_22_f0 | convs[2] | 1.0000000 | 1.259e-3 | 2.060e-4 | pass |
+| visem_22_f0 | interactive_convs[0] | 1.0000000 | 2.379e-4 | 2.998e-4 | pass |
+| visem_22_f0 | interactive_convs[1] | 1.0000000 | 5.580e-4 | 1.817e-4 | pass |
+| visem_22_f0 | interactive_convs[2] | 1.0000000 | 4.933e-4 | 1.846e-4 | pass |
+| visem_22_f0 | propagation_convs[0] | 1.0000000 | 1.076e-4 | 1.112e-4 | pass |
+| visem_22_f0 | propagation_convs[1] | 1.0000000 | 3.519e-4 | 1.174e-4 | pass |
+| visem_22_f0 | propagation_convs[2] | 1.0000000 | 9.464e-4 | 1.690e-4 | pass |
+| visem_47_f300 | block 7 | 1.0000000 | 6.485e-5 | 1.250e-6 | pass |
+| visem_47_f300 | block 15 | 1.0000000 | 2.958e-3 | 1.704e-5 | pass |
+| visem_47_f300 | block 23 | 1.0000000 | 1.977e-2 | 6.324e-5 | pass |
+| visem_47_f300 | block 31 | 1.0000000 | 1.287e-2 | 5.487e-5 | pass |
+| visem_47_f300 | convs[0] | 1.0000000 | 6.668e-6 | 2.956e-5 | pass |
+| visem_47_f300 | convs[1] | 1.0000000 | 3.347e-4 | 3.527e-5 | pass |
+| visem_47_f300 | convs[2] | 1.0000000 | 2.201e-4 | 3.771e-5 | pass |
+| visem_47_f300 | interactive_convs[0] | 1.0000000 | 3.590e-5 | 4.468e-5 | pass |
+| visem_47_f300 | interactive_convs[1] | 1.0000000 | 9.541e-5 | 3.242e-5 | pass |
+| visem_47_f300 | interactive_convs[2] | 1.0000000 | 9.537e-5 | 3.299e-5 | pass |
+| visem_47_f300 | propagation_convs[0] | 1.0000000 | 3.185e-5 | 3.561e-5 | pass |
+| visem_47_f300 | propagation_convs[1] | 1.0000000 | 5.287e-5 | 1.757e-5 | pass |
+| visem_47_f300 | propagation_convs[2] | 1.0000000 | 1.420e-4 | 2.389e-5 | pass |
+| visem_82_f600 | block 7 | 1.0000000 | 7.248e-5 | 1.358e-6 | pass |
+| visem_82_f600 | block 15 | 1.0000000 | 4.917e-3 | 2.888e-5 | pass |
+| visem_82_f600 | block 23 | 1.0000000 | 4.679e-2 | 1.496e-4 | pass |
+| visem_82_f600 | block 31 | 1.0000000 | 3.278e-2 | 1.396e-4 | pass |
+| visem_82_f600 | convs[0] | 1.0000000 | 1.214e-5 | 5.651e-5 | pass |
+| visem_82_f600 | convs[1] | 1.0000000 | 6.156e-4 | 5.865e-5 | pass |
+| visem_82_f600 | convs[2] | 1.0000000 | 5.052e-4 | 9.078e-5 | pass |
+| visem_82_f600 | interactive_convs[0] | 1.0000000 | 5.855e-5 | 6.936e-5 | pass |
+| visem_82_f600 | interactive_convs[1] | 1.0000000 | 1.971e-4 | 6.191e-5 | pass |
+| visem_82_f600 | interactive_convs[2] | 1.0000000 | 2.548e-4 | 1.003e-4 | pass |
+| visem_82_f600 | propagation_convs[0] | 1.0000000 | 4.989e-5 | 6.675e-5 | pass |
+| visem_82_f600 | propagation_convs[1] | 1.0000000 | 1.117e-4 | 3.846e-5 | pass |
+| visem_82_f600 | propagation_convs[2] | 1.0000000 | 2.831e-4 | 5.161e-5 | pass |
+| sam3_truck | block 7 | 1.0000000 | 7.629e-5 | 1.439e-6 | pass |
+| sam3_truck | block 15 | 1.0000000 | 2.766e-3 | 1.918e-5 | pass |
+| sam3_truck | block 23 | 1.0000000 | 2.110e-2 | 7.442e-5 | pass |
+| sam3_truck | block 31 | 1.0000000 | 1.688e-2 | 7.991e-5 | pass |
+| sam3_truck | convs[0] | 1.0000000 | 8.782e-6 | 3.649e-5 | pass |
+| sam3_truck | convs[1] | 1.0000000 | 8.484e-4 | 7.116e-5 | pass |
+| sam3_truck | convs[2] | 1.0000000 | 1.034e-3 | 1.683e-4 | pass |
+| sam3_truck | interactive_convs[0] | 1.0000000 | 5.275e-5 | 5.886e-5 | pass |
+| sam3_truck | interactive_convs[1] | 1.0000000 | 2.431e-4 | 6.942e-5 | pass |
+| sam3_truck | interactive_convs[2] | 1.0000000 | 2.900e-4 | 1.111e-4 | pass |
+| sam3_truck | propagation_convs[0] | 1.0000000 | 6.071e-5 | 4.484e-5 | pass |
+| sam3_truck | propagation_convs[1] | 1.0000000 | 9.961e-5 | 2.755e-5 | pass |
+| sam3_truck | propagation_convs[2] | 1.0000000 | 4.483e-4 | 1.011e-4 | pass |
+| sam3_groceries | block 7 | 1.0000000 | 6.485e-5 | 1.305e-6 | pass |
+| sam3_groceries | block 15 | 1.0000000 | 2.569e-3 | 1.561e-5 | pass |
+| sam3_groceries | block 23 | 1.0000000 | 2.065e-2 | 6.769e-5 | pass |
+| sam3_groceries | block 31 | 1.0000000 | 1.451e-2 | 6.304e-5 | pass |
+| sam3_groceries | convs[0] | 1.0000000 | 9.038e-6 | 4.596e-5 | pass |
+| sam3_groceries | convs[1] | 1.0000000 | 5.155e-4 | 4.334e-5 | pass |
+| sam3_groceries | convs[2] | 1.0000000 | 3.226e-4 | 5.934e-5 | pass |
+| sam3_groceries | interactive_convs[0] | 1.0000000 | 6.768e-5 | 7.846e-5 | pass |
+| sam3_groceries | interactive_convs[1] | 1.0000000 | 1.333e-4 | 3.766e-5 | pass |
+| sam3_groceries | interactive_convs[2] | 1.0000000 | 1.835e-4 | 7.213e-5 | pass |
+| sam3_groceries | propagation_convs[0] | 1.0000000 | 4.449e-5 | 4.977e-5 | pass |
+| sam3_groceries | propagation_convs[1] | 1.0000000 | 1.086e-4 | 3.533e-5 | pass |
+| sam3_groceries | propagation_convs[2] | 1.0000000 | 2.600e-4 | 6.538e-5 | pass |
+
+[metal] worst cosine 1.0000000 over 95 stages (gate > 0.999)
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 10.54s
+
