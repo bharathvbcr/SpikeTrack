@@ -9,6 +9,7 @@ use std::time::Instant;
 
 use ojas_core::{Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
+use ojas_metal::MetalBackend;
 use ojas_io::SafeTensors;
 use st_model::detector::{Detector, DetectorTaps, DetectorWeights, D, MASK, QUERIES, TOKENS};
 use st_model::host;
@@ -55,7 +56,7 @@ fn f(st: &SafeTensors<'_>, name: &str) -> Vec<f32> {
     st.read_f32(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail())).1
 }
 
-fn host(t: &Tensor, be: &CpuBackend) -> Vec<f32> {
+fn host<B: Backend>(t: &Tensor, be: &B) -> Vec<f32> {
     t.to_host(be.budget()).expect("host").to_f32_vec().expect("f32")
 }
 
@@ -81,18 +82,27 @@ fn mask_iou(got: &[f32], want: &[f32], keep: &[usize]) -> f64 {
 #[test]
 #[ignore = "needs the gated checkpoint and detector fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_DETECTOR_FIXTURES"]
 fn detector_matches_upstream_stage_by_stage() {
+    detector_parity(&CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu backend"), "CPU");
+}
+
+#[test]
+#[ignore = "needs a Metal GPU, the gated checkpoint and detector fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_DETECTOR_FIXTURES"]
+fn detector_matches_upstream_stage_by_stage_on_metal() {
+    detector_parity(&MetalBackend::new(Budget::new(24 << 30)).expect("metal backend"), "Metal");
+}
+
+fn detector_parity<B: Backend>(be: &B, label: &str) {
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = Sam31Weights::load(&ck).expect("weights");
     let dir = env_path("SPIKETRACK_DETECTOR_FIXTURES");
-    let be = CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu backend");
     let det = Detector::new(
-        &be,
+        be,
         DetectorWeights { transformer: &w.detector_transformer, geometry: &w.geometry_encoder, segmentation: &w.segmentation_head, scoring: &w.dot_prod_scoring },
     )
     .expect("detector");
     // Every detector tensor is read by the port, apart from the ones upstream's text path never touches.
     let groups = [&w.detector_transformer, &w.geometry_encoder, &w.segmentation_head, &w.dot_prod_scoring];
-    let unused: Vec<&String> = groups.iter().flat_map(|g| g.tensors.keys()).filter(|n| Detector::<CpuBackend>::unused_by_text_prompts(n)).collect();
+    let unused: Vec<&String> = groups.iter().flat_map(|g| g.tensors.keys()).filter(|n| Detector::<B>::unused_by_text_prompts(n)).collect();
     println!("{} detector tensors not read on the text path (point/box/mask prompt encoders, pixel_decoder stage 3)", unused.len());
 
     let mut cmp = Cmp { rows: Vec::new(), worst: f64::INFINITY };
@@ -121,7 +131,7 @@ fn detector_matches_upstream_stage_by_stage() {
 
         cmp.check(case, "geometry CLS", taps.geo.as_ref().expect("geo"), &f(&st, "geo.0"), 0.9999);
         for (i, t) in taps.enc_layers.iter().enumerate() {
-            cmp.check(case, &format!("encoder layer {i}"), &host(t, &be), &f(&st, &format!("enc.layer{i}")), 0.999);
+            cmp.check(case, &format!("encoder layer {i}"), &host(t, be), &f(&st, &format!("enc.layer{i}")), 0.999);
         }
         let hs = f(&st, "dec.0"); // [6, 200, 1, 256]
         let refs = f(&st, "dec.1"); // [6, 200, 1, 4]
@@ -134,12 +144,12 @@ fn detector_matches_upstream_stage_by_stage() {
             let d = (f64::from(taps.presence_logits[l]) - f64::from(pres[l])).abs();
             assert!(d < 0.05, "{case} presence logit layer {l}: {} vs {}", taps.presence_logits[l], pres[l]);
         }
-        cmp.check(case, "seg prompt cross-attn", &host(taps.seg_cross_attn.as_ref().expect("tap"), &be), &f(&st, "seg.cross_attend_prompt.0"), 0.999);
-        cmp.check(case, "pixel embed", &host(taps.pixel_embed.as_ref().expect("tap"), &be), &f(&st, "seg.pixel_embed"), 0.999);
-        cmp.check(case, "semantic seg", &host(&out.semantic_seg, &be), &f(&st, "seg.semantic_seg"), 0.999);
+        cmp.check(case, "seg prompt cross-attn", &host(taps.seg_cross_attn.as_ref().expect("tap"), be), &f(&st, "seg.cross_attend_prompt.0"), 0.999);
+        cmp.check(case, "pixel embed", &host(taps.pixel_embed.as_ref().expect("tap"), be), &f(&st, "seg.pixel_embed"), 0.999);
+        cmp.check(case, "semantic seg", &host(&out.semantic_seg, be), &f(&st, "seg.semantic_seg"), 0.999);
         cmp.check(case, "pred_logits", &out.pred_logits, &f(&st, "out.pred_logits"), 0.999);
         cmp.check(case, "pred_boxes", &out.pred_boxes, &f(&st, "out.pred_boxes"), 0.9999);
-        let masks = host(&out.pred_masks, &be);
+        let masks = host(&out.pred_masks, be);
         let want_masks = f(&st, "out.pred_masks");
         cmp.check(case, "pred_masks", &masks, &want_masks, 0.999);
         let pres_ref = f(&st, "out.presence_logit_dec")[0];
@@ -164,7 +174,7 @@ fn detector_matches_upstream_stage_by_stage() {
     let _ = TOKENS;
     println!("\n| case | stage | cosine | max abs | max abs / max ref | gate |\n|---|---|---|---|---|---|");
     cmp.rows.iter().for_each(|r| println!("{r}"));
-    println!("\n| case | upstream kept @0.5 | ours kept | only upstream (q:ref/ours) | only ours | mean mask IoU (upstream's kept) | detector s (CPU) |\n|---|---|---|---|---|---|---|");
+    println!("\n| case | upstream kept @0.5 | ours kept | only upstream (q:ref/ours) | only ours | mean mask IoU (upstream's kept) | detector s ({label}) |\n|---|---|---|---|---|---|---|");
     iou_rows.iter().for_each(|r| println!("{r}"));
     println!("\nworst cosine {:.7}", cmp.worst);
     assert!(cmp.rows.iter().all(|r| r.ends_with("pass |")), "a stage failed its cosine gate");

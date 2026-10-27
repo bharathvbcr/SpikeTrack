@@ -8,13 +8,15 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.97"
 publish = false
 
-# Pre-existing libraries, pinned to the commits listed in CONTRIBUTIONS.md.
-# d2922fb is ojas main with the SAM-oriented ops (attention_forward, conv2d,
-# conv_transpose2d, layer_norm, gelu_erf, linear_bias, rope_interleaved).
+# Pre-existing libraries. metal-smoke branch: path dependencies on the ojas-st
+# worktree (detached at 4710bb2, which is in ojas main), because ojas-metal
+# reaches tessl as a sibling path (../../tessl = ~/Code/research/tessl) and that
+# does not resolve from a git checkout of ojas.
 [workspace.dependencies]
-ojas-core = { git = "file:///Users/bharath/Code/research/ojas", rev = "d2922fb" }
-ojas-cpu = { git = "file:///Users/bharath/Code/research/ojas", rev = "d2922fb" }
-ojas-io = { git = "file:///Users/bharath/Code/research/ojas", rev = "d2922fb" }
+ojas-core = { path = "../ojas-st/ojas-core" }
+ojas-cpu = { path = "../ojas-st/ojas-cpu" }
+ojas-io = { path = "../ojas-st/ojas-io" }
+ojas-metal = { path = "../ojas-st/ojas-metal" }
 st-weights = { path = "crates/st-weights" }
 st-eval = { path = "crates/st-eval" }
 st-video = { path = "crates/st-video" }

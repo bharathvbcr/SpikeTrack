@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use ojas_core::{Backend, Budget};
 use ojas_cpu::CpuBackend;
+use ojas_metal::MetalBackend;
 use ojas_io::{parse_json, SafeTensors};
 use st_model::tokenizer::CONTEXT;
 use st_model::{Text, Tokenizer};
@@ -62,13 +63,24 @@ fn tokenizer_matches_upstream_ids() {
 #[test]
 #[ignore = "needs the gated checkpoint and text fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_TEXT_FIXTURES"]
 fn text_encoder_matches_upstream() {
+    text_parity(&CpuBackend::new(Budget::new(16 << 30)), "cpu");
+}
+
+#[test]
+#[ignore = "needs a Metal GPU, the gated checkpoint and text fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_TEXT_FIXTURES"]
+fn text_encoder_matches_upstream_on_metal() {
+    text_parity(&MetalBackend::new(Budget::new(16 << 30)).expect("metal backend"), "metal");
+}
+
+fn text_parity<B: Backend>(be: &B, label: &str) {
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = TextEncoder::load(&ck).expect("text weights");
-    let be = CpuBackend::new(Budget::new(16 << 30));
-    let text = Text::new(&be, &w).expect("upload");
+    let t0 = std::time::Instant::now();
+    let text = Text::new(be, &w).expect("upload");
     let ids: Vec<[u32; CONTEXT]> = cases().into_iter().map(|(_, ids)| ids).collect();
     let out = text.encode(&ids).expect("encode");
     be.sync().expect("sync");
+    println!("[{label}] upload + encode of {} prompts: {:.2} s", ids.len(), t0.elapsed().as_secs_f64());
     let fx = SafeTensors::open(&env_path("SPIKETRACK_TEXT_FIXTURES")).expect("fixtures");
     // Stored as U8, 1 = padding (torch's key_padding convention).
     assert_eq!(fx.info("pad_mask").expect("pad_mask").dtype, ojas_io::StDtype::U8);
@@ -88,7 +100,7 @@ fn text_encoder_matches_upstream() {
             ref_max = ref_max.max(r.abs());
         }
         let cos = dot / (gg.sqrt() * ww.sqrt());
-        println!("{name}: cosine {cos:.9}, max abs {max_abs:.3e}, max abs / max ref {:.3e}", max_abs / ref_max);
+        println!("[{label}] {name}: cosine {cos:.9}, max abs {max_abs:.3e}, max abs / max ref {:.3e}", max_abs / ref_max);
         assert!(cos > 0.9999, "{name}: cosine {cos}");
     }
 }

@@ -11,6 +11,7 @@ use std::time::Instant;
 
 use ojas_core::{Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
+use ojas_metal::MetalBackend;
 use ojas_io::SafeTensors;
 use st_model::{Backbone, Neck, Taps};
 use st_weights::{Checkpoint, VisionBackbone};
@@ -63,6 +64,13 @@ fn fixture(st: &SafeTensors<'_>, name: &str) -> (Vec<usize>, Vec<f32>) {
 fn backbone_matches_pytorch_fp32_on_five_images() {
     let be = CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu backend");
     run_parity(&be, "cpu");
+}
+
+#[test]
+#[ignore = "needs a Metal GPU, the gated checkpoint and fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_FIXTURES"]
+fn backbone_matches_pytorch_fp32_on_five_images_on_metal() {
+    let be = MetalBackend::new(Budget::new(24 << 30)).expect("metal backend");
+    run_parity(&be, "metal");
 }
 
 /// The gate on any backend: same fixtures, same stages, same threshold.

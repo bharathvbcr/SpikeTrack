@@ -15,4 +15,5 @@ st-video.workspace = true
 
 [dev-dependencies]
 ojas-cpu.workspace = true
+ojas-metal.workspace = true
 st-eval.workspace = true
