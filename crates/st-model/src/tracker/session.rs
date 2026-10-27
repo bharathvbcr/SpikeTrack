@@ -75,7 +75,7 @@ use crate::tokenizer::Tokenizer;
 use crate::tracker::associate::{associate, nms_iom, not_close_to_boundary, track_detections, AssocParams, Association, Bitmask};
 use crate::tracker::bookkeeping::{BookParams, FrameInput, FramePlan, HideLog, TrackBook, YieldBuffer};
 use crate::tracker::state::{err, FrameCtx, TrackerState};
-use crate::tracker::vos::{bf16_round, Vos, INPUT_MASK, LOW};
+use crate::tracker::vos::{Vos, INPUT_MASK, LOW};
 use crate::{ModelError, Neck, Taps};
 
 /// The builder's session parameters (`model_builder.py:1170-1202`).
@@ -244,10 +244,11 @@ fn suppress_area_shrinkage(hr: &mut [f32], n: usize, px: usize) -> Vec<f32> {
 /// casts both tracker necks' FPN levels to bf16 before the tracker sees them
 /// (`sam3_multiplex_detector.py:563-586`), i.e. before `conv_s0`/`conv_s1`, memory attention, the
 /// decoders and the memory encoder. The VOS driver (`vos.rs`) does not do this.
+///
+/// `Backend::cast_bf16` rounds on the device (Metal `ojas_round_bf16`; no host read, so no wait):
+/// nearest even, as `vos::bf16_round` and torch, for every non-NaN value; a NaN stays a quiet NaN.
 fn round_bf16<B: Backend + ?Sized>(be: &B, t: &Tensor) -> Result<Tensor, ModelError> {
-    let mut v = host_of(t, be)?;
-    bf16_round(&mut v);
-    Ok(up(be, &v, t.shape())?)
+    Ok(be.cast_bf16(t)?)
 }
 
 fn round_neck<B: Backend + ?Sized>(be: &B, neck: [Tensor; 3]) -> Result<[Tensor; 3], ModelError> {
@@ -669,6 +670,40 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tracker::vos::bf16_round;
+
+    /// `round_bf16` (Backend::cast_bf16) equals the host rounding it replaced, `vos::bf16_round`,
+    /// bit for bit on every non-NaN input: random values over the whole exponent range, ties
+    /// (exactly half an ulp, even and odd), subnormals, the largest finite values, infinities and
+    /// zeros. (A NaN goes to a quiet NaN under cast_bf16; the tracker features are finite.) The
+    /// Metal kernel runs the same formula (ojas_backend.metal `ojas_bf16`); the Metal session
+    /// parity gate checks it end to end.
+    #[test]
+    fn device_bf16_rounding_equals_the_host_rounding_it_replaced() {
+        let be = ojas_cpu::CpuBackend::new(ojas_core::Budget::new(64 << 20));
+        let mut v: Vec<f32> = Vec::new();
+        let mut x = 0x2545_f491u32;
+        while v.len() < 20_000 {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            let f = f32::from_bits(x);
+            if !f.is_nan() {
+                v.push(f);
+            }
+        }
+        for hi in [0x3f80u32, 0x3f81, 0x0001, 0x7f7f, 0x807f, 0xff7f] {
+            v.extend([0x0000u32, 0x7fff, 0x8000, 0x8001, 0xffff].map(|lo| f32::from_bits((hi << 16) | lo)));
+        }
+        v.extend([f32::MAX, f32::MIN, f32::MIN_POSITIVE, f32::INFINITY, f32::NEG_INFINITY, 0.0, -0.0, 1e-40, -1e-40]);
+        let n = v.len();
+        let t = Tensor::from_f32(&v, &[n], be.budget()).expect("tensor");
+        let ours = round_bf16(&be, &t).expect("round").to_f32_vec().expect("f32");
+        let mut want = v.clone();
+        bf16_round(&mut want);
+        let differ: Vec<(f32, u32, u32)> = v.iter().zip(&ours).zip(&want).filter(|((_, a), b)| a.to_bits() != b.to_bits()).map(|((x, a), b)| (*x, a.to_bits(), b.to_bits())).take(5).collect();
+        assert!(differ.is_empty(), "cast_bf16 differs from bf16_round: {differ:?}");
+    }
 
     #[test]
     fn shrinkage_suppression_clamps_an_object_that_keeps_under_30_percent_of_its_area() {
