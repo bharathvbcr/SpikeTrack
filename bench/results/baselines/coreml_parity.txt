@@ -1,0 +1,4 @@
+CoreML backbone (sdkv2/sam3.1-coreml @ 9668c49, CPU_AND_GPU) vs upstream SAM 3.1 fp32 on fixtures/backbone/visem_22_f0 (2026-10-27):
+normalized input: vis72 vs upstream propagation neck level 2: cosine 0.999952, max abs 3.469e-01, ref max 5.599e+00
+[0,1] input: vis72 vs upstream propagation neck level 2: cosine 0.878565, max abs 3.437e+00, ref max 5.599e+00
+=> the port computes upstream trunk + propagation neck in fp16 from the normalized (mean/std 0.5) input.
