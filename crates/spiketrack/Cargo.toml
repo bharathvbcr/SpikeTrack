@@ -1,0 +1,21 @@
+[package]
+name = "spiketrack"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "SpikeTrack command line: SAM 3.1 image detection and VISEM-Tracking evaluation"
+
+[[bin]]
+name = "spiketrack"
+path = "src/main.rs"
+
+[dependencies]
+ojas-core.workspace = true
+ojas-cpu.workspace = true
+ojas-io.workspace = true
+st-eval.workspace = true
+st-model = { path = "../st-model" }
+st-video.workspace = true
+st-weights.workspace = true

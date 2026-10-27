@@ -1,0 +1,27 @@
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+warning: unused imports: `AttentionOpts` and `Conv2dParams`
+  --> crates/st-model/src/detector.rs:12:17
+   |
+12 | use ojas_core::{AttentionOpts, Backend, Conv2dParams, OjasError, Tensor};
+   |                 ^^^^^^^^^^^^^           ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Weight`
+  --> crates/st-model/src/detector.rs:13:31
+   |
+13 | use st_weights::{TensorGroup, Weight};
+   |                               ^^^^^^
+
+warning: `st-model` (lib) generated 2 warnings (run `cargo fix --lib -p st-model` to apply 2 suggestions)
+    Finished `release` profile [optimized] target(s) in 8.38s
+     Running tests/gating_parity.rs (target/release/deps/gating_parity-da3bc6ec3425d7fc)
+
+running 4 tests
+test gated_trunk_exactness_on_real_frames_cpu_exact_numerics ... ignored, needs the gated checkpoint and VISEM frames: set SPIKETRACK_WEIGHTS
+test gated_trunk_exactness_on_real_frames_cpu_fast_numerics_reported ... ignored, needs the gated checkpoint and VISEM frames: set SPIKETRACK_WEIGHTS
+test policy_recompute_fraction_and_wall_time_on_ten_consecutive_visem_frames ... ignored, needs the gated checkpoint and VISEM frames: set SPIKETRACK_WEIGHTS
+test synthetic_gated_trunk_is_exact_where_designed_and_carries_where_approximate ... ok
+
+test result: ok. 1 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 20.07s
+

@@ -1,0 +1,44 @@
+torch 2.14.1, mps built True, available True, recommended max 48.0 GB
+MPS ok   complex RoPE ops (view_as_complex, polar, complex mul) (2, 4, 4, 2) (0.07s)
+MPS FAIL float64 tensor: TypeError: Cannot convert a MPS Tensor to float64 dtype as the MPS framework doesn't support float64. Please use float32 instead.
+MPS FAIL uint8 antialiased bilinear resize: RuntimeError: _upsample_bilineard2d_aa_out_mps only supports floating-point dtypes
+MPS ok   SDPA 5184 tokens x 8 heads, forward + backward 2.67 GB driver (0.31s)
+PASS focal shim == upstream pure-torch branch 0.463086 vs 0.463086
+PASS loss wrapper builds 
+PASS attention parity B=0 [none, sam3 batch_first=True] max|d|=0.00e+00
+PASS attention parity B=0 [key_padding, sam3 batch_first=True] max|d|=0.00e+00
+PASS attention parity B=0 [bool2d, sam3 batch_first=True] max|d|=0.00e+00
+PASS attention parity B=0 [float3d+kpm, sam3 batch_first=True] max|d|=0.00e+00
+PASS attention parity B=0 [rpb_bias, sam3 batch_first=True] max|d|=0.00e+00
+PASS adapter == merged weights [none, sam3 batch_first=True] max|d|=5.66e-07
+PASS adapter == merged weights [float3d+kpm, sam3 batch_first=True] max|d|=9.83e-07
+PASS adapter == merged weights [rpb_bias, sam3 batch_first=True] max|d|=7.75e-07
+PASS attention parity B=0 [none, sam3 batch_first=False] max|d|=0.00e+00
+PASS attention parity B=0 [key_padding, sam3 batch_first=False] max|d|=0.00e+00
+PASS attention parity B=0 [bool2d, sam3 batch_first=False] max|d|=0.00e+00
+PASS attention parity B=0 [float3d+kpm, sam3 batch_first=False] max|d|=0.00e+00
+PASS attention parity B=0 [rpb_bias, sam3 batch_first=False] max|d|=0.00e+00
+PASS adapter == merged weights [none, sam3 batch_first=False] max|d|=5.66e-07
+PASS adapter == merged weights [float3d+kpm, sam3 batch_first=False] max|d|=6.56e-07
+PASS adapter == merged weights [rpb_bias, sam3 batch_first=False] max|d|=8.94e-07
+PASS attention parity B=0 [none, torch batch_first=False] max|d|=2.09e-07
+PASS attention parity B=0 [key_padding, torch batch_first=False] max|d|=2.38e-07
+PASS attention parity B=0 [bool2d, torch batch_first=False] max|d|=2.09e-07
+PASS attention parity B=0 [float3d+kpm, torch batch_first=False] max|d|=2.98e-07
+PASS adapter == merged weights [none, torch batch_first=False] max|d|=8.34e-07
+PASS adapter == merged weights [float3d+kpm, torch batch_first=False] max|d|=9.24e-07
+heads built+loaded in 0.3s, rss 0.71 GB
+PASS aux on == aux off (final layer) 
+PASS aux outputs: 5 earlier decoder layers 
+PASS 200 queries, presence per prompt (2, 200, 1)
+PASS 30 attention modules, ~1M trainable (4 projections each) 983040 params
+PASS LoRA with B=0 == un-adapted heads max|d logit|=3.34e-06
+PASS step 0 loss finite 230.603 {'loss_bbox': 0.069, 'loss_giou': 0.845, 'loss_ce': 0.02, 'presence_loss': 1.286, 'core_loss': 230.603}
+  step 0: grad nonzero B 120/120, A 0/120, 3.8s, rss 0.72 GB, mps allocated 0.19 GB, driver 7.75 GB
+PASS every B receives gradient at step 0 (A cannot: B = 0) 
+PASS step 1 loss finite 109.686 {'loss_bbox': 0.073, 'loss_giou': 0.872, 'loss_ce': 0.026, 'presence_loss': 0.488, 'core_loss': 109.686}
+  step 1: grad nonzero B 120/120, A 120/120, 1.5s, rss 0.73 GB, mps allocated 0.19 GB, driver 7.77 GB
+PASS A receives gradient once B != 0 
+PASS adapter file: 120 modules, per-module rank/alpha/param 
+PASS adapter round trip reproduces the adapted outputs max|d logit|=0.00e+00
+ALL PASS peak rss 0.86 GB

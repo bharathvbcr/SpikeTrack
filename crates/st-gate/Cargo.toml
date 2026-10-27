@@ -1,0 +1,13 @@
+[package]
+name = "st-gate"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Training-free event gating: change maps from consecutive frames and the per-frame recompute decision"
+
+# No dependencies on purpose: the pixel side of gating knows nothing about
+# tensors or backends, and the bitset type is one module (bits.rs) so the
+# owner's sparsl can replace it later without touching the callers.
+[dependencies]

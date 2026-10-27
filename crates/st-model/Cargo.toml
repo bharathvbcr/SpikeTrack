@@ -12,6 +12,7 @@ ojas-core.workspace = true
 ojas-io.workspace = true
 st-weights.workspace = true
 st-video.workspace = true
+st-gate = { path = "../st-gate" }
 
 [dev-dependencies]
 ojas-cpu.workspace = true

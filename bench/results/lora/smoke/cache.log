@@ -1,0 +1,12 @@
+3 videos, 4 frames, about 0.01 GB of fp16 features
+[0m[32mINFO 2026-10-26 22:35:46,261 37749 sam3_multiplex_base.py: 337:[0m `setting max_num_objects` to 16 -- creating num_obj_for_compile=1 objects for torch.compile cache
+dynamic_multimask_via_stability is reset to False in the multiplex model
+reference built in 8s
+text features for 12 prompts
+[11] frame 979 (1/1) 1.5s
+[12] frame 578 (1/1) 0.9s
+[22] frame 486 (1/2) 0.9s
+[22] frame 1096 (2/2) 0.9s
+verify {"video": "11", "frame": 979, "cell": {"max_abs_logit": 0.06595182418823242, "max_abs_box": 0.001276262104511261, "max_abs_presence_logit": 4.5299530029296875e-05, "n_above_0.5_full": 28, "n_above_0.5_ours": 28}, "sperm": {"max_abs_logit": 0.08749055862426758, "max_abs_box": 0.007577128708362579, "max_abs_presence_logit": 0.00012254714965820312, "n_above_0.5_full": 0, "n_above_0.5_ours": 0}}
+verify {"video": "12", "frame": 578, "cell": {"max_abs_logit": 0.05048394203186035, "max_abs_box": 0.004953205585479736, "max_abs_presence_logit": 0.00018358230590820312, "n_above_0.5_full": 27, "n_above_0.5_ours": 27}, "sperm": {"max_abs_logit": 0.02332592010498047, "max_abs_box": 0.006713241338729858, "max_abs_presence_logit": 5.507469177246094e-05, "n_above_0.5_full": 0, "n_above_0.5_ours": 0}}
+done: 4 frames, 0.02 GB on disk, max |feature| 6.2, fp16 round-trip err 1.95e-03

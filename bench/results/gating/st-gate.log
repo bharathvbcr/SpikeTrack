@@ -1,0 +1,65 @@
+   Compiling st-gate v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-gate)
+    Finished `release` profile [optimized] target(s) in 0.94s
+     Running unittests src/lib.rs (target/release/deps/st_gate-76b355ba936d4bba)
+
+running 28 tests
+
+thread 'bits::tests::an_index_past_the_end_panics_instead_of_vanishing' (23885602) panicked at crates/st-gate/src/bits.rs:53:9:
+bit 9 out of range for a set of 9
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test bits::tests::full_masks_the_tail_so_equality_is_canonical ... ok
+test bits::tests::an_index_past_the_end_panics_instead_of_vanishing - should panic ... ok
+test bits::tests::or_and_clear ... ok
+test bits::tests::set_get_count_across_word_boundaries ... ok
+test bits::tests::window_set_is_row_major_and_ordered ... ok
+test change_map::tests::a_reused_map_is_fully_overwritten ... ok
+test change_map::tests::identical_frames_change_nothing_at_every_threshold ... ok
+test change_map::tests::refuses_frames_that_do_not_fit ... ok
+test change_map::tests::matches_a_direct_implementation_on_random_sparse_changes ... ok
+test change_map::tests::tau_255_never_fires_even_on_a_full_swing ... ok
+test change_map::tests::tau_zero_is_exact_one_sample_one_level_flags_exactly_its_patch_and_window ... ok
+test change_map::tests::the_difference_is_absolute_so_brighter_and_darker_agree ... ok
+test change_map::tests::the_last_row_and_column_of_patches_and_windows_map_correctly ... ok
+test change_map::tests::the_threshold_is_a_strict_mean_over_the_whole_patch ... ok
+test policy::tests::a_windows_decision_updates_only_those_windows_of_the_reference ... ok
+test policy::tests::all_windows_changed_is_full_not_a_full_window_set ... ok
+test policy::tests::first_frame_is_full_then_an_identical_frame_is_reused ... ok
+test policy::tests::frame_policy_is_all_or_nothing ... ok
+test policy::tests::full_above_percent_caps_the_changed_windows ... ok
+test policy::tests::off_never_compares_and_is_always_full ... ok
+test policy::tests::refresh_every_forces_a_full_on_the_nth_frame_and_counts_from_it ... ok
+test change_map::tests::sam3_geometry_on_a_real_size_frame ... ok
+test policy::tests::reset_forgets_the_reference ... ok
+test policy::tests::reuse_patches_trades_exactness_for_skipping ... ok
+test policy::tests::the_reference_is_the_frame_at_the_last_recompute_so_slow_drift_is_caught ... ok
+test policy::tests::same_stream_same_decisions ... ok
+test policy::tests::windows_policy_names_exactly_the_changed_windows ... ok
+test policy::tests::wrong_sized_frames_are_errors_not_decisions ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/gating.rs (target/release/deps/gating-a7cb26e83288f35b)
+
+running 4 tests
+test exact_window_policy_walks_the_stream_as_designed ... ok
+test frame_policy_reuses_only_when_nothing_changed ... ok
+
+change-map cost, 1008x1008 RGB, tau 8, CPU single thread, min of 40
+| step | ms | % of the 177 ms frame floor |
+|---|---|---|
+| change map only | 0.202 | 0.11 |
+| decide: reuse (map) | 0.172 | 0.10 |
+| decide: windows (map + copy 4 windows) | 0.250 | 0.14 |
+| decide: full (map + copy frame) | 0.266 | 0.15 |
+budget: 5% of the floor = 8.83 ms (a real frame is 6-9 s on CPU, so the true share is ~1000x smaller)
+test change_map_cost_is_under_five_percent_of_the_fastest_possible_frame ... ok
+test two_runs_over_the_same_stream_give_identical_decisions_and_map_hashes ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+   Doc-tests st_gate
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
