@@ -293,10 +293,16 @@ pub fn check_format(width: usize, height: usize, fps: f64) -> Result<i32, Encode
     Ok((fps * TICKS_PER_FRAME as f64).round() as i32)
 }
 
-/// The output path checks of [`VideoWriter::create`]: an `.mp4` name in an existing directory, no
-/// file there yet (or one to replace, when `overwrite`). Returns the absolute path, with the parent
-/// directory canonicalised, and removes the file being replaced.
-fn prepare_output(path: &Path, overwrite: bool) -> Result<PathBuf, EncodeError> {
+/// The output path checks of [`VideoWriter::create`], without changing anything: an `.mp4` name in
+/// an existing directory, no file there yet (or a regular file to replace, when `overwrite`).
+/// Returns the absolute path, with the parent directory canonicalised. A caller that wants to fail early (before loading a model, say) calls this with the
+/// options it will create the writer with.
+pub fn check_output(path: impl AsRef<Path>, overwrite: bool) -> Result<PathBuf, EncodeError> {
+    inspect_output(path.as_ref(), overwrite).map(|(full, _)| full)
+}
+
+/// [`check_output`], also saying whether a file is there to be replaced.
+fn inspect_output(path: &Path, overwrite: bool) -> Result<(PathBuf, bool), EncodeError> {
     let bad = |detail: &str| EncodeError::InvalidPath { path: path.to_path_buf(), detail: detail.to_string() };
     let io = |p: &Path, err| EncodeError::Io { path: p.to_path_buf(), err };
     if !path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("mp4")) {
@@ -313,11 +319,19 @@ fn prepare_output(path: &Path, overwrite: bool) -> Result<PathBuf, EncodeError> 
     }
     let full = parent.join(name);
     match std::fs::symlink_metadata(&full) {
-        Ok(meta) if meta.is_dir() => return Err(bad("a directory is in the way")),
-        Ok(_) if !overwrite => return Err(EncodeError::Exists { path: full }),
-        Ok(_) => std::fs::remove_file(&full).map_err(|e| io(&full, e))?,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(io(&full, e)),
+        Ok(meta) if meta.is_dir() => Err(bad("a directory is in the way")),
+        Ok(_) if !overwrite => Err(EncodeError::Exists { path: full }),
+        Ok(_) => Ok((full, true)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok((full, false)),
+        Err(e) => Err(io(&full, e)),
+    }
+}
+
+/// [`check_output`], then remove the file being replaced.
+fn prepare_output(path: &Path, overwrite: bool) -> Result<PathBuf, EncodeError> {
+    let (full, exists) = inspect_output(path, overwrite)?;
+    if exists {
+        std::fs::remove_file(&full).map_err(|err| EncodeError::Io { path: full.clone(), err })?;
     }
     Ok(full)
 }

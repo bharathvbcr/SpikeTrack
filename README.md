@@ -71,6 +71,10 @@ target/release/spiketrack image data/visem/VISEM_Tracking_Train_v4/Train/22/imag
 target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/images \
   --prompt cell --backend metal --max-frames 64 --out out/track
 
+# The same, also writing the masks and boxes, coloured by track id, as a playable H.264 video (49 fps for a frame folder, the input's rate for an mp4; --overlay-fps overrides)
+target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/images \
+  --prompt cell --backend metal --max-frames 64 --overlay-video out/track/22-overlay.mp4 --out out/track
+
 # The same with a detector LoRA adapter (trained offline by tools/reference/train_lora.py)
 target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/images \
   --prompt cell --backend metal --max-frames 64 --lora fixtures/lora_runs/visem-lora-r16/adapter.safetensors \

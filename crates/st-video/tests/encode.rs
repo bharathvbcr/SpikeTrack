@@ -293,6 +293,10 @@ fn an_existing_file_is_refused_unless_overwrite_is_asked_for() {
     std::fs::write(&path, b"precious").unwrap();
     assert!(matches!(VideoWriter::create(&path, W, H, 24.0), Err(EncodeError::Exists { .. })));
     assert_eq!(std::fs::read(&path).unwrap(), b"precious", "a refusal leaves the file as it was");
+    // The early check says the same and changes nothing, with or without overwrite.
+    assert!(matches!(encode::check_output(&path, false), Err(EncodeError::Exists { .. })));
+    assert_eq!(encode::check_output(&path, true).unwrap(), std::fs::canonicalize(&path).unwrap());
+    assert_eq!(std::fs::read(&path).unwrap(), b"precious", "check_output removes nothing");
     // Overwrite replaces it with a real video.
     let mut w = VideoWriter::create_with(&path, W, H, 24.0, WriterOptions { overwrite: true }).unwrap();
     for i in 0..6 {

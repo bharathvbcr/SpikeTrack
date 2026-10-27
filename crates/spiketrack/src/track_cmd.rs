@@ -52,6 +52,18 @@
 //!   timings, preprocessing note, frame precision, the `--lora` adapter or null).
 //! * with `--overlay K`: `DIR/overlay/<video>_frame_<n>.png` for every frame whose number is
 //!   a multiple of K, masks and boxes coloured by track id.
+//! * with `--overlay-video FILE`: an H.264 `.mp4` (`st_video::VideoWriter`, AVFoundation) of
+//!   every processed frame with the same overlay, rendered by the same `overlay::render` as
+//!   the PNGs (so the same colours by id and the same boxes), in frame order, at `--overlay-fps`
+//!   or else the input video's own rate or, for a folder of frames, [`FOLDER_OVERLAY_FPS`]
+//!   (49: VISEM-Tracking's videos are 48 to 50 fps). It is independent of `--overlay K`: either,
+//!   both or neither. Frames are rendered and encoded as the session releases them, and
+//!   [`Collector::keep_image`] holds a decoded frame only until its release (15 frames late), so
+//!   memory does not grow with the clip. The file must not exist and the frame size must be
+//!   even (checked before the model loads); a run that fails drops the writer, which cancels the
+//!   session and removes the partial file. `<video>.run.json` records `overlay_video` (path),
+//!   `overlay_video_fps`, `overlay_video_fps_source` and `overlay_video_frames` (all `null`
+//!   without the option).
 //!
 //! The session releases a frame only after 15 later ones (upstream's hot-start delay, which
 //! decides which ids are real), so the first outputs appear 15 frames in; the run ends by
@@ -67,7 +79,8 @@ use ojas_metal::{MetalBackend, WaitCounts};
 use st_model::tracker::session::{Session, SessionConfig, YieldedFrame};
 use st_model::tracker::vos::Vos;
 use st_model::{Backbone, Detector, DetectorWeights, Text, Tokenizer};
-use st_video::{decode_image_with_source, resize_bilinear_pil, Rgb8, VideoReader};
+use st_video::encode;
+use st_video::{decode_image_with_source, resize_bilinear_pil, Rgb8, VideoFile, VideoReader, VideoWriter};
 use st_weights::Sam31Weights;
 
 use crate::cli::{existing_path, Args, CliError};
@@ -81,7 +94,8 @@ use crate::weights::{self, lora_json};
 
 pub const USAGE: &str = "\
 spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--max-frames N]
-                 [--start F] [--overlay K] [--video ID] [--boxes mask|detector] [--weights FILE]
+                 [--start F] [--overlay K] [--overlay-video FILE] [--overlay-fps F]
+                 [--video ID] [--boxes mask|detector] [--weights FILE]
                  [--lora FILE] [--model-dir DIR] [--threads N] [--trim-pool-every K]
 
   Tracks every instance of <text> through a video with SAM 3.1's multiplex tracker, forward
@@ -95,6 +109,12 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
   --start F         first frame: the folder's frame number F, or the F-th video frame (default 0
                     for a video, the folder's lowest number for a folder)
   --overlay K       also write overlay/<video>_frame_<n>.png for every frame n divisible by K
+  --overlay-video FILE  also write every frame with its masks and boxes, coloured by track id as
+                    in --overlay, as an H.264 .mp4 (the system encoder, AVFoundation; independent
+                    of --overlay K). The file name must end in .mp4 and must not exist; the frame
+                    size must be even; a run that fails leaves no partial file.
+  --overlay-fps F   the video's frame rate, 1 to 240 (default: the input video's own rate; for a
+                    folder of frames 49, VISEM-Tracking's: its videos are 48 to 50 fps)
   --video ID        the video id used in file names and \"video\" (default: from the frame
                     names, or the mp4's file name without extension)
   --boxes SOURCE    mask (default, upstream's out_boxes_xywh: the extent of the track's mask
@@ -245,6 +265,8 @@ pub struct FrameStream {
     pub height: usize,
     pub width: usize,
     pub from_video: bool,
+    /// The input video's frame rate (`VideoInfo::fps`, frames over duration), `None` for a folder of frames.
+    pub fps: Option<f64>,
     /// Frames delivered so far, by decoder (`pillow-exact-jpeg`, `imageio`, `avfoundation`).
     pub decoders: BTreeMap<&'static str, usize>,
     produced: usize,
@@ -271,6 +293,7 @@ impl FrameStream {
                 video: video_override.map_or(folder.video, str::to_string),
                 kind: Kind::Folder { files },
                 from_video: false,
+                fps: None,
                 produced: 0,
                 pending: Some((first, decoder.name())),
             })
@@ -297,6 +320,7 @@ impl FrameStream {
                 video: video_override.map_or(stem, str::to_string),
                 kind: Kind::Video { reader },
                 from_video: true,
+                fps: Some(info.fps),
                 decoders: BTreeMap::new(),
                 produced: 0,
                 pending: None,
@@ -461,6 +485,13 @@ pub fn masks_json(n: u32, height: usize, width: usize, items: &[(i64, Rle)]) -> 
     format!("{{\"frame\": {n}, \"size\": [{height}, {width}], \"objects\": [{}]}}\n", objs.join(", "))
 }
 
+/// The `--overlay-video` writer, and the index of the frame it expects next (frames are released
+/// in order and must be written in order).
+struct OverlayVideo {
+    writer: VideoWriter,
+    next: usize,
+}
+
 /// Receives released frames: keeps their results and writes the per-frame files.
 pub struct Collector {
     out: PathBuf,
@@ -469,7 +500,11 @@ pub struct Collector {
     height: usize,
     width: usize,
     overlay_every: Option<u32>,
+    overlay_video: Option<OverlayVideo>,
     boxes: BoxSource,
+    /// The decoded frames still awaiting release (the session releases a frame 15 frames late)
+    /// that an overlay will want: every one while a video is being written, else the `--overlay K`
+    /// frames. `accept` removes a frame as it is rendered, so this holds at most the lag's worth.
     images: BTreeMap<usize, Rgb8>,
     pub results: Vec<FrameResult>,
     pub widened: usize,
@@ -492,6 +527,7 @@ impl Collector {
             height,
             width,
             overlay_every,
+            overlay_video: None,
             boxes,
             images: BTreeMap::new(),
             results: Vec::new(),
@@ -502,9 +538,37 @@ impl Collector {
         })
     }
 
+    /// Write the overlay of every released frame to `writer`, in frame order (`--overlay-video`),
+    /// whatever `--overlay K` says. It must be a writer for this collector's frame size, with no
+    /// frame written yet, and be set before the first [`Collector::keep_image`].
+    pub fn set_overlay_video(&mut self, writer: VideoWriter) -> Result<(), CliError> {
+        if writer.size() != (self.width, self.height) || writer.frames() != 0 || !self.images.is_empty() {
+            return Err(CliError::failed(format!("the overlay video is {}x{} with {} frame(s) written; the frames are {}x{}", writer.size().0, writer.size().1, writer.frames(), self.width, self.height)));
+        }
+        self.overlay_video = Some(OverlayVideo { writer, next: 0 });
+        Ok(())
+    }
+
+    /// Complete the overlay video, if one is being written, and check that it holds `expected` frames.
+    pub fn finish_overlay_video(&mut self, expected: usize) -> Result<Option<VideoFile>, CliError> {
+        let Some(v) = self.overlay_video.take() else {
+            return Ok(None);
+        };
+        let file = v.writer.finish().map_err(|e| CliError::failed(format!("--overlay-video: {e}")))?;
+        if file.frames != expected {
+            return Err(CliError::failed(format!("--overlay-video: {} frame(s) written for {expected} processed", file.frames)));
+        }
+        Ok(Some(file))
+    }
+
+    /// Whether frame `index` (0-based within the run) gets a PNG for `--overlay K`.
+    fn wants_png(&self, index: usize) -> bool {
+        self.overlay_every.is_some_and(|k| (self.first_n + index as u32) % k == 0)
+    }
+
     /// Frame `index` (0-based within the run) was pushed: keep it if an overlay will want it.
     pub fn keep_image(&mut self, index: usize, image: &Rgb8) {
-        if self.overlay_every.is_some_and(|k| (self.first_n + index as u32) % k == 0) {
+        if self.overlay_video.is_some() || self.wants_png(index) {
             self.images.insert(index, image.clone());
         }
     }
@@ -520,7 +584,9 @@ impl Collector {
         let rles: Vec<(i64, Rle)> = y.obj_ids.iter().zip(&y.masks).map(|(&id, m)| (id, Rle::from_fn(h, w, |r, c| m.get(r * w + c)))).collect();
         let path = self.out.join("masks").join(format!("{}_frame_{n}.json", self.video));
         std::fs::write(&path, masks_json(n, h, w, &rles)).map_err(|e| CliError::failed(format!("{}: {e}", path.display())))?;
-        if let Some(image) = self.images.remove(&y.frame) {
+        let png_wanted = self.wants_png(y.frame);
+        if png_wanted || self.overlay_video.is_some() {
+            let image = self.images.remove(&y.frame).ok_or_else(|| CliError::failed(format!("frame {n} was released but its image was not kept for the overlay")))?;
             let bits: Vec<Vec<bool>> = rles.iter().map(|(_, r)| r.decode()).collect();
             let drawn: Vec<Drawn<'_>> = objects
                 .iter()
@@ -531,9 +597,20 @@ impl Collector {
                     Drawn { mask: m, box_px: [f64::from(b[0]) * fw, f64::from(b[1]) * fh, f64::from(b[2]) * fw, f64::from(b[3]) * fh], colour: o.id.rem_euclid(1 << 20) as usize }
                 })
                 .collect();
-            let bytes = png::encode_rgb(w, h, &overlay::render(&image, &drawn).data).map_err(CliError::from_err)?;
-            let path = self.out.join("overlay").join(format!("{}_frame_{n}.png", self.video));
-            std::fs::write(&path, bytes).map_err(|e| CliError::failed(format!("{}: {e}", path.display())))?;
+            // One rendering feeds both outputs, so the video shows exactly the PNG's pixels.
+            let rendered = overlay::render(&image, &drawn);
+            if let Some(v) = &mut self.overlay_video {
+                if y.frame != v.next {
+                    return Err(CliError::failed(format!("--overlay-video: frame {n} released out of order (the video is at its frame {})", v.next)));
+                }
+                v.writer.push(&rendered).map_err(|e| CliError::failed(format!("--overlay-video, frame {n}: {e}")))?;
+                v.next += 1;
+            }
+            if png_wanted {
+                let bytes = png::encode_rgb(w, h, &rendered.data).map_err(CliError::from_err)?;
+                let path = self.out.join("overlay").join(format!("{}_frame_{n}.png", self.video));
+                std::fs::write(&path, bytes).map_err(|e| CliError::failed(format!("{}: {e}", path.display())))?;
+            }
         }
         self.results.push(FrameResult { n, objects });
         Ok(())
@@ -543,6 +620,70 @@ impl Collector {
 // ---------------------------------------------------------------------------
 // The run
 // ---------------------------------------------------------------------------
+
+/// The frame rate of an overlay video made from a folder of frames, which records none:
+/// VISEM-Tracking's 20 videos are 49 fps (17 of them), 48 (2) and 50 (1) by `ffprobe`'s
+/// `avg_frame_rate` of the mp4s in `data/visem`, and the dataset paper (arXiv 2212.02842) says
+/// 45 to 50. Pass `--overlay-fps` for a folder recorded at another rate.
+pub const FOLDER_OVERLAY_FPS: f64 = 49.0;
+
+/// Where an overlay video's frame rate came from.
+const FPS_FROM_OPTION: &str = "--overlay-fps";
+const FPS_FROM_INPUT: &str = "input video";
+const FPS_FROM_DEFAULT: &str = "default for a folder of frames (VISEM-Tracking: 49 fps)";
+
+/// The overlay video's frame rate: `--overlay-fps`, else the input video's own, else
+/// [`FOLDER_OVERLAY_FPS`], with the source of the number.
+pub fn overlay_fps_choice(option: Option<f64>, input_video: Option<f64>) -> (f64, &'static str) {
+    match (option, input_video) {
+        (Some(f), _) => (f, FPS_FROM_OPTION),
+        (None, Some(f)) => (f, FPS_FROM_INPUT),
+        (None, None) => (FOLDER_OVERLAY_FPS, FPS_FROM_DEFAULT),
+    }
+}
+
+/// `--overlay-video`, checked: the file to write and the frame rate to write it at.
+#[derive(Debug)]
+struct OverlayVideoSpec {
+    path: PathBuf,
+    fps: f64,
+    fps_source: &'static str,
+}
+
+/// What `<video>.run.json` records of the overlay video.
+struct OverlayVideoRun {
+    /// The frame rate as stored (the request rounded to 0.001).
+    fps: f64,
+    fps_source: &'static str,
+    file: Option<VideoFile>,
+}
+
+/// Check `--overlay-video` against the frames (even size, a frame rate the encoder takes, a free
+/// `.mp4` path) before any model work, so a refusal costs a second and not a model load.
+fn plan_overlay_video(path: PathBuf, fps_option: Option<f64>, stream: &FrameStream) -> Result<OverlayVideoSpec, CliError> {
+    let (fps, fps_source) = overlay_fps_choice(fps_option, stream.fps);
+    let refuse = |e: encode::EncodeError| {
+        let hint = match (&e, fps_source) {
+            (encode::EncodeError::InvalidFps { .. }, FPS_FROM_INPUT) => " (the input video's own rate; pass --overlay-fps)",
+            (encode::EncodeError::InvalidSize { .. }, _) => " (the video is written at the frames' size, which H.264 4:2:0 needs even)",
+            _ => "",
+        };
+        CliError::failed(format!("--overlay-video: {e}{hint}"))
+    };
+    encode::check_format(stream.width, stream.height, fps).map_err(refuse)?;
+    encode::check_output(&path, false).map_err(refuse)?;
+    Ok(OverlayVideoSpec { path, fps, fps_source })
+}
+
+/// `overlay_video`, `overlay_video_fps`, `overlay_video_fps_source`, `overlay_video_frames` for
+/// `<video>.run.json`, as JSON values (all `null` without `--overlay-video`).
+fn overlay_video_json(run: Option<&OverlayVideoRun>) -> Result<[String; 4], String> {
+    let Some(run) = run else {
+        return Ok(["null".to_string(), "null".to_string(), "null".to_string(), "null".to_string()]);
+    };
+    let file = run.file.as_ref().ok_or("the overlay video was not finished")?;
+    Ok([json::string(&file.path.to_string_lossy()), json::number(run.fps, "overlay video fps")?, json::string(run.fps_source), file.frames.to_string()])
+}
 
 struct Options {
     prompt: String,
@@ -714,7 +855,7 @@ fn track_on<B: Backend>(
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
-    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "video", "boxes", "weights", "lora", "model-dir", "threads", "trim-pool-every"], 1)?;
+    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "overlay-video", "overlay-fps", "video", "boxes", "weights", "lora", "model-dir", "threads", "trim-pool-every"], 1)?;
     if args.help {
         println!("{USAGE}");
         return Ok(());
@@ -746,6 +887,16 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     if overlay_every == Some(0) {
         return Err(CliError::usage("--overlay must be at least 1"));
     }
+    let overlay_video = args.get("overlay-video").map(PathBuf::from);
+    let overlay_fps = args.get("overlay-fps").map(|_| args.parsed("overlay-fps", 0f64)).transpose()?;
+    if overlay_fps.is_some() && overlay_video.is_none() {
+        return Err(CliError::usage("--overlay-fps needs --overlay-video"));
+    }
+    if let Some(f) = overlay_fps {
+        if !(f.is_finite() && (encode::MIN_FPS..=encode::MAX_FPS).contains(&f)) {
+            return Err(CliError::usage(format!("--overlay-fps {f} is outside {}..={} fps", encode::MIN_FPS, encode::MAX_FPS)));
+        }
+    }
     if let Some(v) = args.get("video") {
         if v.contains(['/', '\\']) || v == "." || v == ".." {
             return Err(CliError::usage(format!("--video {v:?} is not a plain id")));
@@ -756,6 +907,8 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     // The input is opened (and its first frame decoded) before the model is touched, so a bad
     // path or a gap in the frames fails in a second, not after the weights are loaded.
     let mut stream = FrameStream::open(&input, start, max_frames, args.get("video"))?;
+    // So is the overlay video: its size, frame rate and file name are checked before the weights load.
+    let overlay_spec = overlay_video.map(|path| plan_overlay_video(path, overlay_fps, &stream)).transpose()?;
     let weights = existing_path(args.get("weights"), "SPIKETRACK_WEIGHTS", "weights", "weights")?;
     let lora = weights::lora_path(args.get("lora"))?;
     let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
@@ -763,6 +916,12 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
 
     let (w, applied) = weights::load(&opts.weights, lora.as_deref())?;
     let mut collector = Collector::new(&opts.out, &stream.video, stream.first_n, stream.height, stream.width, opts.overlay_every, opts.boxes)?;
+    let mut overlay_run = None;
+    if let Some(spec) = overlay_spec {
+        let writer = VideoWriter::create(&spec.path, stream.width, stream.height, spec.fps).map_err(|e| CliError::failed(format!("--overlay-video: {e}")))?;
+        overlay_run = Some(OverlayVideoRun { fps: writer.fps(), fps_source: spec.fps_source, file: None });
+        collector.set_overlay_video(writer)?;
+    }
     let t_all = Instant::now();
     let timing = match opts.backend {
         BackendChoice::Cpu => track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?,
@@ -783,10 +942,14 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     let text = predictions_json(&stream.video, stream.width, stream.height, &results).map_err(CliError::failed)?;
     let pred_path = opts.out.join(format!("{}.json", stream.video));
     std::fs::write(&pred_path, text).map_err(|e| CliError::failed(format!("{}: {e}", pred_path.display())))?;
+    if let Some(run) = overlay_run.as_mut() {
+        run.file = collector.finish_overlay_video(stream.len)?;
+    }
+    let [video_path_json, video_fps_json, video_fps_source_json, video_frames_json] = overlay_video_json(overlay_run.as_ref()).map_err(CliError::failed)?;
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
-        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {}\n}}\n",
+        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {}\n}}\n",
         json::string(&stream.video),
         json::string(&input.to_string_lossy()),
         json::string(&opts.prompt),
@@ -806,6 +969,10 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         json::string(opts.boxes.name()),
         collector.reported,
         collector.from_detector,
+        video_path_json,
+        video_fps_json,
+        video_fps_source_json,
+        video_frames_json,
     );
     let run_path = opts.out.join(format!("{}.run.json", stream.video));
     std::fs::write(&run_path, run_text).map_err(|e| CliError::failed(format!("{}: {e}", run_path.display())))?;
@@ -821,6 +988,11 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         pred_path.display(),
         run_path.display()
     );
+    if let Some(run) = &overlay_run {
+        if let Some(file) = &run.file {
+            println!("  {} (overlay video: {} frame(s) at {} fps from {}, {:.1} MiB)", file.path.display(), file.frames, run.fps, run.fps_source, file.bytes as f64 / MIB);
+        }
+    }
     if collector.widened > 0 {
         println!("  note: {} box(es) widened to one pixel (a mask one pixel wide or high)", collector.widened);
     }
@@ -1097,6 +1269,190 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
     }
 
+    /// A collector over `w x h` grey frames numbered from 100, with `overlay_every` and, when
+    /// `video` is a path, an overlay video at 10 fps; every frame's mask is the left half.
+    fn video_collector(dir: &Path, overlay_every: Option<u32>, video: Option<&Path>) -> Collector {
+        let mut c = Collector::new(dir, "9", 100, VH, VW, overlay_every, BoxSource::Mask).unwrap();
+        if let Some(p) = video {
+            c.set_overlay_video(VideoWriter::create(p, VW, VH, 10.0).unwrap()).unwrap();
+        }
+        c
+    }
+
+    const VW: usize = 64;
+    const VH: usize = 48;
+
+    fn grey_frame() -> Rgb8 {
+        Rgb8::new(VW, VH, vec![50; VW * VH * 3])
+    }
+
+    /// The released frame `k`: id 3 with the left half masked and boxed.
+    fn left_half(k: usize) -> YieldedFrame {
+        yielded(k, &[3], &[0.0, 0.0, 0.5, 1.0], vec![Bitmask::from_fn(VH * VW, |p| p % VW < VW / 2)])
+    }
+
+    #[test]
+    fn the_overlay_video_has_every_frame_in_order_and_the_collector_holds_only_unreleased_frames() {
+        let d = temp("video");
+        let path = d.join("overlay.mp4");
+        let mut c = video_collector(&d, None, Some(&path));
+        // The session releases frame i - LAG when frame i is pushed; the collector must hold the
+        // frames in between, and no more.
+        const LAG: usize = 14;
+        let total = 30;
+        let mut peak = 0;
+        for i in 0..total {
+            c.keep_image(i, &grey_frame());
+            peak = peak.max(c.images.len());
+            if i >= LAG {
+                c.accept(left_half(i - LAG)).unwrap();
+            }
+        }
+        for k in total - LAG..total {
+            c.accept(left_half(k)).unwrap();
+        }
+        assert_eq!(peak, LAG + 1, "one frame awaiting release for each frame of lag, plus the one just pushed");
+        assert!(c.images.is_empty(), "every kept frame was released");
+        let file = c.finish_overlay_video(total).unwrap().expect("a video was asked for");
+        assert_eq!(file.frames, total);
+        assert!(!d.join("overlay").exists(), "no --overlay K, no PNGs");
+        assert!(c.finish_overlay_video(total).unwrap().is_none(), "finished once");
+
+        let mut reader = VideoReader::open(&file.path).unwrap();
+        assert_eq!((reader.info().width, reader.info().height, reader.info().frame_count), (VW, VH, total));
+        assert!((reader.info().fps - 10.0).abs() < 0.1, "{}", reader.info().fps);
+        let mut n = 0;
+        while let Some((i, _, img)) = reader.next_frame().unwrap() {
+            assert_eq!(i, n);
+            let at = |x: usize, y: usize| -> [u8; 3] { img.data[(y * VW + x) * 3..][..3].try_into().unwrap() };
+            // Id 3 is the palette's fourth colour (0, 130, 200) blended 100/256 over grey 50, away
+            // from the box outline; the right half is the untouched frame.
+            let tinted = (0..3).map(|k| ((50 * 156 + u32::from(overlay::colour(3)[k]) * 100) / 256) as u8).collect::<Vec<_>>();
+            for k in 0..3 {
+                assert!(at(10, 24)[k].abs_diff(tinted[k]) <= 8, "frame {i} masked pixel {:?}, expected about {tinted:?}", at(10, 24));
+                assert!(at(50, 24)[k].abs_diff(50) <= 8, "frame {i} unmasked pixel {:?}", at(50, 24));
+            }
+            n += 1;
+        }
+        assert_eq!(n, total);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn the_video_and_the_pngs_are_independent_and_render_the_same_pixels() {
+        let (a, b, c_dir) = (temp("png-only"), temp("png-and-video"), temp("video-only"));
+        let mut png_only = video_collector(&a, Some(2), None);
+        let mut both = video_collector(&b, Some(2), Some(&b.join("o.mp4")));
+        let mut video_only = video_collector(&c_dir, None, Some(&c_dir.join("o.mp4")));
+        for c in [&mut png_only, &mut both, &mut video_only] {
+            for i in 0..4 {
+                c.keep_image(i, &grey_frame());
+            }
+            for k in 0..4 {
+                c.accept(left_half(k)).unwrap();
+            }
+        }
+        assert_eq!(both.finish_overlay_video(4).unwrap().unwrap().frames, 4);
+        assert_eq!(video_only.finish_overlay_video(4).unwrap().unwrap().frames, 4);
+        assert!(png_only.finish_overlay_video(4).unwrap().is_none());
+        for n in [100, 102] {
+            let name = format!("overlay/9_frame_{n}.png");
+            assert_eq!(std::fs::read(a.join(&name)).unwrap(), std::fs::read(b.join(&name)).unwrap(), "{name}: the PNG is the same with or without a video");
+        }
+        for odd in [101, 103] {
+            assert!(!b.join(format!("overlay/9_frame_{odd}.png")).exists());
+        }
+        assert!(!a.join("o.mp4").exists() && !c_dir.join("overlay").exists());
+        for d in [a, b, c_dir] {
+            let _ = std::fs::remove_dir_all(&d);
+        }
+    }
+
+    #[test]
+    fn a_frame_released_out_of_order_or_without_its_image_is_an_error() {
+        let d = temp("video-order");
+        let mut c = video_collector(&d, None, Some(&d.join("o.mp4")));
+        for i in 0..3 {
+            c.keep_image(i, &grey_frame());
+        }
+        let e = c.accept(left_half(1)).unwrap_err().to_string();
+        assert!(e.contains("out of order"), "{e}");
+        c.accept(left_half(0)).unwrap();
+        let e = c.accept(left_half(5)).unwrap_err().to_string();
+        assert!(e.contains("image was not kept"), "{e}");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_video_for_other_frames_is_refused() {
+        let d = temp("video-size");
+        let mut c = Collector::new(&d, "9", 0, VH, VW, None, BoxSource::Mask).unwrap();
+        let wrong = VideoWriter::create(d.join("o.mp4"), VW + 2, VH, 10.0).unwrap();
+        assert!(c.set_overlay_video(wrong).is_err());
+        assert!(!d.join("o.mp4").exists(), "the refused writer was dropped and cleaned up");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_collector_dropped_mid_run_leaves_no_partial_video() {
+        let d = temp("video-drop");
+        let path = d.join("o.mp4");
+        {
+            let mut c = video_collector(&d, None, Some(&path));
+            for i in 0..3 {
+                c.keep_image(i, &grey_frame());
+            }
+            c.accept(left_half(0)).unwrap();
+            // The run fails here: the collector is dropped with the video unfinished.
+        }
+        assert!(!path.exists());
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn the_overlay_frame_rate_comes_from_the_option_then_the_input_then_the_folder_default() {
+        assert_eq!(overlay_fps_choice(Some(30.0), Some(49.0)), (30.0, "--overlay-fps"));
+        assert_eq!(overlay_fps_choice(None, Some(25.0)), (25.0, "input video"));
+        assert_eq!(overlay_fps_choice(None, None).0, FOLDER_OVERLAY_FPS);
+        assert_eq!(FOLDER_OVERLAY_FPS, 49.0);
+    }
+
+    fn stream_of(width: usize, height: usize, fps: Option<f64>) -> FrameStream {
+        FrameStream { kind: Kind::Folder { files: vec![] }, video: "v".into(), first_n: 0, len: 1, height, width, from_video: fps.is_some(), fps, decoders: BTreeMap::new(), produced: 0, pending: None }
+    }
+
+    #[test]
+    fn the_overlay_video_is_checked_before_any_model_work() {
+        let d = temp("video-plan");
+        let ok = plan_overlay_video(d.join("o.mp4"), None, &stream_of(640, 480, None)).unwrap();
+        assert_eq!((ok.fps, ok.fps_source), (FOLDER_OVERLAY_FPS, FPS_FROM_DEFAULT));
+        let ok = plan_overlay_video(d.join("o.mp4"), None, &stream_of(640, 480, Some(47.95))).unwrap();
+        assert_eq!((ok.fps, ok.fps_source), (47.95, FPS_FROM_INPUT));
+        let e = plan_overlay_video(d.join("o.mp4"), Some(30.0), &stream_of(641, 480, None)).unwrap_err().to_string();
+        assert!(e.contains("--overlay-video") && e.contains("even"), "{e}");
+        let e = plan_overlay_video(d.join("o.mov"), None, &stream_of(640, 480, None)).unwrap_err().to_string();
+        assert!(e.contains(".mp4"), "{e}");
+        let e = plan_overlay_video(d.join("o.mp4"), None, &stream_of(640, 480, Some(0.5))).unwrap_err().to_string();
+        assert!(e.contains("--overlay-fps"), "an input rate the encoder refuses points at the option: {e}");
+        std::fs::write(d.join("taken.mp4"), b"x").unwrap();
+        let e = plan_overlay_video(d.join("taken.mp4"), None, &stream_of(640, 480, None)).unwrap_err().to_string();
+        assert!(e.contains("already exists"), "{e}");
+        assert_eq!(std::fs::read(d.join("taken.mp4")).unwrap(), b"x");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn run_json_records_the_overlay_video_or_null() {
+        assert_eq!(overlay_video_json(None).unwrap(), ["null", "null", "null", "null"].map(String::from));
+        let run = OverlayVideoRun { fps: 49.0, fps_source: FPS_FROM_DEFAULT, file: Some(VideoFile { path: PathBuf::from("/x/o.mp4"), frames: 24, bytes: 10 }) };
+        let [path, fps, source, frames] = overlay_video_json(Some(&run)).unwrap();
+        assert_eq!((path.as_str(), frames.as_str()), ("\"/x/o.mp4\"", "24"));
+        assert_eq!(fps.parse::<f64>().unwrap(), 49.0);
+        assert!(source.contains("49 fps"));
+        let unfinished = OverlayVideoRun { file: None, ..run };
+        assert!(overlay_video_json(Some(&unfinished)).is_err());
+    }
+
     #[test]
     fn a_collector_prediction_file_scores_one_against_matching_ground_truth() {
         // Ground truth with one track; predictions made through the collector's own types.
@@ -1129,6 +1485,11 @@ mod tests {
         assert!(usage(&["in", "--prompt", "p", "--max-frames", "-3"]));
         assert!(usage(&["in", "--prompt", "p", "--start", "x"]));
         assert!(usage(&["in", "--prompt", "p", "--overlay", "0"]));
+        assert!(usage(&["in", "--prompt", "p", "--overlay-fps", "49"]), "a frame rate without a video");
+        for fps in ["0", "0.5", "241", "abc", "NaN", "inf"] {
+            assert!(usage(&["in", "--prompt", "p", "--overlay-video", "o.mp4", "--overlay-fps", fps]), "--overlay-fps {fps}");
+        }
+        assert!(usage(&["in", "--prompt", "p", "--overlay-video"]), "no file name");
         assert!(usage(&["in", "--prompt", "p", "--threads", "0"]));
         assert!(usage(&["in", "--prompt", "p", "--video", "a/b"]));
         assert!(usage(&["in", "--prompt", "p", "--bogus", "1"]));
@@ -1240,6 +1601,72 @@ mod tests {
         let visem_str = visem.to_str().unwrap();
         let e = evaluate_window(&out, &["22".to_string()], Path::new(visem_str), Window { start: Some(0), max_frames: Some(8) }).expect("eval-visem");
         println!("HOTA on frames 0..8 of video 22: {:.4}", e.videos[0].hota.summary().hota);
+        let _ = std::fs::remove_dir_all(&out);
+    }
+
+    /// VISEM video 22, frames 0..24, on Metal, with `--overlay-video` and `--overlay 8`: the video
+    /// has all 24 frames (more than the 15-frame release delay, so frames are released both while
+    /// the run goes and by the final flush) at 640x480 and the folder default of 49 fps, is
+    /// readable by AVFoundation, shows the overlay (frame 0 differs from the bare JPEG where a mask
+    /// is) and agrees with the PNG overlay of frame 8 up to H.264's loss; `<video>.run.json`
+    /// records it and the other outputs are still written. Needs the gated checkpoint, the
+    /// tokenizer files, `data/visem` and a Metal GPU; heavy, so under the lock.
+    ///
+    /// `SPIKETRACK_WEIGHTS=... SPIKETRACK_MODEL_DIR=... tools/locked.sh track-overlay-video cargo test --release -j 2 -p spiketrack track_cmd::tests::visem_22_overlay_video -- --ignored --nocapture --test-threads=1`
+    #[test]
+    #[ignore = "needs the gated checkpoint, tokenizer files, data/visem and a Metal GPU"]
+    fn visem_22_overlay_video_on_metal() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let visem = root.join("data/visem/VISEM_Tracking_Train_v4/Train");
+        let out = temp("visem22-video");
+        let video = out.join("22-overlay.mp4");
+        let a = args(&[
+            visem.join("22/images").to_str().unwrap(),
+            "--prompt",
+            "cell",
+            "--out",
+            out.to_str().unwrap(),
+            "--backend",
+            "metal",
+            "--start",
+            "0",
+            "--max-frames",
+            "24",
+            "--overlay",
+            "8",
+            "--overlay-video",
+            video.to_str().unwrap(),
+        ]);
+        run(&a).expect("track");
+
+        let mut reader = VideoReader::open(&video).expect("the overlay video opens in AVFoundation");
+        let info = reader.info().clone();
+        assert_eq!((info.width, info.height, info.frame_count), (640, 480, 24));
+        assert!((info.fps - FOLDER_OVERLAY_FPS).abs() < 0.5, "fps {}", info.fps);
+        let frames: Vec<Rgb8> = std::iter::from_fn(|| reader.next_frame().expect("decode").map(|f| f.2)).collect();
+        assert_eq!(frames.len(), 24);
+
+        // The overlay is in the video: frame 0 differs from the bare JPEG by more than codec noise somewhere.
+        let bare = decode_image_with_source(visem.join("22/images/22_frame_0.jpg")).expect("jpeg").0;
+        let changed = frames[0].data.iter().zip(&bare.data).filter(|(a, b)| a.abs_diff(**b) > 30).count();
+        println!("frame 0: {changed} of {} samples differ from the bare frame by more than 30 levels", bare.data.len());
+        assert!(changed > 100, "frame 0 of the video shows no overlay ({changed} samples changed)");
+
+        // The video's frame 8 is the PNG overlay of frame 8, up to H.264 loss: the mean absolute difference is small.
+        let png = decode_image_with_source(out.join("overlay/22_frame_8.png")).expect("png overlay").0;
+        let mean = frames[8].data.iter().zip(&png.data).map(|(a, b)| f64::from(a.abs_diff(*b))).sum::<f64>() / png.data.len() as f64;
+        println!("video frame 8 against overlay/22_frame_8.png: mean abs difference {mean:.2} levels");
+        assert!(mean < 4.0, "mean abs difference {mean}");
+
+        let run_json = ojas_io::parse_json(&std::fs::read_to_string(out.join("22.run.json")).unwrap()).unwrap();
+        assert_eq!(run_json.get_str("overlay_video").unwrap(), std::fs::canonicalize(&video).unwrap().to_str().unwrap());
+        assert_eq!(run_json.get_u64("overlay_video_frames").unwrap(), 24);
+        assert_eq!(run_json.get_f64("overlay_video_fps").unwrap(), 49.0);
+        assert!(run_json.get_str("overlay_video_fps_source").unwrap().contains("folder of frames"));
+        for n in 0..24u32 {
+            assert!(out.join(format!("masks/22_frame_{n}.json")).is_file(), "masks for frame {n}");
+        }
+        assert!(out.join("22.json").is_file());
         let _ = std::fs::remove_dir_all(&out);
     }
 
