@@ -1,0 +1,76 @@
+{
+ "frames": 50,
+ "tile": [
+  360,
+  280
+ ],
+ "stride": [
+  280,
+  200
+ ],
+ "nms_iou": 0.5,
+ "iou": 0.5,
+ "seconds_total": 2967.2,
+ "prompts": {
+  "sperm": {
+   "0.3": {
+    "recall": 0.0,
+    "precision": 0.0,
+    "predictions": 39,
+    "gt": 1066
+   },
+   "0.4": {
+    "recall": 0.0,
+    "precision": 0.0,
+    "predictions": 21,
+    "gt": 1066
+   },
+   "0.5": {
+    "recall": 0.0,
+    "precision": 0.0,
+    "predictions": 12,
+    "gt": 1066
+   }
+  },
+  "sperm cell": {
+   "0.3": {
+    "recall": 0.076,
+    "precision": 0.0385,
+    "predictions": 2102,
+    "gt": 1066
+   },
+   "0.4": {
+    "recall": 0.0225,
+    "precision": 0.0194,
+    "predictions": 1235,
+    "gt": 1066
+   },
+   "0.5": {
+    "recall": 0.0066,
+    "precision": 0.0091,
+    "predictions": 767,
+    "gt": 1066
+   }
+  },
+  "cell": {
+   "0.3": {
+    "recall": 0.2552,
+    "precision": 0.0286,
+    "predictions": 9514,
+    "gt": 1066
+   },
+   "0.4": {
+    "recall": 0.2083,
+    "precision": 0.0371,
+    "predictions": 5980,
+    "gt": 1066
+   },
+   "0.5": {
+    "recall": 0.1379,
+    "precision": 0.0442,
+    "predictions": 3329,
+    "gt": 1066
+   }
+  }
+ }
+}
