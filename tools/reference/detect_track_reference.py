@@ -94,6 +94,29 @@ def tensors_of(prefix, obj, rec):
             tensors_of(f"{prefix}.{k}", v, rec)
 
 
+def round_tracker_features_through_bf16():
+    """Upstream's video detector casts the tracker's FPN features (interactive and
+    propagation, all three levels) to bfloat16 before handing them to the tracker
+    (sam3_multiplex_detector.py:563-586, for its all-gather; under CUDA autocast the
+    tracker then computes on them in bf16). That cast is the only `NestedTensor.to(bf16)`
+    on this path. On CPU the tracker's f32 convs refuse bf16 inputs, so the fp32 reference
+    policy keeps upstream's rounding and computes in f32: a NestedTensor cast to bf16 is
+    rounded through bf16 and handed back in its original dtype. Plain-tensor casts (the
+    stored memory features) are untouched."""
+    from sam3.model.data_misc import NestedTensor
+
+    orig = NestedTensor.to
+
+    def to(self, *args, **kwargs):
+        if torch.bfloat16 in args or kwargs.get("dtype") is torch.bfloat16:
+            src = self.tensors.dtype
+            out = orig(self, *args, **kwargs)
+            return type(self)(out.tensors.to(src), out.mask)
+        return orig(self, *args, **kwargs)
+
+    NestedTensor.to = to
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", default="11")
@@ -112,6 +135,7 @@ def main():
         if not link.exists():
             link.symlink_to(f)
 
+    round_tracker_features_through_bf16()
     model, missing, unexpected = sam3_ref.build_reference()
     assert not unexpected, unexpected[:10]
     rec, meta = {}, {"video": args.video, "prompt": args.prompt, "frames": args.frames, "missing_keys": len(missing), "visits": []}
