@@ -1,0 +1,116 @@
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack-ci/crates/st-model)
+    Finished `release` profile [optimized] target(s) in 3.18s
+     Running tests/vos_stages.rs (target/release/deps/vos_stages-2614f62ff748def2)
+
+running 2 tests
+test vos_driver_tracks_upstream_state_frame_by_frame ... [CPU]
+| frame | stage | cosine | max abs |
+|---|---|---|---|
+| 0 | low-res masks | 1.0000000 | 2.953e-2 |
+| 0 | object scores | 1.0000000 | 0.000e0 |
+| 0 | object pointers (valid slots) | 1.0000000 | 3.189e-6 |
+| 0 | memory features | 1.0000000 | 1.562e-2 |
+| 0 | video-res masks | 1.0000000 | 2.476e-2 |
+| 0 | video-res foreground agreement | 1.000000 | |
+| 1 | low-res masks | 1.0000000 | 5.621e-3 |
+| 1 | object scores | 1.0000000 | 2.193e-5 |
+| 1 | object pointers (valid slots) | 1.0000000 | 2.137e-5 |
+| 1 | memory features | 1.0000000 | 3.125e-2 |
+| 1 | video-res masks | 1.0000000 | 5.110e-3 |
+| 1 | video-res foreground agreement | 1.000000 | |
+| 2 | low-res masks | 1.0000000 | 3.859e-3 |
+| 2 | object scores | 1.0000000 | 9.060e-5 |
+| 2 | object pointers (valid slots) | 1.0000000 | 2.387e-5 |
+| 2 | memory features | 1.0000000 | 3.125e-2 |
+| 2 | video-res masks | 1.0000000 | 3.496e-3 |
+| 2 | video-res foreground agreement | 1.000000 | |
+| 3 | low-res masks | 1.0000000 | 2.892e-3 |
+| 3 | object scores | 1.0000000 | 1.307e-4 |
+| 3 | object pointers (valid slots) | 1.0000000 | 5.434e-5 |
+| 3 | memory features | 1.0000000 | 3.125e-2 |
+| 3 | video-res masks | 1.0000000 | 2.832e-3 |
+| 3 | video-res foreground agreement | 1.000000 | |
+| 4 | low-res masks | 1.0000000 | 2.960e-3 |
+| 4 | object scores | 1.0000000 | 1.965e-4 |
+| 4 | object pointers (valid slots) | 1.0000000 | 6.858e-5 |
+| 4 | memory features | 1.0000000 | 3.125e-2 |
+| 4 | video-res masks | 1.0000000 | 2.750e-3 |
+| 4 | video-res foreground agreement | 1.000000 | |
+| 5 | low-res masks | 1.0000000 | 6.451e-3 |
+| 5 | object scores | 1.0000000 | 2.375e-4 |
+| 5 | object pointers (valid slots) | 1.0000000 | 7.630e-5 |
+| 5 | memory features | 1.0000000 | 3.125e-2 |
+| 5 | video-res masks | 1.0000000 | 6.317e-3 |
+| 5 | video-res foreground agreement | 1.000000 | |
+| 6 | low-res masks | 1.0000000 | 1.380e-2 |
+| 6 | object scores | 1.0000000 | 3.490e-4 |
+| 6 | object pointers (valid slots) | 1.0000000 | 8.544e-5 |
+| 6 | memory features | 1.0000000 | 3.125e-2 |
+| 6 | video-res masks | 1.0000000 | 1.351e-2 |
+| 6 | video-res foreground agreement | 1.000000 | |
+| 7 | low-res masks | 1.0000000 | 7.351e-3 |
+| 7 | object scores | 1.0000000 | 3.214e-4 |
+| 7 | object pointers (valid slots) | 1.0000000 | 9.239e-5 |
+| 7 | memory features | 1.0000000 | 3.125e-2 |
+| 7 | video-res masks | 1.0000000 | 6.822e-3 |
+| 7 | video-res foreground agreement | 1.000000 | |
+
+VOS stages worst cosine 1.0000000, worst video-res foreground agreement 1.000000
+ok
+test vos_driver_tracks_upstream_state_frame_by_frame_on_metal ... [Metal]
+| frame | stage | cosine | max abs |
+|---|---|---|---|
+| 0 | low-res masks | 1.0000000 | 2.953e-2 |
+| 0 | object scores | 1.0000000 | 0.000e0 |
+| 0 | object pointers (valid slots) | 1.0000000 | 3.234e-6 |
+| 0 | memory features | 1.0000000 | 3.125e-2 |
+| 0 | video-res masks | 1.0000000 | 2.476e-2 |
+| 0 | video-res foreground agreement | 1.000000 | |
+| 1 | low-res masks | 1.0000000 | 7.265e-3 |
+| 1 | object scores | 1.0000000 | 5.722e-6 |
+| 1 | object pointers (valid slots) | 1.0000000 | 2.173e-5 |
+| 1 | memory features | 1.0000000 | 3.125e-2 |
+| 1 | video-res masks | 0.9999997 | 8.795e0 |
+| 1 | video-res foreground agreement | 1.000000 | |
+| 2 | low-res masks | 1.0000000 | 4.368e-3 |
+| 2 | object scores | 1.0000000 | 8.869e-5 |
+| 2 | object pointers (valid slots) | 1.0000000 | 2.892e-5 |
+| 2 | memory features | 1.0000000 | 3.125e-2 |
+| 2 | video-res masks | 1.0000000 | 4.158e-3 |
+| 2 | video-res foreground agreement | 1.000000 | |
+| 3 | low-res masks | 1.0000000 | 7.120e-3 |
+| 3 | object scores | 1.0000000 | 1.488e-4 |
+| 3 | object pointers (valid slots) | 1.0000000 | 5.223e-5 |
+| 3 | memory features | 1.0000000 | 3.125e-2 |
+| 3 | video-res masks | 1.0000000 | 7.020e-3 |
+| 3 | video-res foreground agreement | 1.000000 | |
+| 4 | low-res masks | 1.0000000 | 4.591e-3 |
+| 4 | object scores | 1.0000000 | 1.955e-4 |
+| 4 | object pointers (valid slots) | 1.0000000 | 5.075e-5 |
+| 4 | memory features | 1.0000000 | 3.125e-2 |
+| 4 | video-res masks | 1.0000000 | 4.343e-3 |
+| 4 | video-res foreground agreement | 1.000000 | |
+| 5 | low-res masks | 1.0000000 | 6.457e-3 |
+| 5 | object scores | 1.0000000 | 2.460e-4 |
+| 5 | object pointers (valid slots) | 1.0000000 | 7.030e-5 |
+| 5 | memory features | 1.0000000 | 3.125e-2 |
+| 5 | video-res masks | 1.0000000 | 6.313e-3 |
+| 5 | video-res foreground agreement | 1.000000 | |
+| 6 | low-res masks | 1.0000000 | 1.337e-2 |
+| 6 | object scores | 1.0000000 | 3.748e-4 |
+| 6 | object pointers (valid slots) | 1.0000000 | 7.907e-5 |
+| 6 | memory features | 1.0000000 | 3.125e-2 |
+| 6 | video-res masks | 1.0000000 | 1.309e-2 |
+| 6 | video-res foreground agreement | 1.000000 | |
+| 7 | low-res masks | 1.0000000 | 7.536e-3 |
+| 7 | object scores | 1.0000000 | 3.490e-4 |
+| 7 | object pointers (valid slots) | 1.0000000 | 8.878e-5 |
+| 7 | memory features | 1.0000000 | 3.125e-2 |
+| 7 | video-res masks | 1.0000000 | 6.997e-3 |
+| 7 | video-res foreground agreement | 1.000000 | |
+
+VOS stages worst cosine 0.9999997, worst video-res foreground agreement 1.000000
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 238.29s
+

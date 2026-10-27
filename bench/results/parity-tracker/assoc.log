@@ -1,0 +1,50 @@
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack-ci/crates/st-model)
+    Finished `release` profile [optimized] target(s) in 4.91s
+     Running unittests src/lib.rs (target/release/deps/st_model-c24f141a6130a342)
+
+running 23 tests
+test host::tests::inverse_sigmoid_round_trips_inside_the_clamp ... ok
+test host::tests::sine_map_first_pixel ... ok
+test tokenizer::tests::byte_alphabet_is_a_bijection ... ok
+test tokenizer::tests::cleaning ... ok
+test tokenizer::tests::splits_like_the_upstream_regex ... ok
+test tracker::associate::tests::association_new_matched_and_ambiguous ... ok
+test tracker::associate::tests::boundary_margin_is_strict ... ok
+test tracker::associate::tests::iom_is_intersection_over_the_smaller_area ... ok
+test tracker::associate::tests::nms_suppresses_contained_lower_scores_and_drops_low_probs ... ok
+test tracker::associate::tests::unkept_detections_match_nothing ... ok
+test tracker::bookkeeping::tests::births_take_consecutive_ids_and_are_hidden_until_confirmed ... ok
+test tracker::bookkeeping::tests::an_ambiguous_detection_does_not_count_as_a_duplicate_pair ... ok
+test tracker::bookkeeping::tests::cap_keeps_the_top_scores_and_ids_follow_score_order ... ok
+test tracker::bookkeeping::tests::hide_log_looks_two_frames_ahead_and_clamps ... ok
+test tracker::bookkeeping::tests::occlusion_updates_last_occluded_and_suppresses_in_the_plan ... ok
+test tracker::bookkeeping::tests::periodic_recondition_pairs_unique_high_confidence_matches_gated_by_the_tracker_score ... ok
+test tracker::bookkeeping::tests::same_frame_twins_never_remove_each_other ... ok
+test tracker::bookkeeping::tests::suppression_sees_the_reconditioned_mask ... ok
+test tracker::bookkeeping::tests::unmatched_track_after_the_hotstart_window_is_never_removed ... ok
+test tracker::bookkeeping::tests::suppression_goes_to_the_more_recently_occluded_of_two_overlapping_tracks ... ok
+test tracker::bookkeeping::tests::unmatched_track_in_hotstart_is_removed_on_the_eighth_unmatched_frame ... ok
+test tracker::bookkeeping::tests::yield_buffer_releases_after_delay_frames_and_flushes_at_the_end ... ok
+test tracker::bookkeeping::tests::weak_double_overlap_counts_and_removes_the_younger_track_on_the_eighth_frame ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/assoc_parity.rs (target/release/deps/assoc_parity-8a10474376e5c30a)
+
+running 1 test
+60 NMS, 20 boundary and 80 association cases match upstream exactly
+test matches_upstream_nms_boundary_and_association ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/bookkeeping_parity.rs (target/release/deps/bookkeeping_parity-7ba90f0e3b6e5528)
+
+running 4 tests
+test birth_selection_matches_upstream_cap_order_and_ids ... ok
+30 sequences, 696 frames match upstream exactly (199 births, 19 removals, 33 suppressions, 7 reconditions, 49 capped frames)
+test matches_upstream_planning_phase_and_yield_hiding ... ok
+test occlusion_iou_threshold_matches_torch_on_exact_ratios ... ok
+test sigmoid_gate_matches_torch_around_the_threshold ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
