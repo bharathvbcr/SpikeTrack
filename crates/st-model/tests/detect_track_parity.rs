@@ -36,6 +36,7 @@ use std::time::Instant;
 
 use ojas_core::{Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
+use ojas_metal::MetalBackend;
 use ojas_io::{parse_json, JsonValue, SafeTensors};
 use st_model::tracker::associate::Bitmask;
 use st_model::tracker::session::{Session, SessionConfig, VisitTrace, YieldedFrame};
@@ -355,6 +356,17 @@ fn compare_visit(fx: &Fixture, meta: Option<&JsonValue>, tr: &VisitTrace, hw: (u
 #[test]
 #[ignore = "needs the gated checkpoint, tokenizer files and the detect_track fixtures"]
 fn session_matches_upstream_on_visem_11() {
+    session_parity(&CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu backend"), "CPU");
+}
+
+#[test]
+#[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the detect_track fixtures"]
+fn session_matches_upstream_on_metal() {
+    session_parity(&MetalBackend::new(Budget::new(28 << 30)).expect("metal backend"), "Metal");
+}
+
+fn session_parity<B: Backend>(be: &B, label: &str) {
+    println!("[{label}]");
     let video = std::env::var("SPIKETRACK_DT_VIDEO").unwrap_or_else(|_| "11".to_string());
     let dir = env_path("SPIKETRACK_DT_FIXTURES");
     let fx = Fixture::open(&dir.join(format!("{video}.safetensors")));
@@ -380,18 +392,17 @@ fn session_matches_upstream_on_visem_11() {
 
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = Sam31Weights::load(&ck).expect("weights");
-    let be = CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu backend");
-    let backbone = Backbone::new(&be, &w.vision).expect("backbone");
-    let text = Text::new(&be, &w.text).expect("text");
+    let backbone = Backbone::new(be, &w.vision).expect("backbone");
+    let text = Text::new(be, &w.text).expect("text");
     let detector = Detector::new(
-        &be,
+        be,
         DetectorWeights { transformer: &w.detector_transformer, geometry: &w.geometry_encoder, segmentation: &w.segmentation_head, scoring: &w.dot_prod_scoring },
     )
     .expect("detector");
-    let vos = Vos::new(&be, &backbone, &w.tracker).expect("tracker");
+    let vos = Vos::new(be, &backbone, &w.tracker).expect("tracker");
     let mdir = env_path("SPIKETRACK_MODEL_DIR");
     let tok = Tokenizer::from_hf_files(&mdir.join("vocab.json"), &mdir.join("merges.txt")).expect("tokenizer");
-    let prompt_t = Session::encode_prompt(&be, &text, &tok, &prompt).expect("prompt");
+    let prompt_t = Session::encode_prompt(be, &text, &tok, &prompt).expect("prompt");
 
     let mut session = Session::new(&vos, &detector, prompt_t, SessionConfig::new(t_total, hw.0, hw.1));
     session.set_trace(true);
