@@ -15,6 +15,7 @@ path = "src/main.rs"
 ojas-core.workspace = true
 ojas-cpu.workspace = true
 ojas-io.workspace = true
+ojas-metal.workspace = true
 st-eval.workspace = true
 st-model = { path = "../st-model" }
 st-video.workspace = true

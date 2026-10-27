@@ -54,6 +54,7 @@ use std::time::Instant;
 
 use ojas_core::{Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
+use ojas_metal::MetalBackend;
 use st_model::detector::{Detector, DetectorTaps, DetectorWeights, D, MASK, QUERIES};
 use st_model::{Backbone, Neck, Taps, Text, Tokenizer};
 use st_video::{decode_image, sam_input, Rgb8};
@@ -65,34 +66,37 @@ use crate::mask::{ResizedMask, Rle};
 use crate::overlay::{self, Drawn};
 use crate::png;
 
-/// Where the model runs. Only the CPU backend exists in this build; the Metal
-/// backend is added once Ojas's Metal ops cover the model.
+/// Where the model runs: Ojas's CPU backend, or its Metal backend (on tessl). Both pass
+/// the same upstream parity gates (bench/results/module-gates).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BackendChoice {
     Cpu,
+    Metal,
 }
 
 impl BackendChoice {
     pub fn parse(s: &str) -> Result<Self, CliError> {
         match s {
             "cpu" => Ok(Self::Cpu),
-            other => Err(CliError::usage(format!("--backend: {other:?} is not available (choices: cpu)"))),
+            "metal" => Ok(Self::Metal),
+            other => Err(CliError::usage(format!("--backend: {other:?} is not available (choices: cpu, metal)"))),
         }
     }
 
     pub fn name(self) -> &'static str {
         match self {
             Self::Cpu => "cpu",
+            Self::Metal => "metal",
         }
     }
 }
 
-/// The footprint the CPU backend may use, as in the gated tests.
+/// The footprint the backend may use, as in the gated tests.
 const BUDGET_BYTES: u64 = 28 << 30;
 const PREPROCESSING: &str = "ImageIO decode to sRGB RGB8; Pillow-exact bilinear resize to 1008x1008 (st_video::sam_input); mean 0.5, std 0.5";
 
 pub const USAGE: &str = "\
-spiketrack image <img> --prompt <text> [--out DIR] [--threshold 0.5] [--backend cpu]
+spiketrack image <img> --prompt <text> [--out DIR] [--threshold 0.5] [--backend metal|cpu]
                  [--weights FILE] [--model-dir DIR] [--threads N]
 
   Detects every instance of <text> in <img> with SAM 3.1 and writes
@@ -100,10 +104,10 @@ spiketrack image <img> --prompt <text> [--out DIR] [--threshold 0.5] [--backend 
 
   --out DIR         output directory, created if missing (default ./spiketrack-out)
   --threshold T     keep queries with probability > T, 0 <= T < 1 (default 0.5)
-  --backend cpu     the only backend in this build
+  --backend B       metal (Ojas on tessl, default) or cpu
   --weights FILE    the converted checkpoint (default: $SPIKETRACK_WEIGHTS)
   --model-dir DIR   folder with the tokenizer's vocab.json and merges.txt (default: $SPIKETRACK_MODEL_DIR)
-  --threads N       CPU worker threads, 1 to 256 (default 8)
+  --threads N       CPU worker threads for --backend cpu, 1 to 256 (default 8)
 
   Preprocessing: image files are decoded by ImageIO and resized with Pillow-style
   bilinear, as upstream's JPEG-folder path does (upstream's single-image path uses
@@ -213,14 +217,20 @@ struct Inference {
     seconds: f64,
 }
 
-fn infer(image: &Rgb8, prompt: &str, weights: &Path, model_dir: &Path, threads: usize) -> Result<Inference, CliError> {
+fn infer(image: &Rgb8, prompt: &str, weights: &Path, model_dir: &Path, backend: BackendChoice, threads: usize) -> Result<Inference, CliError> {
     let ck = Checkpoint::open(weights).map_err(|e| CliError::failed(format!("checkpoint {}: {e}", weights.display())))?;
     let w = Sam31Weights::load(&ck).map_err(|e| CliError::failed(format!("checkpoint {}: {e}", weights.display())))?;
-    let be = CpuBackend::with_threads(Budget::new(BUDGET_BYTES), threads).map_err(CliError::from_err)?;
-    let backbone = Backbone::new(&be, &w.vision).map_err(CliError::from_err)?;
-    let text = Text::new(&be, &w.text).map_err(CliError::from_err)?;
+    match backend {
+        BackendChoice::Cpu => infer_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), threads).map_err(CliError::from_err)?, &w, image, prompt, model_dir),
+        BackendChoice::Metal => infer_on(&MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?, &w, image, prompt, model_dir),
+    }
+}
+
+fn infer_on<B: Backend>(be: &B, w: &Sam31Weights, image: &Rgb8, prompt: &str, model_dir: &Path) -> Result<Inference, CliError> {
+    let backbone = Backbone::new(be, &w.vision).map_err(CliError::from_err)?;
+    let text = Text::new(be, &w.text).map_err(CliError::from_err)?;
     let det = Detector::new(
-        &be,
+        be,
         DetectorWeights { transformer: &w.detector_transformer, geometry: &w.geometry_encoder, segmentation: &w.segmentation_head, scoring: &w.dot_prod_scoring },
     )
     .map_err(CliError::from_err)?;
@@ -271,7 +281,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     if !(0.0..1.0).contains(&threshold) {
         return Err(CliError::usage(format!("--threshold {threshold} is outside [0, 1)")));
     }
-    let backend = BackendChoice::parse(args.get("backend").unwrap_or("cpu"))?;
+    let backend = BackendChoice::parse(args.get("backend").unwrap_or("metal"))?;
     let threads: usize = args.parsed("threads", 8)?;
     if !(1..=256).contains(&threads) {
         return Err(CliError::usage(format!("--threads {threads} is outside 1..=256")));
@@ -281,7 +291,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
 
     let image = decode_image(&image_path).map_err(CliError::from_err)?;
-    let inf = infer(&image, &prompt, &weights, &model_dir, threads)?;
+    let inf = infer(&image, &prompt, &weights, &model_dir, backend, threads)?;
     let n = inf.probabilities.len();
     if n != QUERIES || inf.masks.len() != QUERIES * MASK * MASK {
         return Err(CliError::failed(format!("the detector returned {n} queries and {} mask values, expected {QUERIES} and {}", inf.masks.len(), QUERIES * MASK * MASK)));
@@ -401,8 +411,9 @@ mod tests {
     }
 
     #[test]
-    fn the_only_backend_is_cpu() {
+    fn backends_are_cpu_and_metal() {
         assert_eq!(BackendChoice::parse("cpu").unwrap(), BackendChoice::Cpu);
-        assert!(BackendChoice::parse("metal").is_err());
+        assert_eq!(BackendChoice::parse("metal").unwrap(), BackendChoice::Metal);
+        assert!(BackendChoice::parse("cuda").is_err());
     }
 }
