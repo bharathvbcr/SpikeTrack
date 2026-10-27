@@ -24,9 +24,13 @@ track's own mask does not move. So this is upstream behaviour, reproduced, not a
 
 The CLI stability test now checks each track's written-mask centroid instead of its box centre.
 
-Side finding from the bisect: ImageIO's JPEG decode differs from upstream's (Pillow) frames on 7-9%
-of input samples and changes the frame-0 birth set (13 ids either way, a different subset of
-cells). See GAP-IMAGEIO-VS-PILLOW-JPEG.
+Side finding from the bisect: ImageIO's JPEG decode differed from upstream's (Pillow) frames on 7-9%
+of input samples and changed the frame-0 birth set (13 ids either way, a different subset of
+cells). Fixed by the Pillow-exact JPEG decoder (`crates/st-video/src/jpeg.rs`, commit be0244b): the
+same bisect re-run (`../balloon-bisect-native-jpeg.log`) has the CLI's decoded input equal to
+upstream's on 0 differing samples of 3,048,192 on all 8 frames, and the per-frame, per-id mask
+areas from CLI-decoded frames identical to those from upstream's frames, on CPU and on Metal.
+(CPU and Metal differ from each other by a pixel on a few masks from frame 5, as before.)
 
 ## 2. Low DetA is a box-convention mismatch
 
