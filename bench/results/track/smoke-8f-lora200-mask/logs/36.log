@@ -1,0 +1,12 @@
+model loaded in 1.1 s on metal; tracking 8 frame(s) of "36"
+frame 0 (1/8): 5.96 s, 4 active track(s), 0 frame(s) released
+frame 1 (2/8): 5.37 s, 8 active track(s), 0 frame(s) released
+frame 2 (3/8): 6.57 s, 10 active track(s), 0 frame(s) released
+frame 3 (4/8): 4.87 s, 10 active track(s), 0 frame(s) released
+frame 4 (5/8): 5.92 s, 11 active track(s), 0 frame(s) released
+frame 5 (6/8): 5.05 s, 11 active track(s), 0 frame(s) released
+frame 6 (7/8): 5.59 s, 11 active track(s), 0 frame(s) released
+frame 7 (8/8): 6.18 s, 11 active track(s), 8 frame(s) released
+8 frame(s) of "36" tracked on metal: 11 track(s) born, 5.69 s/frame (model, mean), 46.8 s total
+  bench/results/track/smoke-8f-lora200-mask/run/36.json
+  bench/results/track/smoke-8f-lora200-mask/run/36.run.json

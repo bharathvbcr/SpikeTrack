@@ -67,5 +67,28 @@ ambiguity rule; a newborn's own detection), and the mask box when none was. Mask
 other output are unchanged; `<video>.run.json` records `boxes`, `boxes_reported` and
 `boxes_from_detector`.
 
+## 4. Held-out HOTA by adapter and box source (8-frame smoke)
+
+Same build (750eca6), Metal, prompt "cell", the 5 held-out videos x their first 8 frames (40 frames,
+879 GT boxes). Folders `../smoke-8f-{mask,detector,lora200-mask,lora200-detector}`.
+
+| adapter | boxes | HOTA | DetA | AssA | LocA | boxes reported |
+|---|---|---|---|---|---|---|
+| none | mask (upstream) | 0.1838 | 0.0546 | 0.7526 | 0.6910 | 535 |
+| none | detector | 0.1779 | 0.0578 | 0.6392 | 0.6833 | 535 (520 from a detection) |
+| step 200 | mask | 0.2019 | 0.0821 | 0.5661 | 0.6458 | 242 |
+| step 200 | detector | 0.3003 | 0.1347 | 0.6926 | 0.7438 | 242 (233 from a detection) |
+
+Neither change helps much alone (adapter +0.018, detector boxes -0.006); together +0.117. The
+adapter's gain is in the detector's boxes, and only `--boxes detector` carries it to the output.
+
+The ceiling now is recall: the adapter yields 242 boxes for 879 GT. Its scores are lower; on VISEM 22
+frame 0 only 6 of its 27 detections above 0.5 reach upstream's 0.65 birth threshold (zero-shot 19 of
+28), so most sperm are never born. The threshold is upstream's and stays; whether the step-600
+adapter's scores recover is the next measurement.
+
+One run per cell, 8 frames per video: a smoke comparison with no noise estimate, not the held-out
+result.
+
 Scripts (throwaway analysis, not shipped): box statistics against VISEM labels and the figure were
 produced with short Python scripts over the files above; the numbers in the tables are their output.
