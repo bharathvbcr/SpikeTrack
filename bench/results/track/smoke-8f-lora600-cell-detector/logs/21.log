@@ -1,0 +1,12 @@
+model loaded in 1.7 s on metal; tracking 8 frame(s) of "21"
+frame 0 (1/8): 5.33 s, 6 active track(s), 0 frame(s) released
+frame 1 (2/8): 5.98 s, 7 active track(s), 0 frame(s) released
+frame 2 (3/8): 4.60 s, 7 active track(s), 0 frame(s) released
+frame 3 (4/8): 4.03 s, 7 active track(s), 0 frame(s) released
+frame 4 (5/8): 3.89 s, 7 active track(s), 0 frame(s) released
+frame 5 (6/8): 4.75 s, 8 active track(s), 0 frame(s) released
+frame 6 (7/8): 5.78 s, 8 active track(s), 0 frame(s) released
+frame 7 (8/8): 5.69 s, 8 active track(s), 8 frame(s) released
+8 frame(s) of "21" tracked on metal: 8 track(s) born, 5.01 s/frame (model, mean), 42.0 s total
+  bench/results/track/smoke-8f-lora600-cell-detector/run/21.json
+  bench/results/track/smoke-8f-lora600-cell-detector/run/21.run.json

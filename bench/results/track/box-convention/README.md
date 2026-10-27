@@ -90,5 +90,18 @@ adapter's scores recover is the next measurement.
 One run per cell, 8 frames per video: a smoke comparison with no noise estimate, not the held-out
 result.
 
+### Step-600 adapter (`../smoke-8f-lora600-*`, same 40 frames)
+
+| prompt | boxes | HOTA | DetA | AssA | LocA | boxes reported |
+|---|---|---|---|---|---|---|
+| sperm | detector | **0.4694** | 0.2997 | 0.8028 | 0.7305 | 468 |
+| sperm | mask | 0.3299 | 0.1874 | 0.7442 | 0.6507 | 468 |
+| cell | detector | 0.2497 | 0.0906 | 0.7054 | 0.7442 | 154 |
+
+The prompt the adapter was trained with ("sperm") is the one that benefits: with "cell" the adapted
+detector yields few boxes above the birth threshold (154), with "sperm" 468. Per video (sperm,
+detector boxes) HOTA ranges from 0.31 (video 36, the densest, 353 GT boxes in 8 frames) to 0.63
+(video 22).
+
 Scripts (throwaway analysis, not shipped): box statistics against VISEM labels and the figure were
 produced with short Python scripts over the files above; the numbers in the tables are their output.
