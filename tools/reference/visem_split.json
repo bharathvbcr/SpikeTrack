@@ -1,0 +1,129 @@
+{
+ "rule": "By video, never by frame. Sort the 20 VISEM-Tracking videos ascending by class-0 boxes per labelled frame (ties by numeric id), cut into 5 consecutive groups of 4, and hold out from each group the video whose sha256('spiketrack-lora-split-v1:<id>') hex digest is smallest. The other 15 train. No RNG: tools/reference/make_visem_split.py regenerates this file.",
+ "salt": "spiketrack-lora-split-v1:",
+ "train": [
+  "11",
+  "12",
+  "13",
+  "14",
+  "15",
+  "19",
+  "23",
+  "24",
+  "29",
+  "30",
+  "35",
+  "38",
+  "52",
+  "54",
+  "60"
+ ],
+ "held_out": [
+  "21",
+  "22",
+  "36",
+  "47",
+  "82"
+ ],
+ "groups": [
+  {
+   "videos": [
+    "23",
+    "29",
+    "14",
+    "47"
+   ],
+   "held_out": "47"
+  },
+  {
+   "videos": [
+    "52",
+    "22",
+    "30",
+    "38"
+   ],
+   "held_out": "22"
+  },
+  {
+   "videos": [
+    "60",
+    "15",
+    "19",
+    "21"
+   ],
+   "held_out": "21"
+  },
+  {
+   "videos": [
+    "12",
+    "54",
+    "82",
+    "35"
+   ],
+   "held_out": "82"
+  },
+  {
+   "videos": [
+    "11",
+    "13",
+    "36",
+    "24"
+   ],
+   "held_out": "36"
+  }
+ ],
+ "class0_boxes_per_labelled_frame": {
+  "23": 2.21,
+  "29": 2.96,
+  "14": 3.42,
+  "47": 4.96,
+  "52": 9.33,
+  "22": 10.87,
+  "30": 10.91,
+  "38": 11.45,
+  "60": 13.2,
+  "15": 16.09,
+  "19": 18.34,
+  "21": 20.11,
+  "12": 23.46,
+  "54": 26.07,
+  "82": 28.71,
+  "35": 30.16,
+  "11": 36.64,
+  "13": 41.62,
+  "36": 44.26,
+  "24": 62.31
+ },
+ "labelled_frames": {
+  "11": 1470,
+  "12": 1470,
+  "13": 1470,
+  "14": 1470,
+  "15": 1470,
+  "19": 1470,
+  "21": 1470,
+  "22": 1470,
+  "23": 1296,
+  "24": 1470,
+  "29": 1470,
+  "30": 1470,
+  "35": 1440,
+  "36": 1470,
+  "38": 1470,
+  "47": 1470,
+  "52": 1440,
+  "54": 1470,
+  "60": 1470,
+  "82": 1500
+ },
+ "fixture_videos": {
+  "videos": [
+   "11",
+   "22",
+   "47",
+   "82"
+  ],
+  "leakage": "None, so no video is excluded from held-out. Backbone fixtures (22, 47, 82), the detector detail fixture (22), the D3 gate (20 frames cycling through all 20 videos) and the detect_track reference (11) all run the BASE model and check Rust against PyTorch parity; they never train. The LoRA adapter is evaluated only on the held-out videos' frames."
+ },
+ "command": "python3 tools/reference/make_visem_split.py"
+}

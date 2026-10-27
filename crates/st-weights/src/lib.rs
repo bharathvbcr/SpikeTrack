@@ -11,6 +11,7 @@
 //! test checks against `tools/reference/weights_manifest.json` without needing
 //! the gated weights.
 
+pub mod lora;
 pub mod names;
 
 use std::cell::RefCell;
