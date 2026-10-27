@@ -1,0 +1,4 @@
+SpikeTrack: da5daf4 ViT LayerNorm eps is 1e-5, not 1e-6; native group_norm/fill; bf16 and F=1/3/7 measurements
+ojas-st:    cbd5565 Merge gp/78-metal: group_norm, concat, slice and fill on Metal; sitegen ragged-row check (Lane A)
+tessl:      789a132 ci: keep MSRV and the comparator lanes on the toolchains they need (dirty files: 0)
+load:        9:47  up 1 day,  2:02, 2 users, load averages: 15.86 19.71 20.04
