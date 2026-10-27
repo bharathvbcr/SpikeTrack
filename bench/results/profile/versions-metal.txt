@@ -1,0 +1,4 @@
+SpikeTrack: f902513 profile: per-op wall-time breakdown of one frame on any backend (for D6 kernel choice)
+ojas-st:    d5d33cc Merge gp/78-metal: Metal rope, D=64 routing to tessl, strided/padded and depthwise conv, bilinear, relu, SAM fixtures
+tessl:      789a132 ci: keep MSRV and the comparator lanes on the toolchains they need (dirty files: 0)
+load:       22:55  up 15:10, 2 users, load averages: 7.80 10.75 14.39
