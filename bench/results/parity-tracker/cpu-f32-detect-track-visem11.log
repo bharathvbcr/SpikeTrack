@@ -1,0 +1,126 @@
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+    Finished `release` profile [optimized] target(s) in 3.85s
+     Running tests/detect_track_parity.rs (target/release/deps/detect_track_parity-0800673d882c563c)
+
+running 1 test
+test session_matches_upstream_on_visem_11 ... 
+video 11, 32 frames, prompt "cell", 480x640 (HxW)
+
+| visit | states | kept diff | score dmax | box dmax | det IoU | prop cos | score cos | assoc ok | plan ok | mem-in cos | mem cos min | ptr cos min | out ids | out IoU |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| f0.v0 | 0 | 0 | 6.0e-6 | 7.5e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+| f0.v1 | 0 | 0 | 5.2e-6 | 7.5e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 0: 17.5 s, 0 state(s), ids [] |
+| f1.v0 | 0 | 0 | 2.5e-5 | 1.1e-3 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 1: 17.4 s, 0 state(s), ids [] |
+| f2.v0 | 0 | 0 | 7.0e-6 | 2.2e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 2: 17.7 s, 0 state(s), ids [] |
+| f3.v0 | 0 | 0 | 9.5e-6 | 3.5e-3 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 3: 17.7 s, 0 state(s), ids [] |
+| f4.v0 | 0 | 0 | 1.3e-5 | 1.8e-3 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 4: 17.6 s, 0 state(s), ids [] |
+| f5.v0 | 0 | 0 | 1.8e-6 | 1.7e-3 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 5: 17.5 s, 0 state(s), ids [] |
+| f6.v0 | 0 | 0 | 2.1e-6 | 2.5e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 6: 17.6 s, 0 state(s), ids [] |
+| f7.v0 | 0 | 0 | 1.8e-6 | 1.6e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 7: 17.2 s, 0 state(s), ids [] |
+| f8.v0 | 0 | 0 | 3.3e-6 | 8.5e-5 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 8: 17.3 s, 0 state(s), ids [] |
+| f9.v0 | 0 | 0 | 8.0e-6 | 1.0e-3 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 9: 17.7 s, 0 state(s), ids [] |
+| f10.v0 | 0 | 0 | 4.3e-5 | 6.5e-3 | 0.99963 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 10: 19.2 s, 0 state(s), ids [] |
+| f11.v0 | 0 | 0 | 3.1e-6 | 8.0e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 11: 22.4 s, 0 state(s), ids [] |
+| f12.v0 | 0 | 0 | 1.0e-5 | 3.2e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 12: 23.4 s, 0 state(s), ids [] |
+| f13.v0 | 0 | 0 | 4.3e-6 | 2.6e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 13: 18.6 s, 0 state(s), ids [] |
+| f14.v0 | 0 | 0 | 2.4e-6 | 7.7e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 14: 17.8 s, 0 state(s), ids [] |
+| f15.v0 | 0 | 0 | 4.3e-6 | 3.2e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 15: 17.9 s, 0 state(s), ids [] |
+| f16.v0 | 0 | 0 | 2.8e-6 | 9.0e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 16: 17.9 s, 0 state(s), ids [] |
+| f17.v0 | 0 | 0 | 6.2e-6 | 5.9e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 17: 17.6 s, 0 state(s), ids [] |
+| f18.v0 | 0 | 0 | 9.7e-6 | 1.5e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 18: 17.6 s, 0 state(s), ids [] |
+| f19.v0 | 0 | 0 | 2.0e-6 | 4.1e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 19: 17.6 s, 0 state(s), ids [] |
+| f20.v0 | 0 | 0 | 1.2e-5 | 7.9e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 20: 17.7 s, 0 state(s), ids [] |
+| f21.v0 | 0 | 0 | 7.4e-6 | 2.4e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 21: 17.9 s, 0 state(s), ids [] |
+| f22.v0 | 0 | 0 | 5.1e-6 | 9.4e-5 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 22: 17.9 s, 0 state(s), ids [] |
+| f23.v0 | 0 | 0 | 2.1e-6 | 4.1e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 23: 18.2 s, 0 state(s), ids [] |
+| f24.v0 | 0 | 0 | 3.5e-6 | 8.2e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 24: 18.3 s, 0 state(s), ids [] |
+| f25.v0 | 0 | 0 | 2.3e-6 | 5.3e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 25: 18.7 s, 0 state(s), ids [] |
+| f26.v0 | 0 | 0 | 1.1e-5 | 9.8e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 26: 18.2 s, 0 state(s), ids [] |
+| f27.v0 | 0 | 0 | 4.9e-6 | 2.0e-3 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 27: 18.5 s, 0 state(s), ids [] |
+| f28.v0 | 0 | 0 | 1.1e-5 | 2.3e-3 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 28: 17.8 s, 0 state(s), ids [] |
+| f29.v0 | 0 | 0 | 2.9e-6 | 5.4e-4 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 29: 17.8 s, 0 state(s), ids [] |
+| f30.v0 | 0 | 0 | 4.7e-6 | 4.6e-3 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 30: 17.7 s, 0 state(s), ids [] |
+| f31.v0 | 0 | 0 | 7.3e-6 | 7.8e-3 | 1.00000 | - | - | 6/6 | 10/10 | - | - | - | yes | - |
+|   | frame 31: 18.0 s, 0 state(s), ids [] |
+
+| yielded frame | id set equal | objects | mean mask IoU | prob dmax | box dmax |
+|---|---|---|---|---|---|
+| y0 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y1 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y2 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y3 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y4 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y5 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y6 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y7 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y8 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y9 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y10 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y11 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y12 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y13 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y14 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y15 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y16 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y17 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y18 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y19 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y20 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y21 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y22 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y23 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y24 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y25 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y26 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y27 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y28 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y29 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y30 | yes | 0 | - | 0.0e0 | 0.0e0 |
+| y31 | yes | 0 | - | 0.0e0 | 0.0e0 |
+
+yielded 32 frames; id-set misses 0; mean per-id mask IoU - over 0 (frame, id) pairs (gate: all id sets equal and IoU >= 0.95)
+
+thread 'session_matches_upstream_on_visem_11' (38724697) panicked at crates/st-model/tests/detect_track_parity.rs:472:5:
+mean per-id mask IoU None < 0.95
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    session_matches_upstream_on_visem_11
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 583.49s
+
+error: test failed, to rerun pass `-p st-model --test detect_track_parity`
