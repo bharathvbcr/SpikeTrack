@@ -84,10 +84,12 @@ On a shared machine, heavy jobs run under its lock: `tools/locked.sh <label> <co
 gates are `tools/jobs/module_gates.sh`, `tools/jobs/vos_gate.sh` and
 `tools/jobs/detect_track_parity.sh`.
 
-Preprocessing: JPEG folders follow upstream's image-folder path (Pillow-exact bilinear, frames
-rounded through float16 as upstream's loader stores them); the JPEG decoder itself is ImageIO, not
-Pillow (GAP-IMAGEIO-VS-PILLOW-JPEG). mp4 input does not match upstream's OpenCV path
-(GAP-MP4-PREPROCESSING).
+Preprocessing: JPEG folders follow upstream's image-folder path. JPEGs are decoded by our own decoder
+(`crates/st-video/src/jpeg.rs`, a port of libjpeg-turbo 3.2.0's default path), byte-identical to
+Pillow 13 on the VISEM test frames and 37 edge-case files. Frames are then Pillow-exact bilinear
+resized and rounded through float16 as upstream's loader stores them. Progressive or other JPEG
+variants that decoder refuses, and PNGs, go through ImageIO, and every output file records which
+decoder ran. mp4 input does not match upstream's OpenCV path (GAP-MP4-PREPROCESSING).
 
 ## Rules
 
