@@ -594,7 +594,7 @@ impl Collector {
                 .map(|(o, m)| {
                     let b = o.box_xyxy_norm;
                     let (fw, fh) = (w as f64, h as f64);
-                    Drawn { mask: m, box_px: [f64::from(b[0]) * fw, f64::from(b[1]) * fh, f64::from(b[2]) * fw, f64::from(b[3]) * fh], colour: o.id.rem_euclid(1 << 20) as usize }
+                    Drawn { mask: m, box_px: [f64::from(b[0]) * fw, f64::from(b[1]) * fh, f64::from(b[2]) * fw, f64::from(b[3]) * fh], colour: o.id.rem_euclid(1 << 20) as usize, label: u64::try_from(o.id).ok() }
                 })
                 .collect();
             // One rendering feeds both outputs, so the video shows exactly the PNG's pixels.
