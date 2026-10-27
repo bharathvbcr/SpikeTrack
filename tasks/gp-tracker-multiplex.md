@@ -63,6 +63,7 @@ Port the SAM 2-derived tracker [V] and SAM 3.1's Object Multiplex (fixed-capacit
 See HANDOFF.md for rules, schedule and dependencies.
 
 ## Progress
+- 2026-10-27: **D5 gate passes on Metal** (Ojas cbd5565 on tessl; bench/results/vos-gate): J&F ours/upstream judo 0.9107/0.9107, shooting 0.9456/0.9456, gold-fish 0.9514/0.9513; mean IoU vs upstream's own masks 1.0000 per object over all frames; ~3 s/frame on Metal. VOS driver frame-by-frame parity cosine 1.0 (CPU) / 0.9999997 (Metal). Still DAVIS, not SA-V (GAP-SAV-ACCESS).
 - 2026-10-26: module parity on CPU vs upstream's recorded inputs (DAVIS judo, 8 frames): memory attention, memory encoder and interactive decoder at cosine 1.0000000; multiplex mask decoder rerun queued after a fixture-key fix in the test.
 - VOS driver (crates/st-model/src/tracker/vos.rs) wired; per-frame stage check (tests/vos_stages.rs) and the J&F gate (tests/vos_gate.rs) queued.
 - Reference J&F (upstream, CPU): judo 0.9107, shooting 0.9456, gold-fish 0.9513, mean 0.9359 (bench/results/vos-reference).

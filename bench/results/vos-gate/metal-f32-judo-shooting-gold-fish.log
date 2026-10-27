@@ -1,0 +1,38 @@
+   Compiling ojas-core v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-core)
+   Compiling ojas-metal v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-metal)
+   Compiling ojas-io v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-io)
+   Compiling ojas-device v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-device)
+   Compiling st-weights v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-weights)
+   Compiling ojas-cpu v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-cpu)
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+    Finished `release` profile [optimized] target(s) in 28.65s
+     Running tests/vos_gate.rs (target/release/deps/vos_gate-8e41d55912568613)
+
+running 1 test
+test vos_jf_within_two_points_of_upstream_on_metal ... [Metal]
+judo frame 0/34 (2 s)
+judo frame 10/34 (28 s)
+judo frame 20/34 (57 s)
+judo frame 30/34 (86 s)
+shooting frame 0/40 (3 s)
+shooting frame 10/40 (30 s)
+shooting frame 20/40 (60 s)
+shooting frame 30/40 (90 s)
+gold-fish frame 0/78 (3 s)
+gold-fish frame 10/78 (31 s)
+gold-fish frame 20/78 (59 s)
+gold-fish frame 30/78 (88 s)
+gold-fish frame 40/78 (117 s)
+gold-fish frame 50/78 (146 s)
+gold-fish frame 60/78 (179 s)
+gold-fish frame 70/78 (212 s)
+
+| clip | objects | frames | J (ours) | F (ours) | J&F (ours) | J&F (upstream) | diff | mean IoU vs upstream masks | s (Metal) | gate |
+|---|---|---|---|---|---|---|---|---|---|---|
+| judo | 2 | 34 | 0.8941 | 0.9272 | 0.9107 | 0.9107 | -0.0000 | 1.0000 | 94 | pass |
+| shooting | 3 | 40 | 0.9300 | 0.9612 | 0.9456 | 0.9456 | -0.0000 | 1.0000 | 117 | pass |
+| gold-fish | 5 | 78 | 0.9375 | 0.9652 | 0.9514 | 0.9513 | +0.0000 | 1.0000 | 233 | pass |
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 450.08s
+
