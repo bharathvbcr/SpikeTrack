@@ -2,6 +2,7 @@
 //! module by module against tools/reference/dump_tracker_fixtures.py.
 
 pub mod associate;
+pub mod bookkeeping;
 pub mod interactive;
 pub mod mask_decoder;
 pub mod memory_attention;

@@ -7,7 +7,7 @@ export SPIKETRACK_WEIGHTS="$HOME/Code/research/models/sam3.1/sam3.1_multiplex.sa
 export SPIKETRACK_TRACKER_FIXTURES="$PWD/fixtures/tracker/judo.safetensors"
 mkdir -p bench/results/parity-tracker
 uptime
-cargo test --release -p st-model --lib --test assoc_parity -- --nocapture --test-threads=2 2>&1 | tee bench/results/parity-tracker/assoc.log
+cargo test --release -p st-model --lib --test assoc_parity --test bookkeeping_parity -- --nocapture --test-threads=2 2>&1 | tee bench/results/parity-tracker/assoc.log
 s0=${PIPESTATUS[0]}
 cargo test --release -p st-model --test tracker_parity -- --ignored --nocapture --test-threads=1 multiplex_mask_decoder 2>&1 | tee bench/results/parity-tracker/cpu-f32-mask-decoder.log
 s1=${PIPESTATUS[0]}
