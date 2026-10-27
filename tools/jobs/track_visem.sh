@@ -3,7 +3,8 @@
 # the first N frames of each (prompt $SPIKETRACK_PROMPT, default "cell", forward from frame 0), then `spiketrack eval-visem` (HOTA,
 # sperm class, the same N frames) on the predictions. Results: bench/results/track/
 #   run/<id>.json, run/<id>.run.json, run/masks/   the predictions and per-frame RLE masks
-#   logs/<id>.log                                  per-frame progress and timings
+#   logs/<id>.log                                  per-frame progress and timings, then /usr/bin/time -l's
+#                                                  resource summary (max RSS, peak memory footprint)
 #   eval.txt, eval.json                            the HOTA table
 # Frames are tracked as a clip of N frames (the session is told the clip ends there), so numbers
 # are for "the first N frames", not for the whole video. Zero-shot (no LoRA, no tuning) unless
@@ -49,7 +50,7 @@ failed=""
 for id in $IDS; do
   echo "== video $id: first $N frames on Metal, --boxes $BOXES, prompt $PROMPT${SPIKETRACK_LORA:+, LoRA $SPIKETRACK_LORA}"
   # ${LORA_ARGS[@]+...}: bash 3.2 (macOS) treats an empty array as unbound under set -u.
-  "$BIN" track "$VISEM/$id/images" --prompt "$PROMPT" --backend metal --max-frames "$N" --boxes "$BOXES" --out "$OUT/run" ${LORA_ARGS[@]+"${LORA_ARGS[@]}"} 2>&1 | tee "$OUT/logs/$id.log"
+  /usr/bin/time -l "$BIN" track "$VISEM/$id/images" --prompt "$PROMPT" --backend metal --max-frames "$N" --boxes "$BOXES" --out "$OUT/run" ${LORA_ARGS[@]+"${LORA_ARGS[@]}"} 2>&1 | tee "$OUT/logs/$id.log"
   [ "${PIPESTATUS[0]}" -eq 0 ] || failed="$failed $id"
 done
 uptime
