@@ -1,0 +1,26 @@
+warning: unused imports: `AttentionOpts` and `Conv2dParams`
+  --> crates/st-model/src/detector.rs:12:17
+   |
+12 | use ojas_core::{AttentionOpts, Backend, Conv2dParams, OjasError, Tensor};
+   |                 ^^^^^^^^^^^^^           ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Weight`
+  --> crates/st-model/src/detector.rs:13:31
+   |
+13 | use st_weights::{TensorGroup, Weight};
+   |                               ^^^^^^
+
+warning: `st-model` (lib) generated 2 warnings (run `cargo fix --lib -p st-model` to apply 2 suggestions)
+    Finished `release` profile [optimized] target(s) in 2.07s
+     Running tests/text_parity.rs (target/release/deps/text_parity-59fe1293c45ebf97)
+
+running 1 test
+test text_encoder_matches_upstream ... [cpu] upload + encode of 13 prompts: 3.20 s
+[cpu] encoder.tokens: cosine 1.000000000, max abs 9.251e-5, max abs / max ref 1.728e-6
+[cpu] resizer.out: cosine 1.000000000, max abs 4.283e-5, max abs / max ref 9.346e-6
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 3.56s
+

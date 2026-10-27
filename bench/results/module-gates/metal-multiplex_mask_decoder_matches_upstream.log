@@ -1,0 +1,56 @@
+warning: unused imports: `AttentionOpts` and `Conv2dParams`
+  --> crates/st-model/src/detector.rs:12:17
+   |
+12 | use ojas_core::{AttentionOpts, Backend, Conv2dParams, OjasError, Tensor};
+   |                 ^^^^^^^^^^^^^           ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Weight`
+  --> crates/st-model/src/detector.rs:13:31
+   |
+13 | use st_weights::{TensorGroup, Weight};
+   |                               ^^^^^^
+
+warning: `st-model` (lib) generated 2 warnings (run `cargo fix --lib -p st-model` to apply 2 suggestions)
+    Finished `release` profile [optimized] target(s) in 1.18s
+     Running tests/tracker_parity.rs (target/release/deps/tracker_parity-1c522ef2770543e2)
+
+running 1 test
+test multiplex_mask_decoder_matches_upstream_on_metal ... [Metal]
+| frame | output | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|
+| 1 | masks | 1.0000000 | 3.510e-4 | 8.963e-6 |
+| 1 | iou_pred | 1.0000000 | 2.289e-4 | 5.899e-6 |
+| 1 | object_score_logits | 1.0000000 | 1.979e-5 | 1.447e-6 |
+| 1 | sam_tokens | 1.0000000 | 9.346e-5 | 7.965e-6 |
+| 2 | masks | 1.0000000 | 3.986e-4 | 1.015e-5 |
+| 2 | iou_pred | 1.0000000 | 1.554e-4 | 3.752e-6 |
+| 2 | object_score_logits | 1.0000000 | 1.550e-5 | 1.177e-6 |
+| 2 | sam_tokens | 1.0000000 | 7.343e-5 | 6.147e-6 |
+| 3 | masks | 1.0000000 | 3.681e-4 | 9.691e-6 |
+| 3 | iou_pred | 1.0000000 | 3.223e-4 | 7.528e-6 |
+| 3 | object_score_logits | 1.0000000 | 2.980e-5 | 2.369e-6 |
+| 3 | sam_tokens | 1.0000000 | 1.068e-4 | 8.800e-6 |
+| 4 | masks | 1.0000000 | 4.120e-4 | 1.032e-5 |
+| 4 | iou_pred | 1.0000000 | 2.460e-4 | 5.876e-6 |
+| 4 | object_score_logits | 1.0000000 | 3.910e-5 | 3.185e-6 |
+| 4 | sam_tokens | 1.0000000 | 9.441e-5 | 7.750e-6 |
+| 5 | masks | 1.0000000 | 2.880e-4 | 7.491e-6 |
+| 5 | iou_pred | 1.0000000 | 1.764e-4 | 4.254e-6 |
+| 5 | object_score_logits | 1.0000000 | 2.003e-5 | 1.667e-6 |
+| 5 | sam_tokens | 1.0000000 | 8.678e-5 | 7.059e-6 |
+| 6 | masks | 1.0000000 | 2.747e-4 | 7.262e-6 |
+| 6 | iou_pred | 1.0000000 | 2.613e-4 | 6.840e-6 |
+| 6 | object_score_logits | 1.0000000 | 2.623e-5 | 2.236e-6 |
+| 6 | sam_tokens | 1.0000000 | 7.915e-5 | 6.386e-6 |
+| 7 | masks | 1.0000000 | 2.098e-4 | 5.630e-6 |
+| 7 | iou_pred | 1.0000000 | 2.098e-4 | 5.579e-6 |
+| 7 | object_score_logits | 1.0000000 | 2.503e-5 | 2.237e-6 |
+| 7 | sam_tokens | 1.0000000 | 9.251e-5 | 7.317e-6 |
+
+mask decoder worst cosine 1.0000000
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.78s
+

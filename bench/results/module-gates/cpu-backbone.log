@@ -1,0 +1,129 @@
+warning: unused imports: `AttentionOpts` and `Conv2dParams`
+  --> crates/st-model/src/detector.rs:12:17
+   |
+12 | use ojas_core::{AttentionOpts, Backend, Conv2dParams, OjasError, Tensor};
+   |                 ^^^^^^^^^^^^^           ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Weight`
+  --> crates/st-model/src/detector.rs:13:31
+   |
+13 | use st_weights::{TensorGroup, Weight};
+   |                               ^^^^^^
+
+warning: `st-model` (lib) generated 2 warnings (run `cargo fix --lib -p st-model` to apply 2 suggestions)
+    Finished `release` profile [optimized] target(s) in 1.91s
+     Running tests/backbone_parity.rs (target/release/deps/backbone_parity-83e9fe051d438b02)
+
+running 1 test
+test backbone_matches_pytorch_fp32_on_five_images ... [cpu] weights loaded and uploaded in 0.6 s
+[cpu] visem_22_f0: trunk + 3 necks 17.3 s (one run, not a benchmark)
+[cpu] visem_47_f300: trunk + 3 necks 18.1 s (one run, not a benchmark)
+[cpu] visem_82_f600: trunk + 3 necks 18.0 s (one run, not a benchmark)
+[cpu] sam3_truck: trunk + 3 necks 17.5 s (one run, not a benchmark)
+[cpu] sam3_groceries: trunk + 3 necks 17.3 s (one run, not a benchmark)
+
+| image | stage | cosine | max abs | max abs / max ref | gate |
+|---|---|---|---|---|---|
+| visem_22_f0 | patch_embed | 1.0000000 | 0.000e0 | 0.000e0 | pass |
+| visem_22_f0 | ln_pre | 1.0000000 | 3.815e-6 | 1.740e-7 | pass |
+| visem_22_f0 | block 0 | 1.0000000 | 1.068e-4 | 6.204e-6 | pass |
+| visem_22_f0 | block 1 | 1.0000000 | 8.106e-5 | 3.302e-6 | pass |
+| visem_22_f0 | block 2 | 1.0000000 | 1.011e-4 | 2.912e-6 | pass |
+| visem_22_f0 | block 3 | 1.0000000 | 9.918e-5 | 2.431e-6 | pass |
+| visem_22_f0 | block 4 | 1.0000000 | 1.030e-4 | 2.439e-6 | pass |
+| visem_22_f0 | block 5 | 1.0000000 | 1.183e-4 | 2.562e-6 | pass |
+| visem_22_f0 | block 6 | 1.0000000 | 1.259e-4 | 2.544e-6 | pass |
+| visem_22_f0 | block 7 | 1.0000000 | 1.450e-4 | 2.931e-6 | pass |
+| visem_22_f0 | block 8 | 1.0000000 | 2.060e-4 | 3.512e-6 | pass |
+| visem_22_f0 | block 9 | 1.0000000 | 3.510e-4 | 4.508e-6 | pass |
+| visem_22_f0 | block 10 | 1.0000000 | 3.662e-4 | 4.503e-6 | pass |
+| visem_22_f0 | block 11 | 1.0000000 | 5.035e-4 | 6.244e-6 | pass |
+| visem_22_f0 | block 12 | 1.0000000 | 1.247e-3 | 1.345e-5 | pass |
+| visem_22_f0 | block 13 | 1.0000000 | 2.651e-3 | 2.291e-5 | pass |
+| visem_22_f0 | block 14 | 1.0000000 | 5.901e-3 | 4.428e-5 | pass |
+| visem_22_f0 | block 15 | 1.0000000 | 1.764e-2 | 1.151e-4 | pass |
+| visem_22_f0 | block 16 | 1.0000000 | 7.556e-2 | 3.533e-4 | pass |
+| visem_22_f0 | block 17 | 1.0000000 | 1.589e-1 | 6.264e-4 | pass |
+| visem_22_f0 | block 18 | 1.0000000 | 2.853e-1 | 1.007e-3 | pass |
+| visem_22_f0 | block 19 | 1.0000000 | 3.056e-1 | 1.076e-3 | pass |
+| visem_22_f0 | block 20 | 1.0000000 | 3.197e-1 | 1.114e-3 | pass |
+| visem_22_f0 | block 21 | 1.0000000 | 3.150e-1 | 1.091e-3 | pass |
+| visem_22_f0 | block 22 | 1.0000000 | 3.085e-1 | 1.069e-3 | pass |
+| visem_22_f0 | block 23 | 1.0000000 | 2.955e-1 | 1.017e-3 | pass |
+| visem_22_f0 | block 24 | 1.0000000 | 2.809e-1 | 9.679e-4 | pass |
+| visem_22_f0 | block 25 | 1.0000000 | 2.746e-1 | 9.482e-4 | pass |
+| visem_22_f0 | block 26 | 1.0000000 | 2.707e-1 | 9.265e-4 | pass |
+| visem_22_f0 | block 27 | 1.0000000 | 2.545e-1 | 8.756e-4 | pass |
+| visem_22_f0 | block 28 | 1.0000000 | 2.394e-1 | 8.344e-4 | pass |
+| visem_22_f0 | block 29 | 1.0000000 | 2.170e-1 | 7.834e-4 | pass |
+| visem_22_f0 | block 30 | 1.0000000 | 2.127e-1 | 7.947e-4 | pass |
+| visem_22_f0 | block 31 | 1.0000000 | 1.858e-1 | 8.697e-4 | pass |
+| visem_22_f0 | convs[0] | 1.0000000 | 1.660e-4 | 8.718e-4 | pass |
+| visem_22_f0 | convs[1] | 1.0000000 | 7.997e-3 | 8.152e-4 | pass |
+| visem_22_f0 | convs[2] | 1.0000000 | 5.196e-3 | 8.499e-4 | pass |
+| visem_22_f0 | interactive_convs[0] | 1.0000000 | 8.778e-4 | 1.106e-3 | pass |
+| visem_22_f0 | interactive_convs[1] | 1.0000000 | 2.126e-3 | 6.924e-4 | pass |
+| visem_22_f0 | interactive_convs[2] | 1.0000000 | 2.204e-3 | 8.249e-4 | pass |
+| visem_22_f0 | propagation_convs[0] | 1.0000000 | 4.455e-4 | 4.602e-4 | pass |
+| visem_22_f0 | propagation_convs[1] | 1.0000000 | 1.355e-3 | 4.518e-4 | pass |
+| visem_22_f0 | propagation_convs[2] | 1.0000000 | 3.626e-3 | 6.477e-4 | pass |
+| visem_47_f300 | block 7 | 1.0000000 | 1.488e-4 | 2.868e-6 | pass |
+| visem_47_f300 | block 15 | 1.0000000 | 5.688e-3 | 3.275e-5 | pass |
+| visem_47_f300 | block 23 | 1.0000000 | 3.123e-2 | 9.991e-5 | pass |
+| visem_47_f300 | block 31 | 1.0000000 | 2.369e-2 | 1.010e-4 | pass |
+| visem_47_f300 | convs[0] | 1.0000000 | 7.216e-6 | 3.199e-5 | pass |
+| visem_47_f300 | convs[1] | 1.0000000 | 7.687e-4 | 8.098e-5 | pass |
+| visem_47_f300 | convs[2] | 1.0000000 | 5.139e-4 | 8.805e-5 | pass |
+| visem_47_f300 | interactive_convs[0] | 1.0000000 | 3.117e-5 | 3.880e-5 | pass |
+| visem_47_f300 | interactive_convs[1] | 1.0000000 | 1.559e-4 | 5.297e-5 | pass |
+| visem_47_f300 | interactive_convs[2] | 1.0000000 | 1.960e-4 | 6.779e-5 | pass |
+| visem_47_f300 | propagation_convs[0] | 1.0000000 | 3.402e-5 | 3.803e-5 | pass |
+| visem_47_f300 | propagation_convs[1] | 1.0000000 | 7.668e-5 | 2.549e-5 | pass |
+| visem_47_f300 | propagation_convs[2] | 1.0000000 | 2.376e-4 | 3.998e-5 | pass |
+| visem_82_f600 | block 7 | 1.0000000 | 1.450e-4 | 2.717e-6 | pass |
+| visem_82_f600 | block 15 | 1.0000000 | 9.741e-3 | 5.721e-5 | pass |
+| visem_82_f600 | block 23 | 1.0000000 | 1.168e-1 | 3.734e-4 | pass |
+| visem_82_f600 | block 31 | 1.0000000 | 8.178e-2 | 3.483e-4 | pass |
+| visem_82_f600 | convs[0] | 1.0000000 | 4.076e-5 | 1.898e-4 | pass |
+| visem_82_f600 | convs[1] | 1.0000000 | 2.182e-3 | 2.079e-4 | pass |
+| visem_82_f600 | convs[2] | 1.0000000 | 1.291e-3 | 2.321e-4 | pass |
+| visem_82_f600 | interactive_convs[0] | 1.0000000 | 2.074e-4 | 2.457e-4 | pass |
+| visem_82_f600 | interactive_convs[1] | 1.0000000 | 5.020e-4 | 1.577e-4 | pass |
+| visem_82_f600 | interactive_convs[2] | 1.0000000 | 8.402e-4 | 3.309e-4 | pass |
+| visem_82_f600 | propagation_convs[0] | 1.0000000 | 1.797e-4 | 2.404e-4 | pass |
+| visem_82_f600 | propagation_convs[1] | 1.0000000 | 3.977e-4 | 1.369e-4 | pass |
+| visem_82_f600 | propagation_convs[2] | 1.0000000 | 1.007e-3 | 1.835e-4 | pass |
+| sam3_truck | block 7 | 1.0000000 | 1.793e-4 | 3.381e-6 | pass |
+| sam3_truck | block 15 | 1.0000000 | 7.071e-3 | 4.903e-5 | pass |
+| sam3_truck | block 23 | 1.0000000 | 3.691e-2 | 1.302e-4 | pass |
+| sam3_truck | block 31 | 1.0000000 | 2.306e-2 | 1.092e-4 | pass |
+| sam3_truck | convs[0] | 1.0000000 | 2.103e-5 | 8.740e-5 | pass |
+| sam3_truck | convs[1] | 1.0000000 | 1.469e-3 | 1.232e-4 | pass |
+| sam3_truck | convs[2] | 1.0000000 | 1.374e-3 | 2.236e-4 | pass |
+| sam3_truck | interactive_convs[0] | 1.0000000 | 1.920e-4 | 2.143e-4 | pass |
+| sam3_truck | interactive_convs[1] | 1.0000000 | 4.104e-4 | 1.172e-4 | pass |
+| sam3_truck | interactive_convs[2] | 1.0000000 | 5.492e-4 | 2.105e-4 | pass |
+| sam3_truck | propagation_convs[0] | 1.0000000 | 6.663e-5 | 4.922e-5 | pass |
+| sam3_truck | propagation_convs[1] | 1.0000000 | 2.757e-4 | 7.625e-5 | pass |
+| sam3_truck | propagation_convs[2] | 1.0000000 | 6.768e-4 | 1.526e-4 | pass |
+| sam3_groceries | block 7 | 1.0000000 | 1.984e-4 | 3.991e-6 | pass |
+| sam3_groceries | block 15 | 1.0000000 | 7.963e-3 | 4.840e-5 | pass |
+| sam3_groceries | block 23 | 1.0000000 | 1.205e-1 | 3.949e-4 | pass |
+| sam3_groceries | block 31 | 1.0000000 | 8.455e-2 | 3.675e-4 | pass |
+| sam3_groceries | convs[0] | 1.0000000 | 3.713e-5 | 1.888e-4 | pass |
+| sam3_groceries | convs[1] | 1.0000000 | 1.707e-3 | 1.435e-4 | pass |
+| sam3_groceries | convs[2] | 1.0000000 | 1.124e-3 | 2.068e-4 | pass |
+| sam3_groceries | interactive_convs[0] | 1.0000000 | 1.239e-4 | 1.436e-4 | pass |
+| sam3_groceries | interactive_convs[1] | 1.0000000 | 3.805e-4 | 1.075e-4 | pass |
+| sam3_groceries | interactive_convs[2] | 1.0000000 | 6.191e-4 | 2.434e-4 | pass |
+| sam3_groceries | propagation_convs[0] | 1.0000000 | 1.074e-4 | 1.201e-4 | pass |
+| sam3_groceries | propagation_convs[1] | 1.0000000 | 2.639e-4 | 8.583e-5 | pass |
+| sam3_groceries | propagation_convs[2] | 1.0000000 | 5.096e-4 | 1.282e-4 | pass |
+
+[cpu] worst cosine 1.0000000 over 95 stages (gate > 0.999)
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 89.99s
+
