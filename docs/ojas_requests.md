@@ -4,13 +4,13 @@ Ojas is a pre-existing library (owner: the ojas-78 session; API changes are its 
 This lists what SpikeTrack asked for, what ojas-78 committed to, and the SpikeTrack call sites
 that switch when each lands. Update a row when the commit arrives; delete it once switched.
 
-| Op | Status (2026-10-27) | SpikeTrack call sites to switch | Notes |
+| Op | Status (2026-10-27; ojas-st at d5d33cc, its whole-tree verify still running on ojas-78's side) | SpikeTrack call sites to switch | Notes |
 |---|---|---|---|
-| Metal `rope_interleaved_forward` | implemented on gp/78-metal (4897d82), merging with the tessl attention routing fix | backbone.rs block_forward; memory_attention.rs | unblocks the Metal backbone gate; move ojas-st once, to that commit |
-| Metal conv2d any stride/padding (groups 1, dilation 1) | queued, Lane A batch 1 | memory_encoder.rs mask downsampler (3x3 s2 p1) | im2col already handles it; refusal was narrow |
-| Metal depthwise conv2d (groups == C) | queued, Lane A batch 1 | memory_encoder.rs ConvNeXt fuser (7x7 p3, 256 ch, 72^2) | direct kernel |
-| Metal `interpolate_bilinear_forward` (both align_corners) | queued, Lane A batch 1 | memory_encoder.rs (to 1152), vos.rs and tracker/state.rs (to 1008 and to video size) | must match CPU exactly |
-| Metal `relu_forward` | queued, Lane A batch 1 (CPU already on main 105e203) | layers.rs `relu` (host round trip today) | then `relu` becomes `be.relu_forward` |
+| Metal `rope_interleaved_forward` | **landed d5d33cc** (ojas-st moved 2026-10-27) | backbone.rs block_forward; memory_attention.rs | unblocks the Metal backbone gate; move ojas-st once, to that commit |
+| Metal conv2d any stride/padding (groups 1, dilation 1) | **landed d5d33cc** | memory_encoder.rs mask downsampler (3x3 s2 p1) | im2col already handles it; refusal was narrow |
+| Metal depthwise conv2d (groups == C) | **landed d5d33cc** | memory_encoder.rs ConvNeXt fuser (7x7 p3, 256 ch, 72^2) | direct kernel |
+| Metal `interpolate_bilinear_forward` (both align_corners) | **landed d5d33cc** (follow-up: scan whole input for non-finite values, as CPU does) | memory_encoder.rs (to 1152), vos.rs and tracker/state.rs (to 1008 and to video size) | must match CPU exactly |
+| Metal `relu_forward` | **landed d5d33cc** (CPU in 105e203) | layers.rs `relu` (host round trip today) | then `relu` becomes `be.relu_forward` |
 | `group_norm_forward` (CPU f64 two-pass, then Metal multi-threadgroup) | queued, Lane B2 then Lane A | detector.rs `group_norm` (layer_norm composition + host ones/zeros) | fixtures: fixtures/groupnorm/pixel_decoder.safetensors (env OJAS_SAM_GROUPNORM_FIXTURES) |
 | `concat` (one axis, same rank) and `slice` (narrow one axis) | queued, Lane B2 after group_norm; Metal in Lane A | memory_attention.rs memory/pointer assembly (host_of + Vec + upload); vos.rs and tracker/state.rs memory build | bit-exact |
 | `fill(shape, dtype, value)` | queued, Lane B2 after concat/slice; Metal in Lane A | memory_attention.rs pointer-slot zero padding; detector.rs nearest2x zeros | group_norm's ones/zeros go away with the native op |

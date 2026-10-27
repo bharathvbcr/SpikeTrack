@@ -8,7 +8,7 @@ This file records dates and commits so they can be classified once the rules are
 
 | Library | What SpikeTrack uses | Pinned commit |
 |---|---|---|
-| [Ojas](https://github.com/bharathvbcr/ojas) | `ojas-io` safetensors reader; Backend trait and CPU ops | base `83d7a29` (ojas main on the morning of 2026-10-26, before any SpikeTrack op work). **The workspace builds against `4710bb2`** (since 2026-10-27, approved by Bharath; was `d2922fb`): the base plus the Oct 26 SAM ops and Metal conv2d/convT (see below), through path dependencies on the `~/Code/research/ojas-st` worktree. |
+| [Ojas](https://github.com/bharathvbcr/ojas) | `ojas-io` safetensors reader; Backend trait and CPU ops | base `83d7a29` (ojas main on the morning of 2026-10-26, before any SpikeTrack op work). **The workspace builds against `d5d33cc`** (ojas local main, 2026-10-27; approved by Bharath as the one further move after `4710bb2`, which replaced `d2922fb`): the base plus the Oct 26 SAM ops and the Oct 26-27 Metal ops (see below), through path dependencies on the `~/Code/research/ojas-st` worktree. |
 | tessl (Metal 4 runtime, part of the Ojas stack) | Metal kernels under Ojas's Metal backend (ojas-metal reaches it as the sibling path `~/Code/research/tessl`, the live tree; every Metal run records the tessl commit it built, e.g. bench/results/metal-smoke/versions.txt) | `789a132` at the switch |
 | [sparsl](https://github.com/bharathvbcr/sparsl) | bitpacked spikes, gather/scatter (planned for st-gate) | `44edd92` |
 
@@ -43,8 +43,9 @@ Rules. It is listed here, with commits, before submission either way.
 | Ojas range | Content | Dates | Classification |
 |---|---|---|---|
 | `83d7a29..d2922fb` | `attention_forward` (bidirectional/cross, bias, key_lens), `layer_norm`, `channel_layer_norm`, `gelu_erf`, `linear_bias`, `broadcast_*`, `conv2d`, `conv_transpose2d`, `max_pool2d`, bilinear interpolation, `rope_interleaved`, axial RoPE tables, window partition/merge, pixel shuffle (CPU; some Metal) | 2026-10-26 (commit times in ojas-78's report) | pending the Official Rules |
+| `4710bb2..d5d33cc` | CPU `relu_forward`, two-pass f64 LayerNorm, SAM fixture parity and refusal fixes (gp/78-cpu-oracle); Metal `rope_interleaved`, unmasked D=64 self-attention routed to tessl `encoder_attn`, conv2d at any stride/padding, depthwise conv2d, bilinear (both align_corners), `relu` (gp/78-metal) | 2026-10-26/27 | pending the Official Rules |
 | `d2922fb..4710bb2` | Metal `conv2d_forward` (im2col + GEMM) and `conv_transpose2d_forward` (kernel == stride) for the SAM backbone; a ViT attention bench; README acknowledgements | 2026-10-26 | pending the Official Rules |
 
-Reproducibility: `4710bb2` exists only in the local ojas repository (unpushed), and Cargo.toml uses path
+Reproducibility: `d5d33cc` exists only in the local ojas repository (unpushed), and Cargo.toml uses path
 dependencies on local worktrees, so the workspace builds on this machine only. Before submission, the Ojas commits
 SpikeTrack uses must be pushed, and Cargo.toml must point at the public repository.
