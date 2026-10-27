@@ -159,10 +159,10 @@ fn io_err(path: &Path, err: std::io::Error) -> DecodeError {
 // FFI: libobjc, CoreFoundation, ImageIO, CoreGraphics, CoreMedia, CoreVideo
 // ---------------------------------------------------------------------------
 
-type Id = *mut c_void;
-type Sel = *const c_void;
-type CfTypeRef = *const c_void;
-type CfIndex = isize;
+pub(crate) type Id = *mut c_void;
+pub(crate) type Sel = *const c_void;
+pub(crate) type CfTypeRef = *const c_void;
+pub(crate) type CfIndex = isize;
 
 /// `CGRect` (`CGGeometry.h`); `CGFloat` is `double` on 64-bit.
 #[repr(C)]
@@ -197,7 +197,7 @@ struct CgAffineTransform {
 /// `CMTime` (`CMTime.h`): `value / timescale` seconds when `flags & 1`.
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct CmTime {
+pub(crate) struct CmTime {
     value: i64,
     timescale: i32,
     flags: u32,
@@ -211,11 +211,11 @@ const ALPHA_NONE_SKIP_LAST: u32 = 5;
 /// `kCGImageStatusComplete` (`CGImageSource.h`).
 const STATUS_COMPLETE: i32 = 0;
 /// `kCVPixelFormatType_32BGRA` (`CVPixelBuffer.h`), the FourCC `'BGRA'`.
-const PIXEL_FORMAT_32BGRA: u32 = u32::from_be_bytes(*b"BGRA");
+pub(crate) const PIXEL_FORMAT_32BGRA: u32 = u32::from_be_bytes(*b"BGRA");
 /// `kCVPixelBufferLock_ReadOnly` (`CVPixelBuffer.h`).
 const PIXEL_BUFFER_LOCK_READ_ONLY: u64 = 1;
 /// `kCVReturnSuccess` (`CVReturn.h`).
-const CV_RETURN_SUCCESS: i32 = 0;
+pub(crate) const CV_RETURN_SUCCESS: i32 = 0;
 /// `AVAssetReaderStatus` (`AVAssetReader.h`, `NSInteger`).
 const READER_STATUS_READING: isize = 1;
 const READER_STATUS_COMPLETED: isize = 2;
@@ -223,10 +223,10 @@ const READER_STATUS_FAILED: isize = 3;
 
 #[link(name = "objc")]
 extern "C" {
-    fn objc_getClass(name: *const c_char) -> Id;
-    fn sel_registerName(name: *const c_char) -> Sel;
+    pub(crate) fn objc_getClass(name: *const c_char) -> Id;
+    pub(crate) fn sel_registerName(name: *const c_char) -> Sel;
     /// Cast to the exact signature of each call (see [`msg!`]); never called as declared.
-    fn objc_msgSend();
+    pub(crate) fn objc_msgSend();
 }
 
 #[link(name = "Foundation", kind = "framework")]
@@ -310,13 +310,18 @@ extern "C" {
 /// `_fpret`), and the function type must be non-variadic.
 ///
 /// `msg!(receiver, "selector:with:", a => Id, b => usize; -> bool)`
+///
+/// The paths are `$crate`-qualified so that [`crate::encode`] shares the macro.
 macro_rules! msg {
     ($recv:expr, $sel:literal $(, $arg:expr => $ty:ty)* ; -> $ret:ty) => {{
-        let f: unsafe extern "C" fn(Id, Sel $(, $ty)*) -> $ret =
-            std::mem::transmute::<unsafe extern "C" fn(), unsafe extern "C" fn(Id, Sel $(, $ty)*) -> $ret>(objc_msgSend);
-        f($recv, sel_registerName(concat!($sel, "\0").as_ptr().cast()) $(, $arg)*)
+        let f: unsafe extern "C" fn($crate::decode::Id, $crate::decode::Sel $(, $ty)*) -> $ret = std::mem::transmute::<
+            unsafe extern "C" fn(),
+            unsafe extern "C" fn($crate::decode::Id, $crate::decode::Sel $(, $ty)*) -> $ret,
+        >($crate::decode::objc_msgSend);
+        f($recv, $crate::decode::sel_registerName(concat!($sel, "\0").as_ptr().cast()) $(, $arg)*)
     }};
 }
+pub(crate) use msg;
 
 // ---------------------------------------------------------------------------
 // RAII guards
@@ -326,16 +331,16 @@ macro_rules! msg {
 /// result), released on drop. `CFRelease` releases every CF-based type
 /// (`CGImageSource`, `CGImage`, `CGColorSpace`, `CGContext`, `CMSampleBuffer`,
 /// `CFData`, `CFURL`, `CFDictionary`).
-struct CfRef(NonNull<c_void>);
+pub(crate) struct CfRef(NonNull<c_void>);
 
 impl CfRef {
     /// # Safety
     /// `ptr` is NULL or a live CF object the caller owns one reference to.
-    unsafe fn take(ptr: CfTypeRef) -> Option<CfRef> {
+    pub(crate) unsafe fn take(ptr: CfTypeRef) -> Option<CfRef> {
         NonNull::new(ptr as *mut c_void).map(CfRef)
     }
 
-    fn as_ptr(&self) -> CfTypeRef {
+    pub(crate) fn as_ptr(&self) -> CfTypeRef {
         self.0.as_ptr() as CfTypeRef
     }
 }
@@ -348,7 +353,7 @@ impl Drop for CfRef {
 }
 
 /// An Objective-C object this module owns one reference to, `release`d on drop.
-struct Obj(NonNull<c_void>);
+pub(crate) struct Obj(NonNull<c_void>);
 
 impl Obj {
     /// Take our own reference (`retain`) to an object a factory method returned
@@ -356,13 +361,13 @@ impl Obj {
     ///
     /// # Safety
     /// `ptr` is NULL or a live Objective-C object.
-    unsafe fn retain(ptr: Id) -> Option<Obj> {
+    pub(crate) unsafe fn retain(ptr: Id) -> Option<Obj> {
         let n = NonNull::new(ptr)?;
         let _: Id = msg!(n.as_ptr(), "retain"; -> Id);
         Some(Obj(n))
     }
 
-    fn id(&self) -> Id {
+    pub(crate) fn id(&self) -> Id {
         self.0.as_ptr()
     }
 }
@@ -378,10 +383,10 @@ impl Drop for Obj {
 
 /// An `NSAutoreleasePool`, drained on drop. Declared first in a function so it
 /// drops after every guard that borrows autoreleased memory.
-struct Pool(Id);
+pub(crate) struct Pool(Id);
 
 impl Pool {
-    fn new() -> Result<Pool, DecodeError> {
+    pub(crate) fn new() -> Result<Pool, DecodeError> {
         // SAFETY: `+alloc` and `-init` on NSAutoreleasePool; Foundation is linked.
         unsafe {
             let class = objc_getClass(c"NSAutoreleasePool".as_ptr());
@@ -431,11 +436,11 @@ impl Drop for PixelLock {
     }
 }
 
-fn framework(api: &'static str, detail: impl Into<String>) -> DecodeError {
+pub(crate) fn framework(api: &'static str, detail: impl Into<String>) -> DecodeError {
     DecodeError::Framework { api, detail: detail.into() }
 }
 
-fn class(name: &'static CStr) -> Result<Id, DecodeError> {
+pub(crate) fn class(name: &'static CStr) -> Result<Id, DecodeError> {
     // SAFETY: `name` is NUL-terminated.
     let c = unsafe { objc_getClass(name.as_ptr()) };
     if c.is_null() {
@@ -450,7 +455,7 @@ fn class(name: &'static CStr) -> Result<Id, DecodeError> {
 ///
 /// # Safety
 /// `err` is NULL or a live `NSError`, and a pool is active.
-unsafe fn ns_error_text(err: Id) -> String {
+pub(crate) unsafe fn ns_error_text(err: Id) -> String {
     if err.is_null() {
         return "no error object".to_string();
     }
@@ -465,7 +470,7 @@ unsafe fn ns_error_text(err: Id) -> String {
     CStr::from_ptr(utf8).to_string_lossy().into_owned()
 }
 
-fn file_url(path: &Path) -> Result<CfRef, DecodeError> {
+pub(crate) fn file_url(path: &Path) -> Result<CfRef, DecodeError> {
     use std::os::unix::ffi::OsStrExt;
     let bytes = path.as_os_str().as_bytes();
     let len = CfIndex::try_from(bytes.len()).map_err(|_| framework("CFURLCreateFromFileSystemRepresentation", "path too long"))?;
