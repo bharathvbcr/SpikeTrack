@@ -12,6 +12,7 @@ use std::time::Instant;
 
 use ojas_core::{Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
+use ojas_metal::MetalBackend;
 use ojas_io::SafeTensors;
 use st_eval::jf::{boundary_f, region_j, Mask, DAVIS_BOUND_TH};
 use st_model::tracker::vos::Vos;
@@ -52,11 +53,21 @@ fn jf(pred: &[Vec<u8>], gt: &[Vec<u8>], objects: &[u8], w: usize, h: usize) -> (
 #[test]
 #[ignore = "needs the gated checkpoint and VOS fixtures (tools/reference/dump_vos_frames.py)"]
 fn vos_jf_within_two_points_of_upstream() {
+    vos_jf_within_two_points_of_upstream_on(&CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu"), "CPU");
+}
+
+#[test]
+#[ignore = "needs a Metal GPU; needs the gated checkpoint and VOS fixtures (tools/reference/dump_vos_frames.py)"]
+fn vos_jf_within_two_points_of_upstream_on_metal() {
+    vos_jf_within_two_points_of_upstream_on(&MetalBackend::new(Budget::new(28 << 30)).expect("metal"), "Metal");
+}
+
+fn vos_jf_within_two_points_of_upstream_on<B: Backend>(be: &B, label: &str) {
+    println!("[{label}]");
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = Sam31Weights::load(&ck).expect("weights");
-    let be = CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu");
-    let backbone = Backbone::new(&be, &w.vision).expect("backbone");
-    let vos = Vos::new(&be, &backbone, &w.tracker).expect("tracker");
+    let backbone = Backbone::new(be, &w.vision).expect("backbone");
+    let vos = Vos::new(be, &backbone, &w.tracker).expect("tracker");
     let dir = env_path("SPIKETRACK_VOS_FIXTURES");
     let clips: Vec<String> = std::env::var("SPIKETRACK_VOS_CLIPS").unwrap_or_else(|_| "judo,shooting,gold-fish".into()).split(',').map(str::to_string).collect();
     let mut rows = Vec::new();
@@ -119,7 +130,7 @@ fn vos_jf_within_two_points_of_upstream() {
         }
         rows.push(format!("| {clip} | {n} | {t_n} | {oj:.4} | {of:.4} | {o_jf:.4} | {u_jf:.4} | {:+.4} | {agree:.4} | {secs:.0} | {} |", o_jf - u_jf, if pass { "pass" } else { "FAIL" }));
     }
-    println!("\n| clip | objects | frames | J (ours) | F (ours) | J&F (ours) | J&F (upstream) | diff | mean IoU vs upstream masks | s (CPU) | gate |\n|---|---|---|---|---|---|---|---|---|---|---|");
+    println!("\n| clip | objects | frames | J (ours) | F (ours) | J&F (ours) | J&F (upstream) | diff | mean IoU vs upstream masks | s ({label}) | gate |\n|---|---|---|---|---|---|---|---|---|---|---|");
     rows.iter().for_each(|r| println!("{r}"));
     assert!(failed.is_empty(), "J&F more than {GATE_POINTS} from upstream on {failed:?}");
 }

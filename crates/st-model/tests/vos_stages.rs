@@ -11,6 +11,7 @@ use std::path::PathBuf;
 
 use ojas_core::{Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
+use ojas_metal::MetalBackend;
 use ojas_io::SafeTensors;
 use st_model::tracker::vos::{Vos, D, FEAT, LOW};
 use st_model::Backbone;
@@ -50,11 +51,21 @@ fn sign_agreement(got: &[f32], want: &[f32]) -> f64 {
 #[test]
 #[ignore = "needs the gated checkpoint and tracker fixtures"]
 fn vos_driver_tracks_upstream_state_frame_by_frame() {
+    vos_driver_tracks_upstream_state_frame_by_frame_on(&CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu"), "CPU");
+}
+
+#[test]
+#[ignore = "needs a Metal GPU; needs the gated checkpoint and tracker fixtures"]
+fn vos_driver_tracks_upstream_state_frame_by_frame_on_metal() {
+    vos_driver_tracks_upstream_state_frame_by_frame_on(&MetalBackend::new(Budget::new(28 << 30)).expect("metal"), "Metal");
+}
+
+fn vos_driver_tracks_upstream_state_frame_by_frame_on<B: Backend>(be: &B, label: &str) {
+    println!("[{label}]");
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = Sam31Weights::load(&ck).expect("weights");
-    let be = CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu");
-    let backbone = Backbone::new(&be, &w.vision).expect("backbone");
-    let vos = Vos::new(&be, &backbone, &w.tracker).expect("tracker");
+    let backbone = Backbone::new(be, &w.vision).expect("backbone");
+    let vos = Vos::new(be, &backbone, &w.tracker).expect("tracker");
     let fx = SafeTensors::open(&env_path("SPIKETRACK_TRACKER_FIXTURES")).expect("fixtures");
     let h = |name: &str| fx.read_f32_widened(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
     let (mshape, masks0) = h("f0.input_masks");
