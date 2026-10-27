@@ -5,6 +5,12 @@ with no Python at runtime. It runs on Apple Silicon through Ojas's Metal backend
 Ojas's CPU backend. The evaluation is many-sperm tracking in VISEM-Tracking. Built for the Meta
 hackathon, Oct 26 to Nov 4, 2026.
 
+![VISEM-Tracking video 22, frame 30: every sperm head tracked with its id](docs/figures/visem22-frame30-sperm-lora.png)
+
+`spiketrack track` on held-out VISEM video 22 with the prompt "sperm", the detector LoRA and
+`--boxes detector`. The clip is [bench/results/demo/22-sperm-lora.mp4](bench/results/demo/22-sperm-lora.mp4)
+(49 frames, made by `tools/jobs/demo_clip.sh 22 49 sperm`).
+
 Status and plan: [HANDOFF.md](HANDOFF.md) (schedule, gates, task index), [tasks/](tasks/), open
 questions in [gaps.jsonl](gaps.jsonl). What existed before the hackathon and what was built during
 it: [CONTRIBUTIONS.md](CONTRIBUTIONS.md).
