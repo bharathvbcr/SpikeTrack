@@ -469,5 +469,15 @@ fn session_matches_upstream_on_visem_11() {
     let ref_frames = (0..t_total).filter(|t| fx.has(&format!("y{t}.obj_ids"))).count();
     assert_eq!(yields.len(), ref_frames, "released {} frames, upstream yielded {ref_frames}", yields.len());
     assert!(id_set_misses.is_empty(), "id sets differ on yielded frames: {id_set_misses:?}");
+    // A clip where upstream tracks nothing (e.g. VISEM 11 with "cell": its best detection is
+    // below the birth threshold) has no (frame, id) pair to compare masks on. The id-set check
+    // above already requires ours to yield nothing too; the IoU gate is then vacuous, and
+    // only then.
+    if pairs_iou.is_empty() {
+        let upstream_objects: usize = (0..t_total).filter(|t| fx.has(&format!("y{t}.obj_ids"))).map(|t| fx.i64s(&format!("y{t}.obj_ids")).map_or(0, |v| v.len())).sum();
+        assert_eq!(upstream_objects, 0, "no mask pairs compared although upstream yielded {upstream_objects} objects");
+        println!("upstream yields no objects on this clip: the mask IoU gate is vacuous; id sets (all empty) match");
+        return;
+    }
     assert!(overall.is_some_and(|m| m >= GATE_IOU), "mean per-id mask IoU {overall:?} < {GATE_IOU}");
 }
