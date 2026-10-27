@@ -8,6 +8,7 @@ pub mod backbone;
 pub mod detector;
 pub mod host;
 pub mod layers;
+pub mod profile;
 pub mod text;
 pub mod tokenizer;
 pub mod tracker;
