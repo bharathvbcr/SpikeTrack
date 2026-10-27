@@ -1,7 +1,7 @@
 ---
 id: "gp-event-gating"
 title: "Training-free sparsl event gating"
-status: "backlog"
+status: "in-progress"
 priority: 1
 severity: "high"
 type: "feature"
@@ -32,7 +32,7 @@ Training-free sparsl event gating
 
 Task: gp-event-gating
 Type: feature
-Status: backlog
+Status: in-progress
 Priority: 1 (High)
 Severity: high
 Owner: unassigned
@@ -55,6 +55,9 @@ The novel layer: skip work where the scene did not change.
 - Risk [I]: in sperm-motility microscopy, cells move across the whole field, so most windows may change every frame and gating may save little on VISEM. Measure this on D1-D2 with no model at all: per-window change rate on the 20 VISEM videos and on a static-camera lab clip. If VISEM windows change > 80% of frames, showcase gating on the lab clip and report VISEM ungated.
 
 See HANDOFF.md for rules, schedule and dependencies.
+
+## Progress
+- 2026-10-27: crates/st-gate + Backbone::trunk_gated, exact policy bitwise equal to the ungated trunk on real VISEM frames; change map 0.2 ms/frame. On VISEM windows change on most frames: exact 1.03-1.14x, approximate tau 32 1.53x at min cosine 0.939 (bench/results/gating). Per the brief, VISEM likely ships ungated; a static-camera clip is needed to show gating.
 
 ## Acceptance criteria
 - [ ] Ablation table: each policy's FPS and HOTA/J&F on VISEM and SA-V [V]

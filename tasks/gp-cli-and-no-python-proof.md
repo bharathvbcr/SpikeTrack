@@ -1,7 +1,7 @@
 ---
 id: "gp-cli-and-no-python-proof"
 title: "Single binary, CLI and no-Python proof"
-status: "backlog"
+status: "in-progress"
 priority: 1
 severity: "high"
 type: "feature"
@@ -30,7 +30,7 @@ Single binary, CLI and no-Python proof
 
 Task: gp-cli-and-no-python-proof
 Type: feature
-Status: backlog
+Status: in-progress
 Priority: 1 (High)
 Severity: high
 Owner: unassigned
@@ -48,6 +48,9 @@ Ship one binary: `spiketrack track <video> --prompt <text> [--max-objects N] [--
 - Record binary size, cold start, peak memory.
 
 See HANDOFF.md for rules, schedule and dependencies.
+
+## Progress
+- 2026-10-27: crates/spiketrack: `image` and `eval-visem` built and tested under cargo (34 tests); native ImageIO/AVFoundation decode; own PNG writer. scripts/no_python_check.sh written (checked on toy binaries). Open: `track` (needs the Session parity run), `--backend metal`, the proof run on the real binary, overlay MP4 (no encoder; PNG frames).
 
 ## Acceptance criteria
 - [ ] `otool -L` output committed; no Python, libtorch or ONNX runtime linked [V]

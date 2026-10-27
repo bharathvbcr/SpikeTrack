@@ -1,7 +1,7 @@
 ---
 id: "gp-eval-harness"
 title: "J&F, HOTA and dataset loaders in Rust"
-status: "ready"
+status: "in-progress"
 priority: 1
 severity: "high"
 type: "feature"
@@ -34,7 +34,7 @@ J&F, HOTA and dataset loaders in Rust
 
 Task: gp-eval-harness
 Type: feature
-Status: ready
+Status: in-progress
 Priority: 1 (High)
 Severity: high
 Owner: unassigned
@@ -58,6 +58,9 @@ Metrics must be trustworthy before any number is quoted.
 - Update [V, arXiv 2212.02842]: VISEM-Tracking has per-sperm track IDs, YOLO boxes, 3 classes, 45–50 fps, CC BY 4.0, Zenodo 7293726.
 
 See HANDOFF.md for rules, schedule and dependencies.
+
+## Progress
+- 2026-10-26/27: HOTA (TrackEval-exact) and J&F (DAVIS-exact) in st-eval; VISEM loader; `spiketrack eval-visem` scores ground truth against itself at 1.0. Open: HOTA of the full pipeline on held-out VISEM.
 
 ## Acceptance criteria
 - [ ] J&F matches the official DAVIS evaluation within 0.1 on fixtures [V]

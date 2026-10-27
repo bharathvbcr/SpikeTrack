@@ -10,10 +10,12 @@ SpikeTrack runs Meta's **SAM 3.1** — including its **Object Multiplex** video 
 
 The application promised: SAM 3.1 multiplex natively on Metal 4 tensor ops via Ojas/tessl; training-free sparsl event gating; evaluation on VISEM-Tracking (HOTA) and SA-V (J&F) against the PyTorch reference; target **≥3× the existing CoreML port's throughput at 16 objects** with published parity numbers.
 
+**Speed target restated (2026-10-27, Bharath):** parity-or-better with the CoreML port on the tracker path at 16 objects, leading with what that port cannot do: text-prompted detection with births and stable IDs, upstream-exact parity on CPU and Metal, a single binary with no Python, and LoRA domain adaptation.
+
 ## 2. Why it is new (keep this framing in every write-up)
 
 - A pure-Rust SAM 3 exists (`rlx-sam3`, crates.io, v0.2.11 2026-07-06) but states **"SAM 3.1 multiplex is intentionally out of scope"** [V].
-- The only non-PyTorch SAM 3.1 multiplex port is CoreML/Swift (`sdkv2/sam3.1-coreml`): ~2.05 s/frame backbone + ~0.7 s/frame tracker on a 16 GB M-series Mac, CPU+GPU only (ANE compile fails), multiplex 16 [V]. **Re-measure it on the M5 Pro before quoting any ratio** [U].
+- The only non-PyTorch SAM 3.1 multiplex port is CoreML/Swift (`sdkv2/sam3.1-coreml` @ 9668c49), tracker only (no detector or text encoder), CPU+GPU (ANE compile fails), multiplex 16. **Measured on this M5 Pro (2026-10-27, bench/results/baselines):** backbone (trunk + propagation neck, fp16) 0.272 s/frame and the multiplex-16 track step 0.0775 s/frame, ~0.35 s/frame in all; its backbone output matches upstream at cosine 0.99995 (bench/results/baselines/coreml_parity.txt). The port's own figure (~2.05 s + ~0.7 s on a 16 GB M-series Mac) is ~8x slower than this machine and must not be quoted.
 - Efficient-SAM2 (ICLR 2026) skips work by decoder saliency and needs training; EdgeTAM/TinySAM2 retrain small models. Ours is training-free pixel-event gating + neural-accelerator path + zero-copy sparsl↔tessl.
 - Pitch: *"SAM 3.1 multi-object tracking on a laptop, zero Python, measured parity, several times faster than the existing Mac port."* Do not claim real-time or interactive speed (see Second audit). Not "a Rust port".
 
@@ -37,7 +39,7 @@ The application promised: SAM 3.1 multiplex natively on Metal 4 tensor ops via O
 | D3 | Wed Oct 28 | gp-prompt-encoders, gp-detector-and-mask-head | gp-eval-harness (HOTA), VISEM loader | **Image masks mean IoU ≥ 0.95 on 20 frames — else ship image-only** |
 | D4 | Thu Oct 29 | gp-tracker-multiplex | baselines (CoreML, torch-MPS) on M5 Pro | Single-object tracking runs end to end |
 | D5 | Fri Oct 30 | gp-tracker-multiplex | SA-V subset prepared | **J&F within 2 points of reference on 3 SA-V clips** |
-| D6 | Sat Oct 31 | gp-tensorops-hot-path | FPS-vs-objects harness | **≥3× CoreML port at 16 objects (same M5 Pro)** |
+| D6 | Sat Oct 31 | gp-tensorops-hot-path | FPS-vs-objects harness | **≥ parity with the CoreML port on the tracker path at 16 objects (same M5 Pro)** — restated 2026-10-27 by Bharath from "≥3×", which the measured CoreML time (0.35 s/frame, fp16 at ~70% of the GPU's bf16 peak) puts out of reach (GAP-D6-COREML-DENOMINATOR) |
 | D7 | Sun Nov 1 | gp-event-gating | gating ablation runs | **≥1.5× FPS at ≤1 HOTA lost — else ship ungated** |
 | D8 | Mon Nov 2 | gp-cli-and-no-python-proof | full VISEM + SA-V numbers | Benchmark table frozen |
 | D9 | Tue Nov 3 | gp-demo-and-submission | README, figures | Demo video cut |

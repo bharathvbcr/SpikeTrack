@@ -1,7 +1,7 @@
 ---
 id: "gp-vision-backbone"
 title: "Vision backbone forward on Metal (patch embed as im2col GEMM)"
-status: "ready"
+status: "in-progress"
 priority: 0
 severity: "critical"
 type: "feature"
@@ -33,7 +33,7 @@ Vision backbone forward on Metal (patch embed as im2col GEMM)
 
 Task: gp-vision-backbone
 Type: feature
-Status: ready
+Status: in-progress
 Priority: 0 (Urgent)
 Severity: critical
 Owner: unassigned
@@ -70,6 +70,9 @@ See HANDOFF.md for rules, schedule and dependencies.
 
 ### D1 result (2026-10-26)
 - CPU gate passed: st-model on ojas d2922fb CpuBackend, cosine >= 0.9999999 at all 95 stages on 5 images (bench/results/parity-backbone/cpu-f32.md, commit 3debd07). The brief stays open: Metal (conv2d/convT/rope Metal paths due D2 from ojas-78), bf16 and latency are not done.
+
+## Progress
+- 2026-10-27: D2 gate passes on CPU and on Metal (Ojas on tessl, d5d33cc): worst cosine 1.0000000 over 95 stages on 5 images (bench/results/module-gates). ViT LayerNorm eps corrected to 1e-5 (was 1e-6) with a regression test; gates re-queued at cbd5565. Open: half precision (Autocast bf16 D2 check queued).
 
 ## Acceptance criteria
 - [ ] Backbone output cosine > 0.999 vs fixture on all 5 images, f32 [V]
