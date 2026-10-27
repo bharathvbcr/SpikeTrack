@@ -10,12 +10,27 @@
 # are for "the first N frames", not for the whole video. Zero-shot (no LoRA, no tuning) unless
 # SPIKETRACK_LORA=FILE names a detector adapter, which every video then runs with (`track --lora`).
 # SPIKETRACK_BOXES=mask|detector picks `track --boxes` (default mask, upstream's boxes).
-# usage: tools/locked.sh track-visem bash tools/jobs/track_visem.sh [N=300]
+# usage: tools/locked.sh track-visem bash tools/jobs/track_visem.sh [N=300]       all videos, then eval
+#        tools/locked.sh track-visem-21 bash tools/jobs/track_visem.sh N 21 [ID...]  only those videos, no
+#            eval (one lock hold per video, so a long run leaves the shared lock to others in between)
+#        bash tools/jobs/track_visem.sh N --eval    eval-visem over all held-out videos' predictions (CPU)
 # (SPIKETRACK_TRACK_OUT=DIR writes somewhere else, for a smoke run with a small N)
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 N=${1:-300}
-case "$N" in '' | *[!0-9]* | 0) echo "usage: $0 [N frames, a positive integer; default 300]" >&2; exit 2 ;; esac
+case "$N" in '' | *[!0-9]* | 0) echo "usage: $0 [N frames, a positive integer; default 300] [--eval | ID...]" >&2; exit 2 ;; esac
+[ $# -gt 0 ] && shift
+MODE=all
+ONLY=""
+if [ "${1:-}" = "--eval" ]; then
+  MODE=eval
+elif [ $# -gt 0 ]; then
+  MODE=some
+  for id in "$@"; do
+    case "$id" in '' | *[!0-9]*) echo "video id $id is not a number" >&2; exit 2 ;; esac
+  done
+  ONLY="$*"
+fi
 export SPIKETRACK_WEIGHTS="${SPIKETRACK_WEIGHTS:-$HOME/Code/research/models/sam3.1/sam3.1_multiplex.safetensors}"
 export SPIKETRACK_MODEL_DIR="${SPIKETRACK_MODEL_DIR:-$HOME/Code/research/models/sam3.1}"
 VISEM="${SPIKETRACK_VISEM:-data/visem/VISEM_Tracking_Train_v4/Train}"
@@ -40,8 +55,37 @@ done
 IDS=$(python3 -c 'import json,sys; print(" ".join(str(i) for i in json.load(open(sys.argv[1]))["held_out"]))' "$SPLIT") || exit 2
 [ -n "$IDS" ] || { echo "no held_out videos in $SPLIT" >&2; exit 2; }
 
+evaluate() {
+  "$BIN" eval-visem --pred "$OUT/run" --split "$SPLIT" --set held_out --max-frames "$N" --visem "$VISEM" --out "$OUT/eval.json" 2>&1 | tee "$OUT/eval.txt"
+  [ "${PIPESTATUS[0]}" -eq 0 ]
+}
+
+if [ "$MODE" = eval ]; then
+  [ -x "$BIN" ] || { echo "$BIN is not built" >&2; exit 1; }
+  for id in $IDS; do
+    [ -s "$OUT/run/$id.json" ] || { echo "no predictions for video $id in $OUT/run; no evaluation of a partial set" >&2; exit 1; }
+  done
+  evaluate
+  exit $?
+fi
+if [ "$MODE" = some ]; then
+  for id in $ONLY; do
+    case " $IDS " in *" $id "*) ;; *) echo "video $id is not in the held-out set of $SPLIT ($IDS)" >&2; exit 2 ;; esac
+  done
+fi
+
 mkdir -p "$OUT/logs"
-rm -rf "$OUT/run"
+if [ "$MODE" = all ]; then
+  rm -rf "$OUT/run"
+else
+  # Only these videos' earlier (possibly partial) outputs go.
+  for id in $ONLY; do
+    rm -f "$OUT/run/$id.json" "$OUT/run/$id.run.json" "$OUT/logs/$id.log"
+    rm -rf "$OUT/overlay/${id}_frame_"*.png
+    find "$OUT/run/masks" -name "${id}_frame_*.json" -delete 2>/dev/null
+  done
+  IDS=$ONLY
+fi
 cargo build --release -p spiketrack 2>&1 | tail -5
 [ -x "$BIN" ] || { echo "$BIN was not built" >&2; exit 1; }
 
@@ -59,5 +103,5 @@ if [ -n "$failed" ]; then
   echo "track failed for:$failed (see $OUT/logs); no evaluation of a partial set" >&2
   exit 1
 fi
-"$BIN" eval-visem --pred "$OUT/run" --split "$SPLIT" --set held_out --max-frames "$N" --visem "$VISEM" --out "$OUT/eval.json" 2>&1 | tee "$OUT/eval.txt"
-[ "${PIPESTATUS[0]}" -eq 0 ]
+[ "$MODE" = all ] || exit 0
+evaluate
