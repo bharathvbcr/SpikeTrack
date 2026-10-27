@@ -22,10 +22,10 @@ pub const TOKENS: usize = FEAT * FEAT;
 pub const LOW: usize = 288;
 pub const IMAGE: usize = 1008;
 pub const INPUT_MASK: usize = 1152;
-const NUM_MASKMEM: usize = 7;
-const MAX_PTRS: usize = 16;
-const NO_OBJ_SCORE: f32 = -1024.0;
-const LN2D_EPS: f32 = 1e-6;
+pub(crate) const NUM_MASKMEM: usize = 7;
+pub(crate) const MAX_PTRS: usize = 16;
+pub(crate) const NO_OBJ_SCORE: f32 = -1024.0;
+pub(crate) const LN2D_EPS: f32 = 1e-6;
 
 /// One frame's stored state (upstream's compact `current_out`).
 struct FrameMem {
@@ -53,29 +53,29 @@ pub struct FrameOut {
 }
 
 pub struct Vos<'b, B: Backend + ?Sized> {
-    be: &'b B,
-    backbone: &'b Backbone<'b, B>,
-    mux_decoder: MuxMaskDecoder,
-    interactive: InteractiveDecoder,
-    i_conv_s0: (Tensor, Tensor),
-    i_conv_s1: (Tensor, Tensor),
-    mem_enc: MemoryEncoder,
-    mem_attn: MemoryAttention,
-    mask_downsample: Conv,
-    pe_downscale: [(Conv, Option<(Tensor, Tensor)>); 3],
-    not_a_point: Vec<f32>,
-    no_mem_embed: Vec<f32>,
-    obj_ptr_proj: Mlp,
-    interactive_obj_ptr_proj: Mlp,
-    no_obj_ptr_linear: Lin,
-    obj_ptr_tpos_proj: Lin,
-    maskmem_tpos: Vec<f32>,
-    no_obj_embed_spatial: Vec<f32>,
-    output_valid: Vec<f32>,
-    output_invalid: Vec<f32>,
-    prop_pe: Tensor,
-    inter_pe: Tensor,
-    sine72: Vec<f32>,
+    pub(crate) be: &'b B,
+    pub(crate) backbone: &'b Backbone<'b, B>,
+    pub(crate) mux_decoder: MuxMaskDecoder,
+    pub(crate) interactive: InteractiveDecoder,
+    pub(crate) i_conv_s0: (Tensor, Tensor),
+    pub(crate) i_conv_s1: (Tensor, Tensor),
+    pub(crate) mem_enc: MemoryEncoder,
+    pub(crate) mem_attn: MemoryAttention,
+    pub(crate) mask_downsample: Conv,
+    pub(crate) pe_downscale: [(Conv, Option<(Tensor, Tensor)>); 3],
+    pub(crate) not_a_point: Vec<f32>,
+    pub(crate) no_mem_embed: Vec<f32>,
+    pub(crate) obj_ptr_proj: Mlp,
+    pub(crate) interactive_obj_ptr_proj: Mlp,
+    pub(crate) no_obj_ptr_linear: Lin,
+    pub(crate) obj_ptr_tpos_proj: Lin,
+    pub(crate) maskmem_tpos: Vec<f32>,
+    pub(crate) no_obj_embed_spatial: Vec<f32>,
+    pub(crate) output_valid: Vec<f32>,
+    pub(crate) output_invalid: Vec<f32>,
+    pub(crate) prop_pe: Tensor,
+    pub(crate) inter_pe: Tensor,
+    pub(crate) sine72: Vec<f32>,
 }
 
 /// SAM's `PositionEmbeddingRandom` over an `h x w` grid: `[256, h, w]`.
@@ -96,7 +96,7 @@ fn random_fourier_pe(gauss: &[f32], h: usize, w: usize) -> Vec<f32> {
 }
 
 /// `get_1d_sine_pe`: `[sin | cos]` halves of `pos / 10000^(2 floor(i/2) / (dim/2))`.
-fn sine_1d(pos: f32, dim: usize) -> Vec<f32> {
+pub(crate) fn sine_1d(pos: f32, dim: usize) -> Vec<f32> {
     let half = dim / 2;
     let t: Vec<f32> = (0..half).map(|i| 10000f32.powf((2 * (i / 2)) as f32 / half as f32)).collect();
     let mut v: Vec<f32> = t.iter().map(|&d| (pos / d).sin()).collect();
@@ -104,7 +104,7 @@ fn sine_1d(pos: f32, dim: usize) -> Vec<f32> {
     v
 }
 
-fn bf16_round(v: &mut [f32]) {
+pub(crate) fn bf16_round(v: &mut [f32]) {
     for x in v.iter_mut() {
         let bits = x.to_bits();
         // Round to nearest even on the dropped 16 bits (torch's float -> bfloat16).
@@ -113,7 +113,7 @@ fn bf16_round(v: &mut [f32]) {
     }
 }
 
-fn nchw_to_tokens(v: &[f32], c: usize, hw: usize) -> Vec<f32> {
+pub(crate) fn nchw_to_tokens(v: &[f32], c: usize, hw: usize) -> Vec<f32> {
     let mut out = vec![0f32; c * hw];
     for ch in 0..c {
         for i in 0..hw {
@@ -125,7 +125,7 @@ fn nchw_to_tokens(v: &[f32], c: usize, hw: usize) -> Vec<f32> {
 
 /// `_apply_non_overlapping_constraints`: at each pixel keep the highest-scoring
 /// object; the others are clamped to at most -10.
-fn non_overlap(masks: &mut [f32], n: usize, px: usize) {
+pub(crate) fn non_overlap(masks: &mut [f32], n: usize, px: usize) {
     if n <= 1 {
         return;
     }
@@ -255,7 +255,11 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         let mut ptrs = vec![0f32; MUX * D];
         for o in 0..n {
             let tok = &io.mask_tokens[o * 4 * D..o * 4 * D + D]; // mask token 0
+            // Gated twice, as upstream does: first on the interactive decoder's own object
+            // score (_forward_sam_heads), then on whether the input mask is empty
+            // (_use_mask_as_output); each gate maps a pointer through no_obj_ptr_linear.
             let ptr = self.interactive_obj_ptr_proj.host(tok, 1);
+            let ptr = if io.object_score_logits[o] > 0.0 { ptr } else { self.no_obj_ptr_linear.host(&ptr, 1) };
             let ptr = if appearing[o] { ptr } else { self.no_obj_ptr_linear.host(&ptr, 1) };
             ptrs[o * D..(o + 1) * D].copy_from_slice(&ptr);
         }
