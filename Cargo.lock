@@ -135,6 +135,7 @@ dependencies = [
  "ojas-core",
  "ojas-cpu",
  "ojas-io",
+ "ojas-metal",
  "st-eval",
  "st-model",
  "st-video",
