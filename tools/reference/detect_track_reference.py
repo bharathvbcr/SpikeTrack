@@ -138,7 +138,13 @@ def main():
     round_tracker_features_through_bf16()
     model, missing, unexpected = sam3_ref.build_reference()
     assert not unexpected, unexpected[:10]
-    rec, meta = {}, {"video": args.video, "prompt": args.prompt, "frames": args.frames, "missing_keys": len(missing), "visits": []}
+    # The builder batches detection over 16 frames (batched_grounding_batch_size=16). On CPU in
+    # fp32 that batch alone exceeded the lock's 28 GiB footprint cap (2026-10-27, killed at the
+    # second batch). Batch composition changes only accumulation order, not the per-frame
+    # algorithm (DETECT_TRACK_SPEC.md, detector cadence), and the Rust session detects one frame
+    # at a time; the oracle uses 4.
+    model.batched_grounding_batch_size = 4
+    rec, meta = {}, {"video": args.video, "prompt": args.prompt, "frames": args.frames, "missing_keys": len(missing), "visits": [], "batched_grounding_batch_size": 4}
     cur = {"tag": None}
     visits = {}
 
