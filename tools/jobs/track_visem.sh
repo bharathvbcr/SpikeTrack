@@ -6,7 +6,8 @@
 #   logs/<id>.log                                  per-frame progress and timings
 #   eval.txt, eval.json                            the HOTA table
 # Frames are tracked as a clip of N frames (the session is told the clip ends there), so numbers
-# are for "the first N frames", not for the whole video. Zero-shot: no LoRA, no tuning.
+# are for "the first N frames", not for the whole video. Zero-shot (no LoRA, no tuning) unless
+# SPIKETRACK_LORA=FILE names a detector adapter, which every video then runs with (`track --lora`).
 # usage: tools/locked.sh track-visem bash tools/jobs/track_visem.sh [N=300]
 # (SPIKETRACK_TRACK_OUT=DIR writes somewhere else, for a smoke run with a small N)
 set -uo pipefail
@@ -19,6 +20,11 @@ VISEM="${SPIKETRACK_VISEM:-data/visem/VISEM_Tracking_Train_v4/Train}"
 SPLIT=tools/reference/visem_split.json
 OUT="${SPIKETRACK_TRACK_OUT:-bench/results/track}"
 BIN=target/release/spiketrack
+LORA_ARGS=()
+if [ -n "${SPIKETRACK_LORA:-}" ]; then
+  [ -f "$SPIKETRACK_LORA" ] || { echo "SPIKETRACK_LORA=$SPIKETRACK_LORA is not a file" >&2; exit 2; }
+  LORA_ARGS=(--lora "$SPIKETRACK_LORA")
+fi
 
 for p in "$SPIKETRACK_WEIGHTS" "$SPIKETRACK_MODEL_DIR" "$VISEM" "$SPLIT"; do
   [ -e "$p" ] || { echo "missing $p" >&2; exit 2; }
@@ -37,8 +43,9 @@ cargo build --release -p spiketrack 2>&1 | tail -5
 uptime
 failed=""
 for id in $IDS; do
-  echo "== video $id: first $N frames on Metal"
-  "$BIN" track "$VISEM/$id/images" --prompt cell --backend metal --max-frames "$N" --out "$OUT/run" 2>&1 | tee "$OUT/logs/$id.log"
+  echo "== video $id: first $N frames on Metal${SPIKETRACK_LORA:+, LoRA $SPIKETRACK_LORA}"
+  # ${LORA_ARGS[@]+...}: bash 3.2 (macOS) treats an empty array as unbound under set -u.
+  "$BIN" track "$VISEM/$id/images" --prompt cell --backend metal --max-frames "$N" --out "$OUT/run" ${LORA_ARGS[@]+"${LORA_ARGS[@]}"} 2>&1 | tee "$OUT/logs/$id.log"
   [ "${PIPESTATUS[0]}" -eq 0 ] || failed="$failed $id"
 done
 uptime

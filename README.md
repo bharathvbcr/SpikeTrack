@@ -62,6 +62,10 @@ target/release/spiketrack image data/visem/VISEM_Tracking_Train_v4/Train/22/imag
 target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/images \
   --prompt cell --backend metal --max-frames 64 --out out/track
 
+# The same with a detector LoRA adapter (trained offline by tools/reference/train_lora.py)
+target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/images \
+  --prompt cell --backend metal --max-frames 64 --lora fixtures/lora_runs/visem-lora-r16/adapter.safetensors --out out/track-lora
+
 # HOTA against VISEM-Tracking's boxes
 target/release/spiketrack eval-visem --pred out/track --split tools/reference/visem_split.json --set held_out
 ```
