@@ -21,18 +21,36 @@ pub struct OpCall {
     pub op: &'static str,
     pub shapes: String,
     pub elapsed: Duration,
+    /// Change in the backend's (waits, dispatches) counters across the call, when a
+    /// counter reader was given ([`Profiled::with_counters`]); includes the profiler's own
+    /// sync after the call (about one wait).
+    pub counters: Option<(u64, u64)>,
 }
+
+/// Reads a backend's cumulative (waits, dispatches) counters, e.g. Ojas Metal's
+/// `MetalBackend::waits` / `dispatches`.
+pub type CounterReader<B> = fn(&B) -> (u64, u64);
 
 /// A backend whose op calls are timed and recorded.
 pub struct Profiled<B> {
     inner: B,
     stage: Mutex<String>,
     calls: Mutex<Vec<OpCall>>,
+    counters: Option<CounterReader<B>>,
 }
 
 impl<B: Backend> Profiled<B> {
     pub fn new(inner: B) -> Self {
-        Self { inner, stage: Mutex::new("unlabelled".into()), calls: Mutex::new(Vec::new()) }
+        Self { inner, stage: Mutex::new("unlabelled".into()), calls: Mutex::new(Vec::new()), counters: None }
+    }
+
+    /// Also record each call's change in the backend's (waits, dispatches) counters.
+    pub fn with_counters(inner: B, read: CounterReader<B>) -> Self {
+        Self { counters: Some(read), ..Self::new(inner) }
+    }
+
+    fn read_counters(&self) -> Option<(u64, u64)> {
+        self.counters.map(|read| read(&self.inner))
     }
 
     /// Label the calls that follow (e.g. "backbone", "detector", "tracker").
@@ -49,9 +67,10 @@ impl<B: Backend> Profiled<B> {
         self.calls.lock().expect("calls lock").clone()
     }
 
-    fn record(&self, op: &'static str, shapes: String, elapsed: Duration) {
+    fn record(&self, op: &'static str, shapes: String, elapsed: Duration, before: Option<(u64, u64)>) {
         let stage = self.stage.lock().expect("stage lock").clone();
-        self.calls.lock().expect("calls lock").push(OpCall { stage, op, shapes, elapsed });
+        let counters = before.zip(self.read_counters()).map(|(b, a)| (a.0.saturating_sub(b.0), a.1.saturating_sub(b.1)));
+        self.calls.lock().expect("calls lock").push(OpCall { stage, op, shapes, elapsed, counters });
     }
 
     /// Markdown tables: per stage totals, then per (stage, op, shapes) rows sorted by total
@@ -60,7 +79,7 @@ impl<B: Backend> Profiled<B> {
         let calls = self.calls();
         let total: f64 = calls.iter().map(|c| c.elapsed.as_secs_f64()).sum();
         let mut stages: BTreeMap<&str, (usize, f64)> = BTreeMap::new();
-        let mut rows: BTreeMap<(&str, &str, &str), (usize, f64)> = BTreeMap::new();
+        let mut rows: BTreeMap<(&str, &str, &str), (usize, f64, u64, u64)> = BTreeMap::new();
         for c in &calls {
             let s = stages.entry(c.stage.as_str()).or_default();
             s.0 += 1;
@@ -68,6 +87,10 @@ impl<B: Backend> Profiled<B> {
             let r = rows.entry((c.stage.as_str(), c.op, c.shapes.as_str())).or_default();
             r.0 += 1;
             r.1 += c.elapsed.as_secs_f64();
+            if let Some((w, d)) = c.counters {
+                r.2 += w;
+                r.3 += d;
+            }
         }
         let mut out = format!("recorded {} op calls, {:.1} ms total (each op synced; wall time)\n\n| stage | calls | ms | share |\n|---|---|---|---|\n", calls.len(), total * 1e3);
         for (stage, (n, t)) in &stages {
@@ -75,9 +98,15 @@ impl<B: Backend> Profiled<B> {
         }
         let mut sorted: Vec<_> = rows.into_iter().collect();
         sorted.sort_by(|a, b| b.1 .1.total_cmp(&a.1 .1));
-        out += "\n| stage | op | tensor argument shapes | calls | total ms | mean ms | share |\n|---|---|---|---|---|---|---|\n";
-        for ((stage, op, shapes), (n, t)) in sorted {
-            out += &format!("| {stage} | {op} | {shapes} | {n} | {:.2} | {:.3} | {:.1}% |\n", t * 1e3, t * 1e3 / n as f64, 100.0 * t / total.max(1e-12));
+        let counted = self.counters.is_some();
+        if counted {
+            out += "\n| stage | op | tensor argument shapes | calls | total ms | mean ms | share | waits | dispatches |\n|---|---|---|---|---|---|---|---|---|\n";
+        } else {
+            out += "\n| stage | op | tensor argument shapes | calls | total ms | mean ms | share |\n|---|---|---|---|---|---|---|\n";
+        }
+        for ((stage, op, shapes), (n, t, w, d)) in sorted {
+            out += &format!("| {stage} | {op} | {shapes} | {n} | {:.2} | {:.3} | {:.1}% |", t * 1e3, t * 1e3 / n as f64, 100.0 * t / total.max(1e-12));
+            out += &if counted { format!(" {w} | {d} |\n") } else { "\n".to_string() };
         }
         out
     }
@@ -153,12 +182,13 @@ macro_rules! profile_methods {
             }
             let described: Vec<Option<String>> = vec![$( (&Arg(&$arg)).describe() ),*];
             let shapes: Vec<String> = described.into_iter().flatten().collect();
+            let before = $s.read_counters();
             let t0 = Instant::now();
             let out = $s.inner.$name($($arg),*);
             // Time to completion: a failed sync is the wrapped backend's error to report on
             // its next call, not the profiler's.
             let _ = $s.inner.sync();
-            $s.record(stringify!($name), shapes.join(" x "), t0.elapsed());
+            $s.record(stringify!($name), shapes.join(" x "), t0.elapsed(), before);
             out
         }
     };
