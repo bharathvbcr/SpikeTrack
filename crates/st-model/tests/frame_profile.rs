@@ -9,7 +9,8 @@
 //! The tracker step runs through `Vos`, which computes its own trunk: each tracker frame's
 //! rows therefore include a trunk (identical ops and shapes to the detector run's `trunk`
 //! stage), which the production Session computes once per frame. An unprofiled pass is
-//! timed first; the profiled pass syncs after every op (wall time, not GPU time). The
+//! timed twice first (with the load average before each pass, to separate warm-up from
+//! drift); the profiled pass syncs after every op (wall time, not GPU time). The
 //! `_bf16` variant runs every frame inside an Ojas Autocast bf16 region (the text prompt is
 //! encoded once, outside it). Single run, machine shared: results are labelled contended
 //! and the load average is recorded by tools/jobs/frame_profile.sh.
@@ -43,6 +44,15 @@ fn env_path(var: &str) -> PathBuf {
     };
     assert!(p.exists(), "{var}={} does not exist", p.display());
     p
+}
+
+/// The 1/5/15-minute load averages (`sysctl -n vm.loadavg`), or why they could not be read.
+fn load_average() -> String {
+    match std::process::Command::new("/usr/sbin/sysctl").args(["-n", "vm.loadavg"]).output() {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
+        Ok(o) => format!("unreadable (sysctl exit {})", o.status),
+        Err(e) => format!("unreadable ({e})"),
+    }
 }
 
 fn tracker_stage(t: usize) -> Option<String> {
@@ -119,8 +129,15 @@ fn run<B: Backend>(make: impl Fn() -> B, mode: AutocastMode, label: &str) {
         let tr: Vec<String> = times.iter().map(|(f, d, ms)| format!("frame {f} F={d} {ms:.0} ms")).collect();
         println!("[{label}] {kind}: detector run (trunk + neck + detector) {det_ms:.0} ms; tracker frames (each incl. its trunk + neck + step): {}", tr.join(", "));
     };
-    let (det_ms, times) = measure(&make(), &w, mode, |_| {});
-    show("unprofiled", det_ms, &times);
+    // Two unprofiled passes in one process separate warm-up / first-touch effects from drift;
+    // the load average before each pass is printed with it.
+    for pass in 1..=2 {
+        let load = load_average();
+        let (det_ms, times) = measure(&make(), &w, mode, |_| {});
+        show(&format!("unprofiled pass {pass} (load before: {load})"), det_ms, &times);
+    }
+    let load = load_average();
+    println!("[{label}] load before the profiled pass: {load}");
     let prof = Profiled::new(make());
     let (pdet, ptimes) = measure(&prof, &w, mode, |s| prof.set_stage(s));
     show("profiled (every op synced)", pdet, &ptimes);
