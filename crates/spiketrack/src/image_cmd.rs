@@ -311,7 +311,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     };
     let text = detections_json(&report).map_err(CliError::failed)?;
     let masks: Vec<Vec<bool>> = detections.iter().map(|d| d.rle.decode()).collect();
-    let drawn: Vec<Drawn<'_>> = detections.iter().zip(&masks).map(|(d, m)| Drawn { mask: m, box_px: d.box_px }).collect();
+    let drawn: Vec<Drawn<'_>> = detections.iter().zip(&masks).enumerate().map(|(i, (d, m))| Drawn { mask: m, box_px: d.box_px, colour: i }).collect();
     let overlay_png = png::encode_rgb(image.width, image.height, &overlay::render(&image, &drawn).data).map_err(CliError::from_err)?;
 
     std::fs::create_dir_all(&out_dir).map_err(|e| CliError::failed(format!("{}: {e}", out_dir.display())))?;

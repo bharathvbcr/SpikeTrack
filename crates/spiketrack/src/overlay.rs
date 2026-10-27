@@ -17,6 +17,9 @@ pub struct Drawn<'a> {
     pub mask: &'a [bool],
     /// `[x0, y0, x1, y1]` in pixels; may extend past the image (it is clipped).
     pub box_px: [f64; 4],
+    /// Selects the colour (modulo the palette size): the detection's position for stills,
+    /// the track id for video, so a track keeps its colour from frame to frame.
+    pub colour: usize,
 }
 
 pub fn colour(index: usize) -> [u8; 3] {
@@ -27,9 +30,9 @@ pub fn colour(index: usize) -> [u8; 3] {
 pub fn render(image: &Rgb8, detections: &[Drawn<'_>]) -> Rgb8 {
     let (w, h) = (image.width, image.height);
     let mut out = image.data.clone();
-    for (i, d) in detections.iter().enumerate() {
+    for d in detections {
         assert_eq!(d.mask.len(), w * h, "mask is not {w} x {h}");
-        let c = colour(i);
+        let c = colour(d.colour);
         for (px, &set) in out.chunks_exact_mut(3).zip(d.mask) {
             if set {
                 for k in 0..3 {
@@ -38,8 +41,8 @@ pub fn render(image: &Rgb8, detections: &[Drawn<'_>]) -> Rgb8 {
             }
         }
     }
-    for (i, d) in detections.iter().enumerate() {
-        outline(&mut out, w, h, d.box_px, colour(i));
+    for d in detections {
+        outline(&mut out, w, h, d.box_px, colour(d.colour));
     }
     Rgb8::new(w, h, out)
 }
@@ -77,7 +80,7 @@ mod tests {
         let img = grey(4, 2);
         let mut mask = vec![false; 8];
         mask[1] = true;
-        let out = render(&img, &[Drawn { mask: &mask, box_px: [-10.0, -10.0, -5.0, -5.0] }]);
+        let out = render(&img, &[Drawn { mask: &mask, box_px: [-10.0, -10.0, -5.0, -5.0], colour: 0 }]);
         let c = colour(0);
         for k in 0..3 {
             assert_eq!(u32::from(out.data[3 + k]), (100 * 156 + u32::from(c[k]) * 100) / 256);
@@ -90,7 +93,7 @@ mod tests {
     fn a_box_is_outlined_inside_the_image_and_clipped() {
         let img = grey(10, 10);
         let mask = vec![false; 100];
-        let out = render(&img, &[Drawn { mask: &mask, box_px: [2.0, 3.0, 20.0, 7.0] }]);
+        let out = render(&img, &[Drawn { mask: &mask, box_px: [2.0, 3.0, 20.0, 7.0], colour: 0 }]);
         let c = colour(0);
         let at = |x: usize, y: usize| out.data[(y * 10 + x) * 3..][..3].to_vec();
         assert_eq!(at(2, 3), c);

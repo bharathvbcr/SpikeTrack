@@ -6,8 +6,10 @@
 //!
 //! # Inputs
 //!
-//! **Split file**: one VISEM video id per line (`11`, `22`, ...); blank lines and
-//! `#` comments are ignored; an id must not repeat. Every listed video must have
+//! **Split file**: either one VISEM video id per line (`11`, `22`, ...; blank lines and
+//! `#` comments are ignored, an id must not repeat), or the JSON split of
+//! `tools/reference/visem_split.json` (`{"train": [...], "held_out": [...], ...}`), in
+//! which case `--set train|held_out` names the list to score. Every listed video must have
 //! ground truth under the VISEM folder (`--visem DIR`, else `$SPIKETRACK_VISEM`,
 //! else `data/visem/VISEM_Tracking_Train_v4/Train`) and a prediction file.
 //!
@@ -36,6 +38,11 @@
 //!
 //! # What is scored
 //!
+//! By default every labelled frame of each video. `--start F` and `--max-frames N`
+//! restrict the ground truth to frames `F .. F + N` (the window a `track` run covered; a
+//! window that is not entirely labelled is an error), and prediction frames outside the
+//! window are counted, not scored.
+//!
 //! Class 0 (sperm) ground-truth boxes only, as `crates/st-eval/tests/visem_data.rs`
 //! does. Boxes are compared as fractions of the frame; IoU does not change when
 //! both axes are scaled, so no pixel size is needed. The overall figure combines
@@ -58,13 +65,17 @@ use crate::cli::{Args, CliError};
 use crate::json;
 
 pub const USAGE: &str = "\
-spiketrack eval-visem --pred DIR --split FILE [--visem DIR] [--out FILE]
+spiketrack eval-visem --pred DIR --split FILE [--set NAME] [--start F] [--max-frames N]
+                      [--visem DIR] [--out FILE]
 
   HOTA (TrackEval definition) of predicted per-frame boxes and track ids against
   the VISEM-Tracking ground truth, sperm class only.
 
   --pred DIR     folder with one <video id>.json per video in the split
-  --split FILE   video ids, one per line (# comments allowed)
+  --split FILE   video ids, one per line (# comments allowed), or a JSON split
+  --set NAME     for a JSON split, the list to score: train or held_out
+  --start F      first ground-truth frame to score (default: the first labelled frame)
+  --max-frames N score only N frames from there (default: through the last labelled frame)
   --visem DIR    VISEM 'Train' folder (default: $SPIKETRACK_VISEM, else
                  data/visem/VISEM_Tracking_Train_v4/Train)
   --out FILE     also write the results as JSON
@@ -73,8 +84,18 @@ spiketrack eval-visem --pred DIR --split FILE [--visem DIR] [--out FILE]
 
 const DEFAULT_VISEM: &str = "data/visem/VISEM_Tracking_Train_v4/Train";
 
-/// The ids in a split file.
-pub fn parse_split(text: &str) -> Result<Vec<String>, String> {
+/// The ids in a split file: a JSON split (`set` names its list) or one id per line.
+pub fn parse_split(text: &str, set: Option<&str>) -> Result<Vec<String>, String> {
+    if text.trim_start().starts_with('{') {
+        let name = set.ok_or("a JSON split needs --set (train or held_out)")?;
+        let top = parse_json(text).map_err(|e| format!("not valid JSON: {}", e.detail()))?;
+        let list = top.get_array(name).map_err(|_| format!("the JSON split has no list named {name:?}"))?;
+        let ids: Vec<String> = list.iter().map(id_text).collect::<Result<_, _>>().map_err(|e| format!("list {name:?}: {e}"))?;
+        return check_ids(ids);
+    }
+    if set.is_some() {
+        return Err("--set applies to a JSON split, and this file is a plain id list".to_string());
+    }
     let mut ids = Vec::new();
     let mut seen = BTreeSet::new();
     for (n, line) in text.lines().enumerate() {
@@ -90,8 +111,22 @@ pub fn parse_split(text: &str) -> Result<Vec<String>, String> {
         }
         ids.push(line.to_string());
     }
+    check_ids(ids)
+}
+
+/// The same rules for ids from either split form: some, no repeats, plain names.
+fn check_ids(ids: Vec<String>) -> Result<Vec<String>, String> {
     if ids.is_empty() {
         return Err("the split lists no videos".to_string());
+    }
+    let mut seen = BTreeSet::new();
+    for id in &ids {
+        if id.contains(['/', '\\']) || id == "." || id == ".." || id.split_whitespace().count() != 1 {
+            return Err(format!("{id:?} is not a single video id"));
+        }
+        if !seen.insert(id) {
+            return Err(format!("video {id:?} is listed twice"));
+        }
     }
     Ok(ids)
 }
@@ -174,14 +209,35 @@ pub struct Evaluation {
     pub combined: Hota,
 }
 
-/// Score every video in `ids`: ground truth under `visem`, predictions under `pred`.
+/// The ground-truth frames to score: `start .. start + max_frames`, either end open.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Window {
+    pub start: Option<u32>,
+    pub max_frames: Option<usize>,
+}
+
+/// Score every video in `ids` over all its labelled frames.
 pub fn evaluate(pred: &Path, ids: &[String], visem: &Path) -> Result<Evaluation, String> {
+    evaluate_window(pred, ids, visem, Window::default())
+}
+
+/// Score every video in `ids`: ground truth under `visem`, predictions under `pred`,
+/// over `window` of each video's labelled frames (which it must lie inside).
+pub fn evaluate_window(pred: &Path, ids: &[String], visem: &Path, window: Window) -> Result<Evaluation, String> {
     let mut videos = Vec::new();
     for id in ids {
         let gt_dir = visem.join(id);
         let gt = load_video(&gt_dir).map_err(|e| format!("video {id}: ground truth: {e}"))?;
         let mut frames: Vec<Frame<String>> = gt.hota_frames(&[VisemClass::Sperm]).map_err(|e| format!("video {id}: ground truth: {e}"))?;
-        let first = *gt.frames.keys().next().ok_or_else(|| format!("video {id}: no ground-truth frames"))?;
+        let labelled_first = *gt.frames.keys().next().ok_or_else(|| format!("video {id}: no ground-truth frames"))?;
+        let first = window.start.unwrap_or(labelled_first);
+        let skip = first.checked_sub(labelled_first).ok_or_else(|| format!("video {id}: --start {first} is before the first labelled frame {labelled_first}"))? as usize;
+        let available = frames.len().saturating_sub(skip);
+        let wanted = window.max_frames.unwrap_or(available);
+        if skip >= frames.len() || wanted == 0 || wanted > available {
+            return Err(format!("video {id}: the window of {wanted} frame(s) from {first} does not fit its {} labelled frames {labelled_first}..{}", frames.len(), labelled_first as usize + frames.len() - 1));
+        }
+        frames = frames[skip..skip + wanted].to_vec();
         let pred_path = pred.join(format!("{id}.json"));
         let text = std::fs::read_to_string(&pred_path).map_err(|e| format!("video {id}: {}: {e}", pred_path.display()))?;
         let preds = parse_predictions(&text, id).map_err(|e| format!("video {id}: {}: {e}", pred_path.display()))?;
@@ -250,7 +306,7 @@ pub fn table(e: &Evaluation) -> String {
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
-    let args = Args::parse(raw, &["pred", "split", "visem", "out"], 0)?;
+    let args = Args::parse(raw, &["pred", "split", "set", "start", "max-frames", "visem", "out"], 0)?;
     if args.help {
         println!("{USAGE}");
         return Ok(());
@@ -268,8 +324,15 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         return Err(CliError::failed(format!("the VISEM folder {} does not exist (pass --visem or set SPIKETRACK_VISEM)", visem.display())));
     }
     let text = std::fs::read_to_string(&split).map_err(|e| CliError::failed(format!("{}: {e}", split.display())))?;
-    let ids = parse_split(&text).map_err(|e| CliError::failed(format!("{}: {e}", split.display())))?;
-    let result = evaluate(&pred, &ids, &visem).map_err(CliError::failed)?;
+    let ids = parse_split(&text, args.get("set")).map_err(|e| CliError::failed(format!("{}: {e}", split.display())))?;
+    let window = Window {
+        start: args.get("start").map(|_| args.parsed("start", 0u32)).transpose()?,
+        max_frames: args.get("max-frames").map(|_| args.parsed("max-frames", 0usize)).transpose()?,
+    };
+    if window.max_frames == Some(0) {
+        return Err(CliError::usage("--max-frames must be at least 1"));
+    }
+    let result = evaluate_window(&pred, &ids, &visem, window).map_err(CliError::failed)?;
     let json_text = results_json(&result).map_err(CliError::failed)?;
     print!("{}", table(&result));
     if let Some(out) = args.get("out") {
@@ -432,13 +495,45 @@ mod tests {
 
     #[test]
     fn splits_are_parsed_strictly() {
-        assert_eq!(parse_split("11\n# comment\n\n22 # trailing\n").unwrap(), ["11", "22"]);
-        assert!(parse_split("").is_err());
-        assert!(parse_split("# only a comment\n").is_err());
-        assert!(parse_split("11\n11\n").unwrap_err().contains("twice"));
-        assert!(parse_split("11 22\n").is_err());
-        assert!(parse_split("../etc\n").is_err());
-        assert!(parse_split("a/b\n").is_err());
+        assert_eq!(parse_split("11\n# comment\n\n22 # trailing\n", None).unwrap(), ["11", "22"]);
+        assert!(parse_split("", None).is_err());
+        assert!(parse_split("# only a comment\n", None).is_err());
+        assert!(parse_split("11\n11\n", None).unwrap_err().contains("twice"));
+        assert!(parse_split("11 22\n", None).is_err());
+        assert!(parse_split("../etc\n", None).is_err());
+        assert!(parse_split("a/b\n", None).is_err());
+        assert!(parse_split("11\n", Some("held_out")).unwrap_err().contains("plain id list"));
+    }
+
+    #[test]
+    fn a_json_split_needs_a_named_list() {
+        let json = "{\"rule\": \"x\", \"train\": [\"11\", 12], \"held_out\": [\"21\", \"22\"], \"dup\": [\"1\", \"1\"]}";
+        assert_eq!(parse_split(json, Some("held_out")).unwrap(), ["21", "22"]);
+        assert_eq!(parse_split(json, Some("train")).unwrap(), ["11", "12"], "integer ids are accepted");
+        assert!(parse_split(json, None).unwrap_err().contains("--set"));
+        assert!(parse_split(json, Some("val")).unwrap_err().contains("no list named"));
+        assert!(parse_split(json, Some("dup")).unwrap_err().contains("twice"));
+        assert!(parse_split("{\"held_out\": []}", Some("held_out")).is_err());
+    }
+
+    #[test]
+    fn a_window_scores_only_its_frames_and_must_fit() {
+        let d = Dirs::new("window");
+        d.gt("7", 12);
+        d.pred("7", 12, Some(8)); // ids swap at frame 8
+        let ids = vec!["7".to_string()];
+        let run = |w: Window| evaluate_window(&d.root.join("pred"), &ids, &d.root.join("gt"), w);
+        let whole = run(Window::default()).unwrap();
+        let early = run(Window { start: Some(0), max_frames: Some(8) }).unwrap();
+        assert_eq!(early.videos[0].frames, 8);
+        assert_eq!(early.videos[0].pred_frames_outside_gt, 4, "frames 8..11 are predicted but outside the window");
+        assert!((early.videos[0].hota.summary().hota - 1.0).abs() < 1e-9, "no swap inside the window");
+        assert!(whole.videos[0].hota.summary().hota < 1.0);
+        let late = run(Window { start: Some(4), max_frames: None }).unwrap();
+        assert_eq!((late.videos[0].frames, late.videos[0].pred_frames_outside_gt), (8, 4));
+        assert!(run(Window { start: Some(0), max_frames: Some(13) }).unwrap_err().contains("does not fit"));
+        assert!(run(Window { start: Some(12), max_frames: None }).unwrap_err().contains("does not fit"));
+        assert!(run(Window { start: Some(0), max_frames: Some(0) }).unwrap_err().contains("does not fit"));
     }
 
     /// The real ground truth of video 11, written in the prediction schema and

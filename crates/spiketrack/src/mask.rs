@@ -72,22 +72,7 @@ impl<'a> ResizedMask<'a> {
 
     /// COCO uncompressed RLE of the thresholded mask: see [`Rle`].
     pub fn rle(&self) -> Rle {
-        let mut counts = Vec::new();
-        let (mut current, mut run, mut area) = (false, 0u64, 0u64);
-        for x in 0..self.width {
-            for y in 0..self.height {
-                let v = self.is_set(y, x);
-                if v != current {
-                    counts.push(run);
-                    current = v;
-                    run = 0;
-                }
-                run += 1;
-                area += u64::from(v);
-            }
-        }
-        counts.push(run);
-        Rle { height: self.height, width: self.width, counts, area }
+        Rle::from_fn(self.height, self.width, |y, x| self.is_set(y, x))
     }
 }
 
@@ -106,6 +91,31 @@ pub struct Rle {
 }
 
 impl Rle {
+    /// Encode a `height x width` mask given pixel by pixel as `set(row, column)`.
+    pub fn from_fn(height: usize, width: usize, mut set: impl FnMut(usize, usize) -> bool) -> Rle {
+        let mut counts = Vec::new();
+        let (mut current, mut run, mut area) = (false, 0u64, 0u64);
+        for x in 0..width {
+            for y in 0..height {
+                let v = set(y, x);
+                if v != current {
+                    counts.push(run);
+                    current = v;
+                    run = 0;
+                }
+                run += 1;
+                area += u64::from(v);
+            }
+        }
+        counts.push(run);
+        Rle { height, width, counts, area }
+    }
+
+    /// `counts` as the text of a JSON array.
+    pub fn counts_json(&self) -> String {
+        self.counts.iter().map(u64::to_string).collect::<Vec<_>>().join(", ")
+    }
+
     /// Expand to row-major booleans (for tests and overlays).
     pub fn decode(&self) -> Vec<bool> {
         let mut out = vec![false; self.height * self.width];
