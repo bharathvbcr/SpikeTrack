@@ -1,0 +1,12 @@
+model loaded in 0.5 s on metal; tracking 8 frame(s) of "21"
+frame 0 (1/8): 4.06 s, 15 active track(s), 0 frame(s) released
+frame 1 (2/8): 3.56 s, 15 active track(s), 0 frame(s) released
+frame 2 (3/8): 3.73 s, 15 active track(s), 0 frame(s) released
+frame 3 (4/8): 3.87 s, 15 active track(s), 0 frame(s) released
+frame 4 (5/8): 3.97 s, 15 active track(s), 0 frame(s) released
+frame 5 (6/8): 3.82 s, 15 active track(s), 0 frame(s) released
+frame 6 (7/8): 3.87 s, 15 active track(s), 0 frame(s) released
+frame 7 (8/8): 4.36 s, 16 active track(s), 8 frame(s) released
+8 frame(s) of "21" tracked on metal: 15 track(s) born, 3.90 s/frame (model, mean), 31.9 s total
+  bench/results/track/smoke-8f-detector/run/21.json
+  bench/results/track/smoke-8f-detector/run/21.run.json

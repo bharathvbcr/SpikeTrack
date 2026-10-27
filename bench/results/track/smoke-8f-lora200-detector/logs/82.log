@@ -1,0 +1,12 @@
+model loaded in 1.2 s on metal; tracking 8 frame(s) of "82"
+frame 0 (1/8): 6.04 s, 1 active track(s), 0 frame(s) released
+frame 1 (2/8): 8.74 s, 1 active track(s), 0 frame(s) released
+frame 2 (3/8): 8.36 s, 3 active track(s), 0 frame(s) released
+frame 3 (4/8): 9.08 s, 3 active track(s), 0 frame(s) released
+frame 4 (5/8): 9.75 s, 3 active track(s), 0 frame(s) released
+frame 5 (6/8): 6.74 s, 3 active track(s), 0 frame(s) released
+frame 6 (7/8): 11.90 s, 3 active track(s), 0 frame(s) released
+frame 7 (8/8): 14.07 s, 3 active track(s), 8 frame(s) released
+8 frame(s) of "82" tracked on metal: 3 track(s) born, 9.33 s/frame (model, mean), 76.2 s total
+  bench/results/track/smoke-8f-lora200-detector/run/82.json
+  bench/results/track/smoke-8f-lora200-detector/run/82.run.json

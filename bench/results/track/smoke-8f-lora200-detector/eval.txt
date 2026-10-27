@@ -1,0 +1,8 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+21           8       153          66        0  0.4257 0.2432 0.7548 0.7801
+22           8       101          65        0  0.2882 0.1461 0.5761 0.7460
+36           8       353          76        0  0.3127 0.1456 0.6885 0.7535
+47           8        64          15        0  0.1474 0.0677 0.3230 0.7599
+82           8       208          20        0  0.1443 0.0471 0.4452 0.7145
+all         40       879         242        0  0.3003 0.1347 0.6926 0.7438
+wrote bench/results/track/smoke-8f-lora200-detector/eval.json

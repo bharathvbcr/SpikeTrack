@@ -1,0 +1,21 @@
+{
+  "video": "47",
+  "input": "data/visem/VISEM_Tracking_Train_v4/Train/47/images",
+  "prompt": "cell",
+  "backend": "metal",
+  "start": 0,
+  "frames": 8,
+  "width": 640,
+  "height": 480,
+  "tracks": 12,
+  "boxes_widened_to_one_pixel": 0,
+  "model_load_seconds": 0.669177459,
+  "mean_seconds_per_frame": 4.0460082132499995,
+  "total_seconds": 33.173852917,
+  "frame_precision": "float16 normalisation as upstream's loader, widened to f32",
+  "preprocessing": "ImageIO decode; Pillow-exact bilinear resize to 1008x1008, as upstream's JPEG-folder path; /255, -0.5, /0.5 each rounded to float16 as upstream's loader stores frames (widened to f32 for the model)",
+  "lora": null,
+  "boxes": "detector",
+  "boxes_reported": 95,
+  "boxes_from_detector": 94
+}

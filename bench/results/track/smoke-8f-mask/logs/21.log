@@ -1,0 +1,12 @@
+model loaded in 0.6 s on metal; tracking 8 frame(s) of "21"
+frame 0 (1/8): 3.34 s, 15 active track(s), 0 frame(s) released
+frame 1 (2/8): 3.35 s, 15 active track(s), 0 frame(s) released
+frame 2 (3/8): 3.87 s, 15 active track(s), 0 frame(s) released
+frame 3 (4/8): 3.52 s, 15 active track(s), 0 frame(s) released
+frame 4 (5/8): 3.91 s, 15 active track(s), 0 frame(s) released
+frame 5 (6/8): 4.32 s, 15 active track(s), 0 frame(s) released
+frame 6 (7/8): 4.53 s, 15 active track(s), 0 frame(s) released
+frame 7 (8/8): 5.06 s, 16 active track(s), 8 frame(s) released
+8 frame(s) of "21" tracked on metal: 15 track(s) born, 3.99 s/frame (model, mean), 32.6 s total
+  bench/results/track/smoke-8f-mask/run/21.json
+  bench/results/track/smoke-8f-mask/run/21.run.json
