@@ -74,7 +74,7 @@ use crate::json;
 use crate::mask::Rle;
 use crate::overlay::{self, Drawn};
 use crate::png;
-use crate::procinfo::phys_footprint_bytes;
+use crate::procinfo::{phys_footprint_bytes, vm_pageouts_swapins};
 use crate::weights::{self, lora_json};
 
 pub const USAGE: &str = "\
@@ -107,9 +107,10 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
   --trim-pool-every K  diagnostic, --backend metal only: hand Ojas's cached free buffers back to
                     the device after every K-th frame (MetalBackend::trim_pool)
 
-  Each frame's progress line ends with this process's physical footprint and, on Metal, the
-  frame's change in Ojas's wait counts (by cause) and dispatches and the device memory Metal
-  reports (allocated after the frame, peak during it): Ojas telemetry, not a stable interface.
+  Each frame's progress line ends with this process's physical footprint, the machine's pages
+  paged out and swapped in during the frame and, on Metal, the frame's change in Ojas's wait
+  counts (by cause) and dispatches and the device memory Metal reports (allocated after the
+  frame, peak during it): Ojas telemetry, not a stable interface.
 
   Preprocessing: every frame is resized with Pillow-style bilinear and normalised in
   float16, as upstream's video loader stores frames (float16 -> f32 for the model;
@@ -542,11 +543,30 @@ struct Timing {
 
 const MIB: f64 = (1u64 << 20) as f64;
 
-/// The process footprint, for every backend's frame line.
-fn footprint_field() -> String {
-    match phys_footprint_bytes() {
-        Some(b) => format!("footprint {:.0} MiB", b as f64 / MIB),
-        None => "footprint unreadable".to_string(),
+/// For every backend's frame line: this process's footprint, and the machine-wide pages paged
+/// out and swapped in since the previous call (memory pressure; Metal's shared buffers are
+/// pageable).
+struct HostProbe {
+    vm: Option<(u64, u64)>,
+}
+
+impl HostProbe {
+    fn new() -> Self {
+        Self { vm: vm_pageouts_swapins() }
+    }
+
+    fn field(&mut self) -> String {
+        let fp = match phys_footprint_bytes() {
+            Some(b) => format!("footprint {:.0} MiB", b as f64 / MIB),
+            None => "footprint unreadable".to_string(),
+        };
+        let now = vm_pageouts_swapins();
+        let vm = match (self.vm, now) {
+            (Some((po0, si0)), Some((po, si))) => format!("pageouts +{}, swapins +{}", po.saturating_sub(po0), si.saturating_sub(si0)),
+            _ => "vm counters unreadable".to_string(),
+        };
+        self.vm = now;
+        format!("{fp}, {vm}")
     }
 }
 
@@ -599,23 +619,22 @@ trait FrameTelemetry<B> {
     fn after_frame(&mut self, be: &B, index: usize) -> Result<String, CliError>;
 }
 
-/// CPU: the footprint only.
-struct Footprint;
-
-impl<B: Backend> FrameTelemetry<B> for Footprint {
+/// CPU: the host fields only.
+impl<B: Backend> FrameTelemetry<B> for HostProbe {
     fn after_frame(&mut self, _: &B, _: usize) -> Result<String, CliError> {
-        Ok(footprint_field())
+        Ok(self.field())
     }
 }
 
 struct MetalTelemetry {
     probe: MetalProbe,
+    host: HostProbe,
     trim_every: Option<u32>,
 }
 
 impl FrameTelemetry<MetalBackend> for MetalTelemetry {
     fn after_frame(&mut self, be: &MetalBackend, index: usize) -> Result<String, CliError> {
-        let mut line = format!("{}, {}", self.probe.frame(be)?, footprint_field());
+        let mut line = format!("{}, {}", self.probe.frame(be)?, self.host.field());
         if self.trim_every.is_some_and(|k| (index + 1) % k as usize == 0) {
             be.trim_pool().map_err(CliError::from_err)?;
             line.push_str(&format!(", pool trimmed (metal allocated {:.0} MiB)", be.memory().map_err(CliError::from_err)?.allocated as f64 / MIB));
@@ -726,10 +745,10 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     let mut collector = Collector::new(&opts.out, &stream.video, stream.first_n, stream.height, stream.width, opts.overlay_every, opts.boxes)?;
     let t_all = Instant::now();
     let timing = match opts.backend {
-        BackendChoice::Cpu => track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector, &mut Footprint)?,
+        BackendChoice::Cpu => track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?,
         BackendChoice::Metal => {
             let be = MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?;
-            let mut telemetry = MetalTelemetry { probe: MetalProbe::new(&be)?, trim_every: opts.trim_pool_every };
+            let mut telemetry = MetalTelemetry { probe: MetalProbe::new(&be)?, host: HostProbe::new(), trim_every: opts.trim_pool_every };
             track_on(&be, &w, &mut stream, &opts, &mut collector, &mut telemetry)?
         }
     };
