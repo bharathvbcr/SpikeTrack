@@ -1,0 +1,4 @@
+SpikeTrack: faee837 D3 on Metal: identical to upstream in f32 (IoU 1.0000, same kept sets on 20/20); bf16 changes detections
+ojas-st:    cbd5565 Merge gp/78-metal: group_norm, concat, slice and fill on Metal; sitegen ragged-row check (Lane A)
+tessl:      789a132 ci: keep MSRV and the comparator lanes on the toolchains they need (dirty files: 0)
+load:       11:41  up 1 day,  3:57, 2 users, load averages: 5.65 7.33 8.72
