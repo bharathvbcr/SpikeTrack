@@ -332,6 +332,8 @@ def main():
     ap.add_argument("--save-every", type=int, default=100)
     ap.add_argument("--log-every", type=int, default=5)
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--stop-after", type=int, default=None,
+                    help="run at most this many more steps of the --steps schedule, checkpoint and exit (continue with --resume); bounds one locked job")
     ap.add_argument("--eval-only", type=pathlib.Path, default=None, help="skip training; evaluate this adapter")
     ap.add_argument("--no-eval", action="store_true")
     ap.add_argument("--eval-batch", type=int, default=4)
@@ -383,7 +385,10 @@ def main():
             print(f"resumed at step {start}", flush=True)
         lc.set_lora_train(det, True)
         t_start = time.time()
-        for step in range(start, args.steps):
+        end = args.steps if args.stop_after is None else min(args.steps, start + args.stop_after)
+        if args.stop_after is not None and args.stop_after < 1:
+            raise SystemExit("--stop-after must be at least 1")
+        for step in range(start, end):
             t0 = time.time()
             for g in opt.param_groups:
                 g["lr"] = lr_at(step, args.steps, args.warmup, args.lr)
@@ -415,6 +420,12 @@ def main():
             if (step + 1) % args.save_every == 0 and step + 1 < args.steps:
                 save_checkpoint(run_dir, det, opt, step + 1, cfg, f"adapter_step{step + 1}.safetensors")
         lc.set_lora_train(det, False)
+        if end < args.steps:
+            save_checkpoint(run_dir, det, opt, end, cfg, f"adapter_step{end}.safetensors")
+            log["train_seconds_last_chunk"] = round(time.time() - t_start, 1)
+            (res_dir / "train_log.json").write_text(json.dumps(log, indent=1))
+            print(f"stopped at step {end} of {args.steps} (--stop-after {args.stop_after}); continue with --resume", flush=True)
+            return
         save_checkpoint(run_dir, det, opt, args.steps, cfg, "adapter.safetensors")
         log["train_seconds"] = round(time.time() - t_start, 1)
         (res_dir / "train_log.json").write_text(json.dumps(log, indent=1))

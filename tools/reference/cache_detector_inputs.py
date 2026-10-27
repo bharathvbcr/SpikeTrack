@@ -48,6 +48,7 @@ os.environ["SAM3_DEVICE"] = _device_from_argv()  # upstream reads this at import
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 from PIL import Image  # noqa: E402
+from safetensors import safe_open  # noqa: E402
 from safetensors.torch import save_file  # noqa: E402
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -69,6 +70,45 @@ def pick_frames(video, n, seed):
         lo, hi = i * len(labels) // n, (i + 1) * len(labels) // n
         picks.append(labels[lo + int(rng.random() * (hi - lo))])
     return picks
+
+
+# Tolerances for head_agreement, set from measurements on the cache (2026-10-27):
+# fp16 rounding of the cached features alone (relative 2^-11, which is all the cache changes) moves the joint
+# probability of ANY query by at most 0.027 (frame 11/35 "cell", 12 draws), the logit of queries above p = 0.1 by
+# at most 0.11 and their box by 0.005. CPU and MPS heads agree to 2e-3 in logit on identical inputs, and on the
+# fp32 fixture (fixtures/detector/visem22_cell) the head-only path matches upstream to 2.5e-4. Low-score queries
+# (p < 0.05) can move 0.5 in logit and 0.1 in box: DETR's iterative box refinement amplifies a perturbation for a
+# query nothing downstream uses, and a logit of -3 to -6 is 0.2% to 5% probability, so the logit says little there.
+MAX_PROB_DIFF = 0.05       # any query, joint probability: a threshold at 0.3/0.4/0.5 can only flip inside this band
+MAX_LOGIT_DIFF_HIGH = 0.3  # queries with probability > 0.1 on either side
+MAX_BOX_DIFF_HIGH = 0.02   # same queries, normalized cxcywh
+MAX_PRESENCE_LOGIT_DIFF = 0.01
+
+
+def head_agreement(full, ours):
+    """Compare upstream's full forward_grounding with the head-only path on what the pipeline uses."""
+    lf, lo = full["pred_logits"][0, :, 0], ours["pred_logits"][0, :, 0]
+    pf, po = lf.sigmoid(), lo.sigmoid()
+    dl = (lf - lo).abs()
+    db = (full["pred_boxes"][0] - ours["pred_boxes"][0]).abs().amax(-1)
+    hi = (pf > 0.1) | (po > 0.1)
+    d_pres = (full["presence_logit_dec"] - ours["presence_logit_dec"]).abs().max().item()
+    row = {
+        "max_abs_prob_all_queries": (pf - po).abs().max().item(),
+        "queries_above_0.1": int(hi.sum()),
+        "max_abs_logit_above_0.1": dl[hi].max().item() if hi.any() else 0.0,
+        "max_abs_box_above_0.1": db[hi].max().item() if hi.any() else 0.0,
+        "max_abs_presence_logit": d_pres,
+        "info_max_abs_logit_all_queries": dl.max().item(),
+        "info_max_abs_box_all_queries": db.max().item(),
+        "kept_flips_at_0.3": int(((pf > 0.3) != (po > 0.3)).sum()),
+        "kept_flips_at_0.5": int(((pf > 0.5) != (po > 0.5)).sum()),
+        "n_above_0.5_full": int((pf * full["presence_logit_dec"].sigmoid()[0] > 0.5).sum()),
+        "n_above_0.5_ours": int((po * ours["presence_logit_dec"].sigmoid()[0] > 0.5).sum()),
+    }
+    row["ok"] = bool(row["max_abs_prob_all_queries"] < MAX_PROB_DIFF and row["max_abs_logit_above_0.1"] < MAX_LOGIT_DIFF_HIGH
+                     and row["max_abs_box_above_0.1"] < MAX_BOX_DIFF_HIGH and d_pres < MAX_PRESENCE_LOGIT_DIFF)
+    return row
 
 
 def main():
@@ -134,9 +174,14 @@ def main():
     save_file(tensors, str(out / "text.safetensors"))
 
     pos_ref = None
+    old_meta = json.loads((out / "meta.json").read_text()) if (out / "meta.json").exists() else {}
+    if (out / "pos.safetensors").exists():
+        with safe_open(str(out / "pos.safetensors"), "pt") as pf:
+            pos_ref = pf.get_tensor("pos")[None]
     frames_meta, stats, skipped = [], {"max_abs": 0.0, "fp16_roundtrip_max_abs_err": 0.0}, []
     verify_pool = []
     t_all = time.time()
+    computed = False
     for v, picks in plan.items():
         shard = out / "frames" / f"{v}.safetensors"
         split_name = "train" if v in split["train"] else "held_out"
@@ -153,6 +198,9 @@ def main():
                 if shard.exists() and not args.force:
                     if v not in skipped:
                         skipped.append(v)
+                    if len(verify_pool) < args.verify:  # a resumed run still verifies, from the cached fp16 features
+                        with safe_open(str(shard), "pt") as sf:
+                            verify_pool.append((rec_v[-1], sf.get_tensor(f"f{frame}").float()[None]))
                     continue
                 t0 = time.time()
                 x = proc.transform(v2.functional.to_image(im)).unsqueeze(0).to(dev)  # resize on the CPU: the reference numerics
@@ -168,10 +216,11 @@ def main():
             half = feat_c.half()
             stats["max_abs"] = max(stats["max_abs"], peak)
             stats["fp16_roundtrip_max_abs_err"] = max(stats["fp16_roundtrip_max_abs_err"], (half.float() - feat_c).abs().max().item())
-            if pos_ref is None:
+            if args.force or pos_ref is None:
                 pos_ref = pos_c
             else:
                 assert torch.equal(pos_ref, pos_c), "vision_pos_enc differs between frames"
+            computed = True
             tensors[f"f{frame}"] = half[0].contiguous()
             if len(verify_pool) < args.verify:
                 verify_pool.append((rec_v[-1], half.float()))
@@ -181,8 +230,10 @@ def main():
             save_file(tensors, str(tmp))
             tmp.rename(shard)  # a killed run never leaves a half-written shard that a resume would trust
         frames_meta += rec_v
-    if pos_ref is not None:
+    if computed:
         save_file({"pos": pos_ref[0].contiguous()}, str(out / "pos.safetensors"))
+    elif old_meta.get("feature_stats"):
+        stats = old_meta["feature_stats"]  # a pure resume keeps the statistics of the run that computed the features
 
     def write_meta(verify):
         meta = {
@@ -214,13 +265,8 @@ def main():
                     full = det.forward_grounding(backbone_out={**bo, "language_features": tfeat, "language_mask": tmask}, find_input=fs,
                                                  geometric_prompt=det._get_dummy_prompt(), find_target=None)
                     ours = lc.grounding_forward(heads, feat.to(dev), pos_ref.to(dev), tfeat, tmask, aux=False)
-                    d_logit = (full["pred_logits"] - ours["pred_logits"]).abs().max().item()
-                    d_box = (full["pred_boxes"] - ours["pred_boxes"]).abs().max().item()
-                    d_pres = (full["presence_logit_dec"] - ours["presence_logit_dec"]).abs().max().item()
-                    row[prompt] = {"max_abs_logit": d_logit, "max_abs_box": d_box, "max_abs_presence_logit": d_pres,
-                                   "n_above_0.5_full": int(((full["pred_logits"].sigmoid() * full["presence_logit_dec"].sigmoid()[:, None]) > 0.5).sum()),
-                                   "n_above_0.5_ours": int(((ours["pred_logits"].sigmoid() * ours["presence_logit_dec"].sigmoid()[:, None]) > 0.5).sum())}
-                    assert d_logit < 0.5 and d_box < 0.05, f"head-only path disagrees with upstream: {row[prompt]}"
+                    row[prompt] = head_agreement(full, ours)
+                    assert row[prompt]["ok"], f"head-only path disagrees with upstream: {row[prompt]}"
             verify.append(row)
             print("verify", json.dumps(row), flush=True)
     write_meta(verify)
