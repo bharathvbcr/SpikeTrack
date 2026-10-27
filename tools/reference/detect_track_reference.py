@@ -38,6 +38,9 @@ OUT = REPO / "fixtures/detect_track"
 
 
 def keep(x):
+    # Upstream's postprocessed yields are numpy arrays (sam3_multiplex_tracking.py:789-795).
+    if isinstance(x, np.ndarray):
+        x = torch.from_numpy(np.ascontiguousarray(x))
     x = x.detach().cpu()
     if x.dtype == torch.bfloat16:
         return x.contiguous().clone()
