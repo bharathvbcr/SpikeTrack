@@ -60,7 +60,7 @@ fn image_mode_masks_match_upstream_on_20_visem_frames_on_metal() {
 #[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and detector fixtures"]
 fn image_mode_masks_match_upstream_on_20_visem_frames_on_metal_bf16() {
     let be = Autocast::new(MetalBackend::new(Budget::new(28 << 30)).expect("metal backend"));
-    d3(be, "Metal, Autocast bf16", || Some(be.autocast_region(AutocastMode::Bf16).expect("bf16 region")));
+    d3(&be, "Metal, Autocast bf16", || Some(be.autocast_region(AutocastMode::Bf16).expect("bf16 region")));
 }
 
 fn d3<B: Backend>(be: &B, label: &str, region: impl Fn() -> Option<AutocastGuard>) {
