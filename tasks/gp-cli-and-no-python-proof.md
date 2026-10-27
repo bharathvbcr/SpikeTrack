@@ -50,10 +50,11 @@ Ship one binary: `spiketrack track <video> --prompt <text> [--max-objects N] [--
 See HANDOFF.md for rules, schedule and dependencies.
 
 ## Progress
+- 2026-10-27: **No-Python proof passes** (scripts/no_python_check.sh, bench/results/packaging): release `spiketrack` 8.4 MB, links only 14 system libraries/frameworks (Metal, Accelerate, AVFoundation, ImageIO, CoreMedia, ...), runs `image` on Metal with no python on PATH in 3.0 s wall, peak RSS 7.5 GB. `spiketrack image` on VISEM 22 frame 0: 28 detections above 0.5 on Metal (2.6 s) and CPU (18.7 s), as upstream keeps 28.
 - 2026-10-27: crates/spiketrack: `image` and `eval-visem` built and tested under cargo (34 tests); native ImageIO/AVFoundation decode; own PNG writer. scripts/no_python_check.sh written (checked on toy binaries). Open: `track` (needs the Session parity run), `--backend metal`, the proof run on the real binary, overlay MP4 (no encoder; PNG frames).
 
 ## Acceptance criteria
-- [ ] `otool -L` output committed; no Python, libtorch or ONNX runtime linked [V]
+- [x] `otool -L` output committed; no Python, libtorch or ONNX runtime linked [V]
 - [ ] End-to-end run on a VISEM video with python removed from PATH succeeds
 - [ ] Binary size, cold-start time and peak memory recorded
 - [ ] README quickstart works from a fresh clone (weights fetched per NOTICE)

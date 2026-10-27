@@ -1,0 +1,6 @@
+binary: target/release/spiketrack (8386144 bytes)
+command: image data/visem/VISEM_Tracking_Train_v4/Train/22/images/22_frame_0.jpg --prompt cell --backend metal --out bench/results/cli/no_python_run
+exit: 0
+wall s: 3.00; peak RSS bytes: 7464222720
+linked libraries: 14, non-system: 0
+verdict: PASS
