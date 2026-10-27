@@ -93,7 +93,20 @@ fn run_parity<B: Backend>(be: &B, label: &str) {
         let keep: Vec<usize> = if i == 0 { (0..32).collect() } else { vec![7, 15, 23, 31] };
         let mut taps = Taps::default();
         let t = Instant::now();
-        let trunk = model.trunk(&image, &keep, &mut taps).expect("trunk");
+        let trunk = match model.trunk(&image, &keep, &mut taps) {
+            Ok(t) => t,
+            Err(e) => {
+                // A backend that refuses an op mid-trunk (Metal before rope lands): report the
+                // stages that ran before the refusal, then fail with it.
+                for (stage, tap, key) in [("patch_embed", &taps.patch_embed, "trunk.patch_embed.out"), ("ln_pre", &taps.ln_pre, "trunk.ln_pre.out")] {
+                    if let Some(got) = tap {
+                        let s = compare(&host(got, be.budget()), &fixture(&st, key).1);
+                        println!("[{label}] {name} {stage}: cosine {:.7}, max abs {:.3e}, max abs / max ref {:.3e}", s.cos, s.max_abs, s.max_abs / s.ref_max.max(1e-30));
+                    }
+                }
+                panic!("[{label}] {name}: trunk stopped after ln_pre: {e}");
+            }
+        };
         let necks = [Neck::Detector, Neck::Interactive, Neck::Propagation]
             .map(|n| model.neck(n, &trunk).expect("neck"));
         be.sync().expect("sync");
