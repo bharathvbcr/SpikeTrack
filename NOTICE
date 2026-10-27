@@ -21,3 +21,15 @@ SAM License.
 
 Evaluation uses VISEM-Tracking (Thambawita et al., "VISEM-Tracking, a human spermatozoa tracking
 dataset", Scientific Data 10, 2023), CC BY 4.0, Zenodo record 7293726. The data is not included.
+
+The JPEG decoder in crates/st-video/src/jpeg.rs is a Rust port of the algorithms of libjpeg-turbo
+3.2.0's default decompression path (jdmarker.c, jdinput.c, jdhuff.c, jidctint.c, jdsample.c,
+jdmainct.c, jdcolor.c, jdcolext.c, jdapimin.c). This software is based in part on the work of the
+Independent JPEG Group. The ported code descends from the IJG library (Copyright (C) 1991-1998
+Thomas G. Lane; Guido Vollbeding and other members of the Independent JPEG Group) and from
+libjpeg-turbo's modifications (Copyright (C) D. R. Commander, Pierre Ossman for Cendio AB, Google
+Inc., Linaro Limited, Matthias Räncker and other libjpeg-turbo contributors), which are covered
+by the IJG License (README.ijg in libjpeg-turbo, https://github.com/libjpeg-turbo/libjpeg-turbo).
+The IJG License provides no warranty, and the names of the IJG, the libjpeg-turbo Project and
+their contributors may not be used in advertising or publicity for this software. No libjpeg
+source file is included in this repository; the port was written from the 3.2.0 sources.

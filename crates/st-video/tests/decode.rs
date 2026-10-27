@@ -1,12 +1,15 @@
-//! st-video's native decode (ImageIO, AVFoundation) in three groups.
+//! st-video's native decode (the Pillow-exact JPEG decoder, ImageIO, AVFoundation)
+//! in three groups.
 //!
-//! * Always run: a synthetic JPEG decodes upright and in RGB order, and every
-//!   failure is an error (missing file, not an image, empty, truncated JPEG,
-//!   garbage with a JPEG signature, not a video).
+//! * Always run: a synthetic JPEG decodes upright and in RGB order through the
+//!   Pillow-exact decoder, JPEG variants it refuses fall back to ImageIO, and
+//!   every failure is an error (missing file, not an image, empty, truncated
+//!   JPEG, garbage with a JPEG signature, not a video).
 //! * `--ignored`, needs `data/visem` and `fixtures/decode` (git-ignored; make the
 //!   fixtures with `tools/reference/.venv/bin/python -s tools/reference/decode_oracle.py`):
-//!   ImageIO against Pillow on VISEM JPEG frames, and AVFoundation on `11.mp4`
-//!   against the dataset's JPEGs.
+//!   the Pillow-exact decoder against Pillow on VISEM JPEG frames at zero
+//!   tolerance, its decode time next to ImageIO's, ImageIO (the fallback path)
+//!   against Pillow, and AVFoundation on `11.mp4` against the dataset's JPEGs.
 //! * `--ignored`, needs `fixtures/decode/rot90.mp4`: a video with rotation
 //!   metadata comes out upright. Make it from VISEM video 11 (`-display_rotation`
 //!   is counter-clockwise degrees, input option; stream copy keeps the bitstream):
@@ -21,7 +24,7 @@ use std::path::{Path, PathBuf};
 
 use ojas_io::parse_json;
 use st_video::decode::DecodeError;
-use st_video::{decode_image, sam_input, Rgb8, VideoReader};
+use st_video::{decode_image, decode_image_imageio, decode_image_with_source, decode_jpeg, sam_input, Decoder, Rgb8, VideoReader};
 
 fn repo() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -86,7 +89,11 @@ fn write(name: &str, bytes: &[u8]) -> PathBuf {
 #[test]
 fn a_synthetic_jpeg_decodes_upright_and_in_rgb_order() {
     assert_eq!(GRADIENT_JPEG.len(), 855);
-    let img = decode_image(write("gradient.jpg", GRADIENT_JPEG)).expect("decode");
+    let path = write("gradient.jpg", GRADIENT_JPEG);
+    let (img, source) = decode_image_with_source(&path).expect("decode");
+    assert_eq!(source, Decoder::PillowExactJpeg, "a baseline 4:2:0 JPEG goes to the native decoder");
+    assert_eq!(img, decode_image(&path).expect("decode_image"), "decode_image is the same decode");
+    assert_eq!(img, decode_jpeg(GRADIENT_JPEG).expect("decode_jpeg"));
     assert_eq!((img.width, img.height), (32, 32));
     assert_eq!(img.data.len(), 32 * 32 * 3);
     let mut worst = 0i32;
@@ -144,6 +151,50 @@ fn every_truncated_prefix_of_a_jpeg_is_an_error() {
     }
     assert!(decoded.is_empty(), "prefixes of {} bytes that decoded as pictures: {decoded:?}", GRADIENT_JPEG.len());
     assert!(decode_image(write("whole.jpg", GRADIENT_JPEG)).is_ok());
+    // The same through the ImageIO path (its own truncation guard, `check_jpeg`).
+    let mut imageio_decoded = Vec::new();
+    for cut in 1..GRADIENT_JPEG.len() {
+        std::fs::write(&p, &GRADIENT_JPEG[..cut]).expect("write");
+        if decode_image_imageio(&p).is_ok() {
+            imageio_decoded.push(cut);
+        }
+    }
+    assert!(imageio_decoded.is_empty(), "ImageIO prefixes that decoded as pictures: {imageio_decoded:?}");
+}
+
+/// Small files made by Pillow 13.0.0 (see `tests/jpeg_cases/make_cases.py`): JPEG variants
+/// the native decoder refuses and a PNG. They must come back from ImageIO, and
+/// `decode_image_with_source` must say so.
+#[test]
+fn refused_jpeg_variants_and_other_formats_fall_back_to_imageio() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/jpeg_cases/fallback");
+    let mut seen = 0;
+    for name in ["progressive_24x16.jpg", "cmyk_24x16.jpg", "gradient_12x8.png"] {
+        let path = dir.join(name);
+        let (img, source) = decode_image_with_source(&path).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(source, Decoder::ImageIo, "{name}");
+        assert_eq!((img.width, img.height), (if name.ends_with("png") { (12, 8) } else { (24, 16) }), "{name}");
+        assert_eq!(img, decode_image_imageio(&path).expect("imageio"), "{name}: the fallback is ImageIO's decode");
+        seen += 1;
+    }
+    assert_eq!(seen, 3);
+    // The native decoder names what it refuses.
+    for (name, want) in [("progressive_24x16.jpg", "progressive"), ("cmyk_24x16.jpg", "4-component")] {
+        let bytes = std::fs::read(dir.join(name)).expect("read");
+        let err = decode_jpeg(&bytes).expect_err("refused").to_string();
+        assert!(err.contains(want), "{name}: {err}");
+    }
+}
+
+/// A damaged JPEG is an error from the native decoder; it is not retried with
+/// ImageIO (which would report some truncations as complete).
+#[test]
+fn a_damaged_jpeg_is_not_handed_to_imageio() {
+    let mut bad = GRADIENT_JPEG.to_vec();
+    // Cut short (inside the tables): the native decoder says so, and ImageIO is not asked.
+    bad.truncate(GRADIENT_JPEG.len() - 300);
+    let path = write("damaged.jpg", &bad);
+    assert!(matches!(decode_image_with_source(&path), Err(DecodeError::Damaged { .. })));
 }
 
 #[test]
@@ -222,6 +273,8 @@ fn input_diff(a: &Rgb8, b: &Rgb8) -> (f32, f64) {
 #[test]
 #[ignore = "needs data/visem and fixtures/decode (tools/reference/decode_oracle.py)"]
 fn imageio_decode_against_pillow_on_visem_jpegs() {
+    // ImageIO only: since the native decoder exists this measures the fallback path
+    // (JPEG variants the native decoder refuses), not what `decode_image` returns.
     let root = repo();
     let manifest = std::fs::read_to_string(root.join("fixtures/decode/manifest.json")).expect("fixtures/decode/manifest.json: run tools/reference/decode_oracle.py");
     let manifest = parse_json(&manifest).expect("manifest json");
@@ -232,7 +285,7 @@ fn imageio_decode_against_pillow_on_visem_jpegs() {
     for f in frames {
         let (w, h) = (f.get_u64("width").unwrap() as usize, f.get_u64("height").unwrap() as usize);
         let jpeg = root.join(f.get_str("jpeg").unwrap());
-        let ours = decode_image(&jpeg).unwrap_or_else(|e| panic!("{e}"));
+        let ours = decode_image_imageio(&jpeg).unwrap_or_else(|e| panic!("{e}"));
         assert_eq!((ours.width, ours.height), (w, h));
         let theirs = read_rgb(&root.join("fixtures/decode").join(f.get_str("file").unwrap()), w, h);
         let d = Diff::of(&ours, &theirs);
@@ -264,11 +317,94 @@ fn imageio_decode_against_pillow_on_visem_jpegs() {
         .copied()
         .filter(|&cut| {
             std::fs::write(&p, &bytes[..cut]).expect("write");
-            decode_image(&p).is_ok()
+            decode_image_imageio(&p).is_ok()
         })
         .collect();
     println!("{} real-frame cuts tried, {} decoded", cuts.len(), decoded.len());
     assert!(decoded.is_empty(), "cuts of the {}-byte frame that decoded as pictures: {decoded:?}", bytes.len());
+}
+
+/// The oracle frames named by `fixtures/decode/manifest.json`: (name, JPEG path, Pillow's RGB).
+fn oracle_frames() -> Vec<(String, PathBuf, Rgb8)> {
+    let root = repo();
+    let manifest = std::fs::read_to_string(root.join("fixtures/decode/manifest.json")).expect("fixtures/decode/manifest.json: run tools/reference/decode_oracle.py");
+    let manifest = parse_json(&manifest).expect("manifest json");
+    assert_eq!(manifest.get_str("pillow").unwrap(), "13.0.0", "the oracle is Pillow 13.0.0");
+    let frames = manifest.get_array("frames").expect("frames");
+    frames
+        .iter()
+        .map(|f| {
+            let (w, h) = (f.get_u64("width").unwrap() as usize, f.get_u64("height").unwrap() as usize);
+            let name = f.get_str("file").unwrap().to_string();
+            let theirs = read_rgb(&root.join("fixtures/decode").join(&name), w, h);
+            (name, root.join(f.get_str("jpeg").unwrap()), theirs)
+        })
+        .collect()
+}
+
+#[test]
+#[ignore = "needs data/visem and fixtures/decode (tools/reference/decode_oracle.py)"]
+fn pillow_exact_jpeg_decode_is_byte_identical_to_pillow_on_visem_frames() {
+    let frames = oracle_frames();
+    assert_eq!(frames.len(), 6, "the manifest lists six frames");
+    let (mut identical_bytes, mut total_bytes, mut bad_frames) = (0usize, 0usize, Vec::new());
+    for (name, jpeg, theirs) in &frames {
+        let (ours, source) = decode_image_with_source(jpeg).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(source, Decoder::PillowExactJpeg, "{name}: decoder that ran");
+        assert_eq!((ours.width, ours.height), (theirs.width, theirs.height), "{name}: size");
+        assert_eq!(ours.data.len(), 921_600, "{name}: 640 x 480 x 3 bytes");
+        let differing = ours.data.iter().zip(&theirs.data).filter(|(a, b)| a != b).count();
+        identical_bytes += ours.data.len() - differing;
+        total_bytes += ours.data.len();
+        if differing == 0 {
+            println!("{name}: byte-identical ({} bytes)", ours.data.len());
+        } else {
+            let d = Diff::of(&ours, theirs);
+            println!("{name}: {differing} of {} bytes differ: {}", ours.data.len(), d.line());
+            bad_frames.push(name.clone());
+        }
+    }
+    println!("{identical_bytes} of {total_bytes} bytes identical over {} frames", frames.len());
+    assert!(bad_frames.is_empty(), "frames that are not byte-identical to Pillow: {bad_frames:?}");
+}
+
+/// Decode time per 640 x 480 frame, minimum of 20 runs after one warm-up, for the
+/// native decoder and for ImageIO, on the same bytes (file read excluded for the
+/// native decoder; ImageIO's number is `decode_image_imageio`, which also reads the
+/// file, so a third line times the file read alone). Run it in release:
+/// `cargo test --release -p st-video --test decode -- --ignored --nocapture decode_time`.
+#[test]
+#[ignore = "timing: needs data/visem and fixtures/decode; run in release"]
+fn decode_time_per_frame_native_against_imageio() {
+    use std::time::Instant;
+    let frames = oracle_frames();
+    let (name, jpeg, theirs) = &frames[0];
+    let bytes = std::fs::read(jpeg).expect("jpeg");
+    let min_of = |runs: usize, f: &mut dyn FnMut()| -> f64 {
+        f();
+        (0..runs)
+            .map(|_| {
+                let t = Instant::now();
+                f();
+                t.elapsed().as_secs_f64() * 1e3
+            })
+            .fold(f64::INFINITY, f64::min)
+    };
+    let native = min_of(20, &mut || {
+        let img = decode_jpeg(std::hint::black_box(&bytes)).expect("native");
+        assert_eq!(img.data.len(), 921_600);
+    });
+    let imageio = min_of(20, &mut || {
+        let img = decode_image_imageio(std::hint::black_box(jpeg)).expect("imageio");
+        assert_eq!(img.data.len(), 921_600);
+    });
+    let read = min_of(20, &mut || {
+        assert!(!std::fs::read(std::hint::black_box(jpeg)).expect("read").is_empty());
+    });
+    assert_eq!(decode_jpeg(&bytes).expect("native").data, theirs.data, "timed output is the Pillow output");
+    println!("{name} (640x480, {} byte JPEG), min of 20 after a warm-up:", bytes.len());
+    println!("  native decode_jpeg (bytes in memory): {native:.3} ms");
+    println!("  ImageIO decode_image_imageio (reads the file too): {imageio:.3} ms (file read alone {read:.3} ms)");
 }
 
 #[test]

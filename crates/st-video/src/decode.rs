@@ -1,5 +1,6 @@
-//! Native image and video decode for macOS (Apple silicon): ImageIO for still
-//! images, AVFoundation for video. No Python, no ffmpeg, no third-party crate:
+//! Native image and video decode for macOS (Apple silicon): the Pillow-exact
+//! JPEG decoder in [`crate::jpeg`] and ImageIO for still images, AVFoundation
+//! for video. No Python, no ffmpeg, no third-party crate:
 //! the frameworks are linked with `#[link(.., kind = "framework")]` and the
 //! Objective-C calls go through libobjc's `objc_msgSend`, cast to the exact
 //! function type of each call.
@@ -22,7 +23,19 @@
 //!
 //! # Images: [`decode_image`]
 //!
-//! The file is decoded by ImageIO (`CGImageSourceCreateImageAtIndex`, first
+//! A JPEG is decoded by [`crate::jpeg::decode_jpeg`], whose output is
+//! byte-identical to Pillow 13.0.0 on libjpeg-turbo 3.2.0
+//! (`Image.open(..).convert("RGB")`; `tests/decode.rs` checks six VISEM frames
+//! at zero tolerance), for baseline sequential 8-bit grayscale and YCbCr/RGB
+//! files. ICC profiles are ignored, as Pillow ignores them, and a grayscale
+//! JPEG is replicated to three channels with no colour management; the EXIF
+//! orientation is not applied (Pillow's `Image.open` does not either). A JPEG
+//! that is damaged or truncated is an error. A JPEG in a variant the native
+//! decoder refuses by name (progressive, arithmetic, 12-bit, CMYK, ...) and
+//! every other format go to ImageIO, and [`decode_image_with_source`] says
+//! which decoder ran ([`Decoder`]); [`decode_image_imageio`] forces ImageIO.
+//!
+//! What follows describes the ImageIO path. The file is decoded by ImageIO (`CGImageSourceCreateImageAtIndex`, first
 //! image only) and drawn into an 8-bit RGBX bitmap context in the **sRGB**
 //! colour space (`kCGColorSpaceSRGB`), then the X byte is dropped. What that
 //! means, chosen deliberately:
@@ -38,7 +51,8 @@
 //!   either); the stored pixels are returned.
 //! * ImageIO's JPEG decoder is not libjpeg-turbo: the IDCT and chroma
 //!   upsampling differ in the last bits. `crates/st-video/tests/decode.rs`
-//!   measures the difference against Pillow on VISEM frames.
+//!   measures the difference against Pillow on VISEM frames, through
+//!   [`decode_image_imageio`] (the fallback path for refused JPEG variants).
 //! * A truncated or damaged file is an error: ImageIO's status for the image
 //!   is read after the pixels were drawn, and anything but "complete" fails.
 //!   ImageIO accepts cut-short PNG chunks lists as complete, so PNG chunk
@@ -74,8 +88,8 @@
 //!
 //! | input | upstream decode and resize | ours |
 //! |---|---|---|
-//! | one image file | PIL or torchvision decode; `v2.Resize` (antialiased bilinear) on a uint8 tensor | ImageIO decode, [`crate::sam_input`] (Pillow bilinear): within one grey level |
-//! | folder of JPEG frames | PIL decode; `TF.resize` on the PIL image (Pillow bilinear) | ImageIO decode, [`crate::sam_input`]: same resize, decoder differs (see `tests/decode.rs`) |
+//! | one image file | PIL or torchvision decode; `v2.Resize` (antialiased bilinear) on a uint8 tensor | JPEG: Pillow-exact decode; other formats: ImageIO; then [`crate::sam_input`] (Pillow bilinear): within one grey level |
+//! | folder of JPEG frames | PIL decode; `TF.resize` on the PIL image (Pillow bilinear) | Pillow-exact decode for baseline JPEG, [`crate::sam_input`]: same resize |
 //! | mp4 file | OpenCV decode; `cv2.resize(.., INTER_CUBIC)` after BGR to RGB (`io_utils.py:313-333`) | AVFoundation decode, bilinear resize: **does not match** |
 //!
 //! Bicubic for mp4 input is not implemented; the mismatch is a recorded gap.
@@ -93,8 +107,8 @@ use crate::resize::Rgb8;
 /// The largest image file [`decode_image`] reads.
 pub const MAX_IMAGE_FILE_BYTES: u64 = 512 << 20;
 /// The most pixels [`decode_image`] and [`VideoReader`] accept in one frame
-/// (an RGBX bitmap of this size is 512 MiB).
-pub const MAX_FRAME_PIXELS: usize = 1 << 27;
+/// (an RGBX bitmap of this size is 512 MiB). The JPEG decoder owns the number.
+pub const MAX_FRAME_PIXELS: usize = crate::jpeg::MAX_PIXELS;
 /// The most frames [`VideoReader::open`] counts before refusing the video.
 pub const MAX_VIDEO_FRAMES: usize = 1 << 24;
 
@@ -560,17 +574,79 @@ pub fn check_jpeg(b: &[u8]) -> Result<(), String> {
     Err("JPEG has no end-of-image marker".to_string())
 }
 
-/// Decode an image file (JPEG, PNG, and whatever else ImageIO reads) to 8-bit
-/// sRGB. See the module documentation for the colour, alpha, orientation and
-/// truncation behaviour.
+/// Which decoder produced an image ([`decode_image_with_source`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Decoder {
+    /// [`crate::jpeg::decode_jpeg`]: byte-identical to Pillow 13.0.0 on
+    /// libjpeg-turbo 3.2.0 (`Image.open(..).convert("RGB")`).
+    PillowExactJpeg,
+    /// ImageIO, drawn into sRGB: PNG and every other format, and the JPEG
+    /// variants [`crate::jpeg`] refuses by name (progressive, arithmetic,
+    /// 12-bit, CMYK, ...). Its JPEG decode differs from Pillow's in the last
+    /// bits and its colour management differs on tagged or gray images.
+    ImageIo,
+}
+
+impl Decoder {
+    /// A stable name for logs and result files.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::PillowExactJpeg => "pillow-exact-jpeg",
+            Self::ImageIo => "imageio",
+        }
+    }
+}
+
+impl fmt::Display for Decoder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+/// Decode an image file to 8-bit RGB: a JPEG through [`crate::jpeg`]
+/// (Pillow-exact), anything else, and the JPEG variants that decoder refuses,
+/// through ImageIO. See the module documentation for the colour, alpha,
+/// orientation and truncation behaviour, and [`decode_image_with_source`] to
+/// learn which decoder ran.
 pub fn decode_image(path: impl AsRef<Path>) -> Result<Rgb8, DecodeError> {
+    decode_image_with_source(path).map(|(img, _)| img)
+}
+
+/// [`decode_image`], also reporting the decoder that produced the pixels. A
+/// damaged or truncated JPEG is an error, never a fall-back to ImageIO: only a
+/// JPEG the native decoder refuses by name ([`crate::jpeg::Unsupported`])
+/// is handed to ImageIO.
+pub fn decode_image_with_source(path: impl AsRef<Path>) -> Result<(Rgb8, Decoder), DecodeError> {
     let path = path.as_ref();
+    let bytes = read_image_file(path)?;
+    if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        match crate::jpeg::decode_jpeg(&bytes) {
+            Ok(img) => return Ok((img, Decoder::PillowExactJpeg)),
+            Err(crate::jpeg::JpegError::Unsupported(_)) => {}
+            Err(crate::jpeg::JpegError::TooLarge { width, height }) => {
+                return Err(DecodeError::TooLarge { path: path.to_path_buf(), detail: format!("{width}x{height} exceeds {MAX_FRAME_PIXELS} pixels") });
+            }
+            Err(e) => return Err(DecodeError::Damaged { path: path.to_path_buf(), detail: e.to_string() }),
+        }
+    }
+    decode_image_bytes(path, &bytes).map(|img| (img, Decoder::ImageIo))
+}
+
+/// Decode an image file with ImageIO only, JPEG included. This is the path
+/// [`decode_image`] used for JPEG before [`crate::jpeg`] existed; it is kept so
+/// that its difference from Pillow stays measurable (`tests/decode.rs`).
+pub fn decode_image_imageio(path: impl AsRef<Path>) -> Result<Rgb8, DecodeError> {
+    let path = path.as_ref();
+    let bytes = read_image_file(path)?;
+    decode_image_bytes(path, &bytes)
+}
+
+fn read_image_file(path: &Path) -> Result<Vec<u8>, DecodeError> {
     let size = stat_file(path)?;
     if size > MAX_IMAGE_FILE_BYTES {
         return Err(DecodeError::TooLarge { path: path.to_path_buf(), detail: format!("{size} bytes exceeds {MAX_IMAGE_FILE_BYTES}") });
     }
-    let bytes = std::fs::read(path).map_err(|e| io_err(path, e))?;
-    decode_image_bytes(path, &bytes)
+    std::fs::read(path).map_err(|e| io_err(path, e))
 }
 
 fn decode_image_bytes(path: &Path, bytes: &[u8]) -> Result<Rgb8, DecodeError> {
