@@ -1,6 +1,6 @@
 #!/bin/bash
 # `spiketrack track` on Metal over the 5 held-out VISEM-Tracking videos (tools/reference/visem_split.json),
-# the first N frames of each (prompt "cell", forward from frame 0), then `spiketrack eval-visem` (HOTA,
+# the first N frames of each (prompt $SPIKETRACK_PROMPT, default "cell", forward from frame 0), then `spiketrack eval-visem` (HOTA,
 # sperm class, the same N frames) on the predictions. Results: bench/results/track/
 #   run/<id>.json, run/<id>.run.json, run/masks/   the predictions and per-frame RLE masks
 #   logs/<id>.log                                  per-frame progress and timings
@@ -22,6 +22,7 @@ SPLIT=tools/reference/visem_split.json
 OUT="${SPIKETRACK_TRACK_OUT:-bench/results/track}"
 BIN=target/release/spiketrack
 BOXES=${SPIKETRACK_BOXES:-mask}
+PROMPT=${SPIKETRACK_PROMPT:-cell}
 case "$BOXES" in mask | detector) ;; *) echo "SPIKETRACK_BOXES=$BOXES is not mask or detector" >&2; exit 2 ;; esac
 LORA_ARGS=()
 if [ -n "${SPIKETRACK_LORA:-}" ]; then
@@ -46,9 +47,9 @@ cargo build --release -p spiketrack 2>&1 | tail -5
 uptime
 failed=""
 for id in $IDS; do
-  echo "== video $id: first $N frames on Metal, --boxes $BOXES${SPIKETRACK_LORA:+, LoRA $SPIKETRACK_LORA}"
+  echo "== video $id: first $N frames on Metal, --boxes $BOXES, prompt $PROMPT${SPIKETRACK_LORA:+, LoRA $SPIKETRACK_LORA}"
   # ${LORA_ARGS[@]+...}: bash 3.2 (macOS) treats an empty array as unbound under set -u.
-  "$BIN" track "$VISEM/$id/images" --prompt cell --backend metal --max-frames "$N" --boxes "$BOXES" --out "$OUT/run" ${LORA_ARGS[@]+"${LORA_ARGS[@]}"} 2>&1 | tee "$OUT/logs/$id.log"
+  "$BIN" track "$VISEM/$id/images" --prompt "$PROMPT" --backend metal --max-frames "$N" --boxes "$BOXES" --out "$OUT/run" ${LORA_ARGS[@]+"${LORA_ARGS[@]}"} 2>&1 | tee "$OUT/logs/$id.log"
   [ "${PIPESTATUS[0]}" -eq 0 ] || failed="$failed $id"
 done
 uptime
