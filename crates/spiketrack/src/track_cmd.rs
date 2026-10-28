@@ -73,7 +73,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use ojas_core::{Backend, Budget, Tensor};
+use ojas_core::{Autocast, Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
 use ojas_metal::{MetalBackend, WaitCounts};
 use st_model::tracker::session::{Session, SessionConfig, YieldedFrame};
@@ -97,6 +97,7 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
                  [--start F] [--overlay K] [--overlay-video FILE] [--overlay-fps F]
                  [--video ID] [--boxes mask|detector] [--weights FILE]
                  [--lora FILE] [--model-dir DIR] [--threads N] [--trim-pool-every K]
+                 [--trunk-precision f32|bf16-linears]
 
   Tracks every instance of <text> through a video with SAM 3.1's multiplex tracker, forward
   from the first frame processed. <input> is a folder of <video>_frame_<n>.jpg frames
@@ -128,6 +129,10 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
   --threads N       CPU worker threads for --backend cpu, 1 to 256 (default 8)
   --trim-pool-every K  diagnostic, --backend metal only: hand Ojas's cached free buffers back to
                     the device after every K-th frame (MetalBackend::trim_pool)
+  --trunk-precision P  f32 (default, upstream's numerics) or bf16-linears (an experiment: the
+                    ViT trunk's linears in bf16 through an Ojas Autocast region, everything else
+                    f32; not upstream, see Backbone::with_trunk_linears_bf16). With bf16-linears
+                    the frame lines carry only the host telemetry.
 
   Each frame's progress line ends with this process's physical footprint, the machine's pages
   paged out and swapped in during the frame and, on Metal, the frame's change in Ojas's wait
@@ -695,6 +700,8 @@ struct Options {
     weights: PathBuf,
     model_dir: PathBuf,
     trim_pool_every: Option<u32>,
+    /// `--trunk-precision bf16-linears`.
+    trunk_linears_bf16: bool,
 }
 
 struct Timing {
@@ -814,6 +821,7 @@ fn track_on<B: Backend>(
 ) -> Result<Timing, CliError> {
     let t_load = Instant::now();
     let backbone = Backbone::new(be, &w.vision).map_err(CliError::from_err)?;
+    let backbone = if opts.trunk_linears_bf16 { backbone.with_trunk_linears_bf16().map_err(CliError::from_err)? } else { backbone };
     let text = Text::new(be, &w.text).map_err(CliError::from_err)?;
     let detector = Detector::new(
         be,
@@ -855,7 +863,7 @@ fn track_on<B: Backend>(
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
-    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "overlay-video", "overlay-fps", "video", "boxes", "weights", "lora", "model-dir", "threads", "trim-pool-every"], 1)?;
+    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "overlay-video", "overlay-fps", "video", "boxes", "weights", "lora", "model-dir", "threads", "trim-pool-every", "trunk-precision"], 1)?;
     if args.help {
         println!("{USAGE}");
         return Ok(());
@@ -873,6 +881,14 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     }
     if trim_pool_every.is_some() && backend != BackendChoice::Metal {
         return Err(CliError::usage("--trim-pool-every is for --backend metal"));
+    }
+    let trunk_linears_bf16 = match args.get("trunk-precision").unwrap_or("f32") {
+        "f32" => false,
+        "bf16-linears" => true,
+        other => return Err(CliError::usage(format!("--trunk-precision: {other:?} is not f32 or bf16-linears"))),
+    };
+    if trunk_linears_bf16 && trim_pool_every.is_some() {
+        return Err(CliError::usage("--trim-pool-every needs the plain Metal backend; not with --trunk-precision bf16-linears"));
     }
     let threads: usize = args.parsed("threads", 8)?;
     if !(1..=256).contains(&threads) {
@@ -916,7 +932,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     let weights = existing_path(args.get("weights"), "SPIKETRACK_WEIGHTS", "weights", "weights")?;
     let lora = weights::lora_path(args.get("lora"))?;
     let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
-    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir, trim_pool_every };
+    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir, trim_pool_every, trunk_linears_bf16 };
 
     let (w, applied) = weights::load(&opts.weights, lora.as_deref())?;
     let mut collector = Collector::new(&opts.out, &stream.video, stream.first_n, stream.height, stream.width, opts.overlay_every, opts.boxes)?;
@@ -928,7 +944,15 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     }
     let t_all = Instant::now();
     let timing = match opts.backend {
+        BackendChoice::Cpu if opts.trunk_linears_bf16 => {
+            let be = Autocast::new(CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?);
+            track_on(&be, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?
+        }
         BackendChoice::Cpu => track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?,
+        BackendChoice::Metal if opts.trunk_linears_bf16 => {
+            let be = Autocast::new(MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?);
+            track_on(&be, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?
+        }
         BackendChoice::Metal => {
             let be = MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?;
             let mut telemetry = MetalTelemetry { probe: MetalProbe::new(&be)?, host: HostProbe::new(), trim_every: opts.trim_pool_every };
@@ -953,7 +977,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
-        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {}\n}}\n",
+        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {}\n}}\n",
         json::string(&stream.video),
         json::string(&input.to_string_lossy()),
         json::string(&opts.prompt),
@@ -977,6 +1001,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         video_fps_json,
         video_fps_source_json,
         video_frames_json,
+        json::string(if opts.trunk_linears_bf16 { "bf16-linears" } else { "f32" }),
     );
     let run_path = opts.out.join(format!("{}.run.json", stream.video));
     std::fs::write(&run_path, run_text).map_err(|e| CliError::failed(format!("{}: {e}", run_path.display())))?;

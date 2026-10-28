@@ -7,7 +7,7 @@
 //! fp32 fixtures (`tools/reference/check_fixtures.py`).
 
 use ojas_core::{
-    window_merge, window_partition, AttentionOpts, Backend, Conv2dParams, ConvTranspose2dParams,
+    window_merge, window_partition, AttentionOpts, AutocastMode, Backend, Conv2dParams, ConvTranspose2dParams,
     OjasError, Tensor,
 };
 use st_gate::{GatePolicy, WindowSet};
@@ -282,6 +282,9 @@ pub struct Backbone<'b, B: Backend + ?Sized> {
     ln_pre: DevNorm,
     blocks: Vec<DevBlock>,
     necks: [Vec<DevLevel>; 3],
+    /// [`Self::with_trunk_linears_bf16`]: the trunk's six linears per block run inside an Ojas
+    /// Autocast bf16 region (bf16 operands on the matrix units, f32 sums), everything else f32.
+    trunk_linears_bf16: bool,
 }
 
 fn upload<B: Backend + ?Sized>(be: &B, data: &[f32], shape: &[usize]) -> Result<Tensor, OjasError> {
@@ -376,7 +379,34 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
             ln_pre: norm(be, &t.ln_pre)?,
             blocks,
             necks: [neck(&w.convs)?, neck(&w.interactive_convs)?, neck(&w.propagation_convs)?],
+            trunk_linears_bf16: false,
         })
+    }
+
+    /// An experiment, not upstream's numerics: the trunk's q, k, v, proj, fc1 and fc2 linears run
+    /// in bf16 (each block's weights rounded to bf16 once here, the input rounded per call by the
+    /// Autocast region, the output rounded; f32 bias and f32 accumulation), while attention, RoPE,
+    /// norms, GELU, the residual stream, the necks and everything downstream stay f32. Whole-model
+    /// Autocast (every matmul-class op, attention and convolutions included) missed the D2 and D3
+    /// gates (bench/results/module-gates-cbd5565); this is the narrower variant those runs left
+    /// untested. `be` must be an [`ojas_core::Autocast`] backend: anything else is refused here,
+    /// rather than silently running f32.
+    pub fn with_trunk_linears_bf16(mut self) -> Result<Self, OjasError> {
+        let be = self.be;
+        drop(be.autocast_region(AutocastMode::Bf16)?);
+        for blk in &mut self.blocks {
+            for lin in [&mut blk.q, &mut blk.k, &mut blk.v, &mut blk.proj, &mut blk.fc1, &mut blk.fc2] {
+                lin.w = be.cast_bf16(&lin.w)?;
+            }
+        }
+        self.trunk_linears_bf16 = true;
+        Ok(self)
+    }
+
+    /// `x @ lin.w^T + lin.b`, inside a bf16 Autocast region when the trunk linears are bf16.
+    fn trunk_linear(&self, x: &Tensor, lin: &DevLinear) -> Result<Tensor, OjasError> {
+        let _region = if self.trunk_linears_bf16 { Some(self.be.autocast_region(AutocastMode::Bf16)?) } else { None };
+        self.be.linear_bias_forward(x, &lin.w, &lin.b)
     }
 
     fn block(be: &B, blk: &VitBlock) -> Result<DevBlock, OjasError> {
@@ -604,7 +634,7 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         let h = if matches!(mix, Mix::Grid) { window_partition(be, &h, VIT_WINDOW)? } else { h };
         let h = h.reshape(&[seqs, tokens, VIT_DIM])?;
         let heads = |lin: &DevLinear| -> Result<Tensor, OjasError> {
-            be.linear_bias_forward(&h, &lin.w, &lin.b)?.reshape(&[seqs, tokens, HEADS, HEAD_DIM])
+            self.trunk_linear(&h, lin)?.reshape(&[seqs, tokens, HEADS, HEAD_DIM])
         };
         // RoPE on [B, T, H, D]; attention wants [B, H, T, D].
         let q = be.rope_interleaved_forward(&heads(&blk.q)?, &blk.rope_cos, &blk.rope_sin)?;
@@ -614,7 +644,7 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         let opts = AttentionOpts { causal: false, window: None, bias: None, key_lens: None };
         let a = be.attention_forward(&q, &k, &v, opts)?; // [B, H, T, D]
         let a = be.permute(&a, &[0, 2, 1, 3])?.reshape(&[seqs, tokens, VIT_DIM])?;
-        let a = be.linear_bias_forward(&a, &blk.proj.w, &blk.proj.b)?;
+        let a = self.trunk_linear(&a, &blk.proj)?;
         let a = match mix {
             Mix::Global => a.reshape(&[1, VIT_GRID, VIT_GRID, VIT_DIM])?,
             Mix::Grid => window_merge(be, &a.reshape(&[seqs, VIT_WINDOW, VIT_WINDOW, VIT_DIM])?, VIT_GRID, VIT_GRID)?,
@@ -622,9 +652,9 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         };
         let x = be.residual_add_forward(x, &a)?;
         let m = be.layer_norm_forward(&x, &blk.norm2.w, &blk.norm2.b, VIT_LN_EPS)?;
-        let m = be.linear_bias_forward(&m, &blk.fc1.w, &blk.fc1.b)?;
+        let m = self.trunk_linear(&m, &blk.fc1)?;
         let m = be.gelu_erf_forward(&m)?;
-        let m = be.linear_bias_forward(&m, &blk.fc2.w, &blk.fc2.b)?;
+        let m = self.trunk_linear(&m, &blk.fc2)?;
         be.residual_add_forward(&x, &m)
     }
 

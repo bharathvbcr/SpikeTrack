@@ -34,7 +34,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::time::Instant;
 
-use ojas_core::{Backend, Budget, Tensor};
+use ojas_core::{Autocast, Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
 use ojas_metal::MetalBackend;
 use ojas_io::{parse_json, JsonValue, SafeTensors};
@@ -356,16 +356,26 @@ fn compare_visit(fx: &Fixture, meta: Option<&JsonValue>, tr: &VisitTrace, hw: (u
 #[test]
 #[ignore = "needs the gated checkpoint, tokenizer files and the detect_track fixtures"]
 fn session_matches_upstream_on_visem_11() {
-    session_parity(&CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu backend"), "CPU");
+    session_parity(&CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu backend"), "CPU", false);
 }
 
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the detect_track fixtures"]
 fn session_matches_upstream_on_metal() {
-    session_parity(&MetalBackend::new(Budget::new(28 << 30)).expect("metal backend"), "Metal");
+    session_parity(&MetalBackend::new(Budget::new(28 << 30)).expect("metal backend"), "Metal", false);
 }
 
-fn session_parity<B: Backend>(be: &B, label: &str) {
+/// The experiment `Backbone::with_trunk_linears_bf16` (the ViT trunk's linears in bf16, everything
+/// else f32) against the same upstream fp32 oracle and the same gate as the f32 session, stated
+/// before any run: every yielded frame's id set equal and mean per-id mask IoU >= 0.95. A miss here
+/// means the bf16 linears change what is tracked, not only by how much.
+#[test]
+#[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the detect_track fixtures"]
+fn session_with_bf16_trunk_linears_matches_upstream_on_metal() {
+    session_parity(&Autocast::new(MetalBackend::new(Budget::new(28 << 30)).expect("metal backend")), "Metal, bf16 trunk linears", true);
+}
+
+fn session_parity<B: Backend>(be: &B, label: &str, trunk_linears_bf16: bool) {
     println!("[{label}]");
     let video = std::env::var("SPIKETRACK_DT_VIDEO").unwrap_or_else(|_| "11".to_string());
     let dir = env_path("SPIKETRACK_DT_FIXTURES");
@@ -393,6 +403,7 @@ fn session_parity<B: Backend>(be: &B, label: &str) {
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = Sam31Weights::load(&ck).expect("weights");
     let backbone = Backbone::new(be, &w.vision).expect("backbone");
+    let backbone = if trunk_linears_bf16 { backbone.with_trunk_linears_bf16().expect("bf16 trunk linears") } else { backbone };
     let text = Text::new(be, &w.text).expect("text");
     let detector = Detector::new(
         be,
