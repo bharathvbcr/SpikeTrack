@@ -1,0 +1,15 @@
+round 1 f32: load { 37.68 29.67 22.10 }, GPU 12%
+round 1 f32: 4.7557 s/frame mean over 49 frames, 18 tracks
+round 1 bf16-linears: load { 21.21 24.19 21.39 }, GPU 85%
+round 1 bf16-linears: 4.8554 s/frame mean over 49 frames, 18 tracks
+round 2 bf16-linears: load { 14.13 21.12 20.94 }, GPU 88%
+round 2 bf16-linears: 4.7693 s/frame mean over 49 frames, 18 tracks
+round 2 f32: load { 12.32 16.19 18.80 }, GPU 89%
+round 2 f32: 4.4157 s/frame mean over 49 frames, 18 tracks
+round 3 f32: load { 17.16 15.96 18.05 }, GPU 87%
+round 3 f32: 4.3052 s/frame mean over 49 frames, 18 tracks
+round 3 bf16-linears: load { 8.91 12.44 16.06 }, GPU 86%
+round 3 bf16-linears: 4.3973 s/frame mean over 49 frames, 18 tracks
+f32: [4.7557, 4.4157, 4.3052]; bf16-linears: [4.8554, 4.7693, 4.3973]
+median f32 4.4157, bf16-linears 4.7693 s/frame; ratio bf16/f32 1.080; spread f32 1.105, bf16 1.104
+ 0:02  up 1 day, 16:18, 1 user, load averages: 9.19 10.52 14.37

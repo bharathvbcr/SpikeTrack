@@ -1,0 +1,53 @@
+model loaded in 0.8 s on metal; tracking 49 frame(s) of "22"
+frame 0 (1/49): 5.49 s, 16 active track(s), 0 frame(s) released; footprint 9748 MiB, pageouts +10, swapins +0
+frame 1 (2/49): 3.92 s, 16 active track(s), 0 frame(s) released; footprint 9671 MiB, pageouts +0, swapins +0
+frame 2 (3/49): 3.70 s, 16 active track(s), 0 frame(s) released; footprint 9870 MiB, pageouts +7, swapins +0
+frame 3 (4/49): 3.70 s, 16 active track(s), 0 frame(s) released; footprint 9643 MiB, pageouts +0, swapins +0
+frame 4 (5/49): 4.01 s, 16 active track(s), 0 frame(s) released; footprint 9565 MiB, pageouts +0, swapins +0
+frame 5 (6/49): 4.09 s, 16 active track(s), 0 frame(s) released; footprint 10151 MiB, pageouts +0, swapins +0
+frame 6 (7/49): 4.14 s, 16 active track(s), 0 frame(s) released; footprint 10072 MiB, pageouts +0, swapins +0
+frame 7 (8/49): 4.02 s, 14 active track(s), 0 frame(s) released; footprint 10492 MiB, pageouts +0, swapins +0
+frame 8 (9/49): 4.36 s, 16 active track(s), 0 frame(s) released; footprint 10444 MiB, pageouts +0, swapins +0
+frame 9 (10/49): 4.25 s, 16 active track(s), 0 frame(s) released; footprint 10698 MiB, pageouts +0, swapins +0
+frame 10 (11/49): 4.30 s, 16 active track(s), 0 frame(s) released; footprint 10618 MiB, pageouts +2, swapins +0
+frame 11 (12/49): 4.91 s, 16 active track(s), 0 frame(s) released; footprint 10777 MiB, pageouts +0, swapins +4
+frame 12 (13/49): 4.96 s, 16 active track(s), 0 frame(s) released; footprint 10600 MiB, pageouts +0, swapins +0
+frame 13 (14/49): 5.54 s, 16 active track(s), 0 frame(s) released; footprint 10741 MiB, pageouts +48, swapins +0
+frame 14 (15/49): 4.82 s, 16 active track(s), 1 frame(s) released; footprint 10573 MiB, pageouts +0, swapins +0
+frame 15 (16/49): 5.29 s, 16 active track(s), 1 frame(s) released; footprint 10599 MiB, pageouts +0, swapins +0
+frame 16 (17/49): 6.12 s, 16 active track(s), 1 frame(s) released; footprint 10659 MiB, pageouts +1128, swapins +0
+frame 17 (18/49): 4.80 s, 16 active track(s), 1 frame(s) released; footprint 10568 MiB, pageouts +0, swapins +0
+frame 18 (19/49): 4.79 s, 16 active track(s), 1 frame(s) released; footprint 10570 MiB, pageouts +0, swapins +0
+frame 19 (20/49): 4.94 s, 16 active track(s), 1 frame(s) released; footprint 10550 MiB, pageouts +0, swapins +4
+frame 20 (21/49): 4.70 s, 16 active track(s), 1 frame(s) released; footprint 10513 MiB, pageouts +2, swapins +0
+frame 21 (22/49): 4.61 s, 16 active track(s), 1 frame(s) released; footprint 10518 MiB, pageouts +0, swapins +0
+frame 22 (23/49): 4.83 s, 16 active track(s), 1 frame(s) released; footprint 10523 MiB, pageouts +0, swapins +0
+frame 23 (24/49): 4.97 s, 16 active track(s), 1 frame(s) released; footprint 10528 MiB, pageouts +0, swapins +4
+frame 24 (25/49): 4.71 s, 16 active track(s), 1 frame(s) released; footprint 10569 MiB, pageouts +0, swapins +0
+frame 25 (26/49): 4.77 s, 16 active track(s), 1 frame(s) released; footprint 10539 MiB, pageouts +0, swapins +0
+frame 26 (27/49): 4.54 s, 16 active track(s), 1 frame(s) released; footprint 10508 MiB, pageouts +0, swapins +3
+frame 27 (28/49): 4.76 s, 16 active track(s), 1 frame(s) released; footprint 10481 MiB, pageouts +0, swapins +0
+frame 28 (29/49): 4.70 s, 16 active track(s), 1 frame(s) released; footprint 10454 MiB, pageouts +6, swapins +0
+frame 29 (30/49): 5.09 s, 16 active track(s), 1 frame(s) released; footprint 10454 MiB, pageouts +0, swapins +0
+frame 30 (31/49): 4.91 s, 16 active track(s), 1 frame(s) released; footprint 10456 MiB, pageouts +0, swapins +0
+frame 31 (32/49): 5.10 s, 16 active track(s), 1 frame(s) released; footprint 10455 MiB, pageouts +0, swapins +0
+frame 32 (33/49): 5.35 s, 16 active track(s), 1 frame(s) released; footprint 10477 MiB, pageouts +0, swapins +0
+frame 33 (34/49): 4.62 s, 16 active track(s), 1 frame(s) released; footprint 10449 MiB, pageouts +0, swapins +0
+frame 34 (35/49): 4.70 s, 16 active track(s), 1 frame(s) released; footprint 10449 MiB, pageouts +0, swapins +0
+frame 35 (36/49): 4.59 s, 16 active track(s), 1 frame(s) released; footprint 10453 MiB, pageouts +0, swapins +0
+frame 36 (37/49): 4.72 s, 16 active track(s), 1 frame(s) released; footprint 10453 MiB, pageouts +0, swapins +0
+frame 37 (38/49): 5.02 s, 16 active track(s), 1 frame(s) released; footprint 10453 MiB, pageouts +1, swapins +0
+frame 38 (39/49): 4.61 s, 16 active track(s), 1 frame(s) released; footprint 10453 MiB, pageouts +1, swapins +0
+frame 39 (40/49): 4.90 s, 16 active track(s), 1 frame(s) released; footprint 10453 MiB, pageouts +3, swapins +0
+frame 40 (41/49): 4.82 s, 16 active track(s), 1 frame(s) released; footprint 10453 MiB, pageouts +0, swapins +0
+frame 41 (42/49): 4.83 s, 16 active track(s), 1 frame(s) released; footprint 10453 MiB, pageouts +0, swapins +0
+frame 42 (43/49): 4.93 s, 16 active track(s), 1 frame(s) released; footprint 10453 MiB, pageouts +0, swapins +0
+frame 43 (44/49): 4.94 s, 16 active track(s), 1 frame(s) released; footprint 10453 MiB, pageouts +0, swapins +0
+frame 44 (45/49): 4.99 s, 16 active track(s), 1 frame(s) released; footprint 10453 MiB, pageouts +0, swapins +0
+frame 45 (46/49): 5.04 s, 16 active track(s), 1 frame(s) released; footprint 10453 MiB, pageouts +0, swapins +0
+frame 46 (47/49): 5.19 s, 16 active track(s), 1 frame(s) released; footprint 10453 MiB, pageouts +0, swapins +0
+frame 47 (48/49): 5.18 s, 16 active track(s), 1 frame(s) released; footprint 10454 MiB, pageouts +27, swapins +0
+frame 48 (49/49): 5.44 s, 16 active track(s), 15 frame(s) released; footprint 10478 MiB, pageouts +0, swapins +0
+49 frame(s) of "22" tracked on metal: 18 track(s) born, 4.77 s/frame (model, mean), 235.2 s total
+  bench/results/trunk-bf16/run-bf16-linears-2/22.json
+  bench/results/trunk-bf16/run-bf16-linears-2/22.run.json

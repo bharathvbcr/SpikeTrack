@@ -1,0 +1,3 @@
+SpikeTrack d9707dc tools/jobs/trunk_bf16_experiment.sh: bf16-linears session gate, then a paired f32 vs bf16-linears track timing
+ojas-st cbd5565 Merge gp/78-metal: group_norm, concat, slice and fill on Metal; sitegen ragged-row check (Lane A)
+23:36  up 1 day, 15:52, 1 user, load averages: 43.64 23.30 18.67
