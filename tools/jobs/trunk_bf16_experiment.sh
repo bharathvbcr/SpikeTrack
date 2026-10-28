@@ -30,7 +30,7 @@ for round in 1 2 3; do
     d="$OUT/run-$p-$round"
     rm -rf "$d"
     echo "round $round $p: load $(sysctl -n vm.loadavg), GPU $(util)%" | tee -a "$OUT/timing.txt"
-    "$BIN" track "$FRAMES" --prompt cell --backend metal --max-frames "$N" --trunk-precision "$p" --out "$d" > "$d.log" 2>&1 || { echo "track failed ($p, round $round)"; exit 1; }
+    "$BIN" track "$FRAMES" --prompt cell --backend metal --max-frames "$N" --trunk-precision "$p" --max-objects 16 --out "$d" > "$d.log" 2>&1 || { echo "track failed ($p, round $round)"; exit 1; }
     python3 -c "import json,sys; r=json.load(open(sys.argv[1])); print(f\"round {sys.argv[2]} {r['trunk_precision']}: {r['mean_seconds_per_frame']:.4f} s/frame mean over {r['frames']} frames, {r['tracks']} tracks\")" "$d/22.run.json" "$round" | tee -a "$OUT/timing.txt"
   done
 done

@@ -92,6 +92,11 @@ use crate::png;
 use crate::procinfo::{phys_footprint_bytes, vm_pageouts_swapins};
 use crate::weights::{self, lora_json};
 
+/// `--max-objects` when not given. Upstream's builder caps tracking at 16, which bounds the dense
+/// VISEM videos (27-46 sperm a frame): at 64 the held-out HOTA is 0.4868 against 0.4695
+/// (bench/results/track/held300-lora600-sperm-detector-max64).
+pub const DEFAULT_MAX_OBJECTS: usize = 64;
+
 pub const USAGE: &str = "\
 spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--max-frames N]
                  [--start F] [--overlay K] [--overlay-video FILE] [--overlay-fps F]
@@ -129,10 +134,10 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
   --threads N       CPU worker threads for --backend cpu, 1 to 256 (default 8)
   --trim-pool-every K  diagnostic, --backend metal only: hand Ojas's cached free buffers back to
                     the device after every K-th frame (MetalBackend::trim_pool)
-  --max-objects N   most objects tracked at once, 1 to 128 (default 16, upstream's builder
-                    default). Above 16 (not the builder's setting; upstream's class allows 128) new
-                    objects fill extra tracker states 16 at a time, which costs one more tracker
-                    step per state per frame and is not parity-checked against upstream.
+  --max-objects N   most objects tracked at once, 1 to 128 (default 64; upstream's builder uses
+                    16 and its class allows 128). Above 16 new objects fill extra tracker states
+                    16 at a time, which costs one more tracker step per state per frame and is not
+                    parity-checked against upstream; --max-objects 16 is upstream's setting.
   --trunk-precision P  f32 (default, upstream's numerics) or bf16-linears (an experiment: the
                     ViT trunk's linears in bf16 through an Ojas Autocast region, everything else
                     f32; not upstream, see Backbone::with_trunk_linears_bf16).
@@ -900,7 +905,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     if trim_pool_every.is_some() && backend != BackendChoice::Metal {
         return Err(CliError::usage("--trim-pool-every is for --backend metal"));
     }
-    let max_objects: usize = args.parsed("max-objects", 16)?;
+    let max_objects: usize = args.parsed("max-objects", DEFAULT_MAX_OBJECTS)?;
     if !(1..=128).contains(&max_objects) {
         return Err(CliError::usage(format!("--max-objects {max_objects} is outside 1..=128")));
     }
@@ -1582,6 +1587,12 @@ mod tests {
     #[test]
     fn help_mentions_the_mp4_preprocessing_gap() {
         assert!(USAGE.contains("GAP-MP4-PREPROCESSING") && USAGE.contains("INTER_CUBIC"));
+    }
+
+    #[test]
+    fn max_objects_defaults_to_64_and_the_help_says_so() {
+        assert_eq!(DEFAULT_MAX_OBJECTS, 64);
+        assert!(USAGE.contains(&format!("1 to 128 (default {DEFAULT_MAX_OBJECTS};")), "--max-objects help names another default");
         assert!(run(&args(&["--help"])).is_ok());
     }
 

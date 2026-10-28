@@ -18,7 +18,8 @@ FRAMES=data/visem/VISEM_Tracking_Train_v4/Train/$VID/images
 OUT=bench/results/demo
 BIN=target/release/spiketrack
 [ -d "$FRAMES" ] || { echo "missing $FRAMES" >&2; exit 2; }
-args=(--prompt "$PROMPT" --backend metal --max-frames "$N")
+# The committed demo (bench/results/demo) was made at upstream's cap of 16; SPIKETRACK_MAX_OBJECTS overrides.
+args=(--prompt "$PROMPT" --backend metal --max-frames "$N" --max-objects "${SPIKETRACK_MAX_OBJECTS:-16}")
 tag="$VID-$PROMPT"
 if [ -n "$LORA" ]; then
   [ -f "$LORA" ] || { echo "missing adapter $LORA" >&2; exit 2; }

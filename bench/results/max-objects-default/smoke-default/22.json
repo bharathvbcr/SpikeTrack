@@ -1,0 +1,15 @@
+{
+  "video": "22",
+  "width": 640,
+  "height": 480,
+  "frames": [
+    {"frame": 0, "objects": []},
+    {"frame": 1, "objects": []},
+    {"frame": 2, "objects": []},
+    {"frame": 3, "objects": []},
+    {"frame": 4, "objects": []},
+    {"frame": 5, "objects": []},
+    {"frame": 6, "objects": []},
+    {"frame": 7, "objects": []}
+  ]
+}

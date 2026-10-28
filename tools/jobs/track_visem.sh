@@ -10,7 +10,7 @@
 # are for "the first N frames", not for the whole video. Zero-shot (no LoRA, no tuning) unless
 # SPIKETRACK_LORA=FILE names a detector adapter, which every video then runs with (`track --lora`).
 # SPIKETRACK_BOXES=mask|detector picks `track --boxes` (default mask, upstream's boxes).
-# SPIKETRACK_MAX_OBJECTS=N passes `track --max-objects N` (default 16, upstream's builder cap).
+# SPIKETRACK_MAX_OBJECTS=N passes `track --max-objects N` (default 64, track's default; 16 is upstream's builder cap).
 # usage: tools/locked.sh track-visem bash tools/jobs/track_visem.sh [N=300]       all videos, then eval
 #        tools/locked.sh track-visem-21 bash tools/jobs/track_visem.sh N 21 [ID...]  only those videos, no
 #            eval (one lock hold per video, so a long run leaves the shared lock to others in between)
@@ -40,7 +40,7 @@ OUT="${SPIKETRACK_TRACK_OUT:-bench/results/track}"
 BIN=target/release/spiketrack
 BOXES=${SPIKETRACK_BOXES:-mask}
 PROMPT=${SPIKETRACK_PROMPT:-cell}
-MAX_OBJECTS=${SPIKETRACK_MAX_OBJECTS:-16}
+MAX_OBJECTS=${SPIKETRACK_MAX_OBJECTS:-64}
 case "$BOXES" in mask | detector) ;; *) echo "SPIKETRACK_BOXES=$BOXES is not mask or detector" >&2; exit 2 ;; esac
 LORA_ARGS=()
 if [ -n "${SPIKETRACK_LORA:-}" ]; then

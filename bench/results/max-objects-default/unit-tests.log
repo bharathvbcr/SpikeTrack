@@ -1,0 +1,83 @@
+   Compiling spiketrack v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/spiketrack)
+    Finished `release` profile [optimized] target(s) in 10.23s
+     Running unittests src/main.rs (target/release/deps/spiketrack-78272286d371a522)
+
+running 75 tests
+test cli::tests::a_bad_number_names_the_option ... ok
+test cli::tests::a_required_option_is_required ... ok
+test cli::tests::help_skips_the_positional_count ... ok
+test cli::tests::options_in_both_spellings_and_positionals ... ok
+test cli::tests::usage_errors_name_the_problem ... ok
+test eval_visem::tests::a_json_split_needs_a_named_list ... ok
+test eval_visem::tests::a_missing_prediction_file_or_ground_truth_is_an_error ... ok
+test eval_visem::tests::a_window_scores_only_its_frames_and_must_fit ... ok
+test eval_visem::tests::an_id_swap_costs_association_but_not_detection ... ok
+test eval_visem::tests::ground_truth_as_predictions_scores_one ... ok
+test eval_visem::tests::malformed_predictions_are_errors_with_a_location ... ok
+test eval_visem::tests::no_predictions_score_zero ... ok
+test eval_visem::tests::prediction_frames_outside_the_ground_truth_are_counted_not_scored ... ok
+test eval_visem::tests::real_ground_truth_as_predictions_scores_one ... ignored, needs data/visem (VISEM-Tracking)
+test eval_visem::tests::splits_are_parsed_strictly ... ok
+test eval_visem::tests::two_videos_combine_and_the_table_and_json_render ... ok
+test image_cmd::tests::a_non_finite_number_is_an_error_not_a_null ... ok
+test image_cmd::tests::backends_are_cpu_and_metal ... ok
+test image_cmd::tests::detections_json_parses_and_carries_every_field ... ok
+test image_cmd::tests::select_keeps_above_threshold_sorted_by_score_and_scales_boxes ... ok
+test image_cmd::tests::select_refuses_inconsistent_outputs ... ok
+test json::tests::numbers_must_be_finite ... ok
+test json::tests::strings_are_escaped_and_parse_back ... ok
+test mask::tests::downsampling_samples_without_antialiasing ... ok
+test mask::tests::identity_size_returns_the_logits ... ok
+test mask::tests::rle_is_column_major_and_starts_with_zeros ... ok
+test mask::tests::rle_of_an_empty_and_a_full_mask ... ok
+test mask::tests::rle_round_trips_a_resized_mask ... ok
+test mask::tests::upsampling_follows_the_align_corners_false_rule ... ok
+test overlay::tests::a_box_is_outlined_inside_the_image_and_clipped ... ok
+test overlay::tests::a_label_is_drawn_above_the_box_in_its_colour_on_a_dark_backing ... ok
+test overlay::tests::a_label_with_no_room_above_goes_inside_the_box_and_is_clipped_at_the_edge ... ok
+test overlay::tests::a_mask_is_tinted_toward_its_colour_and_the_rest_is_untouched ... ok
+test overlay::tests::every_digit_glyph_is_distinct_and_nonempty ... ok
+test png::tests::bad_sizes_are_errors ... ok
+test png::tests::checksums_match_their_published_check_values ... ok
+test png::tests::it_round_trips_through_imageio ... ok
+test png::tests::stored_blocks_split_at_65535_and_end_with_the_adler_sum ... ok
+test png::tests::the_empty_chunk_has_the_well_known_iend_crc ... ok
+test procinfo::tests::the_footprint_is_read_and_grows_with_an_allocation ... ok
+test procinfo::tests::vm_counters_match_vm_stat ... ok
+test track_cmd::tests::a_bad_input_fails_before_the_weights_are_looked_for ... ok
+test track_cmd::tests::a_collector_dropped_mid_run_leaves_no_partial_video ... ok
+test track_cmd::tests::a_collector_prediction_file_scores_one_against_matching_ground_truth ... ok
+test track_cmd::tests::a_frame_released_out_of_order_or_without_its_image_is_an_error ... ok
+test track_cmd::tests::a_gap_inside_the_window_is_an_error_but_one_outside_is_not ... ok
+test track_cmd::tests::a_stem_must_be_video_frame_number ... ok
+test track_cmd::tests::a_video_for_other_frames_is_refused ... ok
+test track_cmd::tests::bad_command_lines_fail_before_any_model_work ... ok
+test track_cmd::tests::bisect_visem_22_mask_balloon ... ignored, needs a Metal GPU, the gated checkpoint, tokenizer files and fixtures/detect_track/22.safetensors
+test track_cmd::tests::boxes_become_xyxy_and_degenerate_ones_are_widened_and_counted ... ok
+test track_cmd::tests::detector_boxes_replace_mask_boxes_where_assigned_and_are_clipped ... ok
+test track_cmd::tests::f16_rounding_is_nearest_even ... ok
+test track_cmd::tests::folders_that_cannot_be_tracked_are_refused ... ok
+test track_cmd::tests::frames_are_ordered_numerically_not_alphabetically ... ok
+test track_cmd::tests::help_mentions_the_mp4_preprocessing_gap ... ok
+test track_cmd::tests::inconsistent_or_non_finite_frames_are_errors ... ok
+test track_cmd::tests::max_objects_defaults_to_64_and_the_help_says_so ... ok
+test track_cmd::tests::run_json_records_the_overlay_video_or_null ... ok
+test track_cmd::tests::the_collector_writes_masks_and_overlays_and_numbers_frames_from_the_start ... ok
+test track_cmd::tests::the_model_input_is_resized_then_normalised_planar ... ok
+test track_cmd::tests::the_overlay_frame_rate_comes_from_the_option_then_the_input_then_the_folder_default ... ok
+test track_cmd::tests::the_overlay_video_has_every_frame_in_order_and_the_collector_holds_only_unreleased_frames ... ok
+test track_cmd::tests::the_overlay_video_is_checked_before_any_model_work ... ok
+test track_cmd::tests::the_overlay_video_may_go_under_an_out_directory_that_does_not_exist_yet ... ok
+test track_cmd::tests::the_predictions_file_is_what_eval_visem_reads ... ok
+test track_cmd::tests::the_upstream_normalisation_is_hand_checked_at_a_few_samples ... ok
+test track_cmd::tests::the_video_and_the_pngs_are_independent_and_render_the_same_pixels ... ok
+test track_cmd::tests::the_window_starts_at_a_frame_number_and_stops_at_max ... ok
+test track_cmd::tests::upstream_input_matches_upstreams_loader_on_a_visem_frame ... ignored, needs fixtures/detect_track/11.safetensors, fixtures/decode/11_frame_0.rgb and data/visem
+test track_cmd::tests::visem_22_frames_0_to_7_on_metal ... ignored, needs the gated checkpoint, tokenizer files, data/visem and a Metal GPU
+test track_cmd::tests::visem_22_overlay_video_on_metal ... ignored, needs the gated checkpoint, tokenizer files, data/visem and a Metal GPU
+test weights::tests::a_malformed_adapter_fails_before_the_checkpoint_is_read ... ok
+test weights::tests::a_missing_adapter_path_is_refused ... ok
+test weights::tests::lora_json_is_null_or_a_valid_object ... ok
+
+test result: ok. 70 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.36s
+

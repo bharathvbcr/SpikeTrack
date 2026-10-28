@@ -73,7 +73,7 @@ is where the adapter's learning shows.
   HOTA 0.155 zero-shot -> 0.470 with the adapter and detector boxes (DetA 0.051 -> 0.320, AssA
   0.594 -> 0.725). Every video improves. The two densest (27-46 sperm per frame) gain least,
   because upstream's builder tracks at most 16 objects at a time.
-- `--max-objects 64` removes that cap. Rerunning the two dense videos takes the five-video HOTA to
+- `--max-objects 64`, `track`'s default since 2026-10-28, removes that cap. Rerunning the two dense videos takes the five-video HOTA to
   0.487: video 36 goes 0.326 -> 0.352 and video 82 0.441 -> 0.486. Their peaks were 28 and 24 active
   tracks. DetA rises to 0.363 and AssA falls to 0.695, so more sperm are detected but identities hold
   less well.
