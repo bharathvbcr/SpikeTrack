@@ -1,0 +1,5 @@
+SpikeTrack 7bb8746
+ojas-st 8b88328 (Merge gp/78-attn-mpp: TensorOps flash cross-attention for D32 with no bias or le)
+tessl main c9adc87 (moved from 789a132 by the land job)
+2026-10-28T20:12:35Z
+15:12  up 2 days,  7:27, 1 user, load averages: 5.26 33.56 47.05
