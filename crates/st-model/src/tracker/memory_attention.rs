@@ -3,7 +3,7 @@
 //! builds it): conditions the current frame's propagation features on stored
 //! memories and object pointers.
 //!
-//! Per layer (pre-norm): self-attention with 2-D RoPE (72x72, head dim 32);
+//! Per layer (pre-norm): self-attention with 2-D RoPE (grid x grid, 72 at 1008; head dim 32);
 //! cross-attention whose queries add a projection of the raw image features and
 //! whose keys add a projection of the memory frames' image features plus their
 //! positions, RoPE on the memory-frame keys (the table repeated per frame, the
@@ -11,6 +11,7 @@
 //! `src + 0.1 * src_pos`; the output is LayerNorm'd.
 
 use ojas_core::{axial_rope_2d_tables, AttentionOpts, Backend, DType, OjasError, Tensor};
+use st_gate::Geometry;
 use st_weights::TensorGroup;
 
 use crate::layers::{Lin, Norm};
@@ -19,8 +20,6 @@ use crate::ModelError;
 pub const D: usize = 256;
 pub const HEADS: usize = 8;
 pub const HEAD_DIM: usize = D / HEADS;
-pub const FEAT: usize = 72;
-pub const TOKENS: usize = FEAT * FEAT;
 
 struct Layer {
     sa: [Lin; 4],
@@ -40,29 +39,41 @@ struct Layer {
 pub struct MemoryAttention {
     layers: Vec<Layer>,
     norm: Norm,
-    /// RoPE table for one 72x72 frame: cos and sin `[5184, 16]`, on the device.
+    /// Tokens per frame (5184 at 1008).
+    tokens: usize,
+    /// RoPE table for one grid x grid frame: cos and sin `[grid^2, 16]`, on the device.
     cos: Tensor,
     sin: Tensor,
 }
 
-/// One frame's inputs, batch-first, `B` buckets.
+/// One frame's inputs, batch-first, `B` buckets. `T` is the tokens of one frame, `grid^2`
+/// (5184 at 1008).
 pub struct MemoryInputs<'a> {
-    /// Current frame features, `[1, 5184, D]`.
+    /// Current frame features, `[1, T, D]`.
     pub image: &'a Tensor,
-    /// The same features expanded per bucket, `[B, 5184, D]`, and their positions.
+    /// The same features expanded per bucket, `[B, T, D]`, and their positions.
     pub src: &'a Tensor,
     pub src_pos: &'a Tensor,
-    /// Memory frames' image features and positions (with temporal encodings), `[B, F * 5184, D]`.
+    /// Memory frames' image features and positions (with temporal encodings), `[B, F * T, D]`.
     pub memory_image: &'a Tensor,
     pub memory_image_pos: &'a Tensor,
-    /// Mask memories then object pointers, `[B, F * 5184 + P, D]`, and their positions.
+    /// Mask memories then object pointers, `[B, F * T + P, D]`, and their positions.
     pub memory: &'a Tensor,
     pub memory_pos: &'a Tensor,
     pub num_obj_ptr_tokens: usize,
 }
 
 impl MemoryAttention {
+    /// The memory attention for the native 1008 x 1008 input.
     pub fn load<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str) -> Result<Self, ModelError> {
+        Self::load_at(be, g, p, Geometry::SAM3)
+    }
+
+    /// The memory attention for the input size `geo`. Its RoPE tables are not stored in the
+    /// checkpoint; upstream's `SimpleRoPEAttention` rebuilds them for the feature map it is
+    /// given with `compute_axial_cis(end_x=w, end_y=h)` at scale 1 (`decoder.py:1122`), unlike the
+    /// trunk's global blocks, which stretch the 24-token window over the grid.
+    pub fn load_at<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str, geo: Geometry) -> Result<Self, ModelError> {
         let lin = |l: &str, n: &str, out: usize, inp: usize| Lin::load(be, g, &format!("{l}.{n}"), out, inp);
         let layers = (0..4)
             .map(|i| -> Result<Layer, ModelError> {
@@ -83,8 +94,8 @@ impl MemoryAttention {
                 })
             })
             .collect::<Result<_, _>>()?;
-        let (cos, sin) = axial_rope_2d_tables(HEAD_DIM, FEAT, FEAT, 10000.0, 1.0, be.budget())?;
-        Ok(Self { layers, norm: Norm::load(be, g, &format!("{p}.norm"))?, cos: be.upload(&cos)?, sin: be.upload(&sin)? })
+        let (cos, sin) = axial_rope_2d_tables(HEAD_DIM, geo.grid, geo.grid, 10000.0, 1.0, be.budget())?;
+        Ok(Self { layers, norm: Norm::load(be, g, &format!("{p}.norm"))?, tokens: geo.tokens(), cos: be.upload(&cos)?, sin: be.upload(&sin)? })
     }
 
     /// RoPE tables for `frames` memory frames followed by `ptrs` unrotated keys
@@ -102,19 +113,20 @@ impl MemoryAttention {
         Ok((table(&self.cos, 1.0)?, table(&self.sin, 0.0)?))
     }
 
-    /// Returns the conditioned features, `[B, 5184, D]`.
+    /// Returns the conditioned features, `[B, T, D]`.
     pub fn fwd<B: Backend + ?Sized>(&self, be: &B, x: &MemoryInputs<'_>) -> Result<Tensor, ModelError> {
+        let tokens = self.tokens;
         let b = x.src.shape()[0];
         let m = x.memory.shape()[1];
         let p = x.num_obj_ptr_tokens;
         let mi = x.memory_image.shape()[1];
-        if m != mi + p || mi % TOKENS != 0 {
+        if x.src.shape()[1] != tokens || m != mi + p || mi % tokens != 0 {
             return Err(ModelError::Ojas(OjasError::OutOfRange {
                 op: "st_model::MemoryAttention::fwd",
-                detail: format!("memory {m} tokens != memory_image {mi} + {p} pointers, or {mi} not a multiple of {TOKENS}"),
+                detail: format!("src has {} tokens, memory {m} tokens != memory_image {mi} + {p} pointers, or {mi} not a multiple of {tokens} (the tokens of one frame)", x.src.shape()[1]),
             }));
         }
-        let frames = mi / TOKENS;
+        let frames = mi / tokens;
         // Pointer slots: zero image features; positions from the tail of memory_pos,
         // which upstream takes from bucket 0 (memory_pos[0:1, -P:]) for every bucket.
         let (pad_mi, pad_mi_pos) = if p == 0 {
@@ -149,7 +161,7 @@ impl MemoryAttention {
             let k = be.rope_interleaved_forward(&heads(&l.sa[1].fwd(be, &t2)?)?, q_cos, q_sin)?;
             let v = heads(&l.sa[2].fwd(be, &t2)?)?;
             let a = be.attention_forward(&to_bhtd(&q)?, &to_bhtd(&k)?, &to_bhtd(&v)?, opts)?;
-            tgt = be.residual_add_forward(&tgt, &l.sa[3].fwd(be, &merge(&a, TOKENS)?)?)?;
+            tgt = be.residual_add_forward(&tgt, &l.sa[3].fwd(be, &merge(&a, tokens)?)?)?;
             // Decoupled cross-attention to the memories.
             let t2 = l.n2.fwd(be, &tgt)?;
             let q = be.residual_add_forward(&l.img_q.fwd(be, &image_b)?, &l.ca_q.fwd(be, &t2)?)?;
@@ -159,7 +171,7 @@ impl MemoryAttention {
             let q = be.rope_interleaved_forward(&heads(&q)?, q_cos, q_sin)?;
             let k = be.rope_interleaved_forward(&heads(&k)?, &k_cos, &k_sin)?;
             let a = be.attention_forward(&to_bhtd(&q)?, &to_bhtd(&k)?, &to_bhtd(&v)?, opts)?;
-            tgt = be.residual_add_forward(&tgt, &l.ca_out.fwd(be, &merge(&a, TOKENS)?)?)?;
+            tgt = be.residual_add_forward(&tgt, &l.ca_out.fwd(be, &merge(&a, tokens)?)?)?;
             // FFN (GELU).
             let t2 = l.n3.fwd(be, &tgt)?;
             let f = l.l2.fwd(be, &be.gelu_erf_forward(&l.l1.fwd(be, &t2)?)?)?;

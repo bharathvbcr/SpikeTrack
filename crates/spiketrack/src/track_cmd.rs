@@ -18,7 +18,8 @@
 //!
 //! # Preprocessing, per input kind
 //!
-//! Every frame is resized to 1008 x 1008 with `st_video::resize_bilinear_pil` (Pillow-exact
+//! Every frame is resized to `--input-size` x `--input-size` (1008, the checkpoint's native
+//! size, unless given) with `st_video::resize_bilinear_pil` (Pillow-exact
 //! bilinear) and normalised **in float16 as upstream's loader does** (`io_utils.py`: the
 //! frame is stored as `torch.float16`; `/255`, `- 0.5` and `/ 0.5` each round to f16, see
 //! [`upstream_input`]), then widened to f32 for the model, as upstream's `.float()` does.
@@ -77,6 +78,7 @@ use ojas_core::{Autocast, Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
 use ojas_metal::{MetalBackend, WaitCounts};
 use st_model::tracker::session::{Session, SessionConfig, YieldedFrame};
+use st_model::Geometry;
 use st_model::tracker::vos::Vos;
 use st_model::{Backbone, Detector, DetectorWeights, Text, Tokenizer};
 use st_video::encode;
@@ -102,7 +104,7 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
                  [--start F] [--overlay K] [--overlay-video FILE] [--overlay-fps F]
                  [--video ID] [--boxes mask|detector] [--weights FILE]
                  [--lora FILE] [--model-dir DIR] [--threads N] [--trim-pool-every K]
-                 [--trunk-precision f32|bf16-linears] [--max-objects N]
+                 [--trunk-precision f32|bf16-linears] [--max-objects N] [--input-size N]
 
   Tracks every instance of <text> through a video with SAM 3.1's multiplex tracker, forward
   from the first frame processed. <input> is a folder of <video>_frame_<n>.jpg frames
@@ -138,6 +140,12 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
                     16 and its class allows 128). Above 16 new objects fill extra tracker states
                     16 at a time, which costs one more tracker step per state per frame and is not
                     parity-checked against upstream; --max-objects 16 is upstream's setting.
+  --input-size N    the square side every frame is resized to before the model, a multiple of 336
+                    (the ViT's 14-pixel patches in 24-token windows): 1008 (default, the
+                    checkpoint's native size), 672 or 336. Smaller is much faster, with an
+                    accuracy cost on small objects. No weight changes: the position embedding is
+                    tiled and the global blocks' RoPE regenerated for the grid (see
+                    st_model::backbone::vit_rope_tables). Recorded in run.json.
   --trunk-precision P  f32 (default, upstream's numerics) or bf16-linears (an experiment: the
                     ViT trunk's linears in bf16 through an Ojas Autocast region, everything else
                     f32; not upstream, see Backbone::with_trunk_linears_bf16).
@@ -153,8 +161,20 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
   upstream does: upstream decodes mp4 with OpenCV and resizes with INTER_CUBIC, so mp4
   results do not match upstream's mp4 preprocessing (GAP-MP4-PREPROCESSING).";
 
-const PREPROCESSING_FOLDER: &str = "decode per \"decoders\" (pillow-exact-jpeg: byte-identical to Pillow 13 / libjpeg-turbo 3.2.0); Pillow-exact bilinear resize to 1008x1008, as upstream's JPEG-folder path; /255, -0.5, /0.5 each rounded to float16 as upstream's loader stores frames (widened to f32 for the model)";
-const PREPROCESSING_VIDEO: &str = "AVFoundation decode (32BGRA); Pillow-exact bilinear resize to 1008x1008; float16 normalisation as upstream. NOT upstream's mp4 path (OpenCV decode, cv2.INTER_CUBIC): GAP-MP4-PREPROCESSING";
+/// `--input-size` when not given: the checkpoint's native size.
+pub const DEFAULT_INPUT_SIZE: usize = st_model::IMAGE_SIZE;
+
+/// The run.json `preprocessing` text for a `size` x `size` model input.
+fn preprocessing_text(from_video: bool, size: usize) -> String {
+    if from_video {
+        PREPROCESSING_VIDEO.replace("{size}", &size.to_string())
+    } else {
+        PREPROCESSING_FOLDER.replace("{size}", &size.to_string())
+    }
+}
+
+const PREPROCESSING_FOLDER: &str = "decode per \"decoders\" (pillow-exact-jpeg: byte-identical to Pillow 13 / libjpeg-turbo 3.2.0); Pillow-exact bilinear resize to {size}x{size}, as upstream's JPEG-folder path; /255, -0.5, /0.5 each rounded to float16 as upstream's loader stores frames (widened to f32 for the model)";
+const PREPROCESSING_VIDEO: &str = "AVFoundation decode (32BGRA); Pillow-exact bilinear resize to {size}x{size}; float16 normalisation as upstream. NOT upstream's mp4 path (OpenCV decode, cv2.INTER_CUBIC): GAP-MP4-PREPROCESSING";
 const BUDGET_BYTES: u64 = 28 << 30;
 
 // ---------------------------------------------------------------------------
@@ -712,6 +732,8 @@ struct Options {
     trunk_linears_bf16: bool,
     /// `--max-objects`.
     max_objects: usize,
+    /// `--input-size`, validated: the model's token grid and every size derived from it.
+    geometry: Geometry,
 }
 
 struct Timing {
@@ -832,6 +854,12 @@ impl<B: Backend> FrameTelemetry<B> for MetalTelemetry {
     }
 }
 
+/// `--input-size N` as the model geometry. The one check: a multiple of 336, since the grid
+/// must be a whole number of 24-token windows (`Geometry::from_image_side` names the valid sizes).
+fn parse_input_size(n: usize) -> Result<Geometry, CliError> {
+    Geometry::from_image_side(n).map_err(|e| CliError::usage(format!("--input-size {n}: {e}")))
+}
+
 fn track_on<B: Backend>(
     be: &B,
     w: &Sam31Weights,
@@ -841,12 +869,13 @@ fn track_on<B: Backend>(
     telemetry: &mut dyn FrameTelemetry<B>,
 ) -> Result<Timing, CliError> {
     let t_load = Instant::now();
-    let backbone = Backbone::new(be, &w.vision).map_err(CliError::from_err)?;
+    let backbone = Backbone::new_at(be, &w.vision, opts.geometry).map_err(CliError::from_err)?;
     let backbone = if opts.trunk_linears_bf16 { backbone.with_trunk_linears_bf16().map_err(CliError::from_err)? } else { backbone };
     let text = Text::new(be, &w.text).map_err(CliError::from_err)?;
-    let detector = Detector::new(
+    let detector = Detector::new_at(
         be,
         DetectorWeights { transformer: &w.detector_transformer, geometry: &w.geometry_encoder, segmentation: &w.segmentation_head, scoring: &w.dot_prod_scoring },
+        opts.geometry,
     )
     .map_err(CliError::from_err)?;
     let vos = Vos::new(be, &backbone, &w.tracker).map_err(CliError::from_err)?;
@@ -859,7 +888,7 @@ fn track_on<B: Backend>(
     let load_seconds = t_load.elapsed().as_secs_f64();
     println!("model loaded in {load_seconds:.1} s on {}; tracking {} frame(s) of {:?}", opts.backend.name(), stream.len, stream.video);
 
-    let side = st_model::IMAGE_SIZE;
+    let side = opts.geometry.pixels();
     let mut frame_seconds = Vec::with_capacity(stream.len);
     let mut index = 0usize;
     while let Some((n, image)) = stream.next_frame()? {
@@ -886,7 +915,7 @@ fn track_on<B: Backend>(
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
-    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "overlay-video", "overlay-fps", "video", "boxes", "weights", "lora", "model-dir", "threads", "trim-pool-every", "trunk-precision", "max-objects"], 1)?;
+    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "overlay-video", "overlay-fps", "video", "boxes", "weights", "lora", "model-dir", "threads", "trim-pool-every", "trunk-precision", "max-objects", "input-size"], 1)?;
     if args.help {
         println!("{USAGE}");
         return Ok(());
@@ -909,6 +938,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     if !(1..=128).contains(&max_objects) {
         return Err(CliError::usage(format!("--max-objects {max_objects} is outside 1..=128")));
     }
+    let geometry = parse_input_size(args.parsed("input-size", DEFAULT_INPUT_SIZE)?)?;
     let trunk_linears_bf16 = match args.get("trunk-precision").unwrap_or("f32") {
         "f32" => false,
         "bf16-linears" => true,
@@ -956,7 +986,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     let weights = existing_path(args.get("weights"), "SPIKETRACK_WEIGHTS", "weights", "weights")?;
     let lora = weights::lora_path(args.get("lora"))?;
     let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
-    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir, trim_pool_every, trunk_linears_bf16, max_objects };
+    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir, trim_pool_every, trunk_linears_bf16, max_objects, geometry };
 
     let (w, applied) = weights::load(&opts.weights, lora.as_deref())?;
     let mut collector = Collector::new(&opts.out, &stream.video, stream.first_n, stream.height, stream.width, opts.overlay_every, opts.boxes)?;
@@ -1002,7 +1032,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
-        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"max_objects\": {}\n}}\n",
+        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"max_objects\": {},\n  \"input_size\": {}\n}}\n",
         json::string(&stream.video),
         json::string(&input.to_string_lossy()),
         json::string(&opts.prompt),
@@ -1016,7 +1046,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         json::number(timing.load_seconds, "load time").map_err(CliError::failed)?,
         json::number(mean, "mean time").map_err(CliError::failed)?,
         json::number(total_seconds, "total time").map_err(CliError::failed)?,
-        json::string(if stream.from_video { PREPROCESSING_VIDEO } else { PREPROCESSING_FOLDER }),
+        json::string(&preprocessing_text(stream.from_video, opts.geometry.pixels())),
         decoders_json(&stream.decoders),
         lora_json(applied.as_ref()),
         json::string(opts.boxes.name()),
@@ -1028,6 +1058,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         video_frames_json,
         json::string(if opts.trunk_linears_bf16 { "bf16-linears" } else { "f32" }),
         opts.max_objects,
+        opts.geometry.pixels(),
     );
     let run_path = opts.out.join(format!("{}.run.json", stream.video));
     std::fs::write(&run_path, run_text).map_err(|e| CliError::failed(format!("{}: {e}", run_path.display())))?;
@@ -1594,6 +1625,27 @@ mod tests {
         assert_eq!(DEFAULT_MAX_OBJECTS, 64);
         assert!(USAGE.contains(&format!("1 to 128 (default {DEFAULT_MAX_OBJECTS};")), "--max-objects help names another default");
         assert!(run(&args(&["--help"])).is_ok());
+    }
+
+    #[test]
+    fn input_size_defaults_to_1008_accepts_whole_windows_only_and_the_help_says_so() {
+        assert_eq!(DEFAULT_INPUT_SIZE, 1008);
+        assert!(USAGE.contains("--input-size N") && USAGE.contains("multiple of 336"));
+        for (n, grid) in [(1008usize, 72usize), (672, 48), (336, 24), (1344, 96)] {
+            let g = parse_input_size(n).unwrap_or_else(|e| panic!("{n}: {e}"));
+            assert_eq!((g.pixels(), g.grid), (n, grid));
+        }
+        // Multiples of the patch that tile no window, and sizes that are not even patches.
+        for n in [0usize, 14, 350, 448, 504, 1000, 1009] {
+            let Err(CliError::Usage(m)) = parse_input_size(n) else { panic!("{n} was accepted") };
+            assert!(m.contains("--input-size") && m.contains("336"), "{n}: {m}");
+        }
+        // The flag is checked before the input is opened: a missing folder does not mask it.
+        assert!(matches!(run(&args(&["/nonexistent", "--prompt", "p", "--input-size", "500"])), Err(CliError::Usage(m)) if m.contains("--input-size 500")));
+        assert!(matches!(run(&args(&["/nonexistent", "--prompt", "p", "--input-size", "abc"])), Err(CliError::Usage(_))));
+        // The run's preprocessing text names the size that ran.
+        assert!(preprocessing_text(false, 672).contains("resize to 672x672") && !preprocessing_text(false, 672).contains("1008"));
+        assert!(preprocessing_text(true, 1008).contains("resize to 1008x1008"));
     }
 
     /// VISEM video 22, frames 0..8, on Metal: the output parses with eval-visem's reader,

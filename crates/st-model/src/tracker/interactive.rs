@@ -9,16 +9,15 @@ use ojas_core::{Backend, ConvTranspose2dParams, OjasError, Tensor};
 use st_weights::TensorGroup;
 
 use crate::layers::{get, up, Mlp};
-use crate::tracker::mask_decoder::TwoWay;
+use crate::tracker::mask_decoder::{checked_feat, TwoWay};
 use crate::ModelError;
 
 pub const D: usize = 256;
 pub const MASK_TOKENS: usize = 4;
-pub const FEAT: usize = 72;
 const LN2D_EPS: f32 = 1e-6;
 
 pub struct InteractiveOut {
-    /// `[N, 4, 288, 288]`.
+    /// `[N, 4, M, M]`, `M` = 4 x the feature grid (288 at 1008).
     pub masks: Tensor,
     /// `[N, 4]`, host.
     pub iou_pred: Vec<f32>,
@@ -60,12 +59,17 @@ impl InteractiveDecoder {
         })
     }
 
-    /// `image` `[1, D, 72, 72]` (repeated per object), `image_pe` `[1, D, 72, 72]`,
-    /// `sparse` `[N, S, D]` host, `dense` `[N, D, 72, 72]`, high-res skips
-    /// `[1, 32, 288, 288]` and `[1, 64, 144, 144]` (repeated per object).
+    /// `image` `[1, D, G, G]` (repeated per object), `image_pe` `[1, D, G, G]`,
+    /// `sparse` `[N, S, D]` host, `dense` `[N, D, G, G]`, high-res skips
+    /// `[1, 32, 4G, 4G]` and `[1, 64, 2G, 2G]` (repeated per object). `G` is the token grid
+    /// (72 at 1008), read from `image`.
     pub fn fwd<B: Backend + ?Sized>(&self, be: &B, image: &Tensor, image_pe: &Tensor, sparse: &[f32], n_sparse: usize, dense: &Tensor, s0: &Tensor, s1: &Tensor) -> Result<InteractiveOut, OjasError> {
         let n = dense.shape()[0];
-        let hw = FEAT * FEAT;
+        let feat = checked_feat("st_model::InteractiveDecoder::fwd", image, image_pe, s0, s1)?;
+        if dense.shape()[1..] != [D, feat, feat] {
+            return Err(OjasError::OutOfRange { op: "st_model::InteractiveDecoder::fwd", detail: format!("dense {:?} is not [N, {D}, {feat}, {feat}]", dense.shape()) });
+        }
+        let hw = feat * feat;
         let ntok = 2 + MASK_TOKENS + n_sparse;
         let mut tok = Vec::with_capacity(n * ntok * D);
         for i in 0..n {
@@ -88,16 +92,17 @@ impl InteractiveDecoder {
         let (hs, keys) = self.transformer.fwd(be, &src_tok, &pe, &tokens)?;
         let hs = hs.to_host(be.budget())?.to_f32_vec()?;
 
-        let src = be.permute(&keys, &[0, 2, 1])?.reshape(&[n, D, FEAT, FEAT])?;
+        let src = be.permute(&keys, &[0, 2, 1])?.reshape(&[n, D, feat, feat])?;
         let mut up2 = ConvTranspose2dParams::new();
         up2.stride = [2, 2];
         let x = be.residual_add_forward(&be.conv_transpose2d_forward(&src, &self.dc1.0, Some(&self.dc1.1), up2)?, &rep(s1)?)?;
         let x = be.gelu_erf_forward(&be.channel_layer_norm_forward(&x, &self.ln1.0, &self.ln1.1, LN2D_EPS)?)?;
         let x = be.residual_add_forward(&be.conv_transpose2d_forward(&x, &self.dc2.0, Some(&self.dc2.1), up2)?, &rep(s0)?)?;
-        let upscaled = be.gelu_erf_forward(&x)?.to_host(be.budget())?.to_f32_vec()?; // [N, 32, 288, 288]
+        let upscaled = be.gelu_erf_forward(&x)?.to_host(be.budget())?.to_f32_vec()?; // [N, 32, 4G, 4G]
 
         let row = |i: usize, t: usize| &hs[(i * ntok + t) * D..(i * ntok + t + 1) * D];
-        let px = 288 * 288;
+        let low_res = 4 * feat;
+        let px = low_res * low_res;
         let mut masks = Vec::with_capacity(n * MASK_TOKENS * px);
         let (mut iou_pred, mut mask_tokens, mut object_score_logits) = (Vec::new(), Vec::new(), Vec::new());
         for i in 0..n {
@@ -116,6 +121,6 @@ impl InteractiveDecoder {
             iou_pred.extend(self.iou_head.host(row(i, 1), 1));
             object_score_logits.extend(self.obj_score_head.host(row(i, 0), 1));
         }
-        Ok(InteractiveOut { masks: up(be, &masks, &[n, MASK_TOKENS, 288, 288])?, iou_pred, mask_tokens, object_score_logits })
+        Ok(InteractiveOut { masks: up(be, &masks, &[n, MASK_TOKENS, low_res, low_res])?, iou_pred, mask_tokens, object_score_logits })
     }
 }

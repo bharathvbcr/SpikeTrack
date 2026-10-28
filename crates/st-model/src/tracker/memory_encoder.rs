@@ -2,13 +2,14 @@
 //! multiplex `SimpleMaskDownSampler`, as `_create_multiplex_maskmem_backbone`
 //! builds it).
 //!
-//! Masks `[B, 32, 1008, 1008]` (16 muxed mask channels then 16 muxed
-//! "conditioned" flags) are resized to 1152 (antialiased bilinear; for this
-//! upscale identical to plain bilinear), downsampled 16x by four stride-2 3x3
+//! Masks `[B, 32, S, S]` (16 muxed mask channels then 16 muxed "conditioned"
+//! flags; `S` = 1008 at the native size) are resized to `16 * grid` (1152;
+//! antialiased bilinear; for this upscale identical to plain bilinear), downsampled 16x by four stride-2 3x3
 //! convs (32 -> 16 -> 64 -> 256 -> 1024, each LayerNorm2d + GELU) and a 1x1 to
 //! 256, added to `pix_feat_proj(pix_feat)`, then two ConvNeXt blocks.
 
 use ojas_core::{Backend, Conv2dParams, OjasError, Tensor};
+use st_gate::Geometry;
 use st_weights::TensorGroup;
 
 use crate::host;
@@ -16,8 +17,6 @@ use crate::layers::{get, up, Conv, Lin};
 use crate::ModelError;
 
 pub const D: usize = 256;
-pub const FEAT: usize = 72;
-pub const INTERP: usize = 1152;
 const LN2D_EPS: f32 = 1e-6;
 
 struct CxBlock {
@@ -33,20 +32,31 @@ pub struct MemoryEncoder {
     down_out: Conv,
     pix_feat_proj: Conv,
     fuser: Vec<CxBlock>,
-    /// Sine position encoding of the 72x72 map, `[1, 256, 72, 72]`.
+    /// The side masks are resized to before the downsampler (1152 at 1008): 16 x the grid.
+    interp: usize,
+    /// Sine position encoding of the grid x grid map, `[1, 256, grid, grid]`.
     pos: Tensor,
 }
 
 /// What the encoder returns for one call.
 pub struct MemoryOut {
-    /// `[B, 256, 72, 72]`.
+    /// `[B, 256, grid, grid]` (72 at 1008).
     pub features: Tensor,
-    /// `[1, 256, 72, 72]` (the same for every bucket).
+    /// `[1, 256, grid, grid]` (the same for every bucket).
     pub pos: Tensor,
 }
 
 impl MemoryEncoder {
+    /// The encoder for the native 1008 x 1008 input.
     pub fn load<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str) -> Result<Self, ModelError> {
+        Self::load_at(be, g, p, Geometry::SAM3)
+    }
+
+    /// The encoder for the input size `geo`. The four stride-2 convolutions of the downsampler
+    /// reduce the resized mask 16x, so it must be resized to `16 * grid`
+    /// ([`Geometry::input_mask`]: upstream's `interpol_size=[1152, 1152]` at 1008) to land on the
+    /// feature map it is added to; no weight depends on it.
+    pub fn load_at<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str, geo: Geometry) -> Result<Self, ModelError> {
         let vec = |name: &str, n: usize| -> Result<Tensor, ModelError> { Ok(up(be, &get(g, &format!("{p}.{name}"), &[n])?.data, &[n])?) };
         let chans = [(32usize, 16usize), (16, 64), (64, 256), (256, 1024)];
         let down = chans
@@ -76,18 +86,20 @@ impl MemoryEncoder {
             down_out: Conv::load(be, g, &format!("{p}.mask_downsampler.encoder.12"), [D, 1024, 1, 1])?,
             pix_feat_proj: Conv::load(be, g, &format!("{p}.pix_feat_proj"), [D, D, 1, 1])?,
             fuser,
-            pos: up(be, &host::sine_position_map(FEAT, FEAT), &[1, D, FEAT, FEAT])?,
+            interp: geo.input_mask(),
+            pos: up(be, &host::sine_position_map(geo.grid, geo.grid), &[1, D, geo.grid, geo.grid])?,
         })
     }
 
-    /// `pix_feat` `[B, 256, 72, 72]`, `masks` `[B, 32, H, W]` (already sigmoid-
+    /// `pix_feat` `[B, 256, grid, grid]`, `masks` `[B, 32, H, W]` (already sigmoid-
     /// scaled and muxed, with the conditioning channels; upstream passes
     /// `skip_mask_sigmoid=True`).
     pub fn fwd<B: Backend + ?Sized>(&self, be: &B, pix_feat: &Tensor, masks: &Tensor) -> Result<MemoryOut, OjasError> {
-        let mut x = if masks.shape()[2..] == [INTERP, INTERP] {
+        let interp = self.interp;
+        let mut x = if masks.shape()[2..] == [interp, interp] {
             masks.clone()
         } else {
-            be.interpolate_bilinear_forward(masks, [INTERP, INTERP], false)?
+            be.interpolate_bilinear_forward(masks, [interp, interp], false)?
         };
         let mut s2 = Conv2dParams::new();
         s2.stride = [2, 2];

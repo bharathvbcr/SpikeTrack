@@ -192,3 +192,107 @@ fn run_parity<B: Backend>(be: &B, label: &str) {
     println!("\n[{label}] worst cosine {worst:.7} over {} stages (gate > {COS_GATE})", rows.len());
     assert!(worst > COS_GATE, "worst cosine {worst} <= {COS_GATE}");
 }
+
+/// The Rust RoPE generator against the checkpoint's own tables: `vit_rope_tables(24)` for each of
+/// the 28 windowed blocks and `vit_rope_tables(72)` for each of the 4 global ones, element by
+/// element. The checkpoint's tables were made by torch in f32 (`compute_axial_cis`: f32 angles,
+/// `torch.polar`); ours takes the same f32 angles and rounds an f64 sine and cosine once, so a
+/// difference can only be torch's own cosine/sine rounding: at most one f32 ulp of a value in
+/// [0.5, 1], 6e-8. The count of bit-identical entries is printed.
+#[test]
+#[ignore = "needs the gated checkpoint: set SPIKETRACK_WEIGHTS"]
+fn generated_rope_tables_equal_the_checkpoints() {
+    const BOUND: f64 = 1.2e-7;
+    let budget = Budget::new(8 << 30);
+    let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("open checkpoint");
+    let vision = VisionBackbone::load(&ck).expect("vision weights");
+    let mut tables = std::collections::BTreeMap::new();
+    for grid in [24usize, 72] {
+        let (cos, sin) = st_model::backbone::vit_rope_tables(grid, &budget).expect("generate");
+        tables.insert(grid, (host(&cos, &budget), host(&sin, &budget)));
+    }
+    let (mut total, mut identical, mut worst) = (0usize, 0usize, 0f64);
+    for (i, blk) in vision.trunk.blocks.iter().enumerate() {
+        let grid = if blk.global { 72 } else { 24 };
+        let (cos, sin) = &tables[&grid];
+        assert_eq!(blk.freqs_cis.shape, vec![grid * grid, 32, 2], "block {i} shape");
+        let (mut block_worst, mut block_identical) = (0f64, 0usize);
+        for (k, pair) in blk.freqs_cis.data.chunks_exact(2).enumerate() {
+            for (got, want) in [(cos[k], pair[0]), (sin[k], pair[1])] {
+                block_worst = block_worst.max((f64::from(got) - f64::from(want)).abs());
+                block_identical += usize::from(got.to_bits() == want.to_bits());
+            }
+        }
+        let entries = blk.freqs_cis.data.len();
+        println!("block {i:2} ({}, grid {grid}): max abs diff {block_worst:.3e}, {block_identical}/{entries} bit-identical", if blk.global { "global  " } else { "windowed" });
+        assert!(block_worst <= BOUND, "block {i}: max abs diff {block_worst:e} > {BOUND:e}");
+        (total, identical, worst) = (total + entries, identical + block_identical, worst.max(block_worst));
+    }
+    println!("all 32 blocks: max abs diff {worst:.3e}, {identical}/{total} entries bit-identical ({:.4}%)", 100.0 * identical as f64 / total as f64);
+}
+
+const IMAGE_672: &str = "visem_22_f0";
+
+/// The 672-pixel gate (48 x 48 tokens, 2 x 2 windows): our trunk and three necks on VISEM video
+/// 22 frame 0 against upstream's own code built for `img_size=672`
+/// (`tools/reference/dump_backbone_size.py`), same stages and threshold as the 1008 gate.
+/// `SPIKETRACK_FIXTURES_672` is the folder holding `visem_22_f0.safetensors`.
+fn run_parity_672<B: Backend>(be: &B, label: &str) {
+    let weights = env_path("SPIKETRACK_WEIGHTS");
+    let fixtures = env_path("SPIKETRACK_FIXTURES_672");
+    let geo = st_model::Geometry::from_image_side(672).expect("672 is a multiple of 336");
+    let ck = Checkpoint::open(&weights).expect("open checkpoint");
+    let vision = VisionBackbone::load(&ck).expect("vision weights");
+    let model = Backbone::new_at(be, &vision, geo).expect("upload backbone at 672");
+    drop(vision);
+    let st = SafeTensors::open(&Path::new(&fixtures).join(format!("{IMAGE_672}.safetensors"))).expect("fixture file");
+    let (shape, img) = fixture(&st, "input.image");
+    assert_eq!(shape, vec![1, 3, 672, 672], "the fixture is a 672 input");
+    let image = be.upload(&Tensor::from_f32(&img, &shape, be.budget()).expect("image")).expect("upload image");
+    let mut taps = Taps::default();
+    let t = Instant::now();
+    let trunk = model.trunk(&image, &[7, 15, 23, 31], &mut taps).expect("trunk");
+    assert_eq!(trunk.shape(), &[1, 48, 48, 1024], "trunk output shape");
+    let necks = [Neck::Detector, Neck::Interactive, Neck::Propagation].map(|n| model.neck(n, &trunk).expect("neck"));
+    be.sync().expect("sync");
+    println!("[{label}] 672 trunk + 3 necks {:.1} s (one run, not a benchmark)", t.elapsed().as_secs_f64());
+
+    let mut rows = Vec::new();
+    let mut worst = f64::INFINITY;
+    let mut check = |stage: String, got: &Tensor, key: &str| {
+        let (want_shape, want) = fixture(&st, key);
+        assert_eq!(got.shape(), want_shape.as_slice(), "{stage} shape");
+        let s = compare(&host(got, be.budget()), &want);
+        worst = worst.min(s.cos);
+        rows.push(format!("| {stage} | {:.7} | {:.3e} | {:.3e} | {} |", s.cos, s.max_abs, s.max_abs / s.ref_max.max(1e-30), if s.cos > COS_GATE { "pass" } else { "FAIL" }));
+    };
+    check("ln_pre".into(), taps.ln_pre.as_ref().expect("tap"), "trunk.ln_pre.out");
+    for b in [7usize, 15, 23, 31] {
+        check(format!("block {b}"), taps.blocks[b].as_ref().expect("tap"), &format!("trunk.blocks.{b}.out"));
+    }
+    for (neck, tag) in necks.iter().zip(["convs", "interactive_convs", "propagation_convs"]) {
+        for (lvl, t) in neck.iter().enumerate() {
+            check(format!("{tag}[{lvl}]"), t, &format!("neck.{tag}.{lvl}.out"));
+        }
+    }
+    println!("\n| stage (672) | cosine | max abs | max abs / max ref | gate |\n|---|---|---|---|---|");
+    for r in &rows {
+        println!("{r}");
+    }
+    println!("\n[{label}] 672: worst cosine {worst:.7} over {} stages (gate > {COS_GATE})", rows.len());
+    assert!(worst > COS_GATE, "worst cosine {worst} <= {COS_GATE}");
+}
+
+#[test]
+#[ignore = "needs the gated checkpoint and the 672 fixture: set SPIKETRACK_WEIGHTS and SPIKETRACK_FIXTURES_672 (tools/reference/dump_backbone_size.py)"]
+fn backbone_matches_pytorch_fp32_at_672() {
+    let be = CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu backend");
+    run_parity_672(&be, "cpu");
+}
+
+#[test]
+#[ignore = "needs a Metal GPU, the gated checkpoint and the 672 fixture: set SPIKETRACK_WEIGHTS and SPIKETRACK_FIXTURES_672"]
+fn backbone_matches_pytorch_fp32_at_672_on_metal() {
+    let be = MetalBackend::new(Budget::new(24 << 30)).expect("metal backend");
+    run_parity_672(&be, "metal");
+}

@@ -293,6 +293,94 @@ fn synthetic_gated_trunk_is_exact_where_designed_and_carries_where_approximate()
     assert!(model.trunk_gated(&tb, &mut cache, &WindowSet::full(2), exact, &[], &mut Taps::default()).is_err());
 }
 
+/// The same three-block trunk at 672 pixels (48 x 48 tokens, 2 x 2 windows): the geometry is a
+/// runtime value, so the gated path, the window gather and scatter and the stats follow it; the
+/// global block's RoPE table, stored for 72 x 72 in the checkpoint, is regenerated for 48 x 48,
+/// and the result is bit-identical to a trunk that was handed the generated table as its stored one.
+#[test]
+fn synthetic_trunk_at_672_follows_the_geometry_and_regenerates_the_global_rope_table() {
+    let be = cpu(Numerics::Exact);
+    let geo = Geometry::from_image_side(672).expect("672");
+    let (grid, side, px) = (geo.grid, geo.side(), geo.pixels());
+    assert_eq!((grid, side, px), (48, 2, 672));
+    let vision = synthetic_vision(&[false, true, false]);
+    assert_eq!(vision.trunk.blocks[1].freqs_cis.shape, vec![5184, 32, 2], "the stored global table is the 72 x 72 one");
+    let model = Backbone::new_at(&be, &vision, geo).expect("backbone at 672");
+    assert_eq!(model.geometry(), geo);
+    let keep = [0usize, 1, 2];
+
+    let mut s = 7u64;
+    let img_a: Vec<f32> = (0..3 * px * px).map(|_| lcg(&mut s) * 2.0 - 1.0).collect();
+    let changed = WindowSet::from_indices(side, &[1, 2]);
+    let mut img_b = img_a.clone();
+    let win_px = VIT_WINDOW * VIT_PATCH;
+    for w in changed.iter() {
+        let (wy, wx) = (w / side, w % side);
+        for c in 0..3 {
+            for y in wy * win_px..(wy + 1) * win_px {
+                for v in &mut img_b[c * px * px + y * px + wx * win_px..][..win_px] {
+                    *v = (*v + 0.37).clamp(-1.0, 1.0) * 0.99;
+                }
+            }
+        }
+    }
+    let (ta, tb) = (tensor(&be, &img_a, &[1, 3, px, px]), tensor(&be, &img_b, &[1, 3, px, px]));
+    let (mut taps_a, mut taps_b) = (Taps::default(), Taps::default());
+    let ungated_a = model.trunk(&ta, &keep, &mut taps_a).expect("ungated a");
+    let ungated_b = model.trunk(&tb, &keep, &mut taps_b).expect("ungated b");
+    assert_eq!(ungated_a.shape(), &[1, grid, grid, VIT_DIM]);
+    assert!(!compare(&host(&be, &ungated_a), &host(&be, &ungated_b)).bitwise, "the two frames must differ");
+
+    // Gated, exactly as at 1008: capture is the ungated trunk, a partial recompute of 2 of 4
+    // windows is bitwise the ungated trunk of the new frame, the stats count 4 windows per block.
+    let exact = GatePolicy::Windows { approximate_after_global: false };
+    let mut cache = TrunkCache::new();
+    let (out, stats) = model.trunk_gated(&ta, &mut cache, &WindowSet::full(side), exact, &keep, &mut Taps::default()).expect("capture");
+    assert_same(&be, "capture at 672", &out, &ungated_a);
+    assert_eq!(stats, GatedStats { mode: GatedMode::Full, window_blocks_run: 8, window_blocks_total: 8, global_blocks_run: 1, global_blocks_total: 1 });
+    let mut taps = Taps::default();
+    let (out, stats) = model.trunk_gated(&tb, &mut cache, &changed, exact, &keep, &mut taps).expect("exact partial");
+    assert_same(&be, "exact partial at 672", &out, &ungated_b);
+    for &i in &keep {
+        assert_same(&be, &format!("exact block {i} at 672"), taps.blocks[i].as_ref().unwrap(), taps_b.blocks[i].as_ref().unwrap());
+    }
+    // Run 0 on 2 windows, the global block, run 1 on all 4: 6 of 8 window-blocks.
+    assert_eq!(stats, GatedStats { mode: GatedMode::Windows, window_blocks_run: 2 + 4, window_blocks_total: 8, global_blocks_run: 1, global_blocks_total: 1 });
+    // A global block weighs `side^2` window-blocks at this grid, nine at the default one.
+    assert!((stats.block_fraction_at(geo) - (6.0 + 4.0) / (8.0 + 4.0)).abs() < 1e-12);
+    assert!((stats.block_fraction() - (6.0 + 9.0) / (8.0 + 9.0)).abs() < 1e-12);
+    assert!(stats.flop_fraction_at(geo) < 1.0 && stats.flops_at(geo) > 0.0);
+    // Sets and images for another size are refused, not reinterpreted.
+    assert!(model.trunk_gated(&tb, &mut cache, &WindowSet::full(3), exact, &[], &mut Taps::default()).is_err());
+    let native = tensor(&be, &random_image(3), &[1, 3, IMG, IMG]);
+    assert!(model.trunk(&native, &[], &mut Taps::default()).is_err(), "a 1008 image on a 672 backbone");
+
+    // The generated table is what the stored one would be: hand the same weights a stored
+    // 48 x 48 table made by the generator and the trunk is bitwise the same.
+    let (cos, sin) = st_model::backbone::vit_rope_tables(grid, be.budget()).expect("tables");
+    let (cos, sin) = (cos.to_host(be.budget()).unwrap().to_f32_vec().unwrap(), sin.to_host(be.budget()).unwrap().to_f32_vec().unwrap());
+    let mut stored = synthetic_vision(&[false, true, false]);
+    stored.trunk.blocks[1].freqs_cis = Weight { name: "freqs_cis".into(), shape: vec![grid * grid, 32, 2], data: cos.iter().zip(&sin).flat_map(|(&c, &s)| [c, s]).collect() };
+    let with_stored = Backbone::new_at(&be, &stored, geo).expect("backbone with a stored 48 x 48 table");
+    assert_same(&be, "stored versus generated global table", &with_stored.trunk(&ta, &[], &mut Taps::default()).unwrap(), &ungated_a);
+    // ...and it is not the 72 x 72 table's first 2304 rows: positions are stretched, not cropped.
+    let mut cropped = synthetic_vision(&[false, true, false]);
+    let first = cropped.trunk.blocks[1].freqs_cis.data[..grid * grid * 64].to_vec();
+    cropped.trunk.blocks[1].freqs_cis = Weight { name: "freqs_cis".into(), shape: vec![grid * grid, 32, 2], data: first };
+    let with_cropped = Backbone::new_at(&be, &cropped, geo).expect("backbone");
+    assert!(!compare(&host(&be, &with_cropped.trunk(&ta, &[], &mut Taps::default()).unwrap()), &host(&be, &ungated_a)).bitwise);
+}
+
+#[test]
+fn a_backbone_refuses_a_grid_that_is_not_whole_windows_and_a_wrong_patch() {
+    let be = cpu(Numerics::Exact);
+    let vision = synthetic_vision(&[false]);
+    for bad in [Geometry { grid: 50, patch: 14, window: 24 }, Geometry { grid: 48, patch: 16, window: 24 }, Geometry { grid: 48, patch: 14, window: 12 }, Geometry { grid: 0, patch: 14, window: 24 }] {
+        assert!(Backbone::new_at(&be, &vision, bad).is_err(), "{bad:?}");
+    }
+    assert!(Backbone::new_at(&be, &vision, Geometry::from_image_side(336).unwrap()).is_ok());
+}
+
 // ------------------------------------------------------------ real data
 
 fn env_path(var: &str) -> PathBuf {

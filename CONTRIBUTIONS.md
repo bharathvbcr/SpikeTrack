@@ -46,6 +46,7 @@ commit on 2026-10-26.
 | 2026-10-27 | Pillow-exact JPEG decoder, a port of libjpeg-turbo 3.2.0's default decompression (IJG acknowledgement in NOTICE), and its fixtures | `crates/st-video/src/jpeg.rs`, `crates/st-video/tests/`, `tools/reference/jpeg_cases.py` |
 | 2026-10-27 | H.264 `.mp4` writer on AVFoundation's `AVAssetWriter` (raw FFI, no crate), and `spiketrack track --overlay-video` for the demo video | `crates/st-video/src/encode.rs`, `crates/st-video/tests/encode.rs`, `crates/spiketrack/src/track_cmd.rs` |
 | 2026-10-27 | LoRA training (600 steps), held-out evaluation, write-up; box-convention analysis | `bench/results/lora/`, `bench/results/track/box-convention/` |
+| 2026-10-28 | Smaller model input (E7): one runtime geometry (`st_gate::Geometry::from_image_side`, a multiple of 336) threaded through trunk, necks, detector, tracker and CLI (`track --input-size`); the global blocks' RoPE tables generated in Rust for any grid; a 672 fixture dumper and gate | `crates/st-gate/src/change_map.rs`, `crates/st-model/`, `crates/spiketrack/src/track_cmd.rs`, `tools/reference/dump_backbone_size.py`, `tools/jobs/input_size_gates.sh` |
 
 ## Work in the pre-existing libraries during the window
 

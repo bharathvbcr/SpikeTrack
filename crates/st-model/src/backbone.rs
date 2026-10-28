@@ -7,13 +7,14 @@
 //! fp32 fixtures (`tools/reference/check_fixtures.py`).
 
 use ojas_core::{
-    window_merge, window_partition, AttentionOpts, AutocastMode, Backend, Conv2dParams, ConvTranspose2dParams,
-    OjasError, Tensor,
+    axial_rope_2d_tables, window_merge, window_partition, AttentionOpts, AutocastMode, Backend, Budget, Conv2dParams,
+    ConvTranspose2dParams, OjasError, Tensor,
 };
-use st_gate::{GatePolicy, WindowSet};
+use st_gate::{GatePolicy, Geometry, WindowSet};
 use st_weights::names::{VIT_DIM, VIT_GRID, VIT_PATCH, VIT_ROPE_PAIRS, VIT_WINDOW};
 use st_weights::{Conv, FpnLevel, FpnNeck, LayerNorm, Linear, VisionBackbone, VitBlock, Weight};
 
+/// The checkpoint's native image side (1008): the default of every geometry-taking constructor.
 pub const IMAGE_SIZE: usize = VIT_GRID * VIT_PATCH;
 pub const HEADS: usize = 16;
 pub const HEAD_DIM: usize = VIT_DIM / HEADS;
@@ -101,30 +102,48 @@ pub struct GatedStats {
 }
 
 impl GatedStats {
+    /// [`Self::flops_at`] for the native 72 x 72 grid. The counts do not say which grid they
+    /// were measured on, so a run at another resolution asks [`Self::flops_at`] with
+    /// [`Backbone::geometry`].
+    pub fn flops(&self) -> f64 {
+        self.flops_at(Geometry::SAM3)
+    }
+
     /// Matmul FLOPs of the blocks that ran, plus the patch embedding if the
     /// image was embedded. Per block and token: qkv, proj and the two MLP
     /// matmuls are `2 * 12 * C^2` (`24 C^2`), attention is `4 * keys * C`, with
-    /// 576 keys in a window and 5184 in a global block. A model, not a
+    /// 576 keys in a window and `grid^2` (5184 at 1008) in a global block. A model, not a
     /// measurement: it ignores norms, RoPE, GELU and the host gather/scatter.
-    pub fn flops(&self) -> f64 {
+    pub fn flops_at(&self, geo: Geometry) -> f64 {
         let c = VIT_DIM as f64;
-        let (tw, tg) = ((VIT_WINDOW * VIT_WINDOW) as f64, (VIT_GRID * VIT_GRID) as f64);
+        let (tw, tg) = ((geo.window * geo.window) as f64, geo.tokens() as f64);
         let window_block = tw * (24.0 * c * c + 4.0 * tw * c);
         let global_block = tg * (24.0 * c * c + 4.0 * tg * c);
-        let embed = if self.mode == GatedMode::Reused { 0.0 } else { 2.0 * tg * (3 * VIT_PATCH * VIT_PATCH) as f64 * c };
+        let embed = if self.mode == GatedMode::Reused { 0.0 } else { 2.0 * tg * (3 * geo.patch * geo.patch) as f64 * c };
         self.window_blocks_run as f64 * window_block + self.global_blocks_run as f64 * global_block + embed
     }
 
-    /// [`Self::flops`] over the ungated trunk's.
+    /// [`Self::flop_fraction_at`] for the native grid.
     pub fn flop_fraction(&self) -> f64 {
+        self.flop_fraction_at(Geometry::SAM3)
+    }
+
+    /// [`Self::flops_at`] over the ungated trunk's.
+    pub fn flop_fraction_at(&self, geo: Geometry) -> f64 {
         let full = Self { mode: GatedMode::Full, window_blocks_run: self.window_blocks_total, global_blocks_run: self.global_blocks_total, ..*self };
-        self.flops() / full.flops()
+        self.flops_at(geo) / full.flops_at(geo)
+    }
+
+    /// [`Self::block_fraction_at`] for the native grid.
+    pub fn block_fraction(&self) -> f64 {
+        self.block_fraction_at(Geometry::SAM3)
     }
 
     /// Window-blocks run over the ungated trunk's, counting a global block as
-    /// nine window-blocks (the rows it processes, ignoring attention's quadratic share).
-    pub fn block_fraction(&self) -> f64 {
-        let weight = (VIT_GRID / VIT_WINDOW).pow(2);
+    /// as many window-blocks as there are windows (the rows it processes, ignoring attention's
+    /// quadratic share): nine at 1008.
+    pub fn block_fraction_at(&self, geo: Geometry) -> f64 {
+        let weight = geo.side().pow(2);
         let done = self.window_blocks_run + weight * self.global_blocks_run;
         done as f64 / (self.window_blocks_total + weight * self.global_blocks_total) as f64
     }
@@ -134,9 +153,9 @@ impl GatedStats {
 /// block (norms, projections, MLP, residuals) is per token and the same for all.
 #[derive(Clone, Copy)]
 enum Mix {
-    /// `x` is `[1, 72, 72, C]`; one sequence of 5184 tokens.
+    /// `x` is `[1, G, G, C]`; one sequence of `G^2` tokens (5184 at 1008).
     Global,
-    /// `x` is `[1, 72, 72, C]`; the nine windows are partitioned into a batch of 9.
+    /// `x` is `[1, G, G, C]`; the `(G / 24)^2` windows (nine at 1008) are partitioned into a batch.
     Grid,
     /// `x` is `[k, 24, 24, C]`: `k` windows already gathered, a batch of `k`.
     Gathered(usize),
@@ -185,44 +204,51 @@ fn host_f32<B: Backend + ?Sized>(be: &B, t: &Tensor) -> Result<Vec<f32>, OjasErr
     be.download(t)?.to_f32_vec()
 }
 
-/// Element offset of token row `y` of window `w` in a `[1, 72, 72, C]` buffer;
+/// Element offset of token row `y` of window `w` in a `[1, grid, grid, C]` buffer;
 /// the 24 tokens of that row are one contiguous run of `24 * C` elements.
-fn window_row_offset(w: usize, y: usize) -> usize {
-    let side = VIT_GRID / VIT_WINDOW;
+fn window_row_offset(grid: usize, w: usize, y: usize) -> usize {
+    let side = grid / VIT_WINDOW;
     let (wy, wx) = (w / side, w % side);
-    ((wy * VIT_WINDOW + y) * VIT_GRID + wx * VIT_WINDOW) * VIT_DIM
+    ((wy * VIT_WINDOW + y) * grid + wx * VIT_WINDOW) * VIT_DIM
 }
 
-fn check_grid(op: &'static str, t: &Tensor) -> Result<(), OjasError> {
-    if t.shape() != [1, VIT_GRID, VIT_GRID, VIT_DIM] {
-        return Err(out_of_range(op, format!("expected [1, {VIT_GRID}, {VIT_GRID}, {VIT_DIM}], got {:?}", t.shape())));
+/// The token grid of a `[1, grid, grid, C]` trunk tensor holding exactly the windows `set`
+/// indexes: `grid` is read off the tensor, and refused unless it is a whole number of windows
+/// and `set` is a grid of them.
+fn checked_grid(op: &'static str, t: &Tensor, set: &WindowSet) -> Result<usize, OjasError> {
+    let grid = t.shape().get(1).copied().unwrap_or(0);
+    if t.shape() != [1, grid, grid, VIT_DIM] || grid == 0 || grid % VIT_WINDOW != 0 || grid / VIT_WINDOW != set.side() {
+        return Err(out_of_range(
+            op,
+            format!("expected [1, {0}, {0}, {VIT_DIM}] for a {1} x {1} window set, got {2:?}", set.side() * VIT_WINDOW, set.side(), t.shape()),
+        ));
     }
-    Ok(())
+    Ok(grid)
 }
 
 /// The windows of `set` (ascending, the order of `window_partition`) of a
-/// `[1, 72, 72, C]` tensor, as `[k, 24, 24, C]`. Host-side: the Backend has no
+/// `[1, grid, grid, C]` tensor, as `[k, 24, 24, C]`. Host-side: the Backend has no
 /// gather over a window subset, so this reads the tensor back and uploads the
 /// copy (free on the CPU backend; a round trip on a device backend).
 fn gather_windows<B: Backend + ?Sized>(be: &B, x: &Tensor, set: &WindowSet) -> Result<Tensor, OjasError> {
-    check_grid("st_model::backbone::gather_windows", x)?;
+    let grid = checked_grid("st_model::backbone::gather_windows", x, set)?;
     let data = host_f32(be, x)?;
     let run = VIT_WINDOW * VIT_DIM;
     let mut out = Vec::with_capacity(set.count() * VIT_WINDOW * run);
     for w in set.iter() {
         for y in 0..VIT_WINDOW {
-            let at = window_row_offset(w, y);
+            let at = window_row_offset(grid, w, y);
             out.extend_from_slice(&data[at..at + run]);
         }
     }
     upload(be, &out, &[set.count(), VIT_WINDOW, VIT_WINDOW, VIT_DIM])
 }
 
-/// `base` `[1, 72, 72, C]` with the windows of `set` replaced by the rows of
+/// `base` `[1, grid, grid, C]` with the windows of `set` replaced by the rows of
 /// `sub` `[k, 24, 24, C]` (the inverse of [`gather_windows`]); `base` is not modified.
 fn scatter_windows<B: Backend + ?Sized>(be: &B, base: &Tensor, sub: &Tensor, set: &WindowSet) -> Result<Tensor, OjasError> {
     const OP: &str = "st_model::backbone::scatter_windows";
-    check_grid(OP, base)?;
+    let grid = checked_grid(OP, base, set)?;
     if sub.shape() != [set.count(), VIT_WINDOW, VIT_WINDOW, VIT_DIM] {
         return Err(out_of_range(OP, format!("{} windows selected, tensor is {:?}", set.count(), sub.shape())));
     }
@@ -231,11 +257,11 @@ fn scatter_windows<B: Backend + ?Sized>(be: &B, base: &Tensor, sub: &Tensor, set
     let run = VIT_WINDOW * VIT_DIM;
     for (j, w) in set.iter().enumerate() {
         for y in 0..VIT_WINDOW {
-            let at = window_row_offset(w, y);
+            let at = window_row_offset(grid, w, y);
             data[at..at + run].copy_from_slice(&rows[(j * VIT_WINDOW + y) * run..][..run]);
         }
     }
-    upload(be, &data, &[1, VIT_GRID, VIT_GRID, VIT_DIM])
+    upload(be, &data, &[1, grid, grid, VIT_DIM])
 }
 
 struct DevLinear {
@@ -276,8 +302,10 @@ enum DevLevel {
 /// The backbone with its weights resident on one backend.
 pub struct Backbone<'b, B: Backend + ?Sized> {
     be: &'b B,
+    /// The input size every shape in the trunk and necks follows.
+    geo: Geometry,
     patch_embed: Tensor,
-    /// `pos_embed` without cls, tiled 3x3 to `[1, 72, 72, 1024]` once at load.
+    /// `pos_embed` without cls, tiled to `[1, grid, grid, 1024]` once at load (3x3 at 1008).
     pos_tiled: Tensor,
     ln_pre: DevNorm,
     blocks: Vec<DevBlock>,
@@ -327,13 +355,29 @@ fn rope_tables<B: Backend + ?Sized>(be: &B, f: &Weight) -> Result<(Tensor, Tenso
     Ok((upload(be, &cos, &[t, VIT_ROPE_PAIRS])?, upload(be, &sin, &[t, VIT_ROPE_PAIRS])?))
 }
 
-/// `get_abs_pos(..., tiling=True)`: drop cls, tile the 24x24 grid to 72x72, NHWC.
-fn tiled_pos(pos: &Weight) -> Vec<f32> {
+/// The trunk's `freqs_cis` for a `grid x grid` token map, as cos and sin `[grid^2, 32]` on the
+/// host: upstream's `compute_axial_cis(dim=64, end_x=grid, end_y=grid, scale_pos=24 / grid)`
+/// (`vitdet.py:88`, reached through `Attention._setup_rope_freqs` with `rope_pt_size=(24, 24)`,
+/// `rope_interp=True`). The scale is the 24-token pretrain window over the grid, so a
+/// global block's positions span the same 0..24 range at any resolution (1/3 at 72, 1/2 at 48),
+/// and a windowed block (grid 24) is the integer grid at scale 1. The 4 global blocks store
+/// the 72-grid table in the checkpoint; any other grid needs this.
+pub fn vit_rope_tables(grid: usize, budget: &Budget) -> Result<(Tensor, Tensor), OjasError> {
+    if grid == 0 {
+        return Err(out_of_range("st_model::backbone::vit_rope_tables", "an empty grid".to_string()));
+    }
+    // Python's `rope_pt_size[0] / input_size[0]` is an f64 quotient that torch rounds to f32.
+    let scale_pos = (VIT_WINDOW as f64 / grid as f64) as f32;
+    axial_rope_2d_tables(HEAD_DIM, grid, grid, 10000.0, scale_pos, budget)
+}
+
+/// `get_abs_pos(..., tiling=True)`: drop cls, tile the 24x24 grid to `grid x grid`, NHWC.
+fn tiled_pos(pos: &Weight, grid: usize) -> Vec<f32> {
     let src = &pos.data[VIT_DIM..]; // skip cls
     let side = VIT_WINDOW;
-    let mut out = Vec::with_capacity(VIT_GRID * VIT_GRID * VIT_DIM);
-    for y in 0..VIT_GRID {
-        for x in 0..VIT_GRID {
+    let mut out = Vec::with_capacity(grid * grid * VIT_DIM);
+    for y in 0..grid {
+        for x in 0..grid {
             let s = ((y % side) * side + (x % side)) * VIT_DIM;
             out.extend_from_slice(&src[s..s + VIT_DIM]);
         }
@@ -342,12 +386,24 @@ fn tiled_pos(pos: &Weight) -> Vec<f32> {
 }
 
 impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
-    /// Uploads the trunk and the three necks to `be`.
+    /// Uploads the trunk and the three necks to `be` for the native 1008 x 1008 input.
     pub fn new(be: &'b B, w: &VisionBackbone) -> Result<Self, OjasError> {
+        Self::new_at(be, w, Geometry::SAM3)
+    }
+
+    /// As [`Self::new`] for the input size `geo` (see [`Geometry::from_image_side`]). Nothing
+    /// stored in the checkpoint changes shape except the 4 global blocks' RoPE tables: they are
+    /// used as stored when their row count is `geo`'s token count, and regenerated by
+    /// [`vit_rope_tables`] otherwise. The position embedding is the checkpoint's 24 x 24 grid
+    /// tiled to `geo.grid`, and the windowed blocks' tables (24 x 24) are unchanged.
+    pub fn new_at(be: &'b B, w: &VisionBackbone, geo: Geometry) -> Result<Self, OjasError> {
+        if geo.patch != VIT_PATCH || geo.window != VIT_WINDOW || geo.grid == 0 || geo.grid % geo.window != 0 {
+            return Err(out_of_range("st_model::Backbone::new_at", format!("{geo:?} is not a {VIT_PATCH}-pixel patch, {VIT_WINDOW}-token window ViT grid")));
+        }
         let t = &w.trunk;
         let mut blocks = Vec::with_capacity(t.blocks.len());
         for blk in &t.blocks {
-            blocks.push(Self::block(be, blk)?);
+            blocks.push(Self::block(be, blk, geo)?);
         }
         let neck = |n: &FpnNeck| -> Result<Vec<DevLevel>, OjasError> {
             n.levels
@@ -374,8 +430,9 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         };
         Ok(Self {
             be,
+            geo,
             patch_embed: weight(be, &t.patch_embed)?,
-            pos_tiled: upload(be, &tiled_pos(&t.pos_embed), &[1, VIT_GRID, VIT_GRID, VIT_DIM])?,
+            pos_tiled: upload(be, &tiled_pos(&t.pos_embed, geo.grid), &[1, geo.grid, geo.grid, VIT_DIM])?,
             ln_pre: norm(be, &t.ln_pre)?,
             blocks,
             necks: [neck(&w.convs)?, neck(&w.interactive_convs)?, neck(&w.propagation_convs)?],
@@ -409,8 +466,23 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         self.be.linear_bias_forward(x, &lin.w, &lin.b)
     }
 
-    fn block(be: &B, blk: &VitBlock) -> Result<DevBlock, OjasError> {
-        let (rope_cos, rope_sin) = rope_tables(be, &blk.freqs_cis)?;
+    /// The geometry this backbone was built for; the input and every output follow it.
+    pub fn geometry(&self) -> Geometry {
+        self.geo
+    }
+
+    fn block(be: &B, blk: &VitBlock, geo: Geometry) -> Result<DevBlock, OjasError> {
+        // A windowed block's table is the 24 x 24 grid at any input size; a global block's is the
+        // stored one only on the grid it was stored for.
+        let tokens = if blk.global { geo.tokens() } else { VIT_WINDOW * VIT_WINDOW };
+        let (rope_cos, rope_sin) = if blk.freqs_cis.shape[0] == tokens {
+            rope_tables(be, &blk.freqs_cis)?
+        } else if blk.global {
+            let (cos, sin) = vit_rope_tables(geo.grid, be.budget())?;
+            (be.upload(&cos)?, be.upload(&sin)?)
+        } else {
+            return Err(out_of_range("st_model::Backbone::new_at", format!("a windowed block's RoPE table has {} rows, not {tokens}", blk.freqs_cis.shape[0])));
+        };
         Ok(DevBlock {
             global: blk.global,
             norm1: norm(be, &blk.norm1)?,
@@ -426,7 +498,8 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         })
     }
 
-    /// Trunk: `image` `[1, 3, 1008, 1008]` (normalized) to `[1, 72, 72, 1024]`.
+    /// Trunk: `image` `[1, 3, S, S]` (normalized, `S` = [`Geometry::pixels`], 1008 by default) to
+    /// `[1, S / 14, S / 14, 1024]`.
     /// `keep_blocks` lists the block outputs to return in `taps`.
     pub fn trunk(&self, image: &Tensor, keep_blocks: &[usize], taps: &mut Taps) -> Result<Tensor, OjasError> {
         self.run_trunk(image, keep_blocks, taps, Plan::Ungated).map(|(x, _)| x)
@@ -486,7 +559,7 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         keep_blocks: &[usize],
         taps: &mut Taps,
     ) -> Result<(Tensor, GatedStats), OjasError> {
-        let side = VIT_GRID / VIT_WINDOW;
+        let side = self.geo.side();
         if recompute.side() != side {
             return Err(out_of_range("st_model::Backbone::trunk_gated", format!("window set is {0} x {0}, the trunk has {side} x {side}", recompute.side())));
         }
@@ -530,10 +603,14 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
     /// only in which windows a windowed run is applied to and what is cached.
     fn run_trunk(&self, image: &Tensor, keep_blocks: &[usize], taps: &mut Taps, mut plan: Plan<'_>) -> Result<(Tensor, GatedStats), OjasError> {
         let be = self.be;
-        let side = VIT_GRID / VIT_WINDOW;
+        let side = self.geo.side();
+        let px = self.geo.pixels();
+        if image.shape() != [1, 3, px, px] {
+            return Err(out_of_range("st_model::Backbone::trunk", format!("expected a [1, 3, {px}, {px}] image for this backbone, got {:?}", image.shape())));
+        }
         let mut p = Conv2dParams::new();
         p.stride = [VIT_PATCH, VIT_PATCH];
-        let pe = be.conv2d_forward(image, &self.patch_embed, None, p)?; // [1, 1024, 72, 72]
+        let pe = be.conv2d_forward(image, &self.patch_embed, None, p)?; // [1, 1024, grid, grid]
         let pe = be.permute(&pe, &[0, 2, 3, 1])?; // NHWC
         let x = be.residual_add_forward(&pe, &self.pos_tiled)?;
         let mut x = be.layer_norm_forward(&x, &self.ln_pre.w, &self.ln_pre.b, VIT_LN_EPS)?;
@@ -627,8 +704,8 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         let h = be.layer_norm_forward(x, &blk.norm1.w, &blk.norm1.b, VIT_LN_EPS)?;
         // Windowed blocks attend within each 24x24 window: a batch of 9 x 576 (or k x 576).
         let (seqs, tokens) = match mix {
-            Mix::Global => (1, VIT_GRID * VIT_GRID),
-            Mix::Grid => ((VIT_GRID / VIT_WINDOW).pow(2), VIT_WINDOW * VIT_WINDOW),
+            Mix::Global => (1, self.geo.tokens()),
+            Mix::Grid => (self.geo.side().pow(2), VIT_WINDOW * VIT_WINDOW),
             Mix::Gathered(k) => (k, VIT_WINDOW * VIT_WINDOW),
         };
         let h = if matches!(mix, Mix::Grid) { window_partition(be, &h, VIT_WINDOW)? } else { h };
@@ -646,8 +723,8 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         let a = be.permute(&a, &[0, 2, 1, 3])?.reshape(&[seqs, tokens, VIT_DIM])?;
         let a = self.trunk_linear(&a, &blk.proj)?;
         let a = match mix {
-            Mix::Global => a.reshape(&[1, VIT_GRID, VIT_GRID, VIT_DIM])?,
-            Mix::Grid => window_merge(be, &a.reshape(&[seqs, VIT_WINDOW, VIT_WINDOW, VIT_DIM])?, VIT_GRID, VIT_GRID)?,
+            Mix::Global => a.reshape(&[1, self.geo.grid, self.geo.grid, VIT_DIM])?,
+            Mix::Grid => window_merge(be, &a.reshape(&[seqs, VIT_WINDOW, VIT_WINDOW, VIT_DIM])?, self.geo.grid, self.geo.grid)?,
             Mix::Gathered(_) => a.reshape(&[seqs, VIT_WINDOW, VIT_WINDOW, VIT_DIM])?,
         };
         let x = be.residual_add_forward(x, &a)?;
@@ -658,8 +735,8 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         be.residual_add_forward(&x, &m)
     }
 
-    /// One neck over trunk features `[1, 72, 72, 1024]` (NHWC): levels at
-    /// 288x288, 144x144 and 72x72, each `[1, 256, h, w]` (NCHW).
+    /// One neck over trunk features `[1, G, G, 1024]` (NHWC, `G` the token grid, 72 by default):
+    /// levels at `4G`, `2G` and `G` squared (288, 144, 72), each `[1, 256, h, w]` (NCHW).
     pub fn neck(&self, which: Neck, trunk: &Tensor) -> Result<[Tensor; 3], OjasError> {
         let be = self.be;
         let x = be.permute(trunk, &[0, 3, 1, 2])?;
@@ -769,6 +846,108 @@ mod tests {
         assert_eq!(host_f32(&be, &g).unwrap(), all, "a full gather is window_partition");
         let back = scatter_windows(&be, &merged, &g, &full).unwrap();
         assert_eq!(host_f32(&be, &back).unwrap(), data);
+    }
+
+    /// `compute_axial_cis` written out in f64: pair `j` of the first 16 rotates by `col * scale * f_j`,
+    /// pair `16 + j` by `row * scale * f_j`, `f_j = 10000^(-4j / 64)`.
+    fn expected_angle(grid: usize, token: usize, pair: usize, scale: f64) -> f64 {
+        let (col, row) = ((token % grid) as f64, (token / grid) as f64);
+        let j = pair % 16;
+        let f = 10000f64.powf(-(4.0 * j as f64) / HEAD_DIM as f64);
+        (if pair < 16 { col } else { row }) * scale * f
+    }
+
+    #[test]
+    fn generated_rope_tables_follow_compute_axial_cis_at_every_grid() {
+        let budget = Budget::new(1 << 30);
+        // Windowed (24, scale 1), the native global grid (72, scale 1/3) and the 672 grid (48, scale 1/2).
+        for (grid, scale) in [(24usize, 1.0f64), (72, 1.0 / 3.0), (48, 0.5), (96, 0.25)] {
+            let (cos, sin) = vit_rope_tables(grid, &budget).unwrap();
+            assert_eq!(cos.shape(), &[grid * grid, VIT_ROPE_PAIRS], "grid {grid}");
+            let (c, s) = (cos.to_host(&budget).unwrap().to_f32_vec().unwrap(), sin.to_host(&budget).unwrap().to_f32_vec().unwrap());
+            let mut worst = 0f64;
+            for t in (0..grid * grid).step_by(7).chain([grid * grid - 1]) {
+                for p in 0..VIT_ROPE_PAIRS {
+                    let a = expected_angle(grid, t, p, scale);
+                    worst = worst.max((f64::from(c[t * VIT_ROPE_PAIRS + p]) - a.cos()).abs()).max((f64::from(s[t * VIT_ROPE_PAIRS + p]) - a.sin()).abs());
+                }
+            }
+            // f32 angles (as torch forms them) against the f64 formula: a few 1e-6 at the largest angles.
+            assert!(worst < 2e-5, "grid {grid}: max abs {worst:e}");
+        }
+        assert!(vit_rope_tables(0, &budget).is_err());
+    }
+
+    #[test]
+    fn a_global_block_spans_the_same_positions_at_every_grid() {
+        // Scale 24 / grid puts the last column at 24 * (grid - 1) / grid, so tokens one window
+        // apart (24 tokens at grid 72, 16 at grid 48) share angles only through the scale: the
+        // position of token `col` is `col * 24 / grid` at every grid.
+        let budget = Budget::new(1 << 30);
+        let at = |grid: usize| {
+            let (c, s) = vit_rope_tables(grid, &budget).unwrap();
+            (c.to_host(&budget).unwrap().to_f32_vec().unwrap(), s.to_host(&budget).unwrap().to_f32_vec().unwrap())
+        };
+        let (c72, s72) = at(72);
+        let (c48, s48) = at(48);
+        // Column 3 of row 0 at grid 72 sits at 1.0 (3 * 24 / 72); column 2 at grid 48 sits at 1.0 too.
+        for p in 0..VIT_ROPE_PAIRS {
+            assert!((c72[3 * VIT_ROPE_PAIRS + p] - c48[2 * VIT_ROPE_PAIRS + p]).abs() < 1e-6, "cos pair {p}");
+            assert!((s72[3 * VIT_ROPE_PAIRS + p] - s48[2 * VIT_ROPE_PAIRS + p]).abs() < 1e-6, "sin pair {p}");
+        }
+    }
+
+    #[test]
+    fn the_position_embedding_tiles_at_any_whole_number_of_windows() {
+        let pos = Weight { name: "pos_embed".into(), shape: vec![1, 577, VIT_DIM], data: (0..577 * VIT_DIM).map(|i| (i % 8191) as f32).collect() };
+        let native = tiled_pos(&pos, 72);
+        assert_eq!(native.len(), 72 * 72 * VIT_DIM);
+        for grid in [24usize, 48] {
+            let t = tiled_pos(&pos, grid);
+            assert_eq!(t.len(), grid * grid * VIT_DIM);
+            // Each row of the smaller grid is the same row of the native one: the tile is
+            // anchored at the origin and the grid is cropped, never resampled.
+            for y in 0..grid {
+                assert_eq!(t[y * grid * VIT_DIM..(y + 1) * grid * VIT_DIM], native[y * 72 * VIT_DIM..y * 72 * VIT_DIM + grid * VIT_DIM], "grid {grid} row {y}");
+            }
+        }
+        // 336 is the pretrain grid: the stored embedding without its cls row.
+        assert_eq!(tiled_pos(&pos, 24), pos.data[VIT_DIM..]);
+    }
+
+    #[test]
+    fn stats_follow_the_grid_they_are_asked_about() {
+        let g48 = Geometry::from_image_side(672).unwrap();
+        let full = GatedStats { mode: GatedMode::Full, window_blocks_run: 112, window_blocks_total: 112, global_blocks_run: 4, global_blocks_total: 4 };
+        assert_eq!((full.flop_fraction_at(g48), full.block_fraction_at(g48)), (1.0, 1.0));
+        // Half the windows of a 2 x 2 grid: 2 of 4 window-blocks per windowed block.
+        let half = GatedStats { window_blocks_run: 56, global_blocks_run: 4, ..full };
+        let want = (56 + 4 * 4) as f64 / (112 + 4 * 4) as f64;
+        assert!((half.block_fraction_at(g48) - want).abs() < 1e-12);
+        // The 1008 default is not the 672 answer.
+        assert!((half.block_fraction() - half.block_fraction_at(g48)).abs() > 1e-3);
+        // A global block is 2304 tokens at 672, 5184 at 1008: the attention term shrinks quadratically.
+        let one_global = GatedStats { window_blocks_run: 0, global_blocks_run: 1, ..full };
+        assert!(one_global.flops_at(g48) < one_global.flops() / 2.0);
+    }
+
+    #[test]
+    fn gather_and_scatter_follow_the_grid_of_the_tensor() {
+        let be = CpuBackend::new(Budget::new(2 << 30));
+        let grid = 48;
+        let data: Vec<f32> = (0..grid * grid * VIT_DIM).map(|i| (i % 4093) as f32).collect();
+        let x = upload(&be, &data, &[1, grid, grid, VIT_DIM]).unwrap();
+        let all = host_f32(&be, &window_partition(&be, &x, VIT_WINDOW).unwrap()).unwrap();
+        let per = VIT_WINDOW * VIT_WINDOW * VIT_DIM;
+        let set = WindowSet::from_indices(2, &[3, 1]);
+        let sub = gather_windows(&be, &x, &set).unwrap();
+        let sub_host = host_f32(&be, &sub).unwrap();
+        for (j, w) in [1usize, 3].into_iter().enumerate() {
+            assert_eq!(sub_host[j * per..(j + 1) * per], all[w * per..(w + 1) * per], "window {w}");
+        }
+        assert_eq!(host_f32(&be, &scatter_windows(&be, &x, &sub, &set).unwrap()).unwrap(), data);
+        // A 3 x 3 window set does not describe a 2 x 2 window grid.
+        assert!(gather_windows(&be, &x, &WindowSet::from_indices(3, &[0])).is_err());
     }
 
     #[test]

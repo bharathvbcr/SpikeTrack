@@ -89,6 +89,11 @@ target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/imag
   --prompt cell --backend metal --max-frames 64 --lora fixtures/lora_runs/visem-lora-r16/adapter.safetensors \
   --boxes detector --out out/track-lora
 
+# A smaller model input: frames are resized to 672 x 672 (48 x 48 tokens instead of 72 x 72)
+# before the model; any multiple of 336 is accepted (default 1008, the checkpoint's native size)
+target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/images \
+  --prompt cell --backend metal --max-frames 64 --input-size 672 --out out/track-672
+
 # HOTA against VISEM-Tracking's boxes
 target/release/spiketrack eval-visem --pred out/track --split tools/reference/visem_split.json --set held_out
 ```

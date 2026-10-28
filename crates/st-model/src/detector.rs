@@ -10,6 +10,7 @@
 //! valid tokens alone is the same computation.
 
 use ojas_core::{Backend, DType, OjasError, Tensor};
+use st_gate::Geometry;
 use st_weights::TensorGroup;
 
 use crate::host;
@@ -19,9 +20,12 @@ use crate::ModelError;
 pub const D: usize = 256;
 pub const HEADS: usize = 8;
 pub const QUERIES: usize = 200;
-pub const FEAT: usize = 72;
-pub const TOKENS: usize = FEAT * FEAT;
-pub const MASK: usize = 288;
+/// The image-token grid side, image-token count and mask-logit side at the native 1008 input
+/// (`Geometry::SAM3`). The detector itself follows the [`Geometry`] it was built with; these
+/// are the native values, for callers that pin that size.
+pub const FEAT: usize = Geometry::SAM3.grid;
+pub const TOKENS: usize = Geometry::SAM3.tokens();
+pub const MASK: usize = Geometry::SAM3.low_res();
 /// Every detector LayerNorm is `nn.LayerNorm(256)` (torch default eps).
 pub const LN_EPS: f32 = 1e-5;
 pub const GN_GROUPS: usize = 8;
@@ -149,9 +153,9 @@ pub struct DetectorOut {
     pub presence_logit: f32,
     /// `[Q, 4]` cxcywh in [0, 1].
     pub pred_boxes: Vec<f32>,
-    /// `[Q, 288, 288]` logits.
+    /// `[Q, M, M]` logits, `M` = [`Geometry::low_res`] (288 at 1008).
     pub pred_masks: Tensor,
-    /// `[1, 1, 288, 288]`.
+    /// `[1, 1, M, M]`.
     pub semantic_seg: Tensor,
 }
 
@@ -165,6 +169,8 @@ impl DetectorOut {
 
 pub struct Detector<'b, B: Backend + ?Sized> {
     be: &'b B,
+    /// The input size the feature maps, positions and masks follow.
+    geo: Geometry,
     // geometry encoder (text-only path)
     geo_cls: Tensor,
     geo_final_proj: Lin,
@@ -196,7 +202,7 @@ pub struct Detector<'b, B: Backend + ?Sized> {
     instance_head: Conv,
     semantic_head: Conv,
     mask_embed: Mlp,
-    /// Sine position encoding of the 72x72 level, `[1, 5184, 256]`.
+    /// Sine position encoding of the top (grid x grid) level, `[1, grid^2, 256]`.
     pos: Tensor,
 }
 
@@ -209,17 +215,25 @@ pub struct DetectorWeights<'a> {
 }
 
 impl<'b, B: Backend + ?Sized> Detector<'b, B> {
+    /// The detector for the native 1008 x 1008 input.
     pub fn new(be: &'b B, w: DetectorWeights<'_>) -> Result<Self, ModelError> {
+        Self::new_at(be, w, Geometry::SAM3)
+    }
+
+    /// The detector for the input size `geo`. No weight depends on it: the sine position
+    /// encoding, box-RPB coordinates and mask size are computed from the grid.
+    pub fn new_at(be: &'b B, w: DetectorWeights<'_>, geo: Geometry) -> Result<Self, ModelError> {
         let (t, g, s, sc) = (w.transformer, w.geometry, w.segmentation, w.scoring);
         let gp = "detector.geometry_encoder";
         let tp = "detector.transformer";
         let sp = "detector.segmentation_head";
         let cp = "detector.dot_prod_scoring";
-        let pos_chw = host::sine_position_map(FEAT, FEAT);
-        let mut pos = vec![0f32; TOKENS * D];
+        let (feat, tokens) = (geo.grid, geo.tokens());
+        let pos_chw = host::sine_position_map(feat, feat);
+        let mut pos = vec![0f32; tokens * D];
         for c in 0..D {
-            for i in 0..TOKENS {
-                pos[i * D + c] = pos_chw[c * TOKENS + i];
+            for i in 0..tokens {
+                pos[i * D + c] = pos_chw[c * tokens + i];
             }
         }
         let gn = |i: usize| -> Result<(Tensor, Tensor), ModelError> {
@@ -229,6 +243,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
         };
         Ok(Self {
             be,
+            geo,
             geo_cls: up(be, &get(g, &format!("{gp}.cls_embed.weight"), &[1, D])?.data, &[1, 1, D])?,
             geo_final_proj: Lin::load(be, g, &format!("{gp}.final_proj"), D, D)?,
             geo_norm: Norm::load(be, g, &format!("{gp}.norm"))?,
@@ -256,8 +271,13 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             instance_head: Conv::load(be, s, &format!("{sp}.instance_seg_head"), [D, D, 1, 1])?,
             semantic_head: Conv::load(be, s, &format!("{sp}.semantic_seg_head"), [1, D, 1, 1])?,
             mask_embed: Mlp::load(be, s, &format!("{sp}.mask_predictor.mask_embed"), &[D, D, D, D], false, false)?,
-            pos: up(be, &pos, &[1, TOKENS, D])?,
+            pos: up(be, &pos, &[1, tokens, D])?,
         })
+    }
+
+    /// The input size this detector was built for.
+    pub fn geometry(&self) -> Geometry {
+        self.geo
     }
 
     /// Weights the port reads, for the claim-everything check: every tensor
@@ -276,8 +296,17 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
     /// (non-padding) resized text tokens, `[1, L, 256]`.
     pub fn forward(&self, fpn: &[Tensor; 3], text: &Tensor, taps: &mut DetectorTaps) -> Result<DetectorOut, ModelError> {
         let be = self.be;
-        // Image tokens [1, 5184, 256] from the 72x72 level (NCHW -> tokens).
-        let img = be.permute(&fpn[2].reshape(&[1, D, TOKENS])?, &[0, 2, 1])?;
+        let (feat, tokens, mask) = (self.geo.grid, self.geo.tokens(), self.geo.low_res());
+        for (level, side) in [(0, mask), (1, self.geo.mid_res()), (2, feat)] {
+            if fpn[level].shape() != [1, D, side, side] {
+                return Err(ModelError::Ojas(OjasError::OutOfRange {
+                    op: "st_model::Detector::forward",
+                    detail: format!("fpn[{level}] is {:?}, expected [1, {D}, {side}, {side}] for a {}-pixel input", fpn[level].shape(), self.geo.pixels()),
+                }));
+            }
+        }
+        // Image tokens [1, grid^2, 256] from the grid x grid level (NCHW -> tokens).
+        let img = be.permute(&fpn[2].reshape(&[1, D, tokens])?, &[0, 2, 1])?;
 
         // Geometry encoder, empty prompt: CLS -> final_proj -> norm -> 3 layers -> encode_norm.
         let mut geo = self.geo_norm.fwd(be, &self.geo_final_proj.fwd(be, &self.geo_cls)?)?;
@@ -316,7 +345,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             let mut pos = vec![0f32; D];
             pos.extend_from_slice(&qpos);
             let pos = up(be, &pos, &[1, 1 + QUERIES, D])?;
-            let rpb = up(be, &self.rpb_bias(&refs), &[1, HEADS, 1 + QUERIES, TOKENS])?;
+            let rpb = up(be, &self.rpb_bias(&refs), &[1, HEADS, 1 + QUERIES, tokens])?;
             x = layer.fwd(be, &x, &pos, &prompt, &mem, &mem_keys, &rpb)?;
             let xh = host_of(&x, be)?;
             let (presence, queries) = xh.split_at(D);
@@ -357,8 +386,8 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
         let t = self.seg_cross_norm.fwd(be, &mem)?;
         let ca = self.seg_cross_attn.fwd(be, &t, &prompt, &prompt, None)?;
         taps.seg_cross_attn = Some(ca.clone());
-        let enc = be.residual_add_forward(&mem, &ca)?; // [1, 5184, 256]
-        let mut prev = be.permute(&enc, &[0, 2, 1])?.reshape(&[1, D, FEAT, FEAT])?;
+        let enc = be.residual_add_forward(&mem, &ca)?; // [1, grid^2, 256]
+        let mut prev = be.permute(&enc, &[0, 2, 1])?.reshape(&[1, D, feat, feat])?;
         for (i, bb) in [&fpn[1], &fpn[0]].into_iter().enumerate() {
             let upsampled = self.nearest2x(&prev)?;
             prev = be.residual_add_forward(bb, &upsampled)?;
@@ -366,27 +395,28 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             prev = be.relu_forward(&self.group_norm(&prev, &self.pd_gn[i])?)?;
         }
         taps.pixel_embed = Some(prev.clone());
-        let instance = self.instance_head.fwd(be, &prev, 0)?; // [1, 256, 288, 288]
+        let instance = self.instance_head.fwd(be, &prev, 0)?; // [1, 256, M, M], M = 288 at 1008
         let semantic_seg = self.semantic_head.fwd(be, &prev, 0)?;
         let mask_embed = self.mask_embed.fwd(be, &up(be, &hs_last, &[QUERIES, D])?)?;
-        let inst = be.permute(&instance.reshape(&[D, MASK * MASK])?, &[1, 0])?; // [82944, 256]
-        let pred_masks = be.linear_forward(&mask_embed, &inst)?.reshape(&[QUERIES, MASK, MASK])?;
+        let inst = be.permute(&instance.reshape(&[D, mask * mask])?, &[1, 0])?; // [M * M, 256]
+        let pred_masks = be.linear_forward(&mask_embed, &inst)?.reshape(&[QUERIES, mask, mask])?;
 
         let pred_boxes = refs;
         Ok(DetectorOut { pred_logits, presence_logit: presence, pred_boxes, pred_masks, semantic_seg })
     }
 
-    /// `TransformerDecoder._get_rpb_matrix` with `boxRPB="log"` for a 72x72
-    /// map, as `[HEADS, 1 + Q, 5184]` with a zero row for the presence token.
+    /// `TransformerDecoder._get_rpb_matrix` with `boxRPB="log"` for a grid x grid
+    /// map (72 at 1008), as `[HEADS, 1 + Q, grid^2]` with a zero row for the presence token.
     fn rpb_bias(&self, refs: &[f32]) -> Vec<f32> {
-        let coords: Vec<f32> = (0..FEAT).map(|i| i as f32 / FEAT as f32).collect();
+        let (feat, tokens) = (self.geo.grid, self.geo.tokens());
+        let coords: Vec<f32> = (0..feat).map(|i| i as f32 / feat as f32).collect();
         let log8 = 8f32.log2();
         let enc = |d: f32| {
             let v = d * 8.0;
             v.signum() * (v.abs() + 1.0).log2() / log8
         };
-        // deltas [Q * 72, 2] per axis: coord - (x0, x1) or (y0, y1).
-        let (mut dx, mut dy) = (Vec::with_capacity(QUERIES * FEAT * 2), Vec::with_capacity(QUERIES * FEAT * 2));
+        // deltas [Q * grid, 2] per axis: coord - (x0, x1) or (y0, y1).
+        let (mut dx, mut dy) = (Vec::with_capacity(QUERIES * feat * 2), Vec::with_capacity(QUERIES * feat * 2));
         for b in refs.chunks_exact(4) {
             let (x0, y0, x1, y1) = (b[0] - 0.5 * b[2], b[1] - 0.5 * b[3], b[0] + 0.5 * b[2], b[1] + 0.5 * b[3]);
             for &c in &coords {
@@ -394,17 +424,17 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
                 dy.extend([enc(c - y0), enc(c - y1)]);
             }
         }
-        let ex = self.rpb_x.host(&dx, QUERIES * FEAT); // [Q, 72(w), 8]
-        let ey = self.rpb_y.host(&dy, QUERIES * FEAT); // [Q, 72(h), 8]
+        let ex = self.rpb_x.host(&dx, QUERIES * feat); // [Q, grid(w), 8]
+        let ey = self.rpb_y.host(&dy, QUERIES * feat); // [Q, grid(h), 8]
         let rows = 1 + QUERIES;
-        let mut out = vec![0f32; HEADS * rows * TOKENS];
+        let mut out = vec![0f32; HEADS * rows * tokens];
         for h in 0..HEADS {
             for q in 0..QUERIES {
-                let base = (h * rows + 1 + q) * TOKENS;
-                for i in 0..FEAT {
-                    let y = ey[(q * FEAT + i) * HEADS + h];
-                    for j in 0..FEAT {
-                        out[base + i * FEAT + j] = y + ex[(q * FEAT + j) * HEADS + h];
+                let base = (h * rows + 1 + q) * tokens;
+                for i in 0..feat {
+                    let y = ey[(q * feat + i) * HEADS + h];
+                    for j in 0..feat {
+                        out[base + i * feat + j] = y + ex[(q * feat + j) * HEADS + h];
                     }
                 }
             }

@@ -65,18 +65,55 @@ impl Geometry {
     /// frame, attention windows of 24x24 tokens (a 3x3 grid of windows).
     pub const SAM3: Geometry = Geometry { grid: 72, patch: 14, window: 24 };
 
+    /// SAM 3.1's PE ViT on a square `side` x `side` frame: 14-pixel patches, 24-token
+    /// windows, so `side` must be a whole number of windows, a multiple of 14 x 24 = 336
+    /// (1008, the native size, 672 and 336 qualify). The one place a run's resolution is
+    /// validated; every size in the model is derived from the value it returns.
+    pub fn from_image_side(side: usize) -> Result<Self, GateError> {
+        let (patch, window) = (Self::SAM3.patch, Self::SAM3.window);
+        let unit = patch * window;
+        if side == 0 || side % unit != 0 {
+            return Err(GateError::Geometry(format!(
+                "image side {side} is not a positive multiple of {unit} ({patch}-pixel patches x {window}-token windows); try {unit}, {}, {}",
+                2 * unit,
+                3 * unit
+            )));
+        }
+        let geo = Geometry { grid: side / patch, patch, window };
+        geo.validate()?;
+        Ok(geo)
+    }
+
     /// Frame side in pixels.
-    pub fn pixels(self) -> usize {
+    pub const fn pixels(self) -> usize {
         self.grid * self.patch
     }
 
+    /// Side of the detector's and tracker's finest feature level and of their mask logits:
+    /// the simple-FPN necks scale the trunk grid by 4, 2 and 1 (288, 144, 72 at 1008).
+    pub const fn low_res(self) -> usize {
+        4 * self.grid
+    }
+
+    /// Side of the middle feature level (144 at 1008).
+    pub const fn mid_res(self) -> usize {
+        2 * self.grid
+    }
+
+    /// Side of the tracker's input masks and of the memory encoder's input (1152 at 1008): four
+    /// stride-2 convolutions must land on the grid, and the prompt encoder's stride-4
+    /// downsample on [`Self::low_res`].
+    pub const fn input_mask(self) -> usize {
+        16 * self.grid
+    }
+
     /// Windows per grid row.
-    pub fn side(self) -> usize {
+    pub const fn side(self) -> usize {
         self.grid / self.window
     }
 
     /// Tokens in the grid.
-    pub fn tokens(self) -> usize {
+    pub const fn tokens(self) -> usize {
         self.grid * self.grid
     }
 
@@ -459,6 +496,21 @@ mod tests {
         let m = change_map(&frame(&a, g, 3), &frame(&b, g, 3), g, 0).unwrap();
         assert_eq!(m.windows().iter().collect::<Vec<_>>(), vec![1, 8]);
         assert_eq!(m.patches().iter_ones().collect::<Vec<_>>(), vec![24, 71 * 72 + 71]);
+    }
+
+    #[test]
+    fn image_side_gives_the_model_geometry_and_refuses_unaligned_sizes() {
+        assert_eq!(Geometry::from_image_side(1008).unwrap(), Geometry::SAM3);
+        let g = Geometry::from_image_side(672).unwrap();
+        assert_eq!((g.grid, g.pixels(), g.side(), g.tokens()), (48, 672, 2, 2304));
+        assert_eq!((g.low_res(), g.mid_res(), g.input_mask()), (192, 96, 768));
+        let s = Geometry::SAM3;
+        assert_eq!((s.low_res(), s.mid_res(), s.input_mask()), (288, 144, 1152));
+        assert_eq!(Geometry::from_image_side(336).unwrap().side(), 1);
+        // Multiples of the patch that do not tile the 24-token window, and non-multiples.
+        for bad in [0usize, 14, 350, 448, 504, 1000, 1009, 1344 + 1] {
+            assert!(matches!(Geometry::from_image_side(bad), Err(GateError::Geometry(_))), "{bad}");
+        }
     }
 
     #[test]

@@ -17,8 +17,6 @@ use crate::ModelError;
 pub const D: usize = 256;
 pub const MUX: usize = 16;
 pub const MASKS_PER_OBJ: usize = 3;
-pub const FEAT: usize = 72;
-pub const LOW_RES: usize = 288;
 const LN2D_EPS: f32 = 1e-6;
 
 struct TwoWayBlock {
@@ -93,7 +91,7 @@ impl TwoWay {
 
 /// Outputs of one multiplexed decode for `B` buckets of `MUX` objects.
 pub struct MuxDecoderOut {
-    /// `[B, MUX, 3, 288, 288]` mask logits.
+    /// `[B, MUX, 3, M, M]` mask logits, `M` = 4 x the feature grid (288 at 1008).
     pub masks: Tensor,
     /// `[B, MUX, 3]`, host.
     pub iou_pred: Vec<f32>,
@@ -140,12 +138,15 @@ impl MuxMaskDecoder {
         })
     }
 
-    /// `image` `[B, 256, 72, 72]`, `image_pe` `[1, 256, 72, 72]`, high-res
-    /// features after `conv_s0`/`conv_s1` (`[B, 32, 288, 288]`, `[B, 64, 144, 144]`),
+    /// `image` `[B, 256, G, G]`, `image_pe` `[1, 256, G, G]`, high-res
+    /// features after `conv_s0`/`conv_s1` (`[B, 32, 4G, 4G]`, `[B, 64, 2G, 2G]`),
     /// per-slot embeddings `[B, MUX, D]` (valid/invalid output embeddings) on the host.
+    /// `G` is the token grid (72 at 1008) and is read from `image`; the decoder has no
+    /// resolution of its own.
     pub fn fwd<B: Backend + ?Sized>(&self, be: &B, image: &Tensor, image_pe: &Tensor, s0: &Tensor, s1: &Tensor, extra: &[f32]) -> Result<MuxDecoderOut, OjasError> {
         let b = image.shape()[0];
-        let hw = FEAT * FEAT;
+        let feat = checked_feat("st_model::MuxMaskDecoder::fwd", image, image_pe, s0, s1)?;
+        let (hw, low_res) = (feat * feat, 4 * feat);
         // Tokens per bucket: [obj_score x16; iou x16; mask x48 (+ the slot's extra embedding)].
         let ntok = 2 * MUX + MUX * MASKS_PER_OBJ;
         let mut tok = Vec::with_capacity(b * ntok * D);
@@ -169,14 +170,14 @@ impl MuxMaskDecoder {
         let hs_host = hs.to_host(be.budget())?.to_f32_vec()?;
 
         // Upscale the image tokens with the high-res skips.
-        let src = be.permute(&src, &[0, 2, 1])?.reshape(&[b, D, FEAT, FEAT])?;
+        let src = be.permute(&src, &[0, 2, 1])?.reshape(&[b, D, feat, feat])?;
         let mut up2 = ConvTranspose2dParams::new();
         up2.stride = [2, 2];
         let x = be.conv_transpose2d_forward(&src, &self.dc1.0, Some(&self.dc1.1), up2)?;
         let x = be.residual_add_forward(&x, s1)?;
         let x = be.gelu_erf_forward(&be.channel_layer_norm_forward(&x, &self.ln1.0, &self.ln1.1, LN2D_EPS)?)?;
         let x = be.conv_transpose2d_forward(&x, &self.dc2.0, Some(&self.dc2.1), up2)?;
-        let upscaled = be.gelu_erf_forward(&be.residual_add_forward(&x, s0)?)?; // [B, 32, 288, 288]
+        let upscaled = be.gelu_erf_forward(&be.residual_add_forward(&x, s0)?)?; // [B, 32, 4G, 4G]
 
         // Per-object hypernetwork vectors [B, MUX, 3, 32] from the mask tokens.
         let row = |bi: usize, tidx: usize| &hs_host[(bi * ntok + tidx) * D..(bi * ntok + tidx + 1) * D];
@@ -191,7 +192,7 @@ impl MuxMaskDecoder {
                 }
             }
         }
-        let n = LOW_RES * LOW_RES;
+        let n = low_res * low_res;
         let mut masks = Vec::with_capacity(b * MUX * MASKS_PER_OBJ * n);
         for bi in 0..b {
             let hyper = Tensor::from_f32(&hyper_in[bi * MUX * MASKS_PER_OBJ * (D / 8)..(bi + 1) * MUX * MASKS_PER_OBJ * (D / 8)], &[MUX * MASKS_PER_OBJ, D / 8], be.budget())?;
@@ -200,7 +201,7 @@ impl MuxMaskDecoder {
             let m = be.linear_forward(&hyper, &emb)?; // [48, n]
             masks.extend(m.to_host(be.budget())?.to_f32_vec()?);
         }
-        let masks = up(be, &masks, &[b, MUX, MASKS_PER_OBJ, LOW_RES, LOW_RES])?;
+        let masks = up(be, &masks, &[b, MUX, MASKS_PER_OBJ, low_res, low_res])?;
         let mut iou_pred = Vec::with_capacity(b * MUX * MASKS_PER_OBJ);
         let mut object_score_logits = Vec::with_capacity(b * MUX);
         for bi in 0..b {
@@ -211,6 +212,27 @@ impl MuxMaskDecoder {
         }
         Ok(MuxDecoderOut { masks, iou_pred, object_score_logits, sam_tokens })
     }
+}
+
+/// The token grid `G` of a decoder call, read from `image` `[B, 256, G, G]` and checked against
+/// the positions `[1, 256, G, G]` and the two high-resolution skips (`4G` and `2G` squared):
+/// the transformer's two upsampling steps are fixed 2x each, so any other pairing would only
+/// fail later as an opaque shape error, or not at all.
+pub(crate) fn checked_feat(op: &'static str, image: &Tensor, image_pe: &Tensor, s0: &Tensor, s1: &Tensor) -> Result<usize, OjasError> {
+    let feat = image.shape().get(2).copied().unwrap_or(0);
+    let ok = feat > 0
+        && [image.shape().len(), s0.shape().len(), s1.shape().len()] == [4, 4, 4]
+        && image.shape()[1..] == [D, feat, feat]
+        && image_pe.shape() == [1, D, feat, feat]
+        && s0.shape()[2..] == [4 * feat, 4 * feat]
+        && s1.shape()[2..] == [2 * feat, 2 * feat];
+    if !ok {
+        return Err(OjasError::OutOfRange {
+            op,
+            detail: format!("image {:?}, image_pe {:?}, s0 {:?}, s1 {:?} do not share one token grid G (expected [B, {D}, G, G], [1, {D}, G, G], [B, _, 4G, 4G], [B, _, 2G, 2G])", image.shape(), image_pe.shape(), s0.shape(), s1.shape()),
+        });
+    }
+    Ok(feat)
 }
 
 /// Per-bucket view of a `[B, ...]` tensor.

@@ -50,7 +50,7 @@ use crate::host;
 use crate::layers::{host_of, up};
 use crate::tracker::mask_decoder::{high_res, MASKS_PER_OBJ, MUX};
 use crate::tracker::memory_attention::MemoryInputs;
-use crate::tracker::vos::{bf16_round, nchw_to_tokens, sine_1d, Vos, D, FEAT, IMAGE, INPUT_MASK, LN2D_EPS, LOW, MAX_PTRS, NO_OBJ_SCORE, NUM_MASKMEM, TOKENS};
+use crate::tracker::vos::{bf16_round, nchw_to_tokens, sine_1d, Vos, D, LN2D_EPS, MAX_PTRS, NO_OBJ_SCORE, NUM_MASKMEM};
 use crate::ModelError;
 
 /// An empty slot of a bucket (`_PADDING_NUM`).
@@ -64,7 +64,7 @@ pub(crate) fn err(detail: impl Into<String>) -> ModelError {
     ModelError::Ojas(OjasError::OutOfRange { op: "st_model::tracker::state", detail: detail.into() })
 }
 
-/// One frame's propagation-neck features as tokens `[5184, 256]`; shared by every state that
+/// One frame's propagation-neck features as tokens `[G * G, 256]` (`G` = 72 at 1008); shared by every state that
 /// stores a memory for the frame (upstream stores the same tensor in each state's output).
 pub struct FrameFeats {
     pub tokens: Vec<f32>,
@@ -81,7 +81,7 @@ pub struct InterPix {
 /// Everything the tracker reads about the current frame (upstream's `feature_cache[frame_idx]`).
 pub struct FrameCtx {
     pub frame: usize,
-    /// Propagation neck, top level `[1, 256, 72, 72]`.
+    /// Propagation neck, top level `[1, 256, G, G]`.
     pub prop72: Tensor,
     /// `conv_s0` / `conv_s1` of the multiplex decoder on the propagation neck's finer levels.
     pub ps0: Tensor,
@@ -96,7 +96,7 @@ pub struct FrameCtx {
 pub struct Stored {
     /// Object ids of the rows of `pred_masks` and `scores` (`local_obj_id_to_idx`).
     pub row_ids: Vec<i64>,
-    /// `[rows, 288 * 288]` logits (`-1024` for an object the tracker scored as absent).
+    /// `[rows, M * M]` logits, `M` = 4 x the grid, 288 at 1008 (`-1024` for an object the tracker scored as absent).
     pub pred_masks: Vec<f32>,
     /// Object-score logits per row.
     pub scores: Vec<f32>,
@@ -104,14 +104,14 @@ pub struct Stored {
     pub obj_ptr: Vec<f32>,
     /// State-local object indices that are conditioned on this frame.
     pub cond_objs: BTreeSet<usize>,
-    /// `[256, 72, 72]`, rounded through bf16 as upstream stores it. `None` until a memory is encoded.
+    /// `[256, G, G]`, rounded through bf16 as upstream stores it. `None` until a memory is encoded.
     pub maskmem: Option<Vec<f32>>,
     pub feats: Option<Arc<FrameFeats>>,
 }
 
 /// Masks the tracker predicted for one frame.
 pub struct PropOut {
-    /// `[n, 288 * 288]`, state object order.
+    /// `[n, M * M]`, state object order.
     pub low_res: Vec<f32>,
     /// `[n]` object-score logits.
     pub scores: Vec<f32>,
@@ -208,7 +208,7 @@ impl TrackerState {
     }
 
     /// `add_new_masks`: bring objects `ids` into this state on the current frame from their
-    /// binary masks at the model's input size (`masks`: `[n, 1152 * 1152]`, 0 or 1).
+    /// binary masks at the model's input size (`masks`: `[n, I * I]`, `I` = 16 x the grid, 1152 at 1008; 0 or 1).
     ///
     /// `reconditioning == false`: births. A fresh state takes the objects as its conditioning
     /// frame (`multiplex_controller.get_state`: object k to slot k); an existing state that has
@@ -231,7 +231,7 @@ impl TrackerState {
         let frame = ctx.frame;
         let ip = ctx.inter.as_ref().ok_or_else(|| err("add_new_masks: the frame's interactive features are not computed"))?;
         let (h, w) = video;
-        let mx = INPUT_MASK;
+        let mx = vos.geo.input_mask();
         if masks.len() != n * mx * mx {
             return Err(err(format!("add_new_masks: {} values for {n} masks of {mx}x{mx}", masks.len())));
         }
@@ -260,7 +260,8 @@ impl TrackerState {
         let bin: Vec<Vec<bool>> = (0..n).map(|o| vid[o * hw..(o + 1) * hw].iter().map(|&v| v > 0.5).collect()).collect();
 
         let is_cond = !self.tracked.contains(&frame);
-        let px = LOW * LOW;
+        let low_res = vos.geo.low_res();
+        let px = low_res * low_res;
         if is_new_state {
             for k in 0..n {
                 self.slots[k] = k as i32;
@@ -360,7 +361,8 @@ impl TrackerState {
         };
         let be = vos.be;
         let frame = p.frame;
-        let px = LOW * LOW;
+        let (low_res, image) = (vos.geo.low_res(), vos.geo.pixels());
+        let px = low_res * low_res;
         let n = self.obj_ids.len();
         let all_out = self.cond.get(&frame).or_else(|| self.non_cond.get(&frame)).ok_or_else(|| err(format!("preflight: no stored output on frame {frame}")))?;
         if all_out.row_ids.len() != n {
@@ -370,15 +372,15 @@ impl TrackerState {
         let (h, w) = p.video;
         for (idx, fg) in &p.masks {
             let plane: Vec<f32> = fg.iter().map(|&b| if b { -NO_OBJ_SCORE } else { NO_OBJ_SCORE }).collect();
-            let row = st_video::resize_bilinear_aa_f32(&plane, 1, h, w, LOW, LOW);
+            let row = st_video::resize_bilinear_aa_f32(&plane, 1, h, w, low_res, low_res);
             merged.pred_masks[idx * px..(idx + 1) * px].copy_from_slice(&row);
         }
         if run_mem_encoder {
-            let low = up(be, &merged.pred_masks, &[n, 1, LOW, LOW])?;
-            let mut hr = host_of(&be.interpolate_bilinear_forward(&low, [IMAGE, IMAGE], false)?, be)?;
-            crate::tracker::vos::non_overlap(&mut hr, n, IMAGE * IMAGE);
+            let low = up(be, &merged.pred_masks, &[n, 1, low_res, low_res])?;
+            let mut hr = host_of(&be.interpolate_bilinear_forward(&low, [image, image], false)?, be)?;
+            crate::tracker::vos::non_overlap(&mut hr, n, image * image);
             let slot_of = self.slot_of();
-            merged.maskmem = Some(vos.encode_mask_memory(ctx, &hr, IMAGE, &merged.scores, &merged.cond_objs, &slot_of)?);
+            merged.maskmem = Some(vos.encode_mask_memory(ctx, &hr, image, &merged.scores, &merged.cond_objs, &slot_of)?);
             merged.feats = Some(ctx.feats.clone());
         }
         if p.is_cond {
@@ -403,7 +405,7 @@ impl TrackerState {
         let frame = ctx.frame;
         let cond = self.stored(frame).map(|s| s.cond_objs.clone()).ok_or_else(|| err(format!("conditioning objects not found at frame {frame}")))?;
         let slot_of = self.slot_of();
-        let mm = vos.encode_mask_memory(ctx, hr, INPUT_MASK, scores, &cond, &slot_of)?;
+        let mm = vos.encode_mask_memory(ctx, hr, vos.geo.input_mask(), scores, &cond, &slot_of)?;
         for map in [&mut self.cond, &mut self.non_cond] {
             if let Some(st) = map.get_mut(&frame) {
                 st.maskmem = Some(mm.clone());
@@ -433,7 +435,7 @@ impl TrackerState {
         };
         let out = match reuse {
             Some(st) => {
-                if st.row_ids.len() != n || st.pred_masks.len() != n * LOW * LOW {
+                if st.row_ids.len() != n || st.pred_masks.len() != n * vos.geo.low_res() * vos.geo.low_res() {
                     return Err(err(format!("stored output of frame {frame} has {} rows for {n} objects", st.row_ids.len())));
                 }
                 PropOut { low_res: st.pred_masks.clone(), scores: st.scores.clone() }
@@ -476,8 +478,9 @@ impl TrackerState {
                 entries.push((st, t_pos as i64));
             }
         }
-        let pos_tokens = nchw_to_tokens(&vos.sine72, D, TOKENS);
-        let image_dev = up(be, &ctx.feats.tokens, &[1, TOKENS, D])?;
+        let (feat, tokens) = (vos.geo.grid, vos.geo.tokens());
+        let pos_tokens = nchw_to_tokens(&vos.sine_pos, D, tokens);
+        let image_dev = up(be, &ctx.feats.tokens, &[1, tokens, D])?;
         let pix = if entries.is_empty() {
             // No memory to attend to: upstream falls back to the frame's own features.
             ctx.prop72.clone()
@@ -487,7 +490,7 @@ impl TrackerState {
                 let te = tpos(t_pos);
                 let feats = st.feats.as_ref().ok_or_else(|| err("a stored memory without its image features"))?;
                 let shifted: Vec<f32> = pos_tokens.chunks_exact(D).flat_map(|r| r.iter().zip(te).map(|(a, b)| a + b)).collect();
-                memory.extend(nchw_to_tokens(st.maskmem.as_ref().expect("filtered on maskmem"), D, TOKENS));
+                memory.extend(nchw_to_tokens(st.maskmem.as_ref().expect("filtered on maskmem"), D, tokens));
                 mimage.extend_from_slice(&feats.tokens);
                 memory_pos.extend_from_slice(&shifted);
                 mimage_pos.extend_from_slice(&shifted);
@@ -513,14 +516,14 @@ impl TrackerState {
             }
             let n_ptr = ptr_frames.len() * MUX;
             let (mtok, mitok) = (memory.len() / D, mimage.len() / D);
-            let src_pos = up(be, &pos_tokens, &[1, TOKENS, D])?;
+            let src_pos = up(be, &pos_tokens, &[1, tokens, D])?;
             let (memory, memory_pos) = (up(be, &memory, &[1, mtok, D])?, up(be, &memory_pos, &[1, mtok, D])?);
             let (mimage, mimage_pos) = (up(be, &mimage, &[1, mitok, D])?, up(be, &mimage_pos, &[1, mitok, D])?);
             let fused = vos.mem_attn.fwd(
                 be,
                 &MemoryInputs { image: &image_dev, src: &image_dev, src_pos: &src_pos, memory_image: &mimage, memory_image_pos: &mimage_pos, memory: &memory, memory_pos: &memory_pos, num_obj_ptr_tokens: n_ptr },
             )?;
-            be.permute(&fused, &[0, 2, 1])?.reshape(&[1, D, FEAT, FEAT])?
+            be.permute(&fused, &[0, 2, 1])?.reshape(&[1, D, feat, feat])?
         };
 
         // Multiplex decode: slots with an object get the valid embedding, the rest the invalid one.
@@ -528,8 +531,8 @@ impl TrackerState {
         let slot_of = self.slot_of();
         let extra: Vec<f32> = (0..MUX).flat_map(|s| if self.slots[s] >= 0 { vos.output_valid[s * D..(s + 1) * D].to_vec() } else { vos.output_invalid[s * D..(s + 1) * D].to_vec() }).collect();
         let out = vos.mux_decoder.fwd(be, &pix, &vos.prop_pe, &ctx.ps0, &ctx.ps1, &extra)?;
-        let masks = host_of(&out.masks, be)?; // [1, 16, 3, 288, 288]
-        let px = LOW * LOW;
+        let masks = host_of(&out.masks, be)?; // [1, 16, 3, M, M]
+        let px = vos.geo.low_res() * vos.geo.low_res();
         let mut low = vec![0f32; n * px];
         let mut ptrs = vec![0f32; n * D];
         let mut scores = vec![0f32; n];
@@ -621,11 +624,12 @@ impl TrackerState {
         }
         self.obj_ids = remaining.iter().map(|&i| self.obj_ids[i]).collect();
         self.inputs = remaining.iter().map(|&i| std::mem::take(&mut self.inputs[i])).collect();
-        let px = LOW * LOW;
         for map in [&mut self.cond, &mut self.non_cond] {
             for st in map.values_mut() {
                 let keep: Vec<usize> = (0..st.row_ids.len()).filter(|&r| !removed_ids.contains(&st.row_ids[r])).collect();
                 if !st.pred_masks.is_empty() {
+                    // One row is one mask's logits; its length is whatever resolution stored it.
+                    let px = st.pred_masks.len() / st.row_ids.len();
                     st.pred_masks = keep.iter().flat_map(|&r| st.pred_masks[r * px..(r + 1) * px].iter().copied()).collect();
                 }
                 st.scores = keep.iter().map(|&r| st.scores[r]).collect();
@@ -656,7 +660,7 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
     /// The frame's propagation-side inputs.
     pub fn frame_ctx(&self, frame: usize, prop: &[Tensor; 3]) -> Result<FrameCtx, ModelError> {
         let (ps0, ps1) = high_res(self.be, &self.mux_decoder, &prop[0], &prop[1])?;
-        let tokens = nchw_to_tokens(&host_of(&prop[2], self.be)?, D, TOKENS);
+        let tokens = nchw_to_tokens(&host_of(&prop[2], self.be)?, D, self.geo.tokens());
         Ok(FrameCtx { frame, prop72: prop[2].clone(), ps0, ps1, feats: Arc::new(FrameFeats { tokens }), inter: None })
     }
 
@@ -664,32 +668,33 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
     /// of the frame): the top level plus `interactivity_no_mem_embed`, and the two skips.
     pub fn interactive_pix(&self, inter: &[Tensor; 3]) -> Result<InterPix, ModelError> {
         let be = self.be;
+        let (feat, tokens) = (self.geo.grid, self.geo.tokens());
         let mut v = host_of(&inter[2], be)?;
         for c in 0..D {
-            v[c * TOKENS..(c + 1) * TOKENS].iter_mut().for_each(|x| *x += self.no_mem_embed[c]);
+            v[c * tokens..(c + 1) * tokens].iter_mut().for_each(|x| *x += self.no_mem_embed[c]);
         }
-        let pix = up(be, &v, &[1, D, FEAT, FEAT])?;
+        let pix = up(be, &v, &[1, D, feat, feat])?;
         let p1 = Conv2dParams::new();
         let s0 = be.conv2d_forward(&inter[0], &self.i_conv_s0.0, Some(&self.i_conv_s0.1), p1)?;
         let s1 = be.conv2d_forward(&inter[1], &self.i_conv_s1.0, Some(&self.i_conv_s1.1), p1)?;
         Ok(InterPix { pix, s0, s1 })
     }
 
-    /// `_use_mask_as_output` for `n` binary masks `[n, 1152 * 1152]`: object pointers `[n, 256]`,
-    /// whether each mask has any foreground, and the low-res mask logits `[n, 288 * 288]`
-    /// (the antialiased 288 resize of `mask * 20 - 10`).
+    /// `_use_mask_as_output` for `n` binary masks `[n, I * I]` (`I` = 1152 at 1008): object pointers
+    /// `[n, 256]`, whether each mask has any foreground, and the low-res mask logits
+    /// `[n, M * M]` (`M` = 288; the antialiased resize of `mask * 20 - 10`).
     pub(crate) fn pointers_from_masks(&self, ip: &InterPix, masks: &[f32], n: usize) -> Result<(Vec<f32>, Vec<bool>, Vec<f32>), ModelError> {
         let be = self.be;
-        let mx = INPUT_MASK;
+        let (mx, low_res) = (self.geo.input_mask(), self.geo.low_res());
         let appearing: Vec<bool> = (0..n).map(|o| masks[o * mx * mx..(o + 1) * mx * mx].iter().any(|&v| v > 0.0)).collect();
         let hi: Vec<f32> = masks.iter().map(|&m| m * 20.0 - 10.0).collect();
-        let low = st_video::resize_bilinear_aa_f32(&hi, n, mx, mx, LOW, LOW);
+        let low = st_video::resize_bilinear_aa_f32(&hi, n, mx, mx, low_res, low_res);
 
         let mut k4 = Conv2dParams::new();
         k4.stride = [4, 4];
         let down = be.conv2d_forward(&up(be, masks, &[n, 1, mx, mx])?, &self.mask_downsample.w, Some(&self.mask_downsample.b), k4)?;
         let ds = down.shape()[2];
-        let mut x = if ds == LOW { down } else { up(be, &st_video::resize_bilinear_aa_f32(&host_of(&down, be)?, n, ds, ds, LOW, LOW), &[n, 1, LOW, LOW])? };
+        let mut x = if ds == low_res { down } else { up(be, &st_video::resize_bilinear_aa_f32(&host_of(&down, be)?, n, ds, ds, low_res, low_res), &[n, 1, low_res, low_res])? };
         let p1 = Conv2dParams::new();
         let mut k2 = Conv2dParams::new();
         k2.stride = [2, 2];
@@ -718,12 +723,13 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
     }
 
     /// `_encode_new_memory` + bf16 storage for `n` objects' mask logits `hr` `[n, size * size]`
-    /// (`size` 1008 for a consolidated frame, 1152 for the frame memory update; the encoder
-    /// resizes to 1152). `scores`: the object-score logits that decide which slots get
+    /// (`size` = the image side, 1008, for a consolidated frame, 1152 for the frame memory update;
+    /// the encoder resizes to `16 * grid`). `scores`: the object-score logits that decide which slots get
     /// `no_obj_embed_spatial` (padding and removed slots count as score 0). `slot_of[o]`: slot of
-    /// object `o`. `cond`: objects whose condition channel is 1.0. Returns `[256 * 72 * 72]`.
+    /// object `o`. `cond`: objects whose condition channel is 1.0. Returns `[256 * G * G]`.
     pub(crate) fn encode_mask_memory(&self, ctx: &FrameCtx, hr: &[f32], size: usize, scores: &[f32], cond: &BTreeSet<usize>, slot_of: &[usize]) -> Result<Vec<f32>, ModelError> {
         let be = self.be;
+        let tokens = self.geo.tokens();
         let px = size * size;
         let n = slot_of.len();
         if hr.len() != n * px || scores.len() != n {
@@ -753,7 +759,7 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
             }
         }
         for c in 0..D {
-            feat[c * TOKENS..(c + 1) * TOKENS].iter_mut().for_each(|v| *v += add[c]);
+            feat[c * tokens..(c + 1) * tokens].iter_mut().for_each(|v| *v += add[c]);
         }
         bf16_round(&mut feat);
         Ok(feat)
@@ -763,6 +769,7 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tracker::vos::LOW;
 
     #[test]
     fn mux_and_demux_are_inverse_on_valid_slots() {

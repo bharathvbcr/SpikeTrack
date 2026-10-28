@@ -67,7 +67,7 @@ use std::collections::BTreeMap;
 
 use ojas_core::{Backend, Tensor};
 
-use crate::detector::{Detector, DetectorTaps, D as DET_D, MASK, QUERIES};
+use crate::detector::{Detector, DetectorTaps, D as DET_D, QUERIES};
 use crate::host;
 use crate::layers::{host_of, up};
 use crate::text::Text;
@@ -76,7 +76,7 @@ use crate::tracker::associate::{associate, nms_iom, not_close_to_boundary, track
 use crate::tracker::bookkeeping::{BookParams, FrameInput, FramePlan, HideLog, TrackBook, YieldBuffer};
 use crate::tracker::mask_decoder::MUX;
 use crate::tracker::state::{err, FrameCtx, TrackerState};
-use crate::tracker::vos::{Vos, INPUT_MASK, LOW};
+use crate::tracker::vos::Vos;
 use crate::{ModelError, Neck, Taps};
 
 /// The builder's session parameters (`model_builder.py:1170-1202`).
@@ -257,9 +257,11 @@ fn round_neck<B: Backend + ?Sized>(be: &B, neck: [Tensor; 3]) -> Result<[Tensor;
     Ok([round_bf16(be, &a)?, round_bf16(be, &b)?, round_bf16(be, &c)?])
 }
 
-/// Mask logits of query `q`.
+/// Mask logits of query `q`: one of `QUERIES` equal rows (`step_frame` checks the count against
+/// the geometry's mask size before any row is read).
 fn det_row(det: &Detections, q: usize) -> &[f32] {
-    &det.masks[q * MASK * MASK..(q + 1) * MASK * MASK]
+    let px = det.masks.len() / QUERIES;
+    &det.masks[q * px..(q + 1) * px]
 }
 
 /// `masks_to_boxes` (inclusive extents) then `box_xyxy_to_xywh` and the normalization by the video size.
@@ -352,8 +354,9 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         if t >= self.cfg.num_frames {
             return Err(err(format!("frame {t} is past the {} frames the session was built for", self.cfg.num_frames)));
         }
-        if det.logits.len() != QUERIES || det.boxes_cxcywh.len() != QUERIES * 4 || det.masks.len() != QUERIES * MASK * MASK {
-            return Err(err("detections do not hold 200 queries of 288x288 masks"));
+        let mask = self.vos.geo.low_res();
+        if det.logits.len() != QUERIES || det.boxes_cxcywh.len() != QUERIES * 4 || det.masks.len() != QUERIES * mask * mask {
+            return Err(err(format!("detections do not hold {QUERIES} queries of {mask}x{mask} masks (the tracker's geometry is {} pixels; was the detector built for the same size?)", self.vos.geo.pixels())));
         }
         let prop = round_neck(self.vos.be, self.vos.backbone.neck(Neck::Propagation, trunk)?)?;
         let mut ctx = self.vos.frame_ctx(t, &prop)?;
@@ -420,7 +423,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
 
     /// NMS, thresholds, boundary filter and the kept-first reorder over the detector's queries.
     fn process_detections(&self, det: &Detections) -> DetStage {
-        let px = MASK * MASK;
+        let px = det.masks.len() / QUERIES;
         let probs0: Vec<f32> = det.logits.iter().map(|&l| host::sigmoid(l)).collect();
         let bits0: Vec<Bitmask> = (0..QUERIES).map(|q| Bitmask::from_logits(&det.masks[q * px..(q + 1) * px])).collect();
         let nms_keep = nms_iom(&probs0, &bits0, self.cfg.score_threshold, self.cfg.nms_iom);
@@ -452,7 +455,8 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         let vos = self.vos;
         let be = vos.be;
         let (h, w) = self.cfg.video_hw;
-        let px = LOW * LOW;
+        let (low_res, input_mask) = (vos.geo.low_res(), vos.geo.input_mask());
+        let px = low_res * low_res;
         let num_frames = self.cfg.num_frames;
         let prev_ids: Vec<i64> = self.book.obj_ids().to_vec();
         let n = prev_ids.len();
@@ -535,17 +539,17 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
 
         // 4c. Memory update for every existing track.
         let (mem_masks, mem_scores) = if n > 0 {
-            let low = up(be, &trk, &[n, 1, LOW, LOW])?;
-            let mut hr = host_of(&be.interpolate_bilinear_forward(&low, [INPUT_MASK, INPUT_MASK], false)?, be)?;
-            let proxy = suppress_area_shrinkage(&mut hr, n, INPUT_MASK * INPUT_MASK);
+            let low = up(be, &trk, &[n, 1, low_res, low_res])?;
+            let mut hr = host_of(&be.interpolate_bilinear_forward(&low, [input_mask, input_mask], false)?, be)?;
+            let proxy = suppress_area_shrinkage(&mut hr, n, input_mask * input_mask);
             for st in self.states.iter_mut() {
                 if st.is_empty() {
                     continue;
                 }
-                let (mut local, mut local_scores) = (Vec::with_capacity(st.len() * INPUT_MASK * INPUT_MASK), Vec::with_capacity(st.len()));
+                let (mut local, mut local_scores) = (Vec::with_capacity(st.len() * input_mask * input_mask), Vec::with_capacity(st.len()));
                 for id in st.obj_ids() {
                     let row = prev_ids.binary_search(id).map_err(|_| err(format!("state object {id} is not a track")))?;
-                    local.extend_from_slice(&hr[row * INPUT_MASK * INPUT_MASK..(row + 1) * INPUT_MASK * INPUT_MASK]);
+                    local.extend_from_slice(&hr[row * input_mask * input_mask..(row + 1) * input_mask * input_mask]);
                     local_scores.push(proxy[row]);
                 }
                 st.encode_memory(vos, ctx, &local, &local_scores)?;
@@ -568,7 +572,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
             // they are placed MUX at a time, in birth order. Upstream would put them in extra
             // buckets of one state instead, so beyond 16 objects the grouping, and with it the
             // multiplex decoder's joint decode, is not parity-checked.
-            let px_in = INPUT_MASK * INPUT_MASK;
+            let px_in = input_mask * input_mask;
             for (g, group) in ids.chunks(MUX).enumerate() {
                 let kg = group.len();
                 let gm = &masks[g * MUX * px_in..(g * MUX + kg) * px_in];
@@ -610,7 +614,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         sam2_scores.extend(plan.births.iter().map(|b| (b.id, ds.scores[b.det])));
         let mut outputs: Vec<(i64, Bitmask)> = Vec::with_capacity(total);
         if total > 0 {
-            let src = up(be, &all, &[total, 1, LOW, LOW])?;
+            let src = up(be, &all, &[total, 1, low_res, low_res])?;
             let video = host_of(&be.interpolate_bilinear_forward(&src, [h, w], false)?, be)?;
             let ids = prev_ids.iter().copied().chain(plan.births.iter().map(|b| b.id));
             for (i, id) in ids.enumerate() {
@@ -669,12 +673,13 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         Ok(VisitOut { buffered: Buffered { frame: t, items }, unconfirmed: plan.unconfirmed_ids.clone() })
     }
 
-    /// Detector mask logits `[k, 288 * 288]` to the tracker's input masks: bilinear to 1152
-    /// (no antialiasing) and `> 0`, as 0/1 floats `[k, 1152 * 1152]`.
+    /// Detector mask logits `[k, M * M]` to the tracker's input masks: bilinear to `I = 16 * grid`
+    /// (no antialiasing) and `> 0`, as 0/1 floats `[k, I * I]` (`M` = 288, `I` = 1152 at 1008).
     fn binary_input_masks(&self, logits: &[f32], k: usize) -> Result<Vec<f32>, ModelError> {
         let be = self.vos.be;
-        let src = up(be, logits, &[k, 1, LOW, LOW])?;
-        let hi = host_of(&be.interpolate_bilinear_forward(&src, [INPUT_MASK, INPUT_MASK], false)?, be)?;
+        let (low_res, input_mask) = (self.vos.geo.low_res(), self.vos.geo.input_mask());
+        let src = up(be, logits, &[k, 1, low_res, low_res])?;
+        let hi = host_of(&be.interpolate_bilinear_forward(&src, [input_mask, input_mask], false)?, be)?;
         Ok(hi.iter().map(|&v| if v > 0.0 { 1.0 } else { 0.0 }).collect())
     }
 }
