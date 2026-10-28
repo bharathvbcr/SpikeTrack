@@ -112,8 +112,10 @@ mod tests {
     fn the_footprint_is_read_and_grows_with_an_allocation() {
         let before = phys_footprint_bytes().expect("task_info(TASK_VM_INFO)");
         assert!(before > 1 << 20, "a running test process has more than 1 MiB of footprint: {before}");
-        // 256 MiB, touched so it is resident.
-        let block = vec![1u8; 256 << 20];
+        // 256 MiB, touched so it is resident. black_box makes the block escape before the next read,
+        // so a release build cannot sink the fill past it or drop the allocation (it did: the
+        // footprint read the same before and after).
+        let block = std::hint::black_box(vec![1u8; 256 << 20]);
         let after = phys_footprint_bytes().expect("task_info(TASK_VM_INFO)");
         assert!(after >= before + (200 << 20), "footprint {before} -> {after} after touching 256 MiB");
         assert_eq!(block[block.len() - 1], 1);
