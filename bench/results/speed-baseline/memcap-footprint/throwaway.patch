@@ -1,0 +1,55 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 1e6d702..0421077 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -13,10 +13,10 @@ publish = false
+ # reaches tessl as a sibling path (../../tessl = ~/Code/research/tessl) and that
+ # does not resolve from a git checkout of ojas.
+ [workspace.dependencies]
+-ojas-core = { path = "../ojas-st/ojas-core" }
+-ojas-cpu = { path = "../ojas-st/ojas-cpu" }
+-ojas-io = { path = "../ojas-st/ojas-io" }
+-ojas-metal = { path = "../ojas-st/ojas-metal" }
++ojas-core = { path = "../ojas-memcap/ojas-core" }
++ojas-cpu = { path = "../ojas-memcap/ojas-cpu" }
++ojas-io = { path = "../ojas-memcap/ojas-io" }
++ojas-metal = { path = "../ojas-memcap/ojas-metal" }
+ st-weights = { path = "crates/st-weights" }
+ st-eval = { path = "crates/st-eval" }
+ st-video = { path = "crates/st-video" }
+diff --git a/crates/st-model/tests/frame_profile.rs b/crates/st-model/tests/frame_profile.rs
+index d390178..310426b 100644
+--- a/crates/st-model/tests/frame_profile.rs
++++ b/crates/st-model/tests/frame_profile.rs
+@@ -178,7 +178,7 @@ fn run<B: Backend>(
+ #[test]
+ #[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the tracker fixture"]
+ fn frame_profile_metal() {
+-    run(|| MetalBackend::new(Budget::new(24 << 30)).expect("metal"), AutocastMode::Off, false, "Metal f32, contended", Some(|b: &MetalBackend| (b.waits(), b.dispatches())), Some(|b: &MetalBackend| b.wait_counts()));
++    run(open_metal, AutocastMode::Off, false, "Metal f32, contended", Some(|b: &MetalBackend| (b.waits(), b.dispatches())), Some(|b: &MetalBackend| b.wait_counts()));
+ }
+ 
+ #[test]
+@@ -198,7 +198,21 @@ thread_local! {
+     /// backend, and a counter reader is a plain `fn`, so it reads the counters here. One per
+     /// test thread, shared by the unprofiled and profiled passes (leaked: it lives for the
+     /// test process).
+-    static METAL: &'static MetalBackend = Box::leak(Box::new(MetalBackend::new(Budget::new(24 << 30)).expect("metal")));
++    static METAL: &'static MetalBackend = Box::leak(Box::new(open_metal()));
++}
++
++/// Throwaway A/B (SpikeTrack-memcap, ojas 7fd9fc3): `SPIKETRACK_METAL_BUDGET_GIB` (default 24) as
++/// the backend's budget and `SPIKETRACK_METAL_MEM_CAP` bytes as its allocated-between-waits cap
++/// (`MetalBackend::set_mem_cap`), default otherwise.
++fn open_metal() -> MetalBackend {
++    let gib: u64 = std::env::var("SPIKETRACK_METAL_BUDGET_GIB").map_or(24, |v| v.parse().expect("SPIKETRACK_METAL_BUDGET_GIB"));
++    println!("metal budget {gib} GiB");
++    let be = MetalBackend::new(Budget::new(gib << 30)).expect("metal");
++    if let Ok(cap) = std::env::var("SPIKETRACK_METAL_MEM_CAP") {
++        be.set_mem_cap(cap.parse().expect("SPIKETRACK_METAL_MEM_CAP bytes")).expect("set_mem_cap");
++        println!("mem cap set to {cap} bytes");
++    }
++    be
+ }
+ 
+ fn shared_metal() -> &'static MetalBackend {

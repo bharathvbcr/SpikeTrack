@@ -1,0 +1,542 @@
+
+running 1 test
+test frame_profile_metal ... metal budget 24 GiB
+mem cap set to 8589934592 bytes
+[Metal f32, contended] unprofiled pass 1 (load before: { 11.15 12.83 11.39 }; waits +119, dispatches +36393; waits by trigger WaitCounts { upload: 10, read: 77, sync: 2, clip_norm: 0, mem_cap: 30, working_set: 0, slab_full: 0, recycle: 0, freed: 0 }): detector run (trunk + neck + detector) 2917 ms; tracker frames (each incl. its trunk + neck + step): frame 1 F=1 2032 ms, frame 3 F=3 1868 ms, frame 7 F=7 2054 ms
+[Metal f32, contended] unprofiled pass 2 (load before: { 10.98 12.63 11.36 }; waits +119, dispatches +36393; waits by trigger WaitCounts { upload: 10, read: 77, sync: 2, clip_norm: 0, mem_cap: 30, working_set: 0, slab_full: 0, recycle: 0, freed: 0 }): detector run (trunk + neck + detector) 2052 ms; tracker frames (each incl. its trunk + neck + step): frame 1 F=1 1776 ms, frame 3 F=3 1872 ms, frame 7 F=7 2168 ms
+[Metal f32, contended] unprofiled pass 3 (load before: { 11.64 12.65 11.39 }; waits +119, dispatches +36393; waits by trigger WaitCounts { upload: 10, read: 77, sync: 2, clip_norm: 0, mem_cap: 30, working_set: 0, slab_full: 0, recycle: 0, freed: 0 }): detector run (trunk + neck + detector) 2395 ms; tracker frames (each incl. its trunk + neck + step): frame 1 F=1 1881 ms, frame 3 F=3 1867 ms, frame 7 F=7 2290 ms
+[Metal f32, contended] load before the profiled pass: { 11.08 12.47 11.36 }
+metal budget 24 GiB
+mem cap set to 8589934592 bytes
+[Metal f32, contended] profiled (every op synced): detector run (trunk + neck + detector) 2504 ms; tracker frames (each incl. its trunk + neck + step): frame 1 F=1 2021 ms, frame 3 F=3 2168 ms, frame 7 F=7 2118 ms
+
+recorded 6477 op calls, 9017.5 ms total (each op synced; wall time)
+
+| stage | calls | ms | share |
+|---|---|---|---|
+| detector neck + detector | 562 | 540.1 | 6.0% |
+| text (once per prompt) | 396 | 278.7 | 3.1% |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | 964 | 1978.8 | 21.9% |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | 964 | 2107.1 | 23.4% |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | 964 | 2030.5 | 22.5% |
+| trunk (detector run) | 636 | 1533.3 | 17.0% |
+| unlabelled | 1991 | 548.9 | 6.1% |
+
+| stage | op | tensor argument shapes | calls | total ms | mean ms | share | waits | dispatches |
+|---|---|---|---|---|---|---|---|---|
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 72, 72, 1024] x [4736, 1024] x [4736] | 32 | 507.37 | 15.855 | 5.6% | 32 | 160 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 72, 72, 1024] x [4736, 1024] x [4736] | 32 | 452.58 | 14.143 | 5.0% | 32 | 160 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 72, 72, 1024] x [4736, 1024] x [4736] | 32 | 437.71 | 13.678 | 4.9% | 32 | 160 |
+| trunk (detector run) | linear_bias_forward | [1, 72, 72, 1024] x [4736, 1024] x [4736] | 32 | 431.62 | 13.488 | 4.8% | 32 | 160 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 72, 72, 4736] x [1024, 4736] x [1024] | 32 | 301.10 | 9.409 | 3.3% | 32 | 160 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [9, 576, 1024] x [1024, 1024] x [1024] | 112 | 297.52 | 2.656 | 3.3% | 112 | 560 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 72, 72, 4736] x [1024, 4736] x [1024] | 32 | 294.00 | 9.187 | 3.3% | 32 | 160 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [9, 576, 1024] x [1024, 1024] x [1024] | 112 | 283.20 | 2.529 | 3.1% | 112 | 560 |
+| trunk (detector run) | linear_bias_forward | [1, 72, 72, 4736] x [1024, 4736] x [1024] | 32 | 272.74 | 8.523 | 3.0% | 32 | 160 |
+| trunk (detector run) | linear_bias_forward | [9, 576, 1024] x [1024, 1024] x [1024] | 112 | 266.55 | 2.380 | 3.0% | 112 | 560 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 72, 72, 4736] x [1024, 4736] x [1024] | 32 | 254.52 | 7.954 | 2.8% | 32 | 160 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [9, 576, 1024] x [1024, 1024] x [1024] | 112 | 242.74 | 2.167 | 2.7% | 112 | 560 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 5184, 32] x [1, 8, 36400, 32] x [1, 8, 36400, 32] | 4 | 177.03 | 44.259 | 2.0% | 4 | 24 |
+| unlabelled | upload | [1024, 1024] | 224 | 129.44 | 0.578 | 1.4% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 72, 72, 4736] | 32 | 113.65 | 3.552 | 1.3% | 32 | 128 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | attention_forward | [9, 16, 576, 64] x [9, 16, 576, 64] x [9, 16, 576, 64] | 28 | 109.48 | 3.910 | 1.2% | 28 | 252 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | attention_forward | [9, 16, 576, 64] x [9, 16, 576, 64] x [9, 16, 576, 64] | 28 | 104.82 | 3.744 | 1.2% | 28 | 252 |
+| detector neck + detector | conv2d_forward | [1, 256, 288, 288] x [256, 256, 3, 3] x [256] | 2 | 102.71 | 51.354 | 1.1% | 2 | 14 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 72, 72, 4736] | 32 | 101.88 | 3.184 | 1.1% | 32 | 128 |
+| trunk (detector run) | gelu_erf_forward | [1, 72, 72, 4736] | 32 | 100.07 | 3.127 | 1.1% | 32 | 128 |
+| trunk (detector run) | attention_forward | [9, 16, 576, 64] x [9, 16, 576, 64] x [9, 16, 576, 64] | 28 | 99.93 | 3.569 | 1.1% | 28 | 252 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | attention_forward | [9, 16, 576, 64] x [9, 16, 576, 64] x [9, 16, 576, 64] | 28 | 90.74 | 3.241 | 1.0% | 28 | 252 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 72, 72, 4736] | 32 | 90.33 | 2.823 | 1.0% | 32 | 128 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | attention_forward | [1, 16, 5184, 64] x [1, 16, 5184, 64] x [1, 16, 5184, 64] | 4 | 86.57 | 21.643 | 1.0% | 4 | 36 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | attention_forward | [1, 16, 5184, 64] x [1, 16, 5184, 64] x [1, 16, 5184, 64] | 4 | 84.73 | 21.182 | 0.9% | 4 | 36 |
+| trunk (detector run) | attention_forward | [1, 16, 5184, 64] x [1, 16, 5184, 64] x [1, 16, 5184, 64] | 4 | 84.40 | 21.101 | 0.9% | 4 | 36 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | attention_forward | [1, 16, 5184, 64] x [1, 16, 5184, 64] x [1, 16, 5184, 64] | 4 | 80.53 | 20.131 | 0.9% | 4 | 36 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 5184, 32] x [1, 8, 15600, 32] x [1, 8, 15600, 32] | 4 | 75.71 | 18.928 | 0.8% | 4 | 24 |
+| text (once per prompt) | layer_norm_forward | [1, 32, 1024] x [1024] x [1024] | 49 | 69.32 | 1.415 | 0.8% | 49 | 245 |
+| unlabelled | upload | [1024] | 513 | 67.50 | 0.132 | 0.7% | 0 | 0 |
+| text (once per prompt) | linear_bias_forward | [1, 32, 1024] x [1024, 1024] x [1024] | 96 | 66.04 | 0.688 | 0.7% | 96 | 480 |
+| unlabelled | upload | [1024, 4736] | 32 | 64.45 | 2.014 | 0.7% | 0 | 0 |
+| unlabelled | upload | [4736, 1024] | 32 | 62.02 | 1.938 | 0.7% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 288, 288] x [256, 256, 3, 3] x [256] | 1 | 59.58 | 59.577 | 0.7% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | layer_norm_forward | [1, 72, 72, 1024] x [1024] x [1024] | 65 | 56.33 | 0.867 | 0.6% | 65 | 325 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 288, 288] x [256, 256, 3, 3] x [256] | 1 | 56.16 | 56.155 | 0.6% | 1 | 7 |
+| trunk (detector run) | layer_norm_forward | [1, 72, 72, 1024] x [1024] x [1024] | 65 | 54.57 | 0.839 | 0.6% | 65 | 325 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [9, 576, 16, 64] | 84 | 50.55 | 0.602 | 0.6% | 84 | 84 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 1024] x [1024, 1024] x [1024] | 16 | 48.69 | 3.043 | 0.5% | 16 | 80 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 288, 288] x [256, 256, 3, 3] x [256] | 1 | 48.66 | 48.655 | 0.5% | 1 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | layer_norm_forward | [1, 72, 72, 1024] x [1024] x [1024] | 65 | 47.24 | 0.727 | 0.5% | 65 | 325 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [9, 576, 16, 64] | 84 | 45.70 | 0.544 | 0.5% | 84 | 84 |
+| trunk (detector run) | permute | [9, 576, 16, 64] | 84 | 45.47 | 0.541 | 0.5% | 84 | 84 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 72, 72, 1024] x [1, 72, 72, 1024] | 65 | 43.93 | 0.676 | 0.5% | 65 | 65 |
+| trunk (detector run) | residual_add_forward | [1, 72, 72, 1024] x [1, 72, 72, 1024] | 65 | 43.63 | 0.671 | 0.5% | 65 | 65 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 1024] x [1024, 1024] x [1024] | 16 | 43.16 | 2.698 | 0.5% | 16 | 80 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | layer_norm_forward | [1, 72, 72, 1024] x [1024] x [1024] | 65 | 42.46 | 0.653 | 0.5% | 65 | 325 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 72, 72, 1024] x [1, 72, 72, 1024] | 65 | 41.98 | 0.646 | 0.5% | 65 | 65 |
+| unlabelled | upload | [1024, 4096] | 24 | 41.80 | 1.742 | 0.5% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | rope_interleaved_forward | [9, 576, 16, 64] x [576, 32] x [576, 32] | 56 | 41.73 | 0.745 | 0.5% | 56 | 280 |
+| unlabelled | upload | [4096, 1024] | 24 | 41.67 | 1.736 | 0.5% | 0 | 0 |
+| unlabelled | upload | [256] | 503 | 40.54 | 0.081 | 0.4% | 0 | 0 |
+| trunk (detector run) | rope_interleaved_forward | [9, 576, 16, 64] x [576, 32] x [576, 32] | 56 | 39.40 | 0.704 | 0.4% | 56 | 280 |
+| detector neck + detector | linear_bias_forward | [1, 5184, 256] x [256, 256] x [256] | 56 | 39.06 | 0.697 | 0.4% | 56 | 280 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | rope_interleaved_forward | [9, 576, 16, 64] x [576, 32] x [576, 32] | 56 | 37.84 | 0.676 | 0.4% | 56 | 280 |
+| trunk (detector run) | linear_bias_forward | [1, 5184, 1024] x [1024, 1024] x [1024] | 16 | 37.21 | 2.326 | 0.4% | 16 | 80 |
+| detector neck + detector | conv2d_forward | [1, 256, 144, 144] x [256, 256, 3, 3] x [256] | 2 | 36.98 | 18.489 | 0.4% | 2 | 14 |
+| detector neck + detector | attention_forward | [1, 8, 5184, 32] x [1, 8, 5184, 32] x [1, 8, 5184, 32] | 6 | 36.74 | 6.123 | 0.4% | 6 | 54 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 1024] x [1024, 1024] x [1024] | 16 | 34.22 | 2.139 | 0.4% | 16 | 80 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 36400, 256] x [256, 256] x [256] | 12 | 32.54 | 2.712 | 0.4% | 12 | 60 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 72, 72, 1024] x [1, 72, 72, 1024] | 65 | 32.22 | 0.496 | 0.4% | 65 | 65 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [9, 576, 16, 64] | 84 | 31.16 | 0.371 | 0.3% | 84 | 84 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 5184, 32] x [1, 8, 5184, 32] x [1, 8, 5184, 32] | 4 | 29.56 | 7.390 | 0.3% | 4 | 36 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | rope_interleaved_forward | [9, 576, 16, 64] x [576, 32] x [576, 32] | 56 | 29.19 | 0.521 | 0.3% | 56 | 280 |
+| detector neck + detector | linear_bias_forward | [1, 201, 256] x [256, 256] x [256] | 48 | 29.02 | 0.605 | 0.3% | 48 | 240 |
+| text (once per prompt) | linear_bias_forward | [1, 32, 4096] x [1024, 4096] x [1024] | 24 | 27.96 | 1.165 | 0.3% | 24 | 120 |
+| text (once per prompt) | permute | [1, 32, 16, 64] | 72 | 26.36 | 0.366 | 0.3% | 72 | 72 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [9, 16, 576, 64] | 28 | 25.59 | 0.914 | 0.3% | 28 | 28 |
+| unlabelled | upload | [256, 256] | 245 | 25.33 | 0.103 | 0.3% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 5184, 32] x [1, 8, 5184, 32] x [1, 8, 5184, 32] | 4 | 25.18 | 6.296 | 0.3% | 4 | 36 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 5184, 32] x [1, 8, 5200, 32] x [1, 8, 5200, 32] | 4 | 24.59 | 6.148 | 0.3% | 4 | 36 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 5184, 32] x [1, 8, 5184, 32] x [1, 8, 5184, 32] | 4 | 23.21 | 5.802 | 0.3% | 4 | 36 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 32, 1152, 1152] x [16, 32, 3, 3] x [16] | 1 | 22.59 | 22.593 | 0.3% | 1 | 7 |
+| text (once per prompt) | linear_bias_forward | [1, 32, 1024] x [4096, 1024] x [4096] | 24 | 21.08 | 0.878 | 0.2% | 24 | 120 |
+| text (once per prompt) | residual_add_forward | [1, 32, 1024] x [1, 32, 1024] | 48 | 20.13 | 0.419 | 0.2% | 48 | 48 |
+| detector neck + detector | conv2d_forward | [1, 256, 288, 288] x [256, 256, 1, 1] x [256] | 2 | 19.68 | 9.842 | 0.2% | 2 | 14 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 32, 1152, 1152] x [16, 32, 3, 3] x [16] | 1 | 19.45 | 19.452 | 0.2% | 1 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 15600, 256] x [256, 256] x [256] | 12 | 19.30 | 1.608 | 0.2% | 12 | 60 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 32, 1152, 1152] x [16, 32, 3, 3] x [16] | 1 | 18.56 | 18.559 | 0.2% | 1 | 7 |
+| detector neck + detector | residual_add_forward | [1, 201, 256] x [1, 201, 256] | 42 | 17.85 | 0.425 | 0.2% | 42 | 42 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 256] x [256, 256] x [256] | 28 | 17.70 | 0.632 | 0.2% | 28 | 140 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv_transpose2d_forward | [1, 1024, 72, 72] x [1024, 512, 2, 2] x [512] | 2 | 17.18 | 8.591 | 0.2% | 2 | 14 |
+| detector neck + detector | permute | [1, 201, 8, 32] | 30 | 17.03 | 0.568 | 0.2% | 30 | 30 |
+| detector neck + detector | permute | [1, 5184, 8, 32] | 43 | 16.01 | 0.372 | 0.2% | 43 | 43 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 288, 288] x [256, 256, 1, 1] x [256] | 1 | 15.83 | 15.831 | 0.2% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 3, 3, 24, 24, 1024] | 28 | 15.73 | 0.562 | 0.2% | 28 | 28 |
+| text (once per prompt) | attention_forward | [1, 16, 32, 64] x [1, 16, 32, 64] x [1, 16, 32, 64] x causal | 24 | 15.65 | 0.652 | 0.2% | 24 | 144 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 256] x [2048, 256] x [2048] | 4 | 15.60 | 3.901 | 0.2% | 4 | 20 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 144, 144] x [256, 256, 3, 3] x [256] | 1 | 15.28 | 15.281 | 0.2% | 1 | 7 |
+| detector neck + detector | conv_transpose2d_forward | [1, 1024, 72, 72] x [1024, 512, 2, 2] x [512] | 2 | 15.00 | 7.499 | 0.2% | 2 | 14 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 3, 3, 24, 24, 1024] | 28 | 14.96 | 0.534 | 0.2% | 28 | 28 |
+| trunk (detector run) | permute | [1, 3, 3, 24, 24, 1024] | 28 | 14.96 | 0.534 | 0.2% | 28 | 28 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv_transpose2d_forward | [1, 512, 144, 144] x [512, 256, 2, 2] x [256] | 1 | 14.82 | 14.824 | 0.2% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [9, 16, 576, 64] | 28 | 14.66 | 0.524 | 0.2% | 28 | 28 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 288, 288] x [256, 256, 1, 1] x [256] | 1 | 14.57 | 14.572 | 0.2% | 1 | 7 |
+| detector neck + detector | linear_bias_forward | [1, 5184, 256] x [2048, 256] x [2048] | 6 | 14.46 | 2.410 | 0.2% | 6 | 30 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 144, 144] x [256, 256, 3, 3] x [256] | 1 | 14.37 | 14.372 | 0.2% | 1 | 7 |
+| trunk (detector run) | permute | [9, 16, 576, 64] | 28 | 13.86 | 0.495 | 0.2% | 28 | 28 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 144, 144] x [256, 256, 3, 3] x [256] | 1 | 13.65 | 13.651 | 0.2% | 1 | 7 |
+| detector neck + detector | linear_bias_forward | [1, 4, 256] x [256, 256] x [256] | 26 | 13.49 | 0.519 | 0.1% | 26 | 130 |
+| trunk (detector run) | permute | [1, 3, 24, 3, 24, 1024] | 28 | 12.97 | 0.463 | 0.1% | 28 | 28 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | upload | [1, 32, 1008, 1008] | 1 | 12.72 | 12.716 | 0.1% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 256] x [256, 256] x [256] | 28 | 12.65 | 0.452 | 0.1% | 28 | 140 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv_transpose2d_forward | [1, 512, 144, 144] x [512, 256, 2, 2] x [256] | 1 | 12.57 | 12.574 | 0.1% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 3, 24, 3, 24, 1024] | 28 | 12.55 | 0.448 | 0.1% | 28 | 28 |
+| detector neck + detector | attention_forward | [1, 8, 201, 32] x [1, 8, 5184, 32] x [1, 8, 5184, 32] x bias [1, 8, 201, 5184] | 6 | 12.49 | 2.082 | 0.1% | 6 | 48 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 288, 288] x [256, 256, 1, 1] x [256] | 1 | 12.31 | 12.311 | 0.1% | 1 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv_transpose2d_forward | [1, 1024, 72, 72] x [1024, 512, 2, 2] x [512] | 2 | 11.91 | 5.957 | 0.1% | 2 | 14 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv_transpose2d_forward | [1, 512, 144, 144] x [512, 256, 2, 2] x [256] | 1 | 11.80 | 11.799 | 0.1% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv_transpose2d_forward | [1, 1024, 72, 72] x [1024, 512, 2, 2] x [512] | 2 | 11.76 | 5.879 | 0.1% | 2 | 14 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 256] x [256, 256] x [256] | 28 | 11.58 | 0.414 | 0.1% | 28 | 140 |
+| unlabelled | upload | [576, 32] | 56 | 11.35 | 0.203 | 0.1% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 5184, 16, 64] | 12 | 11.13 | 0.927 | 0.1% | 12 | 12 |
+| text (once per prompt) | permute | [1, 16, 32, 64] | 24 | 11.00 | 0.458 | 0.1% | 24 | 24 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | interpolate_bilinear_forward | [1, 32, 1008, 1008] | 1 | 10.98 | 10.976 | 0.1% | 1 | 2 |
+| detector neck + detector | residual_add_forward | [1, 5184, 256] x [1, 5184, 256] | 29 | 10.93 | 0.377 | 0.1% | 29 | 29 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 3, 3, 24, 24, 1024] | 28 | 10.91 | 0.390 | 0.1% | 28 | 28 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 256] x [2048, 256] x [2048] | 4 | 10.61 | 2.653 | 0.1% | 4 | 20 |
+| text (once per prompt) | gelu_erf_forward | [1, 32, 4096] | 24 | 10.56 | 0.440 | 0.1% | 24 | 96 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 3, 24, 3, 24, 1024] | 28 | 10.47 | 0.374 | 0.1% | 28 | 28 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [9, 16, 576, 64] | 28 | 10.37 | 0.370 | 0.1% | 28 | 28 |
+| text (once per prompt) | upload | [1, 3, 1008, 1008] | 8 | 10.01 | 1.251 | 0.1% | 0 | 0 |
+| detector neck + detector | linear_bias_forward | [1, 5184, 2048] x [256, 2048] x [256] | 6 | 9.55 | 1.592 | 0.1% | 6 | 30 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 36400, 8, 32] | 8 | 9.33 | 1.166 | 0.1% | 8 | 8 |
+| detector neck + detector | linear_bias_forward | [1, 1, 256] x [256, 256] x [256] | 19 | 9.16 | 0.482 | 0.1% | 19 | 95 |
+| detector neck + detector | permute | [1, 4, 8, 32] | 26 | 9.12 | 0.351 | 0.1% | 26 | 26 |
+| detector neck + detector | conv_transpose2d_forward | [1, 512, 144, 144] x [512, 256, 2, 2] x [256] | 1 | 9.04 | 9.044 | 0.1% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 3, 24, 3, 24, 1024] | 28 | 8.90 | 0.318 | 0.1% | 28 | 28 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | interpolate_bilinear_forward | [1, 32, 1008, 1008] | 1 | 8.86 | 8.861 | 0.1% | 1 | 2 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | interpolate_bilinear_forward | [1, 32, 1008, 1008] | 1 | 8.67 | 8.669 | 0.1% | 1 | 2 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | upload | [1, 32, 1008, 1008] | 1 | 8.63 | 8.632 | 0.1% | 0 | 0 |
+| detector neck + detector | layer_norm_forward | [1, 5184, 256] x [256] x [256] | 19 | 8.26 | 0.435 | 0.1% | 19 | 95 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | upload | [1, 32, 1008, 1008] | 1 | 8.15 | 8.146 | 0.1% | 0 | 0 |
+| detector neck + detector | conv2d_forward | [1, 512, 144, 144] x [256, 512, 1, 1] x [256] | 1 | 7.91 | 7.914 | 0.1% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 256] x [2048, 256] x [2048] | 4 | 7.89 | 1.971 | 0.1% | 4 | 20 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | fill |  | 3 | 7.74 | 2.579 | 0.1% | 3 | 3 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 288, 288] x [32, 256, 1, 1] x [32] | 1 | 7.72 | 7.719 | 0.1% | 1 | 7 |
+| unlabelled | upload | [256, 2048] | 24 | 7.52 | 0.313 | 0.1% | 0 | 0 |
+| detector neck + detector | relu_forward | [1, 5184, 2048] | 6 | 7.42 | 1.237 | 0.1% | 6 | 6 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 5200, 256] x [1, 5200, 256] | 8 | 7.27 | 0.909 | 0.1% | 8 | 8 |
+| detector neck + detector | layer_norm_forward | [1, 201, 256] x [256] x [256] | 24 | 7.26 | 0.302 | 0.1% | 24 | 120 |
+| detector neck + detector | upload | [1, 8, 201, 5184] | 6 | 7.07 | 1.179 | 0.1% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 5184, 256] x [1, 5184, 256] | 24 | 6.71 | 0.280 | 0.1% | 24 | 24 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 1024, 72, 72] x [256, 1024, 1, 1] x [256] | 2 | 6.65 | 3.324 | 0.1% | 2 | 14 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 288, 288] x [32, 256, 1, 1] x [32] | 1 | 6.64 | 6.638 | 0.1% | 1 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 5184, 8, 16] | 8 | 6.55 | 0.818 | 0.1% | 8 | 8 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | rope_interleaved_forward | [1, 5184, 8, 32] x [5184, 16] x [5184, 16] | 12 | 6.54 | 0.545 | 0.1% | 12 | 60 |
+| unlabelled | upload | [2048, 256] | 24 | 6.49 | 0.270 | 0.1% | 0 | 0 |
+| unlabelled | upload | [4736] | 32 | 6.37 | 0.199 | 0.1% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5200, 256] x [256, 256] x [256] | 12 | 6.29 | 0.525 | 0.1% | 12 | 60 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 72, 72, 1024] x [256, 1024] x [256] | 2 | 6.28 | 3.140 | 0.1% | 2 | 10 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 80, 32] x [1, 8, 80, 32] x [1, 8, 80, 32] | 2 | 6.23 | 3.115 | 0.1% | 2 | 18 |
+| unlabelled | upload | [1024, 512, 2, 2] | 6 | 6.15 | 1.024 | 0.1% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 1024, 72, 72] | 1 | 6.14 | 6.138 | 0.1% | 1 | 4 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | rope_interleaved_forward | [1, 5184, 16, 64] x [5184, 32] x [5184, 32] | 8 | 5.96 | 0.745 | 0.1% | 8 | 40 |
+| detector neck + detector | permute | [1, 8, 201, 32] | 18 | 5.92 | 0.329 | 0.1% | 18 | 18 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 5184, 256] x [1, 5184, 256] | 24 | 5.91 | 0.246 | 0.1% | 24 | 24 |
+| detector neck + detector | permute | [1, 1, 8, 32] | 12 | 5.82 | 0.485 | 0.1% | 12 | 12 |
+| trunk (detector run) | permute | [1, 5184, 16, 64] | 12 | 5.60 | 0.467 | 0.1% | 12 | 12 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 5184, 2048] | 4 | 5.50 | 1.374 | 0.1% | 4 | 16 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 2048] x [256, 2048] x [256] | 4 | 5.42 | 1.356 | 0.1% | 4 | 20 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 16, 576, 576] x [64, 16, 3, 3] x [64] | 1 | 5.39 | 5.395 | 0.1% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 5184, 2048] | 4 | 5.32 | 1.329 | 0.1% | 4 | 16 |
+| trunk (detector run) | rope_interleaved_forward | [1, 5184, 16, 64] x [5184, 32] x [5184, 32] | 8 | 5.27 | 0.659 | 0.1% | 8 | 40 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 2048] x [256, 2048] x [256] | 4 | 5.26 | 1.316 | 0.1% | 4 | 20 |
+| detector neck + detector | permute | [1, 8, 5184, 32] | 13 | 5.24 | 0.403 | 0.1% | 13 | 13 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | layer_norm_forward | [1, 5184, 256] x [256] x [256] | 15 | 5.24 | 0.349 | 0.1% | 15 | 75 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 16, 576, 576] | 1 | 5.21 | 5.214 | 0.1% | 1 | 4 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | rope_interleaved_forward | [1, 5184, 16, 64] x [5184, 32] x [5184, 32] | 8 | 5.17 | 0.646 | 0.1% | 8 | 40 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 5184, 256] x [1, 5184, 256] | 24 | 5.15 | 0.215 | 0.1% | 24 | 24 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 5184, 16, 64] | 12 | 5.09 | 0.424 | 0.1% | 12 | 12 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 16, 576, 576] x [64, 16, 3, 3] x [64] | 1 | 5.09 | 5.091 | 0.1% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | upload | [1, 36288, 256] | 2 | 5.09 | 2.544 | 0.1% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 36400, 256] x [1, 36400, 256] | 8 | 5.04 | 0.630 | 0.1% | 8 | 8 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 5184, 2048] | 4 | 5.00 | 1.250 | 0.1% | 4 | 16 |
+| detector neck + detector | conv2d_forward | [1, 256, 288, 288] x [1, 256, 1, 1] x [1] | 1 | 4.98 | 4.977 | 0.1% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | upload | [1, 36400, 256] | 2 | 4.95 | 2.473 | 0.1% | 0 | 0 |
+| detector neck + detector | linear_forward | [200, 256] x [82944, 256] | 1 | 4.81 | 4.809 | 0.1% | 1 | 4 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 2048] x [256, 2048] x [256] | 4 | 4.80 | 1.201 | 0.1% | 4 | 20 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | layer_norm_forward | [1, 5184, 256] x [256] x [256] | 15 | 4.64 | 0.310 | 0.1% | 15 | 75 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 144, 144] x [1024, 256, 3, 3] x [1024] | 1 | 4.62 | 4.622 | 0.1% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 144, 144] x [1024, 256, 3, 3] x [1024] | 1 | 4.58 | 4.575 | 0.1% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | fill |  | 3 | 4.54 | 1.513 | 0.1% | 3 | 3 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 144, 144] x [1024, 256, 3, 3] x [1024] | 1 | 4.52 | 4.516 | 0.1% | 1 | 7 |
+| unlabelled | upload | [256, 256, 3, 3] | 11 | 4.42 | 0.402 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 5184, 16, 64] | 12 | 4.40 | 0.366 | 0.0% | 12 | 12 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | rope_interleaved_forward | [1, 5184, 16, 64] x [5184, 32] x [5184, 32] | 8 | 4.37 | 0.546 | 0.0% | 8 | 40 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 64, 144, 144] | 1 | 4.31 | 4.311 | 0.0% | 1 | 4 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 5184, 8, 32] | 16 | 4.22 | 0.264 | 0.0% | 16 | 16 |
+| detector neck + detector | attention_forward | [1, 8, 5184, 32] x [1, 8, 4, 32] x [1, 8, 4, 32] | 7 | 4.18 | 0.597 | 0.0% | 7 | 42 |
+| unlabelled | upload | [4096] | 24 | 4.10 | 0.171 | 0.0% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 1024, 72, 72] x [256, 1024, 1, 1] x [256] | 2 | 4.07 | 2.036 | 0.0% | 2 | 14 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | layer_norm_forward | [1, 5184, 256] x [256] x [256] | 15 | 4.06 | 0.271 | 0.0% | 15 | 75 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 5184, 8, 32] | 16 | 4.03 | 0.252 | 0.0% | 16 | 16 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 16, 5184, 64] | 4 | 3.93 | 0.982 | 0.0% | 4 | 4 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | rope_interleaved_forward | [1, 36400, 8, 32] x [36400, 16] x [36400, 16] | 4 | 3.89 | 0.974 | 0.0% | 4 | 20 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 5184, 8, 32] | 16 | 3.76 | 0.235 | 0.0% | 16 | 16 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 3, 1008, 1008] x [1024, 3, 14, 14] | 1 | 3.74 | 3.738 | 0.0% | 1 | 6 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | rope_interleaved_forward | [1, 15600, 8, 32] x [15600, 16] x [15600, 16] | 4 | 3.72 | 0.930 | 0.0% | 4 | 20 |
+| detector neck + detector | attention_forward | [1, 8, 1, 32] x [1, 8, 5184, 32] x [1, 8, 5184, 32] | 3 | 3.67 | 1.222 | 0.0% | 3 | 21 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 15600, 8, 32] | 8 | 3.65 | 0.457 | 0.0% | 8 | 8 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | concat |  | 4 | 3.65 | 0.913 | 0.0% | 4 | 20 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 256] x [128, 256] x [128] | 8 | 3.50 | 0.438 | 0.0% | 8 | 40 |
+| detector neck + detector | attention_forward | [1, 8, 201, 32] x [1, 8, 201, 32] x [1, 8, 201, 32] | 6 | 3.41 | 0.568 | 0.0% | 6 | 54 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 512, 144, 144] x [256, 512, 1, 1] x [256] | 1 | 3.39 | 3.391 | 0.0% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | rope_interleaved_forward | [1, 5184, 8, 32] x [5184, 16] x [5184, 16] | 12 | 3.39 | 0.282 | 0.0% | 12 | 60 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 3, 1008, 1008] x [1024, 3, 14, 14] | 1 | 3.37 | 3.374 | 0.0% | 1 | 6 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 72, 72] x [256, 256, 3, 3] x [256] | 1 | 3.36 | 3.358 | 0.0% | 1 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 15600, 256] x [1, 15600, 256] | 8 | 3.35 | 0.419 | 0.0% | 8 | 8 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 72, 72] x [256, 256, 3, 3] x [256] | 1 | 3.33 | 3.326 | 0.0% | 1 | 7 |
+| detector neck + detector | linear_bias_forward | [1, 201, 2048] x [256, 2048] x [256] | 6 | 3.28 | 0.547 | 0.0% | 6 | 30 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 288, 288] x [32, 256, 1, 1] x [32] | 1 | 3.24 | 3.241 | 0.0% | 1 | 7 |
+| detector neck + detector | linear_bias_forward | [1, 201, 256] x [2048, 256] x [2048] | 6 | 3.21 | 0.535 | 0.0% | 6 | 30 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | interpolate_bilinear_forward | [2, 1, 288, 288] | 2 | 3.14 | 1.568 | 0.0% | 2 | 4 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | rope_interleaved_forward | [1, 5184, 8, 32] x [5184, 16] x [5184, 16] | 12 | 3.13 | 0.261 | 0.0% | 12 | 60 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 1024, 72, 72] x [256, 1024, 1, 1] x [256] | 2 | 3.06 | 1.529 | 0.0% | 2 | 14 |
+| trunk (detector run) | conv2d_forward | [1, 3, 1008, 1008] x [1024, 3, 14, 14] | 1 | 3.03 | 3.034 | 0.0% | 1 | 6 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 256] x [256, 256] x [256] | 8 | 3.03 | 0.379 | 0.0% | 8 | 40 |
+| detector neck + detector | conv2d_forward | [1, 256, 72, 72] x [256, 256, 3, 3] x [256] | 1 | 2.98 | 2.983 | 0.0% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 3, 1008, 1008] x [1024, 3, 14, 14] | 1 | 2.94 | 2.937 | 0.0% | 1 | 6 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 256] x [128, 256] x [128] | 8 | 2.91 | 0.364 | 0.0% | 8 | 40 |
+| detector neck + detector | layer_norm_forward | [1, 1, 256] x [256] x [256] | 11 | 2.82 | 0.256 | 0.0% | 11 | 55 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 72, 72] x [256, 256, 3, 3] x [256] | 1 | 2.78 | 2.783 | 0.0% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | slice | [1, 36400, 256] | 2 | 2.75 | 1.377 | 0.0% | 2 | 4 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 8, 5184, 32] | 8 | 2.75 | 0.343 | 0.0% | 8 | 8 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | concat |  | 4 | 2.74 | 0.684 | 0.0% | 4 | 12 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 8, 5184, 32] | 8 | 2.73 | 0.342 | 0.0% | 8 | 8 |
+| detector neck + detector | conv2d_forward | [1, 1024, 72, 72] x [256, 1024, 1, 1] x [256] | 1 | 2.51 | 2.514 | 0.0% | 1 | 7 |
+| unlabelled | upload | [128, 256] | 30 | 2.50 | 0.083 | 0.0% | 0 | 0 |
+| detector neck + detector | upload | [1, 201, 256] | 7 | 2.48 | 0.355 | 0.0% | 0 | 0 |
+| detector neck + detector | group_norm_forward | [1, 256, 288, 288] x [256] x [256] | 1 | 2.46 | 2.460 | 0.0% | 1 | 6 |
+| unlabelled | upload | [1, 72, 72, 1024] | 1 | 2.45 | 2.454 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 256] x [128, 256] x [128] | 8 | 2.45 | 0.306 | 0.0% | 8 | 40 |
+| detector neck + detector | permute | [1, 8, 1, 32] | 6 | 2.44 | 0.407 | 0.0% | 6 | 6 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | upload | [1, 15600, 256] | 2 | 2.44 | 1.218 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 512, 144, 144] | 1 | 2.43 | 2.432 | 0.0% | 1 | 4 |
+| detector neck + detector | attention_forward | [1, 8, 201, 32] x [1, 8, 4, 32] x [1, 8, 4, 32] | 6 | 2.38 | 0.397 | 0.0% | 6 | 42 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 512, 144, 144] x [256, 512, 1, 1] x [256] | 1 | 2.37 | 2.365 | 0.0% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 80, 256] x [1, 80, 256] | 12 | 2.34 | 0.195 | 0.0% | 12 | 12 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 512, 144, 144] x [256, 512, 1, 1] x [256] | 1 | 2.28 | 2.277 | 0.0% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 16, 576, 576] x [64, 16, 3, 3] x [64] | 1 | 2.27 | 2.274 | 0.0% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 64, 288, 288] x [256, 64, 3, 3] x [256] | 1 | 2.24 | 2.238 | 0.0% | 1 | 7 |
+| detector neck + detector | residual_add_forward | [1, 1, 256] x [1, 1, 256] | 9 | 2.23 | 0.248 | 0.0% | 9 | 9 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 64, 288, 288] x [256, 64, 3, 3] x [256] | 1 | 2.21 | 2.209 | 0.0% | 1 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 80, 256] x [1, 80, 256] | 12 | 2.18 | 0.182 | 0.0% | 12 | 12 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | interpolate_bilinear_forward | [2, 1, 288, 288] | 2 | 2.17 | 1.085 | 0.0% | 2 | 4 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 64, 288, 288] x [256, 64, 3, 3] x [256] | 1 | 2.13 | 2.133 | 0.0% | 1 | 7 |
+| unlabelled | upload | [2048] | 24 | 2.10 | 0.087 | 0.0% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 5200, 8, 32] | 8 | 2.10 | 0.262 | 0.0% | 8 | 8 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 72, 72, 256] x [1024, 256] x [1024] | 2 | 2.08 | 1.041 | 0.0% | 2 | 10 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 72, 72, 256] x [1024, 256] x [1024] | 2 | 1.99 | 0.994 | 0.0% | 2 | 10 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 72, 72, 256] x [1024, 256] x [1024] | 2 | 1.97 | 0.987 | 0.0% | 2 | 10 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 256] x [256, 256] x [256] | 8 | 1.95 | 0.244 | 0.0% | 8 | 40 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 8, 5184, 32] | 8 | 1.91 | 0.239 | 0.0% | 8 | 8 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 80, 256] x [1, 80, 256] | 12 | 1.82 | 0.152 | 0.0% | 12 | 12 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | upload | [1, 5184, 256] | 5 | 1.81 | 0.361 | 0.0% | 0 | 0 |
+| unlabelled | upload | [128] | 30 | 1.80 | 0.060 | 0.0% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 16, 5184, 64] | 4 | 1.78 | 0.444 | 0.0% | 4 | 4 |
+| detector neck + detector | broadcast_add_forward | [1, 256, 72, 1, 72, 1] x [1, 1, 1, 2, 1, 2] | 1 | 1.76 | 1.757 | 0.0% | 1 | 1 |
+| detector neck + detector | relu_forward | [1, 201, 2048] | 6 | 1.74 | 0.289 | 0.0% | 6 | 6 |
+| detector neck + detector | broadcast_add_forward | [1, 256, 144, 1, 144, 1] x [1, 1, 1, 2, 1, 2] | 1 | 1.69 | 1.689 | 0.0% | 1 | 1 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 256] x [256, 256] x [256] | 8 | 1.68 | 0.210 | 0.0% | 8 | 40 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | interpolate_bilinear_forward | [2, 1, 288, 288] | 2 | 1.68 | 0.838 | 0.0% | 2 | 4 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 64, 144, 144] x [64] x [64] | 1 | 1.65 | 1.652 | 0.0% | 1 | 7 |
+| trunk (detector run) | permute | [1, 16, 5184, 64] | 4 | 1.64 | 0.411 | 0.0% | 4 | 4 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 256] x [128, 256] x [128] | 7 | 1.61 | 0.230 | 0.0% | 7 | 35 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | upload | [1, 15552, 256] | 2 | 1.60 | 0.800 | 0.0% | 0 | 0 |
+| unlabelled | upload | [1, 256, 72, 72] | 3 | 1.56 | 0.519 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 72, 72, 1024] | 2 | 1.54 | 0.770 | 0.0% | 2 | 8 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | fill |  | 3 | 1.50 | 0.499 | 0.0% | 3 | 3 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 5184, 8, 16] | 8 | 1.50 | 0.187 | 0.0% | 8 | 8 |
+| detector neck + detector | gelu_erf_forward | [1, 512, 144, 144] | 1 | 1.49 | 1.486 | 0.0% | 1 | 4 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 72, 72, 1024] x [256, 1024] x [256] | 2 | 1.48 | 0.742 | 0.0% | 2 | 10 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 72, 72, 1024] x [256, 1024] x [256] | 2 | 1.48 | 0.741 | 0.0% | 2 | 10 |
+| detector neck + detector | residual_add_forward | [1, 256, 288, 288] x [1, 256, 288, 288] | 1 | 1.47 | 1.475 | 0.0% | 1 | 1 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv_transpose2d_forward | [1, 64, 144, 144] x [64, 32, 2, 2] x [32] | 1 | 1.46 | 1.460 | 0.0% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 72, 72] x [256, 1, 7, 7] x [256] | 2 | 1.44 | 0.719 | 0.0% | 2 | 10 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 16, 5184, 64] | 4 | 1.43 | 0.357 | 0.0% | 4 | 4 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 256] x [128, 256] x [128] | 7 | 1.43 | 0.204 | 0.0% | 7 | 35 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 72, 72, 1024] | 2 | 1.43 | 0.714 | 0.0% | 2 | 8 |
+| unlabelled | upload | [32] | 11 | 1.39 | 0.126 | 0.0% | 0 | 0 |
+| unlabelled | upload | [256, 256, 1, 1] | 5 | 1.38 | 0.276 | 0.0% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 72, 72] x [256, 1, 7, 7] x [256] | 2 | 1.34 | 0.668 | 0.0% | 2 | 10 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | layer_norm_forward | [1, 80, 256] x [256] x [256] | 7 | 1.30 | 0.185 | 0.0% | 7 | 35 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 512, 144, 144] | 1 | 1.29 | 1.294 | 0.0% | 1 | 4 |
+| unlabelled | upload | [1] | 5 | 1.29 | 0.258 | 0.0% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 512, 144, 144] | 1 | 1.29 | 1.289 | 0.0% | 1 | 4 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 72, 72] x [256, 1, 7, 7] x [256] | 2 | 1.28 | 0.642 | 0.0% | 2 | 10 |
+| unlabelled | upload | [5184, 16] | 2 | 1.26 | 0.630 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 5184, 8, 16] | 8 | 1.26 | 0.157 | 0.0% | 8 | 8 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 256, 72, 72] x [1, 256, 72, 72] | 3 | 1.25 | 0.418 | 0.0% | 3 | 3 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 16, 576, 576] x [16] x [16] | 1 | 1.25 | 1.252 | 0.0% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 256] x [128, 256] x [128] | 7 | 1.25 | 0.178 | 0.0% | 7 | 35 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 16, 576, 576] x [16] x [16] | 1 | 1.25 | 1.245 | 0.0% | 1 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | layer_norm_forward | [1, 80, 256] x [256] x [256] | 7 | 1.24 | 0.177 | 0.0% | 7 | 35 |
+| detector neck + detector | attention_forward | [1, 8, 1, 32] x [1, 8, 1, 32] x [1, 8, 1, 32] | 3 | 1.23 | 0.411 | 0.0% | 3 | 27 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 72, 72, 1024] | 2 | 1.23 | 0.615 | 0.0% | 2 | 8 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 80, 16] x [1, 8, 5184, 16] x [1, 8, 5184, 16] | 3 | 1.19 | 0.397 | 0.0% | 3 | 21 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | broadcast_mul_forward | [1, 72, 72, 256] x [256] | 2 | 1.17 | 0.587 | 0.0% | 2 | 2 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 80, 8, 16] | 7 | 1.17 | 0.166 | 0.0% | 7 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | slice | [1, 15600, 256] | 2 | 1.16 | 0.578 | 0.0% | 2 | 4 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 80, 8, 16] | 7 | 1.14 | 0.162 | 0.0% | 7 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 80, 8, 32] | 6 | 1.14 | 0.189 | 0.0% | 6 | 6 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 80, 16] x [1, 8, 5184, 16] x [1, 8, 5184, 16] | 3 | 1.13 | 0.376 | 0.0% | 3 | 21 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 256, 144, 144] x [256] x [256] | 1 | 1.08 | 1.081 | 0.0% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 16, 576, 576] x [16] x [16] | 1 | 1.08 | 1.075 | 0.0% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | layer_norm_forward | [1, 80, 256] x [256] x [256] | 7 | 1.06 | 0.152 | 0.0% | 7 | 35 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 1024, 72, 72] x [1024] x [1024] | 1 | 1.06 | 1.064 | 0.0% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | rope_interleaved_forward | [1, 5200, 8, 32] x [5200, 16] x [5200, 16] | 4 | 1.06 | 0.265 | 0.0% | 4 | 20 |
+| detector neck + detector | linear_bias_forward | [1, 1, 2048] x [256, 2048] x [256] | 3 | 1.06 | 0.352 | 0.0% | 3 | 15 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 80, 16] x [1, 8, 5184, 16] x [1, 8, 5184, 16] | 3 | 1.05 | 0.350 | 0.0% | 3 | 21 |
+| detector neck + detector | relu_forward | [1, 256, 288, 288] | 1 | 1.05 | 1.051 | 0.0% | 1 | 1 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | upload | [1, 16, 3, 288, 288] | 1 | 1.04 | 1.045 | 0.0% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | concat |  | 4 | 1.04 | 0.261 | 0.0% | 4 | 8 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | upload | [1, 16, 3, 288, 288] | 1 | 1.04 | 1.042 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 80, 8, 16] | 7 | 1.02 | 0.146 | 0.0% | 7 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | upload | [1, 5184, 256] | 3 | 1.02 | 0.338 | 0.0% | 0 | 0 |
+| unlabelled | upload | [5184, 32] | 8 | 1.01 | 0.127 | 0.0% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 256, 144, 144] x [256] x [256] | 1 | 1.01 | 1.009 | 0.0% | 1 | 7 |
+| unlabelled | upload | [512, 256, 2, 2] | 3 | 1.00 | 0.334 | 0.0% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 80, 8, 32] | 6 | 0.98 | 0.164 | 0.0% | 6 | 6 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 144, 144] x [64, 256, 1, 1] x [64] | 1 | 0.98 | 0.982 | 0.0% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 64, 288, 288] x [64] x [64] | 1 | 0.98 | 0.979 | 0.0% | 1 | 7 |
+| detector neck + detector | permute | [256, 82944] | 1 | 0.97 | 0.970 | 0.0% | 1 | 1 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | upload | [1, 5200, 256] | 2 | 0.95 | 0.476 | 0.0% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_forward | [48, 32] x [82944, 32] | 1 | 0.94 | 0.936 | 0.0% | 1 | 4 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | scale_forward | [1, 5184, 256] | 1 | 0.93 | 0.928 | 0.0% | 1 | 1 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 1024, 72, 72] x [1024] x [1024] | 1 | 0.93 | 0.928 | 0.0% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 144, 144] x [64, 256, 1, 1] x [64] | 1 | 0.92 | 0.924 | 0.0% | 1 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv_transpose2d_forward | [1, 64, 144, 144] x [64, 32, 2, 2] x [32] | 1 | 0.91 | 0.914 | 0.0% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 80, 8, 32] | 6 | 0.91 | 0.151 | 0.0% | 6 | 6 |
+| detector neck + detector | linear_bias_forward | [1, 1, 256] x [2048, 256] x [2048] | 3 | 0.90 | 0.301 | 0.0% | 3 | 15 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 144, 144] x [64, 256, 1, 1] x [64] | 1 | 0.90 | 0.902 | 0.0% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 256] x [2048, 256] x [2048] | 2 | 0.90 | 0.449 | 0.0% | 2 | 10 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 1024, 72, 72] x [1024] x [1024] | 1 | 0.89 | 0.890 | 0.0% | 1 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 64, 288, 288] x [64] x [64] | 1 | 0.89 | 0.890 | 0.0% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 8, 80, 32] | 2 | 0.88 | 0.441 | 0.0% | 2 | 2 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 256, 144, 144] x [256] x [256] | 1 | 0.88 | 0.881 | 0.0% | 1 | 7 |
+| detector neck + detector | linear_bias_forward | [200, 256] x [256, 256] x [256] | 3 | 0.88 | 0.293 | 0.0% | 3 | 15 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_forward | [48, 32] x [82944, 32] | 1 | 0.87 | 0.871 | 0.0% | 1 | 4 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 5184, 16] x [1, 8, 80, 16] x [1, 8, 80, 16] | 2 | 0.86 | 0.430 | 0.0% | 2 | 14 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 64, 288, 288] x [64] x [64] | 1 | 0.84 | 0.844 | 0.0% | 1 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 5184, 16] x [1, 8, 80, 16] x [1, 8, 80, 16] | 2 | 0.83 | 0.413 | 0.0% | 2 | 14 |
+| unlabelled | upload | [1024, 256, 3, 3] | 1 | 0.82 | 0.825 | 0.0% | 0 | 0 |
+| unlabelled | upload | [512] | 6 | 0.82 | 0.136 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 5184, 16] x [1, 8, 80, 16] x [1, 8, 80, 16] | 2 | 0.81 | 0.405 | 0.0% | 2 | 14 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 256, 5184] | 2 | 0.81 | 0.405 | 0.0% | 2 | 2 |
+| detector neck + detector | group_norm_forward | [1, 256, 144, 144] x [256] x [256] | 1 | 0.80 | 0.797 | 0.0% | 1 | 6 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 1024, 72, 72] | 1 | 0.79 | 0.786 | 0.0% | 1 | 1 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_forward | [48, 32] x [82944, 32] | 1 | 0.78 | 0.783 | 0.0% | 1 | 4 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 256, 72, 72] x [256] x [256] | 2 | 0.76 | 0.382 | 0.0% | 2 | 14 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 72, 72, 1024] | 1 | 0.75 | 0.755 | 0.0% | 1 | 1 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 256, 144, 144] | 1 | 0.75 | 0.754 | 0.0% | 1 | 4 |
+| detector neck + detector | residual_add_forward | [1, 256, 144, 144] x [1, 256, 144, 144] | 1 | 0.75 | 0.753 | 0.0% | 1 | 1 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 32, 288, 288] | 1 | 0.74 | 0.744 | 0.0% | 1 | 4 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 64, 288, 288] | 1 | 0.74 | 0.743 | 0.0% | 1 | 4 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv_transpose2d_forward | [1, 64, 144, 144] x [64, 32, 2, 2] x [32] | 1 | 0.74 | 0.742 | 0.0% | 1 | 7 |
+| unlabelled | upload | [256, 128] | 10 | 0.73 | 0.073 | 0.0% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 16, 576, 576] | 1 | 0.72 | 0.721 | 0.0% | 1 | 4 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 128] x [256, 128] x [256] | 2 | 0.72 | 0.360 | 0.0% | 2 | 10 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 256, 72, 72] x [1, 256, 72, 72] | 3 | 0.71 | 0.237 | 0.0% | 3 | 3 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 256, 72, 72] x [256] x [256] | 2 | 0.70 | 0.352 | 0.0% | 2 | 14 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 256, 144, 144] | 1 | 0.69 | 0.692 | 0.0% | 1 | 4 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 128] x [256, 128] x [256] | 2 | 0.69 | 0.346 | 0.0% | 2 | 10 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [32, 82944] | 1 | 0.68 | 0.679 | 0.0% | 1 | 1 |
+| unlabelled | upload | [1, 256] | 4 | 0.67 | 0.168 | 0.0% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 5184, 128] x [256, 128] x [256] | 2 | 0.67 | 0.334 | 0.0% | 2 | 10 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 128] x [256, 128] x [256] | 3 | 0.66 | 0.221 | 0.0% | 3 | 15 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | slice | [1, 5200, 256] | 2 | 0.66 | 0.328 | 0.0% | 2 | 4 |
+| detector neck + detector | relu_forward | [1, 1, 2048] | 3 | 0.65 | 0.218 | 0.0% | 3 | 3 |
+| unlabelled | upload | [256, 1024, 1, 1] | 4 | 0.65 | 0.163 | 0.0% | 0 | 0 |
+| unlabelled | upload | [32, 256, 1, 1] | 2 | 0.65 | 0.324 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 256, 72, 72] x [256] x [256] | 2 | 0.64 | 0.322 | 0.0% | 2 | 14 |
+| unlabelled | upload | [1, 5184, 256] | 1 | 0.64 | 0.643 | 0.0% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 64, 288, 288] | 1 | 0.64 | 0.642 | 0.0% | 1 | 4 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 1024, 72, 72] | 1 | 0.64 | 0.642 | 0.0% | 1 | 4 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | upload | [1, 5184, 256] | 3 | 0.63 | 0.210 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 256, 72, 72] x [1, 256, 72, 72] | 3 | 0.62 | 0.206 | 0.0% | 3 | 3 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 2048] x [256, 2048] x [256] | 2 | 0.62 | 0.308 | 0.0% | 2 | 10 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 256, 144, 144] | 1 | 0.61 | 0.608 | 0.0% | 1 | 4 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 32, 288, 288] | 1 | 0.61 | 0.607 | 0.0% | 1 | 4 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 1024, 72, 72] | 1 | 0.60 | 0.603 | 0.0% | 1 | 4 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 16, 576, 576] | 1 | 0.60 | 0.600 | 0.0% | 1 | 4 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 64, 288, 288] | 1 | 0.60 | 0.599 | 0.0% | 1 | 4 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 128] x [256, 128] x [256] | 3 | 0.58 | 0.194 | 0.0% | 3 | 15 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 8, 80, 16] | 3 | 0.58 | 0.192 | 0.0% | 3 | 3 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 72, 72] x [256, 256, 1, 1] x [256] | 1 | 0.57 | 0.569 | 0.0% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 2048] x [256, 2048] x [256] | 2 | 0.57 | 0.283 | 0.0% | 2 | 10 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 32, 288, 288] | 1 | 0.55 | 0.550 | 0.0% | 1 | 4 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 256, 5184] | 2 | 0.55 | 0.273 | 0.0% | 2 | 2 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 2048] x [256, 2048] x [256] | 2 | 0.53 | 0.266 | 0.0% | 2 | 10 |
+| unlabelled | upload | [1024, 3, 14, 14] | 1 | 0.53 | 0.530 | 0.0% | 0 | 0 |
+| text (once per prompt) | linear_bias_forward | [1, 32, 1024] x [256, 1024] x [256] | 1 | 0.53 | 0.528 | 0.0% | 1 | 5 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 256] x [2048, 256] x [2048] | 2 | 0.53 | 0.264 | 0.0% | 2 | 10 |
+| detector neck + detector | permute | [1, 72, 72, 1024] | 1 | 0.53 | 0.528 | 0.0% | 1 | 1 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 128] x [256, 128] x [256] | 3 | 0.52 | 0.173 | 0.0% | 3 | 15 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 8, 80, 16] | 3 | 0.52 | 0.172 | 0.0% | 3 | 3 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 72, 72] x [256, 256, 1, 1] x [256] | 1 | 0.51 | 0.511 | 0.0% | 1 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 8, 80, 16] | 3 | 0.50 | 0.166 | 0.0% | 3 | 3 |
+| unlabelled | upload | [4, 256] | 2 | 0.48 | 0.238 | 0.0% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 80, 32] x [1, 8, 80, 32] x [1, 8, 80, 32] | 2 | 0.47 | 0.237 | 0.0% | 2 | 18 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 5184, 256] | 2 | 0.47 | 0.236 | 0.0% | 2 | 2 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 8, 5184, 16] | 2 | 0.47 | 0.235 | 0.0% | 2 | 2 |
+| unlabelled | upload | [256, 1024] | 3 | 0.46 | 0.154 | 0.0% | 0 | 0 |
+| detector neck + detector | fill |  | 2 | 0.45 | 0.227 | 0.0% | 2 | 2 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | broadcast_mul_forward | [1, 72, 72, 256] x [256] | 2 | 0.45 | 0.226 | 0.0% | 2 | 2 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv2d_forward | [1, 256, 72, 72] x [256, 256, 1, 1] x [256] | 1 | 0.45 | 0.452 | 0.0% | 1 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 32, 288, 288] x [1, 32, 288, 288] | 1 | 0.45 | 0.451 | 0.0% | 1 | 1 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | attention_forward | [1, 8, 80, 32] x [1, 8, 80, 32] x [1, 8, 80, 32] | 2 | 0.45 | 0.224 | 0.0% | 2 | 18 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | broadcast_mul_forward | [1, 72, 72, 256] x [256] | 2 | 0.45 | 0.223 | 0.0% | 2 | 2 |
+| unlabelled | upload | [32, 256] | 7 | 0.45 | 0.064 | 0.0% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | linear_bias_forward | [1, 80, 256] x [2048, 256] x [2048] | 2 | 0.44 | 0.221 | 0.0% | 2 | 10 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | conv_transpose2d_forward | [1, 256, 72, 72] x [256, 64, 2, 2] x [64] | 1 | 0.44 | 0.437 | 0.0% | 1 | 7 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | conv_transpose2d_forward | [1, 256, 72, 72] x [256, 64, 2, 2] x [64] | 1 | 0.43 | 0.430 | 0.0% | 1 | 7 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 5184, 256] | 2 | 0.43 | 0.214 | 0.0% | 2 | 2 |
+| unlabelled | upload | [256, 512, 1, 1] | 3 | 0.42 | 0.141 | 0.0% | 0 | 0 |
+| detector neck + detector | relu_forward | [1, 256, 144, 144] | 1 | 0.42 | 0.424 | 0.0% | 1 | 1 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 72, 72, 1024] | 1 | 0.42 | 0.420 | 0.0% | 1 | 1 |
+| trunk (detector run) | permute | [1, 1024, 72, 72] | 1 | 0.41 | 0.414 | 0.0% | 1 | 1 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 72, 72, 256] | 2 | 0.41 | 0.204 | 0.0% | 2 | 2 |
+| detector neck + detector | relu_forward | [200, 256] | 2 | 0.41 | 0.204 | 0.0% | 2 | 2 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 72, 72, 1024] | 1 | 0.40 | 0.405 | 0.0% | 1 | 1 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 1024, 72, 72] | 1 | 0.40 | 0.402 | 0.0% | 1 | 1 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | conv_transpose2d_forward | [1, 256, 72, 72] x [256, 64, 2, 2] x [64] | 1 | 0.39 | 0.392 | 0.0% | 1 | 7 |
+| unlabelled | upload | [64] | 11 | 0.38 | 0.035 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 256, 5184] | 2 | 0.38 | 0.191 | 0.0% | 2 | 2 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 256, 72, 72] | 2 | 0.38 | 0.190 | 0.0% | 2 | 2 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 5184, 256] | 2 | 0.38 | 0.189 | 0.0% | 2 | 2 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 72, 72, 256] | 2 | 0.38 | 0.188 | 0.0% | 2 | 2 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 256, 72, 72] | 2 | 0.37 | 0.187 | 0.0% | 2 | 2 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | permute | [1, 8, 5184, 16] | 2 | 0.37 | 0.186 | 0.0% | 2 | 2 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 1024, 72, 72] | 1 | 0.37 | 0.371 | 0.0% | 1 | 1 |
+| unlabelled | upload | [8] | 2 | 0.37 | 0.184 | 0.0% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 64, 144, 144] x [64] x [64] | 1 | 0.37 | 0.366 | 0.0% | 1 | 7 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 8, 5184, 16] | 2 | 0.36 | 0.182 | 0.0% | 2 | 2 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | relu_forward | [1, 80, 2048] | 2 | 0.34 | 0.171 | 0.0% | 2 | 2 |
+| detector neck + detector | permute | [1, 256, 5184] | 1 | 0.34 | 0.338 | 0.0% | 1 | 1 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | scale_forward | [1, 5184, 256] | 1 | 0.34 | 0.336 | 0.0% | 1 | 1 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 32, 288, 288] x [1, 32, 288, 288] | 1 | 0.34 | 0.336 | 0.0% | 1 | 1 |
+| unlabelled | upload | [4] | 5 | 0.33 | 0.067 | 0.0% | 0 | 0 |
+| unlabelled | upload | [1, 1, 256] | 1 | 0.33 | 0.331 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 72, 72, 256] | 2 | 0.33 | 0.166 | 0.0% | 2 | 2 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | relu_forward | [1, 80, 2048] | 2 | 0.32 | 0.162 | 0.0% | 2 | 2 |
+| unlabelled | upload | [1024, 256] | 2 | 0.32 | 0.162 | 0.0% | 0 | 0 |
+| unlabelled | upload | [1, 256, 1, 1] | 1 | 0.31 | 0.315 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 256, 72, 72] | 2 | 0.31 | 0.156 | 0.0% | 2 | 2 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [32, 82944] | 1 | 0.31 | 0.311 | 0.0% | 1 | 1 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 64, 144, 144] x [1, 64, 144, 144] | 1 | 0.31 | 0.309 | 0.0% | 1 | 1 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [32, 82944] | 1 | 0.31 | 0.306 | 0.0% | 1 | 1 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | permute | [1, 8, 80, 32] | 2 | 0.30 | 0.152 | 0.0% | 2 | 2 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | channel_layer_norm_forward | [1, 64, 144, 144] x [64] x [64] | 1 | 0.30 | 0.303 | 0.0% | 1 | 7 |
+| detector neck + detector | permute | [1, 5184, 256] | 1 | 0.30 | 0.303 | 0.0% | 1 | 1 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | relu_forward | [1, 80, 2048] | 2 | 0.30 | 0.148 | 0.0% | 2 | 2 |
+| unlabelled | upload | [8, 256] | 2 | 0.29 | 0.147 | 0.0% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 64, 144, 144] | 1 | 0.29 | 0.287 | 0.0% | 1 | 4 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | upload | [1, 16, 3, 288, 288] | 1 | 0.28 | 0.282 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | permute | [1, 8, 80, 32] | 2 | 0.28 | 0.139 | 0.0% | 2 | 2 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | scale_forward | [1, 5184, 256] | 1 | 0.28 | 0.276 | 0.0% | 1 | 1 |
+| unlabelled | upload | [256, 2] | 2 | 0.27 | 0.134 | 0.0% | 0 | 0 |
+| unlabelled | upload | [256, 64, 2, 2] | 2 | 0.26 | 0.130 | 0.0% | 0 | 0 |
+| unlabelled | upload | [16] | 6 | 0.26 | 0.043 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 32, 288, 288] x [1, 32, 288, 288] | 1 | 0.25 | 0.253 | 0.0% | 1 | 1 |
+| unlabelled | upload | [1, 1, 4, 4] | 1 | 0.25 | 0.246 | 0.0% | 0 | 0 |
+| unlabelled | upload | [4, 1, 2, 2] | 1 | 0.24 | 0.239 | 0.0% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 64, 144, 144] x [1, 64, 144, 144] | 1 | 0.23 | 0.234 | 0.0% | 1 | 1 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | gelu_erf_forward | [1, 64, 144, 144] | 1 | 0.22 | 0.223 | 0.0% | 1 | 4 |
+| unlabelled | upload | [256, 512] | 1 | 0.21 | 0.208 | 0.0% | 0 | 0 |
+| unlabelled | upload | [64, 256, 1, 1] | 2 | 0.20 | 0.099 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | residual_add_forward | [1, 64, 144, 144] x [1, 64, 144, 144] | 1 | 0.18 | 0.181 | 0.0% | 1 | 1 |
+| unlabelled | upload | [256, 1, 7, 7] | 2 | 0.13 | 0.064 | 0.0% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | upload | [2, 1, 288, 288] | 2 | 0.12 | 0.058 | 0.0% | 0 | 0 |
+| unlabelled | upload | [200, 256] | 1 | 0.12 | 0.117 | 0.0% | 0 | 0 |
+| unlabelled | upload | [256, 64, 3, 3] | 1 | 0.10 | 0.101 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | upload | [2, 1, 288, 288] | 2 | 0.10 | 0.050 | 0.0% | 0 | 0 |
+| text (once per prompt) | upload | [1, 32, 1024] | 1 | 0.09 | 0.092 | 0.0% | 0 | 0 |
+| unlabelled | upload | [64, 32, 2, 2] | 2 | 0.09 | 0.044 | 0.0% | 0 | 0 |
+| unlabelled | upload | [64, 16, 3, 3] | 1 | 0.07 | 0.070 | 0.0% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | upload | [2, 1, 288, 288] | 2 | 0.07 | 0.033 | 0.0% | 0 | 0 |
+| unlabelled | upload | [256, 16, 1, 1] | 1 | 0.06 | 0.060 | 0.0% | 0 | 0 |
+| unlabelled | upload | [16, 32, 3, 3] | 1 | 0.06 | 0.056 | 0.0% | 0 | 0 |
+| detector neck + detector | upload | [1, 4, 256] | 1 | 0.05 | 0.053 | 0.0% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | upload | [48, 32] | 1 | 0.05 | 0.048 | 0.0% | 0 | 0 |
+| unlabelled | upload | [16, 4, 2, 2] | 1 | 0.05 | 0.045 | 0.0% | 0 | 0 |
+| detector neck + detector | upload | [200, 256] | 1 | 0.04 | 0.040 | 0.0% | 0 | 0 |
+| tracker frame 1 (F=1; its trunk + propagation neck + tracker step) | upload | [1, 80, 256] | 1 | 0.03 | 0.032 | 0.0% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | upload | [48, 32] | 1 | 0.03 | 0.030 | 0.0% | 0 | 0 |
+| unlabelled | upload | [3] | 1 | 0.03 | 0.026 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | upload | [48, 32] | 1 | 0.02 | 0.021 | 0.0% | 0 | 0 |
+| text (once per prompt) | autocast_region |  | 1 | 0.02 | 0.017 | 0.0% | 0 | 0 |
+| unlabelled | upload | [3, 256] | 1 | 0.02 | 0.016 | 0.0% | 0 | 0 |
+| tracker frame 7 (F=7; its trunk + propagation neck + tracker step) | upload | [1, 80, 256] | 1 | 0.01 | 0.013 | 0.0% | 0 | 0 |
+| tracker frame 3 (F=3; its trunk + propagation neck + tracker step) | upload | [1, 80, 256] | 1 | 0.01 | 0.012 | 0.0% | 0 | 0 |
+
+waits include the profiler's own sync after each op (about one per call): a row whose waits exceed its calls shows waits the backend forced itself (e.g. the allocated-between-waits cap).
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 88.21s
+
+       88.25 real         7.54 user        35.27 sys
+          9640673280  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             2053518  page reclaims
+                  10  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  11  voluntary context switches
+              278529  involuntary context switches
+        375970921759  instructions retired
+        171700198077  cycles elapsed
+         17026293896  peak memory footprint
