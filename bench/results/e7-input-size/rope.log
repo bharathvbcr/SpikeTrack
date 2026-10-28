@@ -1,0 +1,41 @@
+    Finished `release` profile [optimized] target(s) in 1.04s
+     Running tests/backbone_parity.rs (target/release/deps/backbone_parity-ef5bd91994fb9cd6)
+
+running 1 test
+test generated_rope_tables_equal_the_checkpoints ... block  0 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block  1 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block  2 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block  3 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block  4 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block  5 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block  6 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block  7 (global  , grid 72): max abs diff 5.960e-8, 329184/331776 bit-identical
+block  8 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block  9 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 10 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 11 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 12 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 13 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 14 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 15 (global  , grid 72): max abs diff 5.960e-8, 329184/331776 bit-identical
+block 16 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 17 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 18 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 19 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 20 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 21 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 22 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 23 (global  , grid 72): max abs diff 5.960e-8, 329184/331776 bit-identical
+block 24 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 25 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 26 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 27 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 28 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 29 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 30 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 31 (global  , grid 72): max abs diff 5.960e-8, 329184/331776 bit-identical
+all 32 blocks: max abs diff 5.960e-8, 2342208/2359296 entries bit-identical (99.2757%)
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.25s
+

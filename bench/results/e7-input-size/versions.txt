@@ -1,0 +1,5 @@
+SpikeTrack cfdbe16 One runtime input geometry for the whole model: trunk, necks, detector, tracker and track --input-size
+ojas-st 8b88328 Merge gp/78-attn-mpp: TensorOps flash cross-attention for D32 with no bias or lens (Lane A)
+tessl c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in (dirty files: 0)
+Apple M5 Pro
+18:37  up 2 days, 10:52, 1 user, load averages: 8.57 8.45 10.44

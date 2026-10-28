@@ -1,0 +1,12 @@
+model loaded in 0.5 s on metal; tracking 8 frame(s) of "22"
+frame 0 (1/8): 1.00 s, 0 active track(s), 0 frame(s) released; waits +25 (upload 1, read 11, mem_cap 13), dispatches +5552, metal allocated 4246 MiB (frame peak 5085 MiB), footprint 9005 MiB, pageouts +0, swapins +0
+frame 1 (2/8): 1.08 s, 0 active track(s), 0 frame(s) released; waits +23 (upload 1, read 10, mem_cap 12), dispatches +4198, metal allocated 4257 MiB (frame peak 5189 MiB), footprint 8999 MiB, pageouts +0, swapins +0
+frame 2 (3/8): 1.09 s, 0 active track(s), 0 frame(s) released; waits +23 (upload 1, read 10, mem_cap 12), dispatches +4198, metal allocated 4257 MiB (frame peak 5192 MiB), footprint 8999 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 1.08 s, 0 active track(s), 0 frame(s) released; waits +23 (upload 1, read 10, mem_cap 12), dispatches +4198, metal allocated 4257 MiB (frame peak 5192 MiB), footprint 8999 MiB, pageouts +0, swapins +0
+frame 4 (5/8): 1.11 s, 0 active track(s), 0 frame(s) released; waits +23 (upload 1, read 10, mem_cap 12), dispatches +4198, metal allocated 4257 MiB (frame peak 5192 MiB), footprint 9000 MiB, pageouts +0, swapins +0
+frame 5 (6/8): 1.08 s, 0 active track(s), 0 frame(s) released; waits +23 (upload 1, read 10, mem_cap 12), dispatches +4198, metal allocated 4257 MiB (frame peak 5192 MiB), footprint 9000 MiB, pageouts +0, swapins +0
+frame 6 (7/8): 1.08 s, 0 active track(s), 0 frame(s) released; waits +23 (upload 1, read 10, mem_cap 12), dispatches +4198, metal allocated 4257 MiB (frame peak 5192 MiB), footprint 9001 MiB, pageouts +0, swapins +0
+frame 7 (8/8): 1.09 s, 0 active track(s), 8 frame(s) released; waits +23 (upload 1, read 10, mem_cap 12), dispatches +4198, metal allocated 4257 MiB (frame peak 5192 MiB), footprint 9001 MiB, pageouts +0, swapins +0
+8 frame(s) of "22" tracked on metal: 0 track(s) born, 1.08 s/frame (model, mean), 9.2 s total
+  bench/results/e7-input-size/smoke-plain-672-1/22.json
+  bench/results/e7-input-size/smoke-plain-672-1/22.run.json

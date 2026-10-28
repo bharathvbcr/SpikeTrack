@@ -1,0 +1,65 @@
+mac_heavy: 2026-10-28T22:51:44Z 'spiketrack-e7-jobA' waiting 0s for the lock; holder: label=spiketrack-profile-waits pid=17157 start=2026-10-28T22:49:58Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-10-28T22:55:24Z 'spiketrack-e7-jobA' holds the lock (waited 220s; load 12.22, 1056 processes); running: bash /private/tmp/claude-501/-Users-bharath-Code-research-tessl/9d40c168-6abf-4804-ae5a-f4d6d42e9ece/scratchpad/jobA.sh
+17:55  up 2 days, 10:10, 1 user, load averages: 12.22 8.48 9.15
+== build
+== build exit 0
+== unit
+== unit exit 0
+test every_proper_prefix_of_every_case_is_an_error ... ok
+test truncated_error_kinds_are_not_unsupported ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.78s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test track_cmd::tests::input_size_defaults_to_1008_accepts_whole_windows_only_and_the_help_says_so ... ok
+test change_map::tests::image_side_gives_the_model_geometry_and_refuses_unaligned_sizes ... ok
+test change_map::tests::sam3_geometry_on_a_real_size_frame ... ok
+test backbone::tests::generated_rope_tables_follow_compute_axial_cis_at_every_grid ... ok
+test backbone_matches_pytorch_fp32_at_672 ... ignored, needs the gated checkpoint and the 672 fixture: set SPIKETRACK_WEIGHTS and SPIKETRACK_FIXTURES_672 (tools/reference/dump_backbone_size.py)
+test backbone_matches_pytorch_fp32_at_672_on_metal ... ignored, needs a Metal GPU, the gated checkpoint and the 672 fixture: set SPIKETRACK_WEIGHTS and SPIKETRACK_FIXTURES_672
+test generated_rope_tables_equal_the_checkpoints ... ignored, needs the gated checkpoint: set SPIKETRACK_WEIGHTS
+test a_backbone_refuses_a_grid_that_is_not_whole_windows_and_a_wrong_patch ... ok
+test synthetic_trunk_at_672_follows_the_geometry_and_regenerates_the_global_rope_table ... ok
+test every_proper_prefix_of_every_case_is_an_error ... ok
+== rope
+== rope exit 0
+block 22 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 23 (global  , grid 72): max abs diff 5.960e-8, 329184/331776 bit-identical
+block 24 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 25 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 26 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 27 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 28 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 29 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 30 (windowed, grid 24): max abs diff 2.980e-8, 36624/36864 bit-identical
+block 31 (global  , grid 72): max abs diff 5.960e-8, 329184/331776 bit-identical
+all 32 blocks: max abs diff 5.960e-8, 2342208/2359296 entries bit-identical (99.2757%)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.25s
+== cpu672
+== cpu672 exit 0
+[cpu] 672: worst cosine 1.0000000 over 14 stages (gate > 0.999)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 7.29s
+== cpu-backbone
+== cpu-backbone exit 0
+[cpu] worst cosine 1.0000000 over 95 stages (gate > 0.999)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 85.42s
+== cpu-eps
+== cpu-eps exit 0
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.10s
+== cpu-text
+== cpu-text exit 0
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 3.25s
+== cpu-session
+== cpu-session exit 0
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 1070.29s
+== ab-cpu-old exit 0
+== ab-cpu-new exit 127
+diff: /private/tmp/claude-501/-Users-bharath-Code-research-tessl/9d40c168-6abf-4804-ae5a-f4d6d42e9ece/scratchpad/e7/ab-cpu-new: No such file or directory
+18:16  up 2 days, 10:31, 1 user, load averages: 16.93 13.83 13.59
+mac_heavy: 2026-10-28T23:16:29Z 'spiketrack-e7-jobA' finished with exit 0

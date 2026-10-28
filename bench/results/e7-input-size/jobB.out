@@ -1,0 +1,60 @@
+mac_heavy: 2026-10-28T23:21:19Z 'spiketrack-e7-jobB' waiting 0s for the lock; holder: label=spiketrack-memcap-ab pid=22422 start=2026-10-28T23:16:58Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-10-28T23:26:20Z 'spiketrack-e7-jobB' waiting 300s for the lock; holder: label=spiketrack-memcap-ab pid=22422 start=2026-10-28T23:16:58Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-10-28T23:31:21Z 'spiketrack-e7-jobB' waiting 600s for the lock; holder: label=spiketrack-memcap-ab pid=22422 start=2026-10-28T23:16:58Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-10-28T23:36:22Z 'spiketrack-e7-jobB' waiting 900s for the lock; holder: label=spiketrack-memcap-ab pid=22422 start=2026-10-28T23:16:58Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-10-28T23:37:02Z 'spiketrack-e7-jobB' holds the lock (waited 940s; load 8.57, 1003 processes); running: bash /private/tmp/claude-501/-Users-bharath-Code-research-tessl/9d40c168-6abf-4804-ae5a-f4d6d42e9ece/scratchpad/jobB.sh
+SpikeTrack cfdbe16 One runtime input geometry for the whole model: trunk, necks, detector, tracker and track --input-size
+ojas-st 8b88328 Merge gp/78-attn-mpp: TensorOps flash cross-attention for D32 with no bias or lens (Lane A)
+tessl c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in (dirty files: 0)
+Apple M5 Pro
+18:37  up 2 days, 10:52, 1 user, load averages: 8.57 8.45 10.44
+== build
+== build exit 0
+== build-bin
+== build-bin exit 0
+== metal672
+== metal672 exit 0
+[metal] 672: worst cosine 1.0000000 over 14 stages (gate > 0.999)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1.34s
+== metal-backbone
+== metal-backbone exit 0
+[metal] worst cosine 1.0000000 over 95 stages (gate > 0.999)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 10.53s
+== metal-session
+== metal-session exit 0
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 117.46s
+== metal-vos
+== metal-vos exit 0
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 86.44s
+== ab-metal-old exit 0 (15 track(s) born)
+== ab-metal-new exit 0 (15 track(s) born)
+AB-metal: identical (all files but run.json)
+== ab-cpu-old exit 0 (15 track(s) born)
+== ab-cpu-new exit 0 (15 track(s) born)
+AB-cpu: identical (all files but run.json)
+GPU utilization before plain 1008 #1: 80% (load { 10.87 10.04 10.52 })
+== smoke plain 1008 #1 exit 0
+  "tracks": 0,  "model_load_seconds": 0.522538042,  "mean_seconds_per_frame": 2.430849859625,  "input_size": 1008
+GPU utilization before plain 672 #1: 86% (load { 9.33 9.74 10.40 })
+== smoke plain 672 #1 exit 0
+  "tracks": 0,  "model_load_seconds": 0.502173125,  "mean_seconds_per_frame": 1.07697038025,  "input_size": 672
+GPU utilization before lora 1008 #1: 86% (load { 8.81 9.62 10.35 })
+== smoke lora 1008 #1 exit 0
+  "tracks": 12,  "model_load_seconds": 0.494229,  "mean_seconds_per_frame": 3.09741045825,  "input_size": 1008
+GPU utilization before lora 672 #1: 86% (load { 7.67 9.29 10.21 })
+== smoke lora 672 #1 exit 0
+  "tracks": 12,  "model_load_seconds": 0.426393708,  "mean_seconds_per_frame": 1.3554540414999998,  "input_size": 672
+GPU utilization before plain 1008 #2: 84% (load { 6.95 9.05 10.11 })
+== smoke plain 1008 #2 exit 0
+  "tracks": 0,  "model_load_seconds": 0.502660666,  "mean_seconds_per_frame": 2.40953499475,  "input_size": 1008
+GPU utilization before plain 672 #2: 86% (load { 5.98 8.69 9.96 })
+== smoke plain 672 #2 exit 0
+  "tracks": 0,  "model_load_seconds": 0.508500959,  "mean_seconds_per_frame": 1.0571737655,  "input_size": 672
+GPU utilization before lora 1008 #2: 87% (load { 5.83 8.57 9.90 })
+== smoke lora 1008 #2 exit 0
+  "tracks": 12,  "model_load_seconds": 0.529417834,  "mean_seconds_per_frame": 3.0221432605,  "input_size": 1008
+GPU utilization before lora 672 #2: 85% (load { 5.10 8.17 9.71 })
+== smoke lora 672 #2 exit 0
+  "tracks": 12,  "model_load_seconds": 0.5305355,  "mean_seconds_per_frame": 1.3354450833750002,  "input_size": 672
+18:45  up 2 days, 11 hrs, 1 user, load averages: 5.30 8.11 9.68
+mac_heavy: 2026-10-28T23:45:08Z 'spiketrack-e7-jobB' finished with exit 0

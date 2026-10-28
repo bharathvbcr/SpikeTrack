@@ -1,0 +1,12 @@
+model loaded in 0.5 s on metal; tracking 8 frame(s) of "22"
+frame 0 (1/8): 2.72 s, 11 active track(s), 0 frame(s) released; waits +62 (upload 3, read 24, mem_cap 29, freed 6), dispatches +6337, metal allocated 4388 MiB (frame peak 5802 MiB), footprint 9709 MiB, pageouts +0, swapins +0
+frame 1 (2/8): 2.73 s, 11 active track(s), 0 frame(s) released; waits +50 (upload 2, read 16, mem_cap 26, freed 6), dispatches +5243, metal allocated 4379 MiB (frame peak 5704 MiB), footprint 9949 MiB, pageouts +0, swapins +0
+frame 2 (3/8): 3.19 s, 12 active track(s), 0 frame(s) released; waits +59 (upload 3, read 22, mem_cap 28, freed 6), dispatches +5878, metal allocated 4403 MiB (frame peak 5866 MiB), footprint 10033 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 2.95 s, 12 active track(s), 0 frame(s) released; waits +51 (upload 2, read 16, mem_cap 26, freed 7), dispatches +5235, metal allocated 4383 MiB (frame peak 5744 MiB), footprint 10099 MiB, pageouts +0, swapins +0
+frame 4 (5/8): 2.97 s, 12 active track(s), 0 frame(s) released; waits +51 (upload 2, read 16, mem_cap 27, freed 6), dispatches +5237, metal allocated 4380 MiB (frame peak 5744 MiB), footprint 10206 MiB, pageouts +0, swapins +12
+frame 5 (6/8): 3.09 s, 12 active track(s), 0 frame(s) released; waits +51 (upload 2, read 16, mem_cap 26, freed 7), dispatches +5239, metal allocated 4383 MiB (frame peak 5747 MiB), footprint 10335 MiB, pageouts +0, swapins +0
+frame 6 (7/8): 3.17 s, 12 active track(s), 0 frame(s) released; waits +51 (upload 1, read 16, mem_cap 27, freed 7), dispatches +5241, metal allocated 4382 MiB (frame peak 5745 MiB), footprint 10479 MiB, pageouts +0, swapins +0
+frame 7 (8/8): 3.36 s, 12 active track(s), 8 frame(s) released; waits +52 (upload 2, read 16, mem_cap 28, freed 6), dispatches +5243, metal allocated 4381 MiB (frame peak 5744 MiB), footprint 10245 MiB, pageouts +0, swapins +0
+8 frame(s) of "22" tracked on metal: 12 track(s) born, 3.02 s/frame (model, mean), 24.8 s total
+  bench/results/e7-input-size/smoke-lora-1008-2/22.json
+  bench/results/e7-input-size/smoke-lora-1008-2/22.run.json

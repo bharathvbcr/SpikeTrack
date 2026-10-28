@@ -198,11 +198,12 @@ fn run_parity<B: Backend>(be: &B, label: &str) {
 /// element. The checkpoint's tables were made by torch in f32 (`compute_axial_cis`: f32 angles,
 /// `torch.polar`); ours takes the same f32 angles and rounds an f64 sine and cosine once, so a
 /// difference can only be torch's own cosine/sine rounding: at most one f32 ulp of a value in
-/// [0.5, 1], 6e-8. The count of bit-identical entries is printed.
+/// [0.5, 1], 2^-24 = 5.96e-8 (measured 2026-10-28: max 5.96e-8, 99.28% of the 2,359,296 entries
+/// bit-identical, the 24 x 24 tables 2.98e-8 and 99.35%). The count of bit-identical entries is printed.
 #[test]
 #[ignore = "needs the gated checkpoint: set SPIKETRACK_WEIGHTS"]
 fn generated_rope_tables_equal_the_checkpoints() {
-    const BOUND: f64 = 1.2e-7;
+    const BOUND: f64 = 6.0e-8;
     let budget = Budget::new(8 << 30);
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("open checkpoint");
     let vision = VisionBackbone::load(&ck).expect("vision weights");

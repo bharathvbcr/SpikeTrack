@@ -1,0 +1,12 @@
+model loaded in 0.5 s on metal; tracking 8 frame(s) of "22"
+frame 0 (1/8): 1.29 s, 12 active track(s), 0 frame(s) released; waits +40 (upload 3, read 24, mem_cap 13), dispatches +6337, metal allocated 4273 MiB (frame peak 5165 MiB), footprint 8845 MiB, pageouts +0, swapins +0
+frame 1 (2/8): 1.22 s, 12 active track(s), 0 frame(s) released; waits +30 (upload 2, read 16, mem_cap 12), dispatches +5243, metal allocated 4270 MiB (frame peak 5185 MiB), footprint 8865 MiB, pageouts +0, swapins +0
+frame 2 (3/8): 1.27 s, 12 active track(s), 0 frame(s) released; waits +30 (upload 2, read 16, mem_cap 12), dispatches +5245, metal allocated 4270 MiB (frame peak 5240 MiB), footprint 9061 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 1.32 s, 12 active track(s), 0 frame(s) released; waits +30 (upload 2, read 16, mem_cap 12), dispatches +5235, metal allocated 4267 MiB (frame peak 5509 MiB), footprint 8857 MiB, pageouts +0, swapins +0
+frame 4 (5/8): 1.35 s, 12 active track(s), 0 frame(s) released; waits +31 (upload 2, read 16, mem_cap 13), dispatches +5237, metal allocated 4267 MiB (frame peak 5509 MiB), footprint 9114 MiB, pageouts +0, swapins +0
+frame 5 (6/8): 1.36 s, 12 active track(s), 0 frame(s) released; waits +31 (upload 2, read 16, mem_cap 13), dispatches +5239, metal allocated 4267 MiB (frame peak 5509 MiB), footprint 9175 MiB, pageouts +0, swapins +0
+frame 6 (7/8): 1.40 s, 12 active track(s), 0 frame(s) released; waits +31 (upload 2, read 16, mem_cap 13), dispatches +5241, metal allocated 4267 MiB (frame peak 5509 MiB), footprint 9289 MiB, pageouts +0, swapins +0
+frame 7 (8/8): 1.48 s, 12 active track(s), 8 frame(s) released; waits +31 (upload 2, read 16, mem_cap 13), dispatches +5243, metal allocated 4267 MiB (frame peak 5509 MiB), footprint 8991 MiB, pageouts +0, swapins +0
+8 frame(s) of "22" tracked on metal: 12 track(s) born, 1.34 s/frame (model, mean), 11.3 s total
+  bench/results/e7-input-size/smoke-lora-672-2/22.json
+  bench/results/e7-input-size/smoke-lora-672-2/22.run.json

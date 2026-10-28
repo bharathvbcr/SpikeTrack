@@ -1,0 +1,12 @@
+model loaded in 0.5 s on metal; tracking 8 frame(s) of "22"
+frame 0 (1/8): 2.11 s, 0 active track(s), 0 frame(s) released; waits +43 (upload 1, read 11, mem_cap 25, freed 6), dispatches +5552, metal allocated 4344 MiB (frame peak 5701 MiB), footprint 8941 MiB, pageouts +0, swapins +0
+frame 1 (2/8): 2.48 s, 0 active track(s), 0 frame(s) released; waits +41 (upload 1, read 10, mem_cap 24, freed 6), dispatches +4198, metal allocated 4364 MiB (frame peak 5701 MiB), footprint 8921 MiB, pageouts +0, swapins +0
+frame 2 (3/8): 2.47 s, 0 active track(s), 0 frame(s) released; waits +41 (upload 1, read 10, mem_cap 24, freed 6), dispatches +4198, metal allocated 4364 MiB (frame peak 5701 MiB), footprint 8921 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 2.42 s, 0 active track(s), 0 frame(s) released; waits +41 (upload 1, read 10, mem_cap 24, freed 6), dispatches +4198, metal allocated 4364 MiB (frame peak 5701 MiB), footprint 8921 MiB, pageouts +0, swapins +0
+frame 4 (5/8): 2.46 s, 0 active track(s), 0 frame(s) released; waits +41 (upload 1, read 10, mem_cap 24, freed 6), dispatches +4198, metal allocated 4364 MiB (frame peak 5701 MiB), footprint 8921 MiB, pageouts +0, swapins +0
+frame 5 (6/8): 2.47 s, 0 active track(s), 0 frame(s) released; waits +41 (upload 1, read 10, mem_cap 24, freed 6), dispatches +4198, metal allocated 4364 MiB (frame peak 5701 MiB), footprint 8921 MiB, pageouts +0, swapins +0
+frame 6 (7/8): 2.51 s, 0 active track(s), 0 frame(s) released; waits +41 (upload 1, read 10, mem_cap 24, freed 6), dispatches +4198, metal allocated 4364 MiB (frame peak 5701 MiB), footprint 8921 MiB, pageouts +0, swapins +0
+frame 7 (8/8): 2.53 s, 0 active track(s), 8 frame(s) released; waits +41 (upload 1, read 10, mem_cap 24, freed 6), dispatches +4198, metal allocated 4364 MiB (frame peak 5701 MiB), footprint 8921 MiB, pageouts +0, swapins +0
+8 frame(s) of "22" tracked on metal: 0 track(s) born, 2.43 s/frame (model, mean), 20.1 s total
+  bench/results/e7-input-size/smoke-plain-1008-1/22.json
+  bench/results/e7-input-size/smoke-plain-1008-1/22.run.json

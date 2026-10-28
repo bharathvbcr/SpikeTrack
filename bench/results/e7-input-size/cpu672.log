@@ -1,0 +1,28 @@
+    Finished `release` profile [optimized] target(s) in 1.00s
+     Running tests/backbone_parity.rs (target/release/deps/backbone_parity-ef5bd91994fb9cd6)
+
+running 1 test
+test backbone_matches_pytorch_fp32_at_672 ... [cpu] 672 trunk + 3 necks 6.8 s (one run, not a benchmark)
+
+| stage (672) | cosine | max abs | max abs / max ref | gate |
+|---|---|---|---|---|
+| ln_pre | 1.0000000 | 3.815e-6 | 1.815e-7 | pass |
+| block 7 | 1.0000000 | 6.866e-5 | 1.391e-6 | pass |
+| block 15 | 1.0000000 | 4.665e-3 | 2.782e-5 | pass |
+| block 23 | 1.0000000 | 1.625e-2 | 5.254e-5 | pass |
+| block 31 | 1.0000000 | 1.375e-2 | 5.957e-5 | pass |
+| convs[0] | 1.0000000 | 5.685e-6 | 2.549e-5 | pass |
+| convs[1] | 1.0000000 | 3.965e-4 | 3.427e-5 | pass |
+| convs[2] | 1.0000000 | 1.554e-4 | 2.886e-5 | pass |
+| interactive_convs[0] | 1.0000000 | 2.038e-5 | 2.357e-5 | pass |
+| interactive_convs[1] | 1.0000000 | 7.051e-5 | 2.160e-5 | pass |
+| interactive_convs[2] | 1.0000000 | 8.410e-5 | 3.134e-5 | pass |
+| propagation_convs[0] | 1.0000000 | 1.729e-5 | 1.741e-5 | pass |
+| propagation_convs[1] | 1.0000000 | 6.557e-5 | 2.088e-5 | pass |
+| propagation_convs[2] | 1.0000000 | 1.204e-4 | 2.058e-5 | pass |
+
+[cpu] 672: worst cosine 1.0000000 over 14 stages (gate > 0.999)
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 7.29s
+
