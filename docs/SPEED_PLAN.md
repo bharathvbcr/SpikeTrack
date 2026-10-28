@@ -56,6 +56,29 @@ upstream to cosine 0.99995 [V], so it is not exact either.
 | E8 | memory cross-attention at F = 7 on 8b88328 | ojas | read the fresh profile first | — |
 | E9 | bf16 trunk as `--fast` once E1-E4 land | SpikeTrack | trunk <= 500 ms | D3 or session gate fails |
 
+## Results so far (2026-10-28, ojas 8b88328, tessl c9adc87; contended machine, load recorded)
+
+- E0 [V]: CoreML backbone 0.2715 s on CPU_AND_GPU, 0.2754 s on ALL (stays on the GPU), 1.41 s on
+  CPU_AND_NE; the stateful tracker refuses the ANE (`speed-baseline/coreml-*.json`, 2ab09c4).
+  Our 16-frame LoRA track: 3.21 s/frame, GPU busy 86% (about 17% of that is other sessions),
+  0.50 CPU cores. Profile f32, unprofiled pass 3: tracker frames 2210 / 2241 / 2492 ms at
+  F = 1 / 3 / 7; ~9,100 dispatches and ~97 waited commits per frame (7ce7a71).
+- E1 [V]: the bf16 lane dispatches (fc1: 9 dispatches per call against f32's 5) and forces no waits.
+  bf16 trunk linears: 946 -> 687 ms profiled, frames 2205 / 2295 / 2425 ms, no end-to-end gain.
+  Whole-model Autocast is slower than f32 (2320 / 2450 / 2759 ms); every op it touches slows,
+  gelu_erf 94 -> 343 ms. The cost is the passes around the GEMM inside a frame (5b1c0cd).
+- E2: dropped on reading. RoPE and attention take contiguous q/k/v, so splitting a fused output
+  costs a full extra copy, which cancels the saving.
+- E3 [V, refuted]: at our shapes NT bf16 already runs 22-25 TFLOP/s; NN, either tile and f16 are
+  within noise of it; exact f32 is 5.2-6.2 (tessl daff7db, `sam` lane). The GEMM is not the
+  bottleneck, and the bf16 trunk GEMMs would be ~200 ms per frame.
+- E4: the NN bias epilogue costs 5-18% over the plain GEMM and still beats GEMM + separate bias
+  add; held until the in-frame pass cost is split (ojas-78, O1).
+- E5: deferred: GPU 86% busy leaves under the 1.2x bar.
+- E6: permutes are 87 ms of a 2492 ms frame (3.5%), under ojas-78's 5% rule; parked.
+- Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
+  ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
+
 Not this week: replacing or distilling the backbone (no parity gate for a different trunk, and no
 time to train one), int8 W8A8, the ANE.
 
