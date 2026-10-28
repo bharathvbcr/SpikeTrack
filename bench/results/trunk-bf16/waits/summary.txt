@@ -1,0 +1,2 @@
+f32.log: 23 frames after the first; median s 3.970, waits 60, freed 6, mem_cap 31, read 20, upload 3, dispatches 6799, allocated 4388 MiB, frame peak 5746 MiB
+bf16-linears.log: 23 frames after the first; median s 5.320, waits 74, freed 15, mem_cap 36, read 20, upload 3, dispatches 7567, allocated 4387 MiB, frame peak 6295 MiB
