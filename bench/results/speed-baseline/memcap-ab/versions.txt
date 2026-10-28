@@ -1,0 +1,7 @@
+SpikeTrack-memcap on 0cfc740 SPEED_PLAN: results of E0-E6 so far + diff:
+ Cargo.toml                             |  8 ++++----
+ crates/st-model/tests/frame_profile.rs | 15 +++++++++++++--
+ 2 files changed, 17 insertions(+), 6 deletions(-)
+ojas 7fd9fc3 style(core): order the SAM policy re-export where rustfmt puts it
+tessl c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in
+18:16  up 2 days, 10:32, 1 user, load averages: 19.83 14.76 13.92

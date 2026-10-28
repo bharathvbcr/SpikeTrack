@@ -1,0 +1,6 @@
+metal                cap      det [2407, 2088] tracker-mean [1855, 1954] | 
+metal                default  det [2858, 2386] tracker-mean [2702, 2328] | 
+metal_bf16           cap      det [2236, 2032] tracker-mean [1985, 1867] | 
+metal_bf16           default  det [2562, 2689] tracker-mean [2666, 2621] | 
+metal_bf16_linears   cap      det [2021, 2076] tracker-mean [1823, 1872] | 
+metal_bf16_linears   default  det [2489, 2450] tracker-mean [2343, 2364] | 
