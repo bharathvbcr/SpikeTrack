@@ -74,6 +74,7 @@ use crate::text::Text;
 use crate::tokenizer::Tokenizer;
 use crate::tracker::associate::{associate, nms_iom, not_close_to_boundary, track_detections, AssocParams, Association, Bitmask};
 use crate::tracker::bookkeeping::{BookParams, FrameInput, FramePlan, HideLog, TrackBook, YieldBuffer};
+use crate::tracker::mask_decoder::MUX;
 use crate::tracker::state::{err, FrameCtx, TrackerState};
 use crate::tracker::vos::{Vos, INPUT_MASK, LOW};
 use crate::{ModelError, Neck, Taps};
@@ -561,23 +562,34 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
             let dl: Vec<f32> = plan.births.iter().flat_map(|b| det_row(det, ds.order[b.det]).iter().copied()).collect();
             let masks = self.binary_input_masks(&dl, k)?;
             let ids: Vec<i64> = plan.births.iter().map(|b| b.id).collect();
-            // The state with the fewest empty slots that still fits them, the first on ties.
-            let mut best: Option<(usize, usize)> = None;
-            for (i, st) in self.states.iter().enumerate() {
-                let a = st.available_slots();
-                if a >= k && best.is_none_or(|(_, b)| a < b) {
-                    best = Some((i, a));
+            // At most MUX births fit one state (one 16-slot bucket). Under upstream's builder cap
+            // (`max_num_objects` 16) a frame never births more, and this is one group. A larger
+            // cap (`BookParams::max_num_objects`, not the builder's) can birth more in one frame;
+            // they are placed MUX at a time, in birth order. Upstream would put them in extra
+            // buckets of one state instead, so beyond 16 objects the grouping, and with it the
+            // multiplex decoder's joint decode, is not parity-checked.
+            let px_in = INPUT_MASK * INPUT_MASK;
+            for (g, group) in ids.chunks(MUX).enumerate() {
+                let kg = group.len();
+                let gm = &masks[g * MUX * px_in..(g * MUX + kg) * px_in];
+                // The state with the fewest empty slots that still fits them, the first on ties.
+                let mut best: Option<(usize, usize)> = None;
+                for (i, st) in self.states.iter().enumerate() {
+                    let a = st.available_slots();
+                    if a >= kg && best.is_none_or(|(_, b)| a < b) {
+                        best = Some((i, a));
+                    }
                 }
+                let si = match best {
+                    Some((i, _)) => i,
+                    None => {
+                        self.states.push(TrackerState::new());
+                        self.states.len() - 1
+                    }
+                };
+                self.states[si].add_new_masks(vos, ctx, group, gm, (h, w), false)?;
+                self.states[si].preflight(vos, ctx, true)?;
             }
-            let si = match best {
-                Some((i, _)) => i,
-                None => {
-                    self.states.push(TrackerState::new());
-                    self.states.len() - 1
-                }
-            };
-            self.states[si].add_new_masks(vos, ctx, &ids, &masks, (h, w), false)?;
-            self.states[si].preflight(vos, ctx, true)?;
         }
 
         // 5b. Removals.

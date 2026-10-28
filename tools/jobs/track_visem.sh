@@ -10,6 +10,7 @@
 # are for "the first N frames", not for the whole video. Zero-shot (no LoRA, no tuning) unless
 # SPIKETRACK_LORA=FILE names a detector adapter, which every video then runs with (`track --lora`).
 # SPIKETRACK_BOXES=mask|detector picks `track --boxes` (default mask, upstream's boxes).
+# SPIKETRACK_MAX_OBJECTS=N passes `track --max-objects N` (default 16, upstream's builder cap).
 # usage: tools/locked.sh track-visem bash tools/jobs/track_visem.sh [N=300]       all videos, then eval
 #        tools/locked.sh track-visem-21 bash tools/jobs/track_visem.sh N 21 [ID...]  only those videos, no
 #            eval (one lock hold per video, so a long run leaves the shared lock to others in between)
@@ -39,6 +40,7 @@ OUT="${SPIKETRACK_TRACK_OUT:-bench/results/track}"
 BIN=target/release/spiketrack
 BOXES=${SPIKETRACK_BOXES:-mask}
 PROMPT=${SPIKETRACK_PROMPT:-cell}
+MAX_OBJECTS=${SPIKETRACK_MAX_OBJECTS:-16}
 case "$BOXES" in mask | detector) ;; *) echo "SPIKETRACK_BOXES=$BOXES is not mask or detector" >&2; exit 2 ;; esac
 LORA_ARGS=()
 if [ -n "${SPIKETRACK_LORA:-}" ]; then
@@ -92,9 +94,9 @@ cargo build --release -p spiketrack 2>&1 | tail -5
 uptime
 failed=""
 for id in $IDS; do
-  echo "== video $id: first $N frames on Metal, --boxes $BOXES, prompt $PROMPT${SPIKETRACK_LORA:+, LoRA $SPIKETRACK_LORA}"
+  echo "== video $id: first $N frames on Metal, --boxes $BOXES, --max-objects $MAX_OBJECTS, prompt $PROMPT${SPIKETRACK_LORA:+, LoRA $SPIKETRACK_LORA}"
   # ${LORA_ARGS[@]+...}: bash 3.2 (macOS) treats an empty array as unbound under set -u.
-  /usr/bin/time -l "$BIN" track "$VISEM/$id/images" --prompt "$PROMPT" --backend metal --max-frames "$N" --boxes "$BOXES" --out "$OUT/run" ${LORA_ARGS[@]+"${LORA_ARGS[@]}"} 2>&1 | tee "$OUT/logs/$id.log"
+  /usr/bin/time -l "$BIN" track "$VISEM/$id/images" --prompt "$PROMPT" --backend metal --max-frames "$N" --boxes "$BOXES" --max-objects "$MAX_OBJECTS" --out "$OUT/run" ${LORA_ARGS[@]+"${LORA_ARGS[@]}"} 2>&1 | tee "$OUT/logs/$id.log"
   [ "${PIPESTATUS[0]}" -eq 0 ] || failed="$failed $id"
 done
 uptime
