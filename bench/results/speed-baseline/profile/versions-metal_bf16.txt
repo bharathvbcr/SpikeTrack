@@ -1,4 +1,4 @@
-SpikeTrack: 2ab09c4 CoreML port on macOS 27.0.1: the GPU is its fastest unit; the ANE is 5.2x slower on the backbone
+SpikeTrack: 7ce7a71 Speed baseline on ojas 8b88328 / tessl c9adc87: GPU 86% busy while tracking, bf16 Autocast slower than f32
 ojas-st:    8b88328 Merge gp/78-attn-mpp: TensorOps flash cross-attention for D32 with no bias or lens (Lane A)
 tessl:      c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in (dirty files: 0)
-load:       17:36  up 2 days,  9:51, 1 user, load averages: 4.66 6.00 7.64
+load:       17:44  up 2 days, 10 hrs, 1 user, load averages: 7.32 12.08 10.86
