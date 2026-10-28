@@ -71,8 +71,12 @@ is where the adapter's learning shows.
   detector boxes.
 - On the first 300 frames of each held-out video (1,500 frames, 32,949 ground-truth boxes):
   HOTA 0.155 zero-shot -> 0.470 with the adapter and detector boxes (DetA 0.051 -> 0.320, AssA
-  0.594 -> 0.725). Every video improves; the two densest (27-46 sperm per frame) gain least,
+  0.594 -> 0.725). Every video improves. The two densest (27-46 sperm per frame) gain least,
   because upstream's builder tracks at most 16 objects at a time.
+- `--max-objects 64` removes that cap. Rerunning the two dense videos takes the five-video HOTA to
+  0.487: video 36 goes 0.326 -> 0.352 and video 82 0.441 -> 0.486. Their peaks were 28 and 24 active
+  tracks. DetA rises to 0.363 and AssA falls to 0.695, so more sperm are detected but identities hold
+  less well.
 - These are zero-shot or detector-only adaptation results. They are not comparable to supervised
   trackers (HOTA 74.3 on VISEM).
 

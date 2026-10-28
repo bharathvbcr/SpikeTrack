@@ -33,9 +33,11 @@ fp32 on CPU (tools/reference).
 | CoreML port on the same M5 Pro (the speed reference) | 0.272 s backbone + 0.0775 s track step per frame | [baselines](bench/results/baselines) |
 
 Not yet: the speed target (restated to parity-or-better with the CoreML port; we are ~6-8x behind
-on the tracker path today, see [profile-cbd5565](bench/results/profile-cbd5565)). The dense held-out
-videos (27-46 sperm per frame) are bounded by upstream's 16-object tracking cap; `--max-objects` is
-being measured. Open issues are in gaps.jsonl.
+on the tracker path today, see [profile-cbd5565](bench/results/profile-cbd5565)). Upstream caps
+tracking at 16 objects, and that cap was binding on the two dense held-out videos (27-46 sperm per
+frame). With `--max-objects 64`, the five-video HOTA rises to 0.4868: DetA goes up to 0.363 and AssA
+down to 0.695. The peaks were 28 and 24 active tracks
+([max64](bench/results/track/held300-lora600-sperm-detector-max64)). Open issues are in gaps.jsonl.
 
 VISEM's ground truth is sperm-head boxes, while upstream's track boxes are the extent of the
 whole-sperm mask, tail included, so zero-shot HOTA with upstream's boxes mostly measures that
