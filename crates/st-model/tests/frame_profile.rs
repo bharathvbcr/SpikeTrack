@@ -26,7 +26,7 @@ use std::time::Instant;
 use ojas_core::{Autocast, AutocastMode, Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
 use ojas_io::SafeTensors;
-use ojas_metal::MetalBackend;
+use ojas_metal::{MetalBackend, WaitCounts};
 use st_model::detector::{Detector, DetectorTaps, DetectorWeights, D};
 use st_model::profile::{CounterReader, Profiled};
 use st_model::tracker::vos::Vos;
@@ -126,7 +126,16 @@ fn measure<B: Backend>(be: &B, w: &Sam31Weights, mode: AutocastMode, trunk_bf16:
     (det_ms, times)
 }
 
-fn run<B: Backend>(make: impl Fn() -> B, mode: AutocastMode, trunk_bf16: bool, label: &str, counters: Option<CounterReader<B>>) {
+/// `split` reads the Metal backend's waits by trigger (`MetalBackend::wait_counts`): each
+/// unprofiled pass prints what forced its waits (the profiled pass syncs every op, so it cannot).
+fn run<B: Backend>(
+    make: impl Fn() -> B,
+    mode: AutocastMode,
+    trunk_bf16: bool,
+    label: &str,
+    counters: Option<CounterReader<B>>,
+    split: Option<fn(&B) -> WaitCounts>,
+) {
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = Sam31Weights::load(&ck).expect("weights");
     let show = |kind: &str, det_ms: f64, times: &[(usize, usize, f64)]| {
@@ -141,8 +150,13 @@ fn run<B: Backend>(make: impl Fn() -> B, mode: AutocastMode, trunk_bf16: bool, l
     for pass in 1..=3 {
         let load = load_average();
         let before = counters.map(|read| read(&be));
+        let split_before = split.map(|read| read(&be));
         let (det_ms, times) = measure(&be, &w, mode, trunk_bf16, |_| {});
         let delta = before.zip(counters.map(|read| read(&be))).map(|(b, a)| format!("; waits +{}, dispatches +{}", a.0 - b.0, a.1 - b.1)).unwrap_or_default();
+        let delta = match split_before.zip(split.map(|read| read(&be))) {
+            Some((b, a)) => format!("{delta}; waits by trigger {:?}", a.since(&b)),
+            None => delta,
+        };
         show(&format!("unprofiled pass {pass} (load before: {load}{delta})"), det_ms, &times);
     }
     drop(be);
@@ -164,19 +178,19 @@ fn run<B: Backend>(make: impl Fn() -> B, mode: AutocastMode, trunk_bf16: bool, l
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the tracker fixture"]
 fn frame_profile_metal() {
-    run(|| MetalBackend::new(Budget::new(24 << 30)).expect("metal"), AutocastMode::Off, false, "Metal f32, contended", Some(|b: &MetalBackend| (b.waits(), b.dispatches())));
+    run(|| MetalBackend::new(Budget::new(24 << 30)).expect("metal"), AutocastMode::Off, false, "Metal f32, contended", Some(|b: &MetalBackend| (b.waits(), b.dispatches())), Some(|b: &MetalBackend| b.wait_counts()));
 }
 
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the tracker fixture"]
 fn frame_profile_metal_bf16() {
-    run(|| Autocast::new(shared_metal()), AutocastMode::Bf16, false, "Metal Autocast bf16, contended", Some(|_: &Autocast<&MetalBackend>| metal_counters()));
+    run(|| Autocast::new(shared_metal()), AutocastMode::Bf16, false, "Metal Autocast bf16, contended", Some(|_: &Autocast<&MetalBackend>| metal_counters()), Some(|_: &Autocast<&MetalBackend>| shared_metal().wait_counts()));
 }
 
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the tracker fixture"]
 fn frame_profile_metal_bf16_linears() {
-    run(|| Autocast::new(shared_metal()), AutocastMode::Off, true, "Metal bf16 trunk linears, contended", Some(|_: &Autocast<&MetalBackend>| metal_counters()));
+    run(|| Autocast::new(shared_metal()), AutocastMode::Off, true, "Metal bf16 trunk linears, contended", Some(|_: &Autocast<&MetalBackend>| metal_counters()), Some(|_: &Autocast<&MetalBackend>| shared_metal().wait_counts()));
 }
 
 thread_local! {
@@ -199,5 +213,5 @@ fn metal_counters() -> (u64, u64) {
 #[test]
 #[ignore = "needs the gated checkpoint, tokenizer files and the tracker fixture"]
 fn frame_profile_cpu() {
-    run(|| CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"), AutocastMode::Off, false, "CPU f32, contended", None);
+    run(|| CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"), AutocastMode::Off, false, "CPU f32, contended", None, None);
 }
