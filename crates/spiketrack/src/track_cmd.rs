@@ -131,8 +131,7 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
                     the device after every K-th frame (MetalBackend::trim_pool)
   --trunk-precision P  f32 (default, upstream's numerics) or bf16-linears (an experiment: the
                     ViT trunk's linears in bf16 through an Ojas Autocast region, everything else
-                    f32; not upstream, see Backbone::with_trunk_linears_bf16). With bf16-linears
-                    the frame lines carry only the host telemetry.
+                    f32; not upstream, see Backbone::with_trunk_linears_bf16).
 
   Each frame's progress line ends with this process's physical footprint, the machine's pages
   paged out and swapped in during the frame and, on Metal, the frame's change in Ojas's wait
@@ -794,14 +793,25 @@ impl<B: Backend> FrameTelemetry<B> for HostProbe {
     }
 }
 
+/// Metal telemetry through a clone of the backend the frames run on (`MetalBackend` clones share
+/// one device link and its counters), so it reads the same device whether the frames run on the
+/// plain backend or on an `Autocast` wrapper around it.
 struct MetalTelemetry {
+    metal: MetalBackend,
     probe: MetalProbe,
     host: HostProbe,
     trim_every: Option<u32>,
 }
 
-impl FrameTelemetry<MetalBackend> for MetalTelemetry {
-    fn after_frame(&mut self, be: &MetalBackend, index: usize) -> Result<String, CliError> {
+impl MetalTelemetry {
+    fn new(metal: &MetalBackend, trim_every: Option<u32>) -> Result<Self, CliError> {
+        Ok(Self { metal: metal.clone(), probe: MetalProbe::new(metal)?, host: HostProbe::new(), trim_every })
+    }
+}
+
+impl<B: Backend> FrameTelemetry<B> for MetalTelemetry {
+    fn after_frame(&mut self, _: &B, index: usize) -> Result<String, CliError> {
+        let be = &self.metal;
         let mut line = format!("{}, {}", self.probe.frame(be)?, self.host.field());
         if self.trim_every.is_some_and(|k| (index + 1) % k as usize == 0) {
             be.trim_pool().map_err(CliError::from_err)?;
@@ -887,9 +897,6 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         "bf16-linears" => true,
         other => return Err(CliError::usage(format!("--trunk-precision: {other:?} is not f32 or bf16-linears"))),
     };
-    if trunk_linears_bf16 && trim_pool_every.is_some() {
-        return Err(CliError::usage("--trim-pool-every needs the plain Metal backend; not with --trunk-precision bf16-linears"));
-    }
     let threads: usize = args.parsed("threads", 8)?;
     if !(1..=256).contains(&threads) {
         return Err(CliError::usage(format!("--threads {threads} is outside 1..=256")));
@@ -950,12 +957,13 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         }
         BackendChoice::Cpu => track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?,
         BackendChoice::Metal if opts.trunk_linears_bf16 => {
-            let be = Autocast::new(MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?);
-            track_on(&be, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?
+            let metal = MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?;
+            let mut telemetry = MetalTelemetry::new(&metal, opts.trim_pool_every)?;
+            track_on(&Autocast::new(metal), &w, &mut stream, &opts, &mut collector, &mut telemetry)?
         }
         BackendChoice::Metal => {
             let be = MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?;
-            let mut telemetry = MetalTelemetry { probe: MetalProbe::new(&be)?, host: HostProbe::new(), trim_every: opts.trim_pool_every };
+            let mut telemetry = MetalTelemetry::new(&be, opts.trim_pool_every)?;
             track_on(&be, &w, &mut stream, &opts, &mut collector, &mut telemetry)?
         }
     };
