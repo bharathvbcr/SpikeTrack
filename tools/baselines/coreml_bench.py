@@ -2,10 +2,15 @@
 backbone and the multiplex-16 tracker step. Baseline only; never shipped.
 
     tools/baselines/.venv/bin/python -s tools/baselines/coreml_bench.py --inspect
-    tools/locked.sh coreml tools/baselines/.venv/bin/python -s tools/baselines/coreml_bench.py
+    tools/locked.sh coreml tools/baselines/.venv/bin/python -s tools/baselines/coreml_bench.py [--units ALL]
 
-Timing: compute units CPU_AND_GPU (the port's deploy setting; its ANE compile
-fails), 2 warm-up calls then N timed calls; report median, min, max. Inputs
+Timing: compute units CPU_AND_GPU by default (the port's deploy setting; its ANE
+compile failed on the port author's machine), or --units ALL / CPU_AND_NE /
+CPU_ONLY; 2 warm-up calls then N timed calls; report median, min, max. CoreML
+falls back per op without saying so, so which unit ran under ALL or CPU_AND_NE
+is inferred from the timing, not observed. A model that fails to load or run
+under the chosen units is recorded with its error.
+Results: bench/results/baselines/coreml.json (CPU_AND_GPU) or coreml-<units>.json. Inputs
 are deterministic random tensors of the spec's shapes: CoreML's cost does not
 depend on values here (no data-dependent control flow in either graph) [I].
 """
@@ -46,9 +51,9 @@ def inputs_for(desc, rng):
     return {k: rng.standard_normal(v["shape"]).astype(np_t.get(v["dtype"], np.float32)) for k, v in desc["inputs"].items()}
 
 
-def bench(path, desc, n, rng):
+def bench(path, desc, n, rng, units):
     t0 = time.perf_counter()
-    model = ct.models.MLModel(str(path), compute_units=ct.ComputeUnit.CPU_AND_GPU)
+    model = ct.models.MLModel(str(path), compute_units=getattr(ct.ComputeUnit, units))
     load_s = time.perf_counter() - t0
     state = model.make_state() if desc["states"] else None
     x = inputs_for(desc, rng)
@@ -71,6 +76,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--inspect", action="store_true")
     ap.add_argument("-n", type=int, default=5)
+    ap.add_argument("--units", default="CPU_AND_GPU", choices=["CPU_AND_GPU", "ALL", "CPU_AND_NE", "CPU_ONLY"])
     args = ap.parse_args()
     descs = {"backbone": describe(BACKBONE), "tracker": describe(TRACKER)}
     if args.inspect:
@@ -79,20 +85,23 @@ def main():
     rng = np.random.default_rng(20261026)
     res = {
         "source": "huggingface.co/sdkv2/sam3.1-coreml @ 9668c4964e216cf9e3a64f0ad812af9d62b33642",
-        "compute_units": "CPU_AND_GPU",
+        "compute_units": args.units,
         "coremltools": ct.__version__,
         "macos": platform.mac_ver()[0],
         "machine": subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True).stdout.strip(),
         "load_avg_start": os.getloadavg(),
         "models": descs,
     }
-    res["backbone"] = bench(BACKBONE, descs["backbone"], args.n, rng)
-    print("backbone", res["backbone"], flush=True)
-    res["tracker"] = bench(TRACKER, descs["tracker"], args.n, rng)
-    print("tracker", res["tracker"], flush=True)
+    for name, path in (("backbone", BACKBONE), ("tracker", TRACKER)):
+        try:
+            res[name] = bench(path, descs[name], args.n, rng, args.units)
+        except Exception as e:  # recorded, not swallowed: the run's json says this model failed
+            res[name] = {"error": f"{type(e).__name__}: {e}"}
+        print(name, res[name], flush=True)
     res["load_avg_end"] = os.getloadavg()
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "coreml.json").write_text(json.dumps(res, indent=1) + "\n")
+    name = "coreml.json" if args.units == "CPU_AND_GPU" else f"coreml-{args.units}.json"
+    (OUT / name).write_text(json.dumps(res, indent=1) + "\n")
 
 
 if __name__ == "__main__":

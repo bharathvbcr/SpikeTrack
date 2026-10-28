@@ -1,6 +1,6 @@
 #!/bin/bash
 # Per-op wall-time breakdown of one frame (trunk + detector + tracker step) on Metal; single
-# run, contended machine. Results to bench/results/profile/.
+# run, contended machine. Results to $PROFILE_OUT (default bench/results/profile/).
 #   tools/locked.sh profile bash tools/jobs/frame_profile.sh [metal|cpu]
 set -uo pipefail
 cd "$(dirname "$0")/../.."
@@ -8,7 +8,7 @@ which=${1:-metal}
 export SPIKETRACK_WEIGHTS="$HOME/Code/research/models/sam3.1/sam3.1_multiplex.safetensors"
 export SPIKETRACK_MODEL_DIR="$HOME/Code/research/models/sam3.1"
 export SPIKETRACK_TRACKER_FIXTURES="$PWD/fixtures/tracker/judo.safetensors"
-out=bench/results/profile
+out=${PROFILE_OUT:-bench/results/profile}
 mkdir -p "$out"
 {
   echo "SpikeTrack: $(git log --oneline -1)"
