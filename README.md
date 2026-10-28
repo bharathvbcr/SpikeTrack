@@ -29,13 +29,13 @@ fp32 on CPU (tools/reference).
 | No Python | 8.4 MB binary linking only system frameworks; runs with no python on PATH | [packaging](bench/results/packaging) |
 | Detector LoRA (rank 16, 983k params, trained on this Mac), 120 frames of 5 held-out VISEM videos | sperm recall at IoU 0.5: prompt "sperm" 0.000 -> 0.761 (precision 0.584), "cell" 0.212 -> 0.576 at 0.5; absent VISEM classes now fire on 16% of items (was 0) | [lora](bench/results/lora) |
 | LoRA merged in Rust | merged tensors vs PyTorch max abs diff 1.5e-8 on the real checkpoint; `--lora` on `image` and `track` | [merge-parity.log](bench/results/lora/merge-parity.log) |
-| Tracking, 8-frame held-out smoke (40 frames) | HOTA 0.1838 zero-shot (upstream boxes) -> 0.4694 with the adapter, prompt "sperm" and `--boxes detector` | [box-convention](bench/results/track/box-convention) |
+| Tracking, first 300 frames of the 5 held-out VISEM videos (1,500 frames, 32,949 GT boxes) | HOTA 0.1549 zero-shot (prompt "cell", upstream boxes) -> **0.4695** with the adapter, prompt "sperm" and `--boxes detector` (DetA 0.051 -> 0.320, AssA 0.594 -> 0.725) | [zero-shot](bench/results/track/held300-zeroshot-cell-mask/eval.txt), [adapter](bench/results/track/held300-lora600-sperm-detector/eval.txt), [box-convention](bench/results/track/box-convention) |
 | CoreML port on the same M5 Pro (the speed reference) | 0.272 s backbone + 0.0775 s track step per frame | [baselines](bench/results/baselines) |
 
 Not yet: the speed target (restated to parity-or-better with the CoreML port; we are ~6-8x behind
-on the tracker path today, see [profile-cbd5565](bench/results/profile-cbd5565)) and HOTA on the
-held-out VISEM videos beyond the 8-frame smoke (300-frame runs in progress). Open issues are in
-gaps.jsonl.
+on the tracker path today, see [profile-cbd5565](bench/results/profile-cbd5565)). The dense held-out
+videos (27-46 sperm per frame) are bounded by upstream's 16-object tracking cap; `--max-objects` is
+being measured. Open issues are in gaps.jsonl.
 
 VISEM's ground truth is sperm-head boxes, while upstream's track boxes are the extent of the
 whole-sperm mask, tail included, so zero-shot HOTA with upstream's boxes mostly measures that

@@ -1,9 +1,9 @@
 # SpikeTrack: the whole of SAM 3.1 on a laptop, with no Python
 
 Draft of the hackathon submission text, 2026-10-27. Every number is in
-[bench/results/SUMMARY.md](../bench/results/SUMMARY.md) with the command that produced it. Two
-inputs are still open: the 300-frame held-out HOTA (running), and the Official Rules' wording on
-length, prior work and required Meta models (unread, GAP-OFFICIAL-RULES-UNREAD).
+[bench/results/SUMMARY.md](../bench/results/SUMMARY.md) with the command that produced it. Still open:
+the Official Rules' wording on length, prior work and required Meta models (unread,
+GAP-OFFICIAL-RULES-UNREAD).
 
 ## The problem
 
@@ -69,7 +69,10 @@ is where the adapter's learning shows.
 
 - On the first 8 frames of each held-out video: HOTA 0.18 zero-shot -> 0.47 with the adapter and
   detector boxes.
-- [300-frame held-out HOTA: pending.]
+- On the first 300 frames of each held-out video (1,500 frames, 32,949 ground-truth boxes):
+  HOTA 0.155 zero-shot -> 0.470 with the adapter and detector boxes (DetA 0.051 -> 0.320, AssA
+  0.594 -> 0.725). Every video improves; the two densest (27-46 sperm per frame) gain least,
+  because upstream's builder tracks at most 16 objects at a time.
 - These are zero-shot or detector-only adaptation results. They are not comparable to supervised
   trackers (HOTA 74.3 on VISEM).
 
