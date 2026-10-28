@@ -1,0 +1,5 @@
+SpikeTrack a0bc377 gp-domain-lora: all four criteria met (held-out HOTA 0.1549 -> 0.4695)
+ojas-st 8b88328 Merge gp/78-attn-mpp: TensorOps flash cross-attention for D32 with no bias or lens (Lane A)
+tessl 789a132 ci: keep MSRV and the comparator lanes on the toolchains they need
+baseline ojas-st cbd5565 Merge gp/78-metal: group_norm, concat, slice and fill on Metal; sitegen ragged-row check (Lane A)
+ 3:00  up 1 day, 19:16, 1 user, load averages: 12.67 11.15 12.34

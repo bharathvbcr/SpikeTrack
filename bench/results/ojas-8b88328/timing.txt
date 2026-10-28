@@ -1,0 +1,16 @@
+round 1 cbd5565: load { 7.67 9.69 11.52 }, GPU 13%
+round 1 cbd5565: 4.4182 s/frame mean over 49 frames, 18 tracks
+round 1 8b88328: load { 15.71 11.94 11.97 }, GPU 87%
+round 1 8b88328: 3.7333 s/frame mean over 49 frames, 18 tracks
+round 2 8b88328: load { 7.51 9.84 11.08 }, GPU 82%
+round 2 8b88328: 3.6486 s/frame mean over 49 frames, 18 tracks
+round 2 cbd5565: load { 5.94 8.07 10.10 }, GPU 58%
+round 2 cbd5565: 3.9915 s/frame mean over 49 frames, 18 tracks
+round 3 cbd5565: load { 7.31 7.50 9.42 }, GPU 90%
+round 3 cbd5565: 4.1320 s/frame mean over 49 frames, 18 tracks
+round 3 8b88328: load { 10.61 13.23 11.81 }, GPU 87%
+round 3 8b88328: 3.6126 s/frame mean over 49 frames, 18 tracks
+cbd5565 [4.4182, 3.9915, 4.132]; 8b88328 [3.7333, 3.6486, 3.6126]
+per-round 8b88328/cbd5565: [0.845, 0.914, 0.874]; median 0.874; median s/frame saved 0.519
+per-arm spread (max/min): cbd5565 1.107, 8b88328 1.033; parity frames: upstream's frame tensors from fixtures/detect_track/22.safetensors (the detect_track oracle, not the backbone fixtures); timing frames: VISEM 22 JPEGs via the Pillow-exact decoder
+ 3:23  up 1 day, 19:38, 1 user, load averages: 6.21 10.11 10.77
