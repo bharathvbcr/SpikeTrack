@@ -74,6 +74,15 @@ upstream to cosine 0.99995 [V], so it is not exact either.
   bottleneck, and the bf16 trunk GEMMs would be ~200 ms per frame.
 - E4: the NN bias epilogue costs 5-18% over the plain GEMM and still beats GEMM + separate bias
   add; held until the in-frame pass cost is split (ojas-78, O1).
+- E4b [V kernel, I frame]: tessl `gemm_nt_bf16_bias(a, b, c, bias, round_bf16)` on branch
+  `gp/w34-nt-bias-round` (f535dd3, not on main). The epilogue adds the bias and rounds the output
+  to bf16 in registers. Its output is bit-identical to gemm_nt_bf16 + bias_add + the two casts
+  (`tests/gemm_nt_bf16_bias.rs`); a deliberate break makes 4 of 5 tests fail. Timings, one run at
+  M=5184, bias + round, separate steps -> fused: q/k/v/proj 742 -> 473 us, fc1 3567 -> 2191 us,
+  fc2 2083 -> 1897 us. That is ~2.65 ms per block, ~85 ms per trunk pass (~4% of a tracker frame),
+  inferred and not measured in a frame. It removes the separate bias add and the emit round, not
+  the input prep round or the ensure_bf16 casts. Handed to ojas-78 (O1); landing needs the tessl
+  main handshake.
 - E5: deferred: GPU 86% busy leaves under the 1.2x bar.
 - E6: permutes are 87 ms of a 2492 ms frame (3.5%), under ojas-78's 5% rule; parked.
 - Waits [V]: ojas's allocated-between-waits cap (min(1 GiB, budget/4)) forces 231 of f32's 387
