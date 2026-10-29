@@ -276,6 +276,15 @@ fn run_parity_672<B: Backend>(be: &B, label: &str) {
             check(format!("{tag}[{lvl}]"), t, &format!("neck.{tag}.{lvl}.out"));
         }
     }
+    // The sine position encodings the detector (72 level -> 48) and the memory encoder use are
+    // `host::sine_position_map(side, side)`: upstream's own maps for the three neck levels.
+    for (lvl, side) in [(0usize, geo.low_res()), (1, geo.mid_res()), (2, geo.grid)] {
+        let (want_shape, want) = fixture(&st, &format!("neck.pos_enc.{lvl}"));
+        assert_eq!(want_shape, vec![1, 256, side, side], "pos_enc {lvl} shape");
+        let s = compare(&st_model::host::sine_position_map(side, side), &want);
+        worst = worst.min(s.cos);
+        rows.push(format!("| sine_position_map({side}) vs pos_enc[{lvl}] | {:.7} | {:.3e} | {:.3e} | {} |", s.cos, s.max_abs, s.max_abs / s.ref_max.max(1e-30), if s.cos > COS_GATE { "pass" } else { "FAIL" }));
+    }
     println!("\n| stage (672) | cosine | max abs | max abs / max ref | gate |\n|---|---|---|---|---|");
     for r in &rows {
         println!("{r}");

@@ -1,0 +1,3 @@
+SpikeTrack: e5ede82 E7 results: 672 gates, generated RoPE vs checkpoint, 1008 regression runs, 8-frame smokes
+ojas-st:    8b88328 Merge gp/78-attn-mpp: TensorOps flash cross-attention for D32 with no bias or lens (Lane A)
+tessl:      c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in (dirty files: 0)

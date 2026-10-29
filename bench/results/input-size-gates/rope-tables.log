@@ -1,4 +1,4 @@
-    Finished `release` profile [optimized] target(s) in 1.04s
+    Finished `release` profile [optimized] target(s) in 1.32s
      Running tests/backbone_parity.rs (target/release/deps/backbone_parity-ef5bd91994fb9cd6)
 
 running 1 test
@@ -37,5 +37,5 @@ block 31 (global  , grid 72): max abs diff 5.960e-8, 329184/331776 bit-identical
 all 32 blocks: max abs diff 5.960e-8, 2342208/2359296 entries bit-identical (99.2757%)
 ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.25s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.62s
 

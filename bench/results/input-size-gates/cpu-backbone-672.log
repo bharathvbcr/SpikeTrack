@@ -1,8 +1,8 @@
-    Finished `release` profile [optimized] target(s) in 1.00s
+    Finished `release` profile [optimized] target(s) in 1.27s
      Running tests/backbone_parity.rs (target/release/deps/backbone_parity-ef5bd91994fb9cd6)
 
 running 1 test
-test backbone_matches_pytorch_fp32_at_672 ... [cpu] 672 trunk + 3 necks 6.8 s (one run, not a benchmark)
+test backbone_matches_pytorch_fp32_at_672 ... [cpu] 672 trunk + 3 necks 7.5 s (one run, not a benchmark)
 
 | stage (672) | cosine | max abs | max abs / max ref | gate |
 |---|---|---|---|---|
@@ -20,9 +20,12 @@ test backbone_matches_pytorch_fp32_at_672 ... [cpu] 672 trunk + 3 necks 6.8 s (o
 | propagation_convs[0] | 1.0000000 | 1.729e-5 | 1.741e-5 | pass |
 | propagation_convs[1] | 1.0000000 | 6.557e-5 | 2.088e-5 | pass |
 | propagation_convs[2] | 1.0000000 | 1.204e-4 | 2.058e-5 | pass |
+| sine_position_map(192) vs pos_enc[0] | 1.0000000 | 5.960e-8 | 5.960e-8 | pass |
+| sine_position_map(96) vs pos_enc[1] | 1.0000000 | 5.960e-8 | 5.960e-8 | pass |
+| sine_position_map(48) vs pos_enc[2] | 1.0000000 | 5.960e-8 | 5.960e-8 | pass |
 
-[cpu] 672: worst cosine 1.0000000 over 14 stages (gate > 0.999)
+[cpu] 672: worst cosine 1.0000000 over 17 stages (gate > 0.999)
 ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 7.29s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 8.33s
 
