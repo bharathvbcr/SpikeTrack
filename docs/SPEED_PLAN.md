@@ -76,6 +76,16 @@ upstream to cosine 0.99995 [V], so it is not exact either.
   add; held until the in-frame pass cost is split (ojas-78, O1).
 - E5: deferred: GPU 86% busy leaves under the 1.2x bar.
 - E6: permutes are 87 ms of a 2492 ms frame (3.5%), under ojas-78's 5% rule; parked.
+- Waits [V]: ojas's allocated-between-waits cap (min(1 GiB, budget/4)) forces 231 of f32's 387
+  waits per 4-frame pass (1d2f906). Raising it in a throwaway build against ojas main
+  (`set_mem_cap`) makes every mode ~20-28% faster at 8 GiB (a9e9407); the footprint sweep puts the
+  knee at 4 GiB: ~0.87x frame time for +3 GiB peak footprint (11.0 -> 14.0 GiB; 327fc92). With the
+  cap raised, bf16 trunk linears are still level with f32: the cap is not what hides bf16's gain.
+- Fable's ruling (via ojas-78): ojas's default cap stays; SpikeTrack sets its own (4 GiB).
+  Owner, 2026-10-28: promote `set_mem_cap` to public API (ojas-78), and bump SpikeTrack's ojas pin
+  once, to an ojas main that has both it and the O1 bf16-weight slice. Then SpikeTrack sets the
+  cap at startup, records it in run.json, and loads the trunk linear weights as resident
+  `DType::Bf16` for the bf16 path, re-verified together.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 
