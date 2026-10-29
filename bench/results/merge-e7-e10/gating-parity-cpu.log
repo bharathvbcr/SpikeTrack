@@ -1,0 +1,159 @@
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded block2 v0.6.2
+  Downloaded objc2-encode v4.1.0
+  Downloaded dispatch2 v0.3.1
+  Downloaded objc2-foundation v0.3.2
+  Downloaded objc2-core-foundation v0.3.2
+  Downloaded objc2-metal v0.3.2
+  Downloaded objc2 v0.6.5
+  Downloaded libc v0.2.191
+   Compiling objc2 v0.6.5
+   Compiling libc v0.2.191
+   Compiling objc2-encode v4.1.0
+   Compiling bitflags v2.13.2
+   Compiling ojas-core v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-core)
+   Compiling block2 v0.6.2
+   Compiling objc2-core-foundation v0.3.2
+   Compiling tessl v0.2.0 (/Users/bharath/Code/research/tessl)
+   Compiling objc2-foundation v0.3.2
+   Compiling dispatch2 v0.3.1
+   Compiling ojas-io v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-io)
+   Compiling ojas-metal v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-metal)
+   Compiling st-weights v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-weights)
+   Compiling objc2-metal v0.3.2
+   Compiling ojas-device v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-device)
+   Compiling ojas-simd v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-simd)
+   Compiling st-video v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-video)
+   Compiling st-gate v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-gate)
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+   Compiling ojas-cpu v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-cpu)
+   Compiling st-eval v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-eval)
+    Finished `release` profile [optimized] target(s) in 45.20s
+     Running tests/gating_parity.rs (target/release/deps/gating_parity-bea9885ff87c7df2)
+
+running 6 tests
+test a_backbone_refuses_a_grid_that_is_not_whole_windows_and_a_wrong_patch ... ok
+test gated_trunk_exactness_on_real_frames_cpu_exact_numerics ... [Exact] frames 0 and 1 of video 11: 9/9 windows differ at tau 0, 14.0% of patches
+[Exact] gate at tau 0 on the mosaic frame: recompute windows [0, 4, 8]
+[Exact] ungated trunk 29.0 s; the same input run twice is bitwise equal: true
+[Exact] gated, every window recomputed, cache fill: 25.1 s
+[Exact] exact policy on 3 changed windows: 23.4 s, 85.4% of the blocks, 86.6% of the FLOPs
+[Exact] approximate policy on 3 changed windows: 12.9 s, 41.7% of the blocks, 46.3% of the FLOPs
+
+| numerics | stage (gated vs ungated, frame B) | bitwise | cosine | max abs |
+|---|---|---|---|---|
+| Exact | (a) all windows changed: trunk output | yes | 1.000000000 | 0.000e0 |
+| Exact | (a) all windows changed: block 0 | yes | 1.000000000 | 0.000e0 |
+| Exact | (a) all windows changed: block 6 | yes | 1.000000000 | 0.000e0 |
+| Exact | (a) all windows changed: block 7 | yes | 1.000000000 | 0.000e0 |
+| Exact | (a) all windows changed: block 15 | yes | 1.000000000 | 0.000e0 |
+| Exact | (a) all windows changed: block 23 | yes | 1.000000000 | 0.000e0 |
+| Exact | (a) all windows changed: block 31 | yes | 1.000000000 | 0.000e0 |
+| Exact | (a) identical input: reused trunk output | yes | 1.000000000 | 0.000e0 |
+| Exact | (b) exact policy: block 6 | yes | 1.000000000 | 0.000e0 |
+| Exact | (b) exact policy: block 7 | yes | 1.000000000 | 0.000e0 |
+| Exact | (b) exact policy: block 14 | yes | 1.000000000 | 0.000e0 |
+| Exact | (b) exact policy: block 15 | yes | 1.000000000 | 0.000e0 |
+| Exact | (b) exact policy: block 22 | yes | 1.000000000 | 0.000e0 |
+| Exact | (b) exact policy: block 23 | yes | 1.000000000 | 0.000e0 |
+| Exact | (b) exact policy: block 30 | yes | 1.000000000 | 0.000e0 |
+| Exact | (b) exact policy: block 31 | yes | 1.000000000 | 0.000e0 |
+| Exact | (b) exact policy: trunk output | yes | 1.000000000 | 0.000e0 |
+| Exact | approximate: block 6 | yes | 1.0000000 | 0.000e0 |
+| Exact | approximate: block 7 | yes | 1.0000000 | 0.000e0 |
+| Exact | approximate: block 14 | no | 0.9999722 | 7.495e0 |
+| Exact | approximate: block 15 | no | 0.9999387 | 1.791e1 |
+| Exact | approximate: block 22 | no | 0.9992480 | 1.239e2 |
+| Exact | approximate: block 23 | no | 0.9992874 | 1.237e2 |
+| Exact | approximate: block 30 | no | 0.9994113 | 1.075e2 |
+| Exact | approximate: block 31 | no | 0.9993673 | 9.452e1 |
+| Exact | approximate: trunk output | no | 0.9993673 | 9.452e1 |
+| Exact | approximate: detector neck level 0 | no | 0.9999545 | 2.729e-2 |
+| Exact | approximate: detector neck level 1 | no | 0.9998550 | 1.472e0 |
+| Exact | approximate: detector neck level 2 | no | 0.9997954 | 9.717e-1 |
+| Exact | approximate: interactive neck level 0 | no | 0.9999006 | 2.559e-1 |
+| Exact | approximate: interactive neck level 1 | no | 0.9997979 | 5.207e-1 |
+| Exact | approximate: interactive neck level 2 | no | 0.9998224 | 7.074e-1 |
+| Exact | approximate: propagation neck level 0 | no | 0.9999417 | 1.194e-1 |
+| Exact | approximate: propagation neck level 1 | no | 0.9999135 | 3.392e-1 |
+| Exact | approximate: propagation neck level 2 | no | 0.9998452 | 5.874e-1 |
+
+ok
+test gated_trunk_exactness_on_real_frames_cpu_fast_numerics_reported ... [Fast] frames 0 and 1 of video 11: 9/9 windows differ at tau 0, 14.0% of patches
+[Fast] gate at tau 0 on the mosaic frame: recompute windows [0, 4, 8]
+[Fast] ungated trunk 14.8 s; the same input run twice is bitwise equal: true
+[Fast] gated, every window recomputed, cache fill: 17.9 s
+[Fast] exact policy on 3 changed windows: 16.0 s, 85.4% of the blocks, 86.6% of the FLOPs
+[Fast] approximate policy on 3 changed windows: 9.4 s, 41.7% of the blocks, 46.3% of the FLOPs
+
+| numerics | stage (gated vs ungated, frame B) | bitwise | cosine | max abs |
+|---|---|---|---|---|
+| Fast | (a) all windows changed: trunk output | yes | 1.000000000 | 0.000e0 |
+| Fast | (a) all windows changed: block 0 | yes | 1.000000000 | 0.000e0 |
+| Fast | (a) all windows changed: block 6 | yes | 1.000000000 | 0.000e0 |
+| Fast | (a) all windows changed: block 7 | yes | 1.000000000 | 0.000e0 |
+| Fast | (a) all windows changed: block 15 | yes | 1.000000000 | 0.000e0 |
+| Fast | (a) all windows changed: block 23 | yes | 1.000000000 | 0.000e0 |
+| Fast | (a) all windows changed: block 31 | yes | 1.000000000 | 0.000e0 |
+| Fast | (a) identical input: reused trunk output | yes | 1.000000000 | 0.000e0 |
+| Fast | (b) exact policy: block 6 | yes | 1.000000000 | 0.000e0 |
+| Fast | (b) exact policy: block 7 | yes | 1.000000000 | 0.000e0 |
+| Fast | (b) exact policy: block 14 | yes | 1.000000000 | 0.000e0 |
+| Fast | (b) exact policy: block 15 | yes | 1.000000000 | 0.000e0 |
+| Fast | (b) exact policy: block 22 | yes | 1.000000000 | 0.000e0 |
+| Fast | (b) exact policy: block 23 | yes | 1.000000000 | 0.000e0 |
+| Fast | (b) exact policy: block 30 | yes | 1.000000000 | 0.000e0 |
+| Fast | (b) exact policy: block 31 | yes | 1.000000000 | 0.000e0 |
+| Fast | (b) exact policy: trunk output | yes | 1.000000000 | 0.000e0 |
+| Fast | approximate: block 6 | yes | 1.0000000 | 0.000e0 |
+| Fast | approximate: block 7 | yes | 1.0000000 | 0.000e0 |
+| Fast | approximate: block 14 | no | 0.9999722 | 7.495e0 |
+| Fast | approximate: block 15 | no | 0.9999387 | 1.791e1 |
+| Fast | approximate: block 22 | no | 0.9992480 | 1.239e2 |
+| Fast | approximate: block 23 | no | 0.9992873 | 1.237e2 |
+| Fast | approximate: block 30 | no | 0.9994112 | 1.075e2 |
+| Fast | approximate: block 31 | no | 0.9993673 | 9.452e1 |
+| Fast | approximate: trunk output | no | 0.9993673 | 9.452e1 |
+| Fast | approximate: detector neck level 0 | no | 0.9999545 | 2.729e-2 |
+| Fast | approximate: detector neck level 1 | no | 0.9998550 | 1.472e0 |
+| Fast | approximate: detector neck level 2 | no | 0.9997954 | 9.717e-1 |
+| Fast | approximate: interactive neck level 0 | no | 0.9999006 | 2.559e-1 |
+| Fast | approximate: interactive neck level 1 | no | 0.9997979 | 5.207e-1 |
+| Fast | approximate: interactive neck level 2 | no | 0.9998224 | 7.074e-1 |
+| Fast | approximate: propagation neck level 0 | no | 0.9999417 | 1.194e-1 |
+| Fast | approximate: propagation neck level 1 | no | 0.9999135 | 3.392e-1 |
+| Fast | approximate: propagation neck level 2 | no | 0.9998452 | 5.874e-1 |
+
+ok
+test policy_recompute_fraction_and_wall_time_on_ten_consecutive_visem_frames ... 
+change rates between consecutive frames of video 11 (frames 0..10), model-input u8 frames
+| tau | patches changed | windows changed |
+|---|---|---|
+| 0 | 0.4675 | 1.000 |
+| 4 | 0.0373 | 0.889 |
+| 8 | 0.0143 | 0.864 |
+| 16 | 0.0054 | 0.716 |
+| 32 | 0.0014 | 0.420 |
+ungated trunk repeats itself bitwise on this backend: true
+
+ungated: 183.17 s for 10 frames (18.32 s/frame)
+
+| policy | decisions (F full, R reuse, Wk k windows) | blocks run | model FLOPs run | s/frame | speedup | gate ms/frame | min cosine to ungated |
+|---|---|---|---|---|---|---|---|
+| ungated | F x 10 | 100.0% | 100.0% | 18.32 | 1.00x | 0 | 1.0000000 |
+| frame, tau 8 | F F F F F F F F F F | 100.0% | 100.0% | 16.16 | 1.13x | 0.232 | 1.0000000 |
+| windows exact, tau 8 | F W8 W8 W8 W8 W7 W8 W8 W8 W8 | 97.6% | 97.8% | 15.92 | 1.15x | 0.299 | 0.9799613 |
+| windows exact, tau 16 | F W6 W8 W6 W7 W6 W7 W8 W7 W7 | 95.4% | 95.8% | 16.23 | 1.13x | 0.274 | 0.9622414 |
+| windows exact, tau 32 | F W3 W5 W5 W5 W5 W4 W7 W5 W6 | 91.3% | 92.0% | 14.91 | 1.23x | 0.260 | 0.9280894 |
+| windows approx, tau 8, refresh 5 | F W8 W8 W8 W8 F W7 W8 W8 W8 | 91.2% | 92.0% | 14.54 | 1.26x | 0.286 | 0.9822605 |
+| windows approx, tau 16, refresh 5 | F W6 W8 W6 W7 F W6 W7 W7 W7 | 82.5% | 83.9% | 13.29 | 1.38x | 0.413 | 0.9621272 |
+| windows approx, tau 32, refresh 5 | F W3 W5 W5 W5 F W3 W6 W6 W5 | 66.9% | 69.6% | 11.52 | 1.59x | 0.327 | 0.9415743 |
+
+determinism: run 1 hash 82cd091376dbd4a4, run 2 hash 82cd091376dbd4a4 (windows approx, tau 8, refresh 5)
+ok
+test synthetic_gated_trunk_is_exact_where_designed_and_carries_where_approximate ... ok
+test synthetic_trunk_at_672_follows_the_geometry_and_regenerates_the_global_rope_table ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1634.25s
+

@@ -1,0 +1,1 @@
+SpikeTrack 3ee54cd Merge gate: 1008 and 672 parity, CoreML fp32 parity, VISEM 22 byte-identical to b11bb69 for f32 and the default trunk, dirty 2

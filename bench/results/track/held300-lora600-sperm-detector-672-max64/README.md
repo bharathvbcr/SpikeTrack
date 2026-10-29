@@ -1,5 +1,10 @@
 # E7: held-out HOTA at `--input-size 672`
 
+**Baseline corrected 2026-10-29.** The 1008 cap-64 column below (0.4868, and video 21 at 0.6204) is
+the stale run that copied video 21 from the cap-16 run. All five videos re-run at 1008 cap 64 give
+0.4922, with video 21 at 0.6422 (`../held300-lora600-sperm-detector-f32-max64`). The 672 numbers and
+the verdict do not change: the gate was the 0.47 floor, and 672 at cap 64 is 0.4645.
+
 Measured 2026-10-28, Metal. Binary from branch `speed/e7-geometry` at 45e5d63, built against ojas 8b88328
 and tessl c9adc87 (`versions.txt`). The setup is the same as `../held300-lora600-sperm-detector` (cap 16)
 and `../held300-lora600-sperm-detector-max64` (cap 64): 300 frames per held-out video, prompt "sperm",

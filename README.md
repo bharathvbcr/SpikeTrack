@@ -95,9 +95,11 @@ target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/imag
   --boxes detector --out out/track-lora
 
 # A smaller model input: frames are resized to 672 x 672 (48 x 48 tokens instead of 72 x 72)
-# before the model; any multiple of 336 is accepted (default 1008, the checkpoint's native size)
+# before the model; any multiple of 336 is accepted (default 1008, the checkpoint's native size).
+# The CoreML trunk is exported at 1008, so this needs the Ojas trunk. Held-out HOTA at 672 is
+# below 0.47 (E7, refuted as a fast mode: bench/results/track/held300-lora600-sperm-detector-672-max64)
 target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/images \
-  --prompt cell --backend metal --max-frames 64 --input-size 672 --out out/track-672
+  --prompt cell --backend metal --max-frames 64 --input-size 672 --trunk-precision f32 --out out/track-672
 
 # HOTA against VISEM-Tracking's boxes
 target/release/spiketrack eval-visem --pred out/track --split tools/reference/visem_split.json --set held_out
