@@ -77,12 +77,20 @@ upstream to cosine 0.99995 [V], so it is not exact either.
 - E4b [V kernel, I frame]: tessl `gemm_nt_bf16_bias(a, b, c, bias, round_bf16)` on branch
   `gp/w34-nt-bias-round` (f535dd3, not on main). The epilogue adds the bias and rounds the output
   to bf16 in registers. Its output is bit-identical to gemm_nt_bf16 + bias_add + the two casts
-  (`tests/gemm_nt_bf16_bias.rs`); a deliberate break makes 4 of 5 tests fail. Timings, one run at
-  M=5184, bias + round, separate steps -> fused: q/k/v/proj 742 -> 473 us, fc1 3567 -> 2191 us,
-  fc2 2083 -> 1897 us. That is ~2.65 ms per block, ~85 ms per trunk pass (~4% of a tracker frame),
-  inferred and not measured in a frame. It removes the separate bias add and the emit round, not
-  the input prep round or the ensure_bf16 casts. Handed to ojas-78 (O1); landing needs the tessl
-  main handshake.
+  (`tests/gemm_nt_bf16_bias.rs`); a deliberate break makes 4 of 5 tests fail. Timings: one bench
+  at M=5184, 6 rounds x 8 calls, load ~4; bias + round, separate steps -> fused:
+  q/k/v/proj 742 -> 473 us, fc1 3567 -> 2191 us, fc2 2083 -> 1897 us. Against the bare GEMM the
+  epilogue costs 0.86x (bias) and 0.76x (bias + round) at q/k/v/proj.
+  The ~85 ms per trunk pass this implies overstates ojas's saving. The bench's separate-steps arm
+  is four dispatches (gemm, bias_add, and two cast passes; bench_gemm_routes.rs:847-853). ojas's
+  emit is one in-register `ojas_round_bf16`. Fable puts the ojas-side saving at ~2.5-3% of a frame.
+  **Fable's ruling: parked.** f535dd3 stays on its branch, off tessl main. Its base daff7db is off
+  main too, and its bench exited 3 on the qkv-fused self-spread (11.1%).
+  It reopens once the epilogue is within spread of the bare GEMM. Then it needs an ojas-side
+  interleaved A/B: linear_bias_forward + emit against fused, at q/k/v/proj, fc1 and fc2, with
+  n >= 6, self-spread reported, load < 5, committed. Wiring needs >= 5% of a whole frame, outside
+  the A-vs-A spread. Parity would be checked against ojas's own broadcast add + `ojas_round_bf16`.
+  Round-on-store needs a signal from the Autocast seam: a Backend change, an owner gate, via O1.
 - E5: deferred: GPU 86% busy leaves under the 1.2x bar.
 - E6: permutes are 87 ms of a 2492 ms frame (3.5%), under ojas-78's 5% rule; parked.
 - Waits [V]: ojas's allocated-between-waits cap (min(1 GiB, budget/4)) forces 231 of f32's 387
