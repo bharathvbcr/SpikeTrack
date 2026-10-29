@@ -1,0 +1,8 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+21         300      5635        5222        0  0.6441 0.5589 0.7584 0.7836
+22         300      3229        3106        0  0.6285 0.6066 0.6603 0.7460
+36         300     13847        6307        0  0.3515 0.2368 0.5352 0.6911
+47         300      2045        1669        0  0.5150 0.4673 0.5702 0.7238
+82         300      8193        6554        0  0.4930 0.3740 0.7596 0.6882
+all       1500     32949       22858        0  0.4943 0.3743 0.6940 0.7220
+wrote /Users/bharath/Code/research/SpikeTrack/bench/results/track/held300-lora600-sperm-detector-coreml-fp16-max64/eval.json

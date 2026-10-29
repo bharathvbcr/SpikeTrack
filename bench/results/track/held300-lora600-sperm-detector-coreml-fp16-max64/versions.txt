@@ -1,0 +1,4 @@
+SpikeTrack b11bb69 E10: --trunk-precision coreml-fp32|coreml-fp16 runs the ViT trunk as a CoreML ML Program behind Backbone::with_external_trunk (binary cdd2cf798bdbfb9e)
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+tessl c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in
+ 9:24  up 3 days,  1:39, 1 user, load averages: 10.81 11.43 12.04

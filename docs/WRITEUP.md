@@ -18,7 +18,10 @@ PyTorch, and its reference code is written for CUDA.
 One Rust binary, `spiketrack`, that runs all of SAM 3.1 on Apple silicon, from a text prompt to
 tracked masks: the PE ViT backbone, the CLIP text encoder, the DETR detector, the multiplex
 tracker, and the detect -> associate -> track loop that starts and keeps tracks. It runs on
-Ojas's Metal backend, built on tessl, or on Ojas's CPU backend.
+Ojas's Metal backend, built on tessl, or on Ojas's CPU backend. On Metal, `track` by default runs
+the ViT trunk as a CoreML fp32 ML Program exported from the checkpoint. That makes the frame 0.80x
+and leaves the tracks unchanged on all 1,500 held-out frames. `--trunk-precision f32` keeps every
+module on Ojas/tessl.
 
 - `spiketrack image <img> --prompt cell`: boxes, scores and masks for every instance.
 - `spiketrack track <frames|mp4> --prompt sperm`: tracked masks and boxes per frame.
@@ -73,18 +76,21 @@ is where the adapter's learning shows.
   HOTA 0.155 zero-shot -> 0.470 with the adapter and detector boxes (DetA 0.051 -> 0.320, AssA
   0.594 -> 0.725). Every video improves. The two densest (27-46 sperm per frame) gain least,
   because upstream's builder tracks at most 16 objects at a time.
-- `--max-objects 64`, `track`'s default since 2026-10-28, removes that cap. Rerunning the two dense videos takes the five-video HOTA to
-  0.487: video 36 goes 0.326 -> 0.352 and video 82 0.441 -> 0.486. Their peaks were 28 and 24 active
-  tracks. DetA rises to 0.363 and AssA falls to 0.695, so more sperm are detected but identities hold
-  less well.
+- `--max-objects 64`, `track`'s default since 2026-10-28, removes that cap. The five-video HOTA
+  rises to 0.492. Video 21 goes 0.620 -> 0.642, 36 goes 0.326 -> 0.352, and 82 goes 0.441 -> 0.486.
+  DetA rises to 0.373 and AssA falls to 0.690, so more sperm are detected but identities hold less
+  well. An earlier 0.487 had rerun only 36 and 82.
 - These are zero-shot or detector-only adaptation results. They are not comparable to supervised
   trackers (HOTA 74.3 on VISEM).
 
 ## Limitations, stated plainly
 
-- **Speed.** About 2.5-3 s per frame on the M5 Pro, roughly 8x slower than the CoreML port's 0.35
-  s, which runs only the tracker. The trunk's f32 matrix multiplies already run at the GPU's f32
-  peak. bf16 would be faster but changes detections, so the demo stays f32.
+- **Speed.** About 2.7 s per frame on the M5 Pro with the CoreML fp32 trunk (3.4 s with the Ojas
+  trunk), still several times slower than the CoreML port's 0.35 s, which runs only the tracker.
+  - The trunk's f32 matrix multiplies already run at the GPU's f32 peak.
+  - The CoreML model load adds 3-12 s at startup.
+  - An fp16 trunk gives 0.55x the frame but changes close detections. On video 21 that cost the
+    cap-16 HOTA 0.024, so fp16 is not offered as a fast mode.
 - **Gating.** Pixel-event gating is exact when it skips nothing. On VISEM, moving sperm change
   most attention windows, so exact gating saves little; the approximate policy skips more, at a
   measured cost.

@@ -109,7 +109,8 @@ upstream to cosine 0.99995 [V], so it is not exact either.
 - E7 [V, refuted at the gate]: on `speed/e7-geometry` (45e5d63) the 672 trunk + necks match upstream
   at 672 (cosine 1.0000000), and 1008 is byte-identical to before. Held-out HOTA at 672 with the
   1008-trained LoRA is 0.4645 at cap 64 and 0.4479 at cap 16, against 0.4868 / 0.4695 at 1008
-  (gate 0.47). DetA holds; AssA falls (0.69 -> 0.62) and LocA falls on all five videos; videos 47
+  (gate 0.47). The 1008 cap-64 number is stale: 0.4922 on the full re-run (E10). The gate was the
+  0.47 floor, so the verdict stands. DetA holds; AssA falls (0.69 -> 0.62) and LocA falls on all five videos; videos 47
   and 21 carry most of it (`bench/results/track/held300-lora600-sperm-detector-672-max64`). Speed:
   the paired 8-frame smoke on the branch is 2.27x (1008 3.10 / 3.02 s/frame, 672 1.36 / 1.34); the
   held-out runs look faster still, but they are unpaired against the 1008 runs.
@@ -130,10 +131,35 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     block-31 max abs 6.2e-2 against Ojas Metal's 2.5e-2.
   - fp16 measures 0.25-0.29 s at 0.5-2% rel L2. Every fp16 op split lands at the same error, so the
     linears themselves carry it.
-  - Owner, 2026-10-29: new dependencies approved (`objc2-core-ml`, `sha2`). The Ojas trunk stays the
-    default and stays in the code: CPU parity, st-gate and the block fixtures need it.
+  - Owner, 2026-10-29: new dependencies approved (`objc2-core-ml`, `sha2`). The Ojas trunk stays in
+    the code: CPU parity, st-gate and the block fixtures need it.
   - With `coreml-*` the trunk is no longer Ojas/tessl. It is still native and still zero Python at
     runtime.
+  - Owner, 2026-10-29: make coreml-fp32 the default once held-out HOTA confirms it. Stated before
+    its run produced an eval (the fp16 holds were running): it confirms if HOTA at cap 64 is within
+    0.005 of the Ojas f32 run's 0.4868. The default then flips on `--backend metal` only; `--backend
+    cpu` keeps the Ojas trunk, the upstream-parity oracle. A missing package is an error, not a
+    fallback to the Ojas trunk.
+  - Baseline replaced, 2026-10-29, written before its result was read. The 0.4868 / 0.4695 runs
+    came from an older binary: their run.json has no `trunk_precision`, `max_objects` or
+    `metal_mem_cap_bytes`. The ea3cf39 byte-identity check covered VISEM 22 only. Every E10 HOTA
+    differs from them on video 21 alone, the other four videos agreeing to 1e-4. The comparison
+    baseline is therefore a fresh `--trunk-precision f32` run on the same frozen binary at caps 64
+    and 16, with the same 0.005 lines. The 0.47 floor does not move. "Same tracks" for the fp32
+    default is checked on all five videos at cap 64, not only VISEM 22.
+  - Results [V, `bench/results/coreml-trunk`]. Gate 1 passes: worst rel L2 2.7e-5, and VISEM 22 ids
+    are the same on 8 frames.
+  - Frame time on a contended machine, 49 frames interleaved over 3 rounds: coreml-fp32 0.80x and
+    coreml-fp16 0.55x the Ojas trunk's frame. Every CoreML round beat every f32 round. The CoreML load
+    adds 3-12 s, a net loss below ~10-17 frames.
+  - The fresh f32 baseline is 0.4922 at cap 64 and 0.4695 at cap 16. The old cap-64 run had copied
+    video 21 from the cap-16 run, though video 21 hits the 16 cap at frame 0.
+  - **coreml-fp32: confirmed.** HOTA is 0.4922 at cap 64, equal to f32 on every video. The id sets are
+    equal on all 1500 frames. Since 2026-10-29 it is the default trunk on `--backend metal`.
+  - **coreml-fp16: refuted as `--fast`.** It scores 0.4943 at cap 64 but 0.4638 at cap 16, below the
+    0.47 floor and 0.0057 under f32. One near-threshold detection on video 21's first frame drops
+    under fp16, and that renumbers the whole video. `--trunk-precision coreml-fp16` stays an explicit,
+    unrecommended flag.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

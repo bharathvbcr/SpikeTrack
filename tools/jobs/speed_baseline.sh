@@ -41,7 +41,7 @@ echo "GPU before: $(idle)(load $(sysctl -n vm.loadavg))" | tee "$OUT/occupancy.t
 sample > "$OUT/occupancy-util.txt" &
 sampler=$!
 /usr/bin/time -l target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/images \
-  --prompt sperm --lora "$LORA" --backend metal --max-frames 16 --max-objects 16 --out "$d" > "$d.log" 2> "$d.time"
+  --prompt sperm --lora "$LORA" --backend metal --max-frames 16 --max-objects 16 --trunk-precision f32 --out "$d" > "$d.log" 2> "$d.time"
 r=$?
 kill "$sampler"
 rm -rf "$d/masks"

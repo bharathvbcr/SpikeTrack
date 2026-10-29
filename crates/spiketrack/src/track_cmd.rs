@@ -139,15 +139,17 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
                     16 and its class allows 128). Above 16 new objects fill extra tracker states
                     16 at a time, which costs one more tracker step per state per frame and is not
                     parity-checked against upstream; --max-objects 16 is upstream's setting.
-  --trunk-precision P  f32 (default, upstream's numerics), bf16-linears (an experiment: the
-                    ViT trunk's linears in bf16 through an Ojas Autocast region, everything else
-                    f32; not upstream, see Backbone::with_trunk_linears_bf16), or coreml-fp32 /
-                    coreml-fp16: the ViT trunk runs as a CoreML ML Program (CPU and GPU) from
-                    <model-dir>/coreml/sam3.1_trunk_<fp32|fp16>.mlpackage, exported by
-                    tools/baselines/coreml_trunk.py; the necks, detector and tracker stay on
-                    --backend. coreml-fp32 matches upstream's trunk to relative L2 ~1e-5;
-                    coreml-fp16 to ~1e-2 (bench/results/coreml-trunk). The first run of a package
-                    compiles it beside itself.
+  --trunk-precision P  what runs the ViT trunk (default: coreml-fp32 on --backend metal, f32 on
+                    --backend cpu). coreml-fp32 / coreml-fp16: the trunk runs as a CoreML ML
+                    Program (CPU and GPU) from <model-dir>/coreml/sam3.1_trunk_<fp32|fp16>.mlpackage,
+                    exported by tools/baselines/coreml_trunk.py (a missing package is an error,
+                    never a fallback); the necks, detector and tracker stay on --backend.
+                    coreml-fp32 matches upstream's trunk to relative L2 ~1e-5, coreml-fp16 to ~1e-2
+                    (bench/results/coreml-trunk). The first run of a package compiles it beside
+                    itself, and loading it adds ~3-13 s to the model load. f32: the Ojas trunk,
+                    upstream's numerics. bf16-linears (an experiment: the trunk's linears in bf16
+                    through an Ojas Autocast region, everything else f32; not upstream, see
+                    Backbone::with_trunk_linears_bf16).
 
   Each frame's progress line ends with this process's physical footprint, the machine's pages
   paged out and swapped in during the frame and, on Metal, the frame's change in Ojas's wait
@@ -756,6 +758,17 @@ impl TrunkPrecision {
         })
     }
 
+    /// What `--trunk-precision` defaults to. On Metal, the CoreML fp32 trunk: E10 measured it at
+    /// 0.80x the Ojas trunk's frame, with the same id sets on all 1500 held-out VISEM frames and the
+    /// same HOTA (bench/results/coreml-trunk). On CPU, the Ojas f32 trunk: that path is the
+    /// upstream-parity oracle, and CoreML would run on the GPU anyway.
+    fn default_for(backend: BackendChoice) -> Self {
+        match backend {
+            BackendChoice::Metal => Self::Coreml("fp32"),
+            BackendChoice::Cpu => Self::F32,
+        }
+    }
+
     fn name(self) -> &'static str {
         match self {
             Self::F32 => "f32",
@@ -907,7 +920,7 @@ fn track_on<B: Backend>(
             let package = coreml_package(&opts.model_dir, precision);
             if !package.is_dir() {
                 return Err(CliError::failed(format!(
-                    "--trunk-precision {}: {} does not exist; export it with tools/baselines/coreml_trunk.py export --precision {precision}",
+                    "--trunk-precision {}: {} does not exist; export it with tools/baselines/coreml_trunk.py export --precision {precision}, or pass --trunk-precision f32 for the Ojas trunk",
                     opts.trunk.name(),
                     package.display()
                 )));
@@ -984,7 +997,10 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     if !(1..=128).contains(&max_objects) {
         return Err(CliError::usage(format!("--max-objects {max_objects} is outside 1..=128")));
     }
-    let trunk = TrunkPrecision::parse(args.get("trunk-precision").unwrap_or("f32"))?;
+    let trunk = match args.get("trunk-precision") {
+        Some(p) => TrunkPrecision::parse(p)?,
+        None => TrunkPrecision::default_for(backend),
+    };
     let threads: usize = args.parsed("threads", 8)?;
     if !(1..=256).contains(&threads) {
         return Err(CliError::usage(format!("--threads {threads} is outside 1..=256")));
@@ -1693,6 +1709,32 @@ mod tests {
             assert!(TrunkPrecision::parse(bad).is_err(), "{bad:?} accepted");
         }
         assert_eq!(coreml_package(Path::new("/m"), "fp32"), PathBuf::from("/m/coreml/sam3.1_trunk_fp32.mlpackage"));
+    }
+
+    #[test]
+    fn the_default_trunk_is_coreml_fp32_on_metal_and_the_ojas_trunk_on_cpu() {
+        assert_eq!(TrunkPrecision::default_for(BackendChoice::Metal), TrunkPrecision::Coreml("fp32"));
+        assert_eq!(TrunkPrecision::default_for(BackendChoice::Cpu), TrunkPrecision::F32);
+    }
+
+    /// With no --trunk-precision, a Metal run whose model dir has no CoreML package fails loud and
+    /// names both ways out; it does not quietly fall back to the Ojas trunk.
+    #[test]
+    #[ignore = "needs the gated checkpoint, tokenizer files and data/visem"]
+    fn the_default_metal_trunk_without_its_package_is_an_error_not_a_fallback() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let images = root.join("data/visem/VISEM_Tracking_Train_v4/Train/22/images");
+        let model_dir = temp("no-coreml-model-dir");
+        let tokenizer = PathBuf::from(std::env::var("SPIKETRACK_MODEL_DIR").expect("set SPIKETRACK_MODEL_DIR"));
+        for f in ["vocab.json", "merges.txt"] {
+            std::fs::copy(tokenizer.join(f), model_dir.join(f)).unwrap();
+        }
+        let out = temp("default-trunk-missing");
+        let r = run(&args(&[images.to_str().unwrap(), "--prompt", "cell", "--out", out.to_str().unwrap(), "--max-frames", "1", "--model-dir", model_dir.to_str().unwrap()]));
+        let Err(CliError::Failed(msg)) = r else { panic!("expected a failure, got {r:?}") };
+        assert!(msg.starts_with("--trunk-precision coreml-fp32: "), "{msg}");
+        assert!(msg.contains("coreml_trunk.py export --precision fp32") && msg.contains("--trunk-precision f32"), "{msg}");
+        assert!(!out.join("22.json").exists(), "a failed run wrote predictions");
     }
 
     /// The CoreML fp32 trunk on the first 8 frames of VISEM 22 against the Ojas f32 trunk: run.json
