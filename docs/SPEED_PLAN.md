@@ -88,6 +88,12 @@ upstream to cosine 0.99995 [V], so it is not exact either.
   Bf16-dtype operand is never bf16-exact, so it takes the exact-f32 lane after a widen (ojas-78,
   link.rs:202-208); `with_trunk_linears_bf16` already pre-casts the weights to f32-stored
   bf16-exact once at load, which is the right form. The O1 ojas weight slice is not needed.
+- E7 [V, refuted at the gate]: on `speed/e7-geometry` (45e5d63) the 672 trunk + necks match upstream
+  at 672 (cosine 1.0000000), and 1008 is byte-identical to before. Held-out HOTA at 672 with the
+  1008-trained LoRA is 0.4645 at cap 64 and 0.4479 at cap 16, against 0.4868 / 0.4695 at 1008
+  (gate 0.47). DetA holds, AssA falls (0.69 -> 0.62); videos 47 and 21 carry most of it. The runs
+  are ~2.3-2.5x faster per frame (`bench/results/track/held300-lora600-sperm-detector-672-max64`).
+  The branch is not merged. Whether a 672-trained LoRA closes the gap is untested.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 
