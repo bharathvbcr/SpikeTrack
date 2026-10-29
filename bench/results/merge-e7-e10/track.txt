@@ -1,0 +1,6 @@
+== track f32 load { 13.10 13.52 13.22 }
+track f32: trunk f32, input_size 1008, 3.549 s/frame, 12 tracks
+track f32: 22.json byte-identical to the b11bb69 binary's f32 run
+== track default load { 17.70 15.14 13.90 }
+track default: trunk coreml-fp32, input_size 1008, 2.534 s/frame, 12 tracks
+track default: 22.json byte-identical to the b11bb69 binary's coreml-fp32 run

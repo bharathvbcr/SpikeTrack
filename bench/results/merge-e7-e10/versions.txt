@@ -1,0 +1,4 @@
+SpikeTrack-e7 a1a4c08 Merge main (E10: the CoreML fp32 trunk is the Metal default) into speed/e7-geometry, dirty 0
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+tessl c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in
+16:27  up 3 days,  8:43, 1 user, load averages: 14.33 13.97 13.33
