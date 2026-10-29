@@ -1,0 +1,41 @@
+    Finished `release` profile [optimized] target(s) in 1.34s
+     Running unittests src/main.rs (target/release/deps/spiketrack-eac0b68cd1f7f7e8)
+
+running 1 test
+test track_cmd::tests::visem_22_coreml_fp32_trunk_tracks_as_the_ojas_trunk ... model loaded in 0.7 s on metal; tracking 8 frame(s) of "22"
+frame 0 (1/8): 4.10 s, 19 active track(s), 0 frame(s) released; waits +49 (upload 3, read 40, mem_cap 6), dispatches +7427, metal allocated 4415 MiB (frame peak 7871 MiB), footprint 10258 MiB, pageouts +0, swapins +0
+frame 1 (2/8): 3.20 s, 19 active track(s), 0 frame(s) released; waits +29 (upload 3, read 20, mem_cap 6), dispatches +6284, metal allocated 4395 MiB (frame peak 8842 MiB), footprint 10238 MiB, pageouts +7, swapins +0
+frame 2 (3/8): 3.05 s, 19 active track(s), 0 frame(s) released; waits +29 (upload 3, read 20, mem_cap 6), dispatches +6288, metal allocated 4396 MiB (frame peak 8842 MiB), footprint 10400 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 3.15 s, 19 active track(s), 0 frame(s) released; waits +29 (upload 3, read 20, mem_cap 6), dispatches +6268, metal allocated 4396 MiB (frame peak 8842 MiB), footprint 10525 MiB, pageouts +0, swapins +0
+frame 4 (5/8): 3.51 s, 20 active track(s), 0 frame(s) released; waits +36 (upload 4, read 26, mem_cap 6), dispatches +6905, metal allocated 4418 MiB (frame peak 8842 MiB), footprint 10625 MiB, pageouts +0, swapins +0
+frame 5 (6/8): 3.27 s, 20 active track(s), 0 frame(s) released; waits +29 (upload 3, read 20, mem_cap 6), dispatches +6276, metal allocated 4395 MiB (frame peak 8842 MiB), footprint 11147 MiB, pageouts +0, swapins +0
+frame 6 (7/8): 3.42 s, 20 active track(s), 0 frame(s) released; waits +29 (upload 3, read 20, mem_cap 6), dispatches +6280, metal allocated 4395 MiB (frame peak 8845 MiB), footprint 11282 MiB, pageouts +4, swapins +0
+frame 7 (8/8): 3.59 s, 17 active track(s), 8 frame(s) released; waits +29 (upload 3, read 20, mem_cap 6), dispatches +6284, metal allocated 4400 MiB (frame peak 8845 MiB), footprint 10404 MiB, pageouts +0, swapins +0
+8 frame(s) of "22" tracked on metal: 18 track(s) born, 3.41 s/frame (model, mean), 28.1 s total
+  /var/folders/wl/qc_0nnp91cd5kfy179krkjxr0000gn/T/spiketrack-track-visem22-f32-29310/22.json
+  /var/folders/wl/qc_0nnp91cd5kfy179krkjxr0000gn/T/spiketrack-track-visem22-f32-29310/22.run.json
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 7.7 s (compiled model reused)
+model loaded in 8.5 s on metal; tracking 8 frame(s) of "22"
+frame 0 (1/8): 4.92 s, 19 active track(s), 0 frame(s) released; waits +43 (upload 3, read 40), dispatches +5150, metal allocated 5193 MiB (frame peak 7858 MiB), footprint 8660 MiB, pageouts +11, swapins +0
+frame 1 (2/8): 2.70 s, 19 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +4007, metal allocated 5205 MiB (frame peak 7247 MiB), footprint 8740 MiB, pageouts +0, swapins +0
+frame 2 (3/8): 2.58 s, 19 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +4011, metal allocated 5206 MiB (frame peak 7247 MiB), footprint 9130 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 2.69 s, 19 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +3991, metal allocated 5206 MiB (frame peak 7247 MiB), footprint 9178 MiB, pageouts +0, swapins +0
+frame 4 (5/8): 3.40 s, 20 active track(s), 0 frame(s) released; waits +30 (upload 4, read 26), dispatches +4628, metal allocated 5228 MiB (frame peak 7251 MiB), footprint 8983 MiB, pageouts +0, swapins +0
+frame 5 (6/8): 3.41 s, 20 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +3999, metal allocated 5205 MiB (frame peak 7247 MiB), footprint 9909 MiB, pageouts +0, swapins +0
+frame 6 (7/8): 2.82 s, 20 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +4003, metal allocated 5205 MiB (frame peak 7250 MiB), footprint 10064 MiB, pageouts +0, swapins +0
+frame 7 (8/8): 2.81 s, 17 active track(s), 8 frame(s) released; waits +23 (upload 3, read 20), dispatches +4007, metal allocated 5210 MiB (frame peak 7361 MiB), footprint 9090 MiB, pageouts +0, swapins +0
+8 frame(s) of "22" tracked on metal: 18 track(s) born, 3.17 s/frame (model, mean), 34.1 s total
+  /var/folders/wl/qc_0nnp91cd5kfy179krkjxr0000gn/T/spiketrack-track-visem22-coreml-fp32-29310/22.json
+  /var/folders/wl/qc_0nnp91cd5kfy179krkjxr0000gn/T/spiketrack-track-visem22-coreml-fp32-29310/22.run.json
+frame 0: ojas 15 ids, coreml 15 ids
+frame 1: ojas 15 ids, coreml 15 ids
+frame 2: ojas 15 ids, coreml 15 ids
+frame 3: ojas 15 ids, coreml 15 ids
+frame 4: ojas 15 ids, coreml 15 ids
+frame 5: ojas 18 ids, coreml 18 ids
+frame 6: ojas 18 ids, coreml 18 ids
+frame 7: ojas 18 ids, coreml 18 ids
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 77 filtered out; finished in 64.18s
+

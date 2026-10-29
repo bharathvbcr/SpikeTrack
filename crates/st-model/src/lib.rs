@@ -13,7 +13,7 @@ pub mod text;
 pub mod tokenizer;
 pub mod tracker;
 
-pub use backbone::{Backbone, Neck, Taps, IMAGE_SIZE};
+pub use backbone::{Backbone, ExternalTrunk, Neck, Taps, IMAGE_SIZE};
 pub use detector::{Detector, DetectorOut, DetectorTaps, DetectorWeights};
 pub use text::{Text, TextFeatures};
 pub use tokenizer::Tokenizer;

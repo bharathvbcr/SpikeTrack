@@ -55,6 +55,7 @@ upstream to cosine 0.99995 [V], so it is not exact either.
 | E7 | 672 input (48x48 tokens, 2304 vs 5184): VISEM is 640x480 | SpikeTrack | trunk >= 2x faster; held-out HOTA >= 0.47 at 16 and 64 objects | HOTA < 0.47 |
 | E8 | memory cross-attention at F = 7 on 8b88328 | ojas | read the fresh profile first | — |
 | E9 | bf16 trunk as `--fast` once E1-E4 land | SpikeTrack | trunk <= 500 ms | D3 or session gate fails |
+| E10 | the ViT trunk as a CoreML ML Program (`--trunk-precision coreml-fp32 / coreml-fp16`); necks, detector and tracker stay on Ojas | SpikeTrack | fp32: frame <= 0.90x of the ea3cf39 main with the same tracks; fp16: frame <= 0.70x | fp32: frame > 0.95x, or any stage's rel L2 >= 1e-4, or VISEM 22 ids differ from the Ojas trunk on 8 frames. fp16 as `--fast`: held-out HOTA below 0.47 at cap 64 or 16, or more than 0.005 below the f32 run at the same cap (0.4868 / 0.4695) |
 
 ## Results so far (2026-10-28, ojas 8b88328, tessl c9adc87; contended machine, load recorded)
 
@@ -122,6 +123,17 @@ upstream to cosine 0.99995 [V], so it is not exact either.
   the default cap and at 4 GiB (IoU 0.99855). 49 frames of VISEM 22 (LoRA, 12 tracks),
   interleaved over 3 rounds: 0.930x frame time (0.947 / 0.930 / 0.927), with byte-identical
   predictions (`bench/results/ojas-ea3cf39`).
+- E10 (stated 2026-10-29, before the runs) [V for the export, `bench/results/coreml-trunk`]: the
+  sdkv2 port's backbone fuses trunk + propagation neck, so the detector cannot use it. Its trunk is
+  exported alone instead (`tools/baselines/coreml_trunk.py`).
+  - fp32 measures 0.9-1.2 s per call at rel L2 1-3e-5. That is the same exactness class as Ojas f32:
+    block-31 max abs 6.2e-2 against Ojas Metal's 2.5e-2.
+  - fp16 measures 0.25-0.29 s at 0.5-2% rel L2. Every fp16 op split lands at the same error, so the
+    linears themselves carry it.
+  - Owner, 2026-10-29: new dependencies approved (`objc2-core-ml`, `sha2`). The Ojas trunk stays the
+    default and stays in the code: CPU parity, st-gate and the block fixtures need it.
+  - With `coreml-*` the trunk is no longer Ojas/tessl. It is still native and still zero Python at
+    runtime.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

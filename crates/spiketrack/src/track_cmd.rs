@@ -78,6 +78,7 @@ use ojas_cpu::CpuBackend;
 use ojas_metal::{MetalBackend, WaitCounts};
 use st_model::tracker::session::{Session, SessionConfig, YieldedFrame};
 use st_model::tracker::vos::Vos;
+use st_coreml::{CoremlTrunk, Units};
 use st_model::{Backbone, Detector, DetectorWeights, Text, Tokenizer};
 use st_video::encode;
 use st_video::{decode_image_with_source, resize_bilinear_pil, Rgb8, VideoFile, VideoReader, VideoWriter};
@@ -102,7 +103,7 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
                  [--start F] [--overlay K] [--overlay-video FILE] [--overlay-fps F]
                  [--video ID] [--boxes mask|detector] [--weights FILE]
                  [--lora FILE] [--model-dir DIR] [--threads N] [--trim-pool-every K]
-                 [--trunk-precision f32|bf16-linears] [--max-objects N]
+                 [--trunk-precision f32|bf16-linears|coreml-fp32|coreml-fp16] [--max-objects N]
 
   Tracks every instance of <text> through a video with SAM 3.1's multiplex tracker, forward
   from the first frame processed. <input> is a folder of <video>_frame_<n>.jpg frames
@@ -138,9 +139,15 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
                     16 and its class allows 128). Above 16 new objects fill extra tracker states
                     16 at a time, which costs one more tracker step per state per frame and is not
                     parity-checked against upstream; --max-objects 16 is upstream's setting.
-  --trunk-precision P  f32 (default, upstream's numerics) or bf16-linears (an experiment: the
+  --trunk-precision P  f32 (default, upstream's numerics), bf16-linears (an experiment: the
                     ViT trunk's linears in bf16 through an Ojas Autocast region, everything else
-                    f32; not upstream, see Backbone::with_trunk_linears_bf16).
+                    f32; not upstream, see Backbone::with_trunk_linears_bf16), or coreml-fp32 /
+                    coreml-fp16: the ViT trunk runs as a CoreML ML Program (CPU and GPU) from
+                    <model-dir>/coreml/sam3.1_trunk_<fp32|fp16>.mlpackage, exported by
+                    tools/baselines/coreml_trunk.py; the necks, detector and tracker stay on
+                    --backend. coreml-fp32 matches upstream's trunk to relative L2 ~1e-5;
+                    coreml-fp16 to ~1e-2 (bench/results/coreml-trunk). The first run of a package
+                    compiles it beside itself.
 
   Each frame's progress line ends with this process's physical footprint, the machine's pages
   paged out and swapped in during the frame and, on Metal, the frame's change in Ojas's wait
@@ -723,15 +730,52 @@ struct Options {
     weights: PathBuf,
     model_dir: PathBuf,
     trim_pool_every: Option<u32>,
-    /// `--trunk-precision bf16-linears`.
-    trunk_linears_bf16: bool,
+    /// `--trunk-precision`.
+    trunk: TrunkPrecision,
     /// `--max-objects`.
     max_objects: usize,
+}
+
+/// `--trunk-precision`: what computes the ViT trunk.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TrunkPrecision {
+    F32,
+    Bf16Linears,
+    /// The CoreML package of this precision ("fp32" or "fp16").
+    Coreml(&'static str),
+}
+
+impl TrunkPrecision {
+    fn parse(s: &str) -> Result<Self, CliError> {
+        Ok(match s {
+            "f32" => Self::F32,
+            "bf16-linears" => Self::Bf16Linears,
+            "coreml-fp32" => Self::Coreml("fp32"),
+            "coreml-fp16" => Self::Coreml("fp16"),
+            other => return Err(CliError::usage(format!("--trunk-precision: {other:?} is not f32, bf16-linears, coreml-fp32 or coreml-fp16"))),
+        })
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::F32 => "f32",
+            Self::Bf16Linears => "bf16-linears",
+            Self::Coreml("fp16") => "coreml-fp16",
+            Self::Coreml(_) => "coreml-fp32",
+        }
+    }
+}
+
+/// `<model-dir>/coreml/sam3.1_trunk_<precision>.mlpackage`, where tools/baselines/coreml_trunk.py writes it.
+fn coreml_package(model_dir: &Path, precision: &str) -> PathBuf {
+    model_dir.join("coreml").join(format!("sam3.1_trunk_{precision}.mlpackage"))
 }
 
 struct Timing {
     load_seconds: f64,
     frame_seconds: Vec<f64>,
+    /// `Backbone::external_trunk`: `None` when the Ojas blocks computed the trunk.
+    external_trunk: Option<String>,
 }
 
 const MIB: f64 = (1u64 << 20) as f64;
@@ -856,8 +900,24 @@ fn track_on<B: Backend>(
     telemetry: &mut dyn FrameTelemetry<B>,
 ) -> Result<Timing, CliError> {
     let t_load = Instant::now();
-    let backbone = Backbone::new(be, &w.vision).map_err(CliError::from_err)?;
-    let backbone = if opts.trunk_linears_bf16 { backbone.with_trunk_linears_bf16().map_err(CliError::from_err)? } else { backbone };
+    let backbone = match opts.trunk {
+        TrunkPrecision::F32 => Backbone::new(be, &w.vision).map_err(CliError::from_err)?,
+        TrunkPrecision::Bf16Linears => Backbone::new(be, &w.vision).and_then(|b| b.with_trunk_linears_bf16()).map_err(CliError::from_err)?,
+        TrunkPrecision::Coreml(precision) => {
+            let package = coreml_package(&opts.model_dir, precision);
+            if !package.is_dir() {
+                return Err(CliError::failed(format!(
+                    "--trunk-precision {}: {} does not exist; export it with tools/baselines/coreml_trunk.py export --precision {precision}",
+                    opts.trunk.name(),
+                    package.display()
+                )));
+            }
+            let trunk = CoremlTrunk::load(&package, Units::CpuAndGpu).map_err(CliError::from_err)?;
+            println!("CoreML trunk {} loaded in {:.1} s ({})", package.display(), trunk.load_seconds, if trunk.compiled { "compiled this run" } else { "compiled model reused" });
+            Backbone::with_external_trunk(be, &w.vision, Box::new(trunk)).map_err(CliError::from_err)?
+        }
+    };
+    let external_trunk = backbone.external_trunk();
     let text = Text::new(be, &w.text).map_err(CliError::from_err)?;
     let detector = Detector::new(
         be,
@@ -897,7 +957,7 @@ fn track_on<B: Backend>(
     for y in session.finish() {
         collector.accept(y)?;
     }
-    Ok(Timing { load_seconds, frame_seconds })
+    Ok(Timing { load_seconds, frame_seconds, external_trunk })
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
@@ -924,11 +984,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     if !(1..=128).contains(&max_objects) {
         return Err(CliError::usage(format!("--max-objects {max_objects} is outside 1..=128")));
     }
-    let trunk_linears_bf16 = match args.get("trunk-precision").unwrap_or("f32") {
-        "f32" => false,
-        "bf16-linears" => true,
-        other => return Err(CliError::usage(format!("--trunk-precision: {other:?} is not f32 or bf16-linears"))),
-    };
+    let trunk = TrunkPrecision::parse(args.get("trunk-precision").unwrap_or("f32"))?;
     let threads: usize = args.parsed("threads", 8)?;
     if !(1..=256).contains(&threads) {
         return Err(CliError::usage(format!("--threads {threads} is outside 1..=256")));
@@ -971,7 +1027,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     let weights = existing_path(args.get("weights"), "SPIKETRACK_WEIGHTS", "weights", "weights")?;
     let lora = weights::lora_path(args.get("lora"))?;
     let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
-    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir, trim_pool_every, trunk_linears_bf16, max_objects };
+    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir, trim_pool_every, trunk, max_objects };
 
     let (w, applied) = weights::load(&opts.weights, lora.as_deref())?;
     let mut collector = Collector::new(&opts.out, &stream.video, stream.first_n, stream.height, stream.width, opts.overlay_every, opts.boxes)?;
@@ -983,12 +1039,12 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     }
     let t_all = Instant::now();
     let (timing, metal_mem_cap) = match opts.backend {
-        BackendChoice::Cpu if opts.trunk_linears_bf16 => {
+        BackendChoice::Cpu if opts.trunk == TrunkPrecision::Bf16Linears => {
             let be = Autocast::new(CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?);
             (track_on(&be, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?, None)
         }
         BackendChoice::Cpu => (track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?, None),
-        BackendChoice::Metal if opts.trunk_linears_bf16 => {
+        BackendChoice::Metal if opts.trunk == TrunkPrecision::Bf16Linears => {
             let (metal, cap) = open_metal()?;
             let mut telemetry = MetalTelemetry::new(&metal, opts.trim_pool_every)?;
             (track_on(&Autocast::new(metal), &w, &mut stream, &opts, &mut collector, &mut telemetry)?, Some(cap))
@@ -1017,7 +1073,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
-        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"max_objects\": {},\n  \"metal_mem_cap_bytes\": {}\n}}\n",
+        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"external_trunk\": {},\n  \"max_objects\": {},\n  \"metal_mem_cap_bytes\": {}\n}}\n",
         json::string(&stream.video),
         json::string(&input.to_string_lossy()),
         json::string(&opts.prompt),
@@ -1041,7 +1097,8 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         video_fps_json,
         video_fps_source_json,
         video_frames_json,
-        json::string(if opts.trunk_linears_bf16 { "bf16-linears" } else { "f32" }),
+        json::string(opts.trunk.name()),
+        timing.external_trunk.as_deref().map_or_else(|| "null".to_string(), json::string),
         opts.max_objects,
         metal_mem_cap.map_or_else(|| "null".to_string(), |b| b.to_string()),
     );
@@ -1624,6 +1681,49 @@ mod tests {
         let (_be, cap) = open_metal().expect("open_metal");
         assert_eq!(default, 1 << 30, "ojas's default is min(1 GiB, budget / 4)");
         assert_eq!(cap, METAL_MEM_CAP);
+    }
+
+    #[test]
+    fn trunk_precision_parses_its_four_names_and_nothing_else() {
+        for name in ["f32", "bf16-linears", "coreml-fp32", "coreml-fp16"] {
+            assert_eq!(TrunkPrecision::parse(name).expect(name).name(), name);
+        }
+        assert_eq!(TrunkPrecision::parse("coreml-fp16").unwrap(), TrunkPrecision::Coreml("fp16"));
+        for bad in ["", "fp32", "coreml", "coreml-bf16", "F32"] {
+            assert!(TrunkPrecision::parse(bad).is_err(), "{bad:?} accepted");
+        }
+        assert_eq!(coreml_package(Path::new("/m"), "fp32"), PathBuf::from("/m/coreml/sam3.1_trunk_fp32.mlpackage"));
+    }
+
+    /// The CoreML fp32 trunk on the first 8 frames of VISEM 22 against the Ojas f32 trunk: run.json
+    /// names the trunk that ran, and the tracks agree (the two trunks differ by ~1e-5 relative).
+    #[test]
+    #[ignore = "needs the gated checkpoint, tokenizer files, data/visem, a Metal GPU and the exported CoreML fp32 trunk"]
+    fn visem_22_coreml_fp32_trunk_tracks_as_the_ojas_trunk() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let images = root.join("data/visem/VISEM_Tracking_Train_v4/Train/22/images");
+        let mut preds = Vec::new();
+        for precision in ["f32", "coreml-fp32"] {
+            let out = temp(&format!("visem22-{precision}"));
+            run(&args(&[images.to_str().unwrap(), "--prompt", "cell", "--out", out.to_str().unwrap(), "--backend", "metal", "--max-frames", "8", "--trunk-precision", precision])).expect("track");
+            let run_json = ojas_io::parse_json(&std::fs::read_to_string(out.join("22.run.json")).unwrap()).unwrap();
+            assert_eq!(run_json.get_str("trunk_precision").unwrap(), precision);
+            match precision {
+                "f32" => assert!(run_json.field("external_trunk").unwrap().is_null(), "the Ojas trunk reports no external trunk"),
+                _ => {
+                    let ext = run_json.get_str("external_trunk").unwrap();
+                    assert!(ext.starts_with("coreml sam3.1_trunk_fp32.mlpackage (cpu_and_gpu) sha256 "), "{ext}");
+                }
+            }
+            let text = std::fs::read_to_string(out.join("22.json")).unwrap();
+            preds.push(parse_predictions(&text, "22").expect("predictions"));
+        }
+        for n in 0..8u32 {
+            let ids = |i: usize| -> BTreeSet<String> { preds[i].frames[&n].iter().map(|(id, _)| id.clone()).collect() };
+            println!("frame {n}: ojas {} ids, coreml {} ids", ids(0).len(), ids(1).len());
+            assert_eq!(ids(0), ids(1), "frame {n}: the id sets differ");
+        }
+        assert!(!preds[0].frames[&0].is_empty(), "no object in frame 0: the comparison would be vacuous");
     }
 
     #[test]

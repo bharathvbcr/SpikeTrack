@@ -1,0 +1,26 @@
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+   Compiling version_check v0.9.5
+   Compiling generic-array v0.14.7
+   Compiling typenum v1.20.1
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling digest v0.10.7
+   Compiling objc2-image-io v0.3.2
+   Compiling objc2-core-video v0.3.2
+   Compiling objc2-core-graphics v0.3.2
+   Compiling cpufeatures v0.2.17
+   Compiling cfg-if v1.0.5
+   Compiling sha2 v0.10.9
+   Compiling objc2-core-ml v0.3.2
+   Compiling st-coreml v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-coreml)
+   Compiling spiketrack v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/spiketrack)
+warning: function `evaluate` is never used
+   --> crates/spiketrack/src/eval_visem.rs:220:8
+    |
+220 | pub fn evaluate(pred: &Path, ids: &[String], visem: &Path) -> Result<Evaluation, String> {
+    |        ^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `spiketrack` (bin "spiketrack") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 55.20s
