@@ -1,0 +1,29 @@
+    Finished `release` profile [optimized] target(s) in 0.97s
+     Running tests/tracker_parity.rs (target/release/deps/tracker_parity-969385f32cb40849)
+
+running 1 test
+test memory_encoder_matches_upstream_on_metal ... [Metal]
+| frame | output | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|
+| 0 | features | 1.0000000 | 1.454e-5 | 1.879e-6 |
+| 0 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 1 | features | 1.0000000 | 4.673e-5 | 5.953e-6 |
+| 1 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 2 | features | 1.0000000 | 4.435e-5 | 5.552e-6 |
+| 2 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 3 | features | 1.0000000 | 5.054e-5 | 6.266e-6 |
+| 3 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 4 | features | 1.0000000 | 6.628e-5 | 8.352e-6 |
+| 4 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 5 | features | 1.0000000 | 5.150e-5 | 6.297e-6 |
+| 5 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 6 | features | 1.0000000 | 5.651e-5 | 7.018e-6 |
+| 6 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 7 | features | 1.0000000 | 5.865e-5 | 7.220e-6 |
+| 7 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+
+memory encoder worst cosine 1.0000000
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.96s
+

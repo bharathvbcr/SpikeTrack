@@ -1,0 +1,5 @@
+GPU before: 23 16 16 17 17 (load { 6.20 7.08 8.30 })
+track f32, 16 frames, 12 tracks: 3.2122 s/frame mean
+GPU Device Utilization %: median 86.0, mean 82.3, min 17, max 91, 52 samples (includes model load)
+process: real 53.3 s, user 7.9 s, sys 19.0 s, CPU/real 0.50 cores
+peak memory footprint 11.60 GiB

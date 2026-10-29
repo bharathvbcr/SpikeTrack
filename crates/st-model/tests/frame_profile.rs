@@ -12,7 +12,9 @@
 //! timed three times first (load average before each pass and, on Metal, the backend's
 //! waits/dispatches counters, to separate warm-up and first-touch effects from drift); the profiled pass syncs after every op (wall time, not GPU time). The
 //! `_bf16` variant runs every frame inside an Ojas Autocast bf16 region (the text prompt is
-//! encoded once, outside it). Single run, machine shared: results are labelled contended
+//! encoded once, outside it); `_bf16_linears` runs only the trunk's six linears per block in
+//! bf16 (`Backbone::with_trunk_linears_bf16`, what `track --trunk-precision bf16-linears` runs).
+//! Both read the Metal backend's waits/dispatches counters through the Autocast wrapper. Single run, machine shared: results are labelled contended
 //! and the load average is recorded by tools/jobs/frame_profile.sh.
 //!
 //! `SPIKETRACK_WEIGHTS=... SPIKETRACK_MODEL_DIR=... SPIKETRACK_TRACKER_FIXTURES=fixtures/tracker/judo.safetensors
@@ -24,7 +26,7 @@ use std::time::Instant;
 use ojas_core::{Autocast, AutocastMode, Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
 use ojas_io::SafeTensors;
-use ojas_metal::MetalBackend;
+use ojas_metal::{MetalBackend, WaitCounts};
 use st_model::detector::{Detector, DetectorTaps, DetectorWeights, D};
 use st_model::profile::{CounterReader, Profiled};
 use st_model::tracker::vos::Vos;
@@ -63,8 +65,10 @@ fn tracker_stage(t: usize) -> Option<String> {
 /// warms up the detector on frame 1, runs it on frame 2, and runs the tracker over frames
 /// 0..8. `stage` labels what follows ("warm-up" for unmeasured work). Returns the detector
 /// run's ms and each measured tracker frame's (frame, F, ms).
-fn measure<B: Backend>(be: &B, w: &Sam31Weights, mode: AutocastMode, mut stage: impl FnMut(&str)) -> (f64, Vec<(usize, usize, f64)>) {
+/// `trunk_bf16`: the backbone's trunk linears run bf16 ([`Backbone::with_trunk_linears_bf16`]).
+fn measure<B: Backend>(be: &B, w: &Sam31Weights, mode: AutocastMode, trunk_bf16: bool, mut stage: impl FnMut(&str)) -> (f64, Vec<(usize, usize, f64)>) {
     let backbone = Backbone::new(be, &w.vision).expect("backbone");
+    let backbone = if trunk_bf16 { backbone.with_trunk_linears_bf16().expect("bf16 trunk linears") } else { backbone };
     let text = Text::new(be, &w.text).expect("text");
     let det = Detector::new(
         be,
@@ -122,7 +126,16 @@ fn measure<B: Backend>(be: &B, w: &Sam31Weights, mode: AutocastMode, mut stage: 
     (det_ms, times)
 }
 
-fn run<B: Backend>(make: impl Fn() -> B, mode: AutocastMode, label: &str, counters: Option<CounterReader<B>>) {
+/// `split` reads the Metal backend's waits by trigger (`MetalBackend::wait_counts`): each
+/// unprofiled pass prints what forced its waits (the profiled pass syncs every op, so it cannot).
+fn run<B: Backend>(
+    make: impl Fn() -> B,
+    mode: AutocastMode,
+    trunk_bf16: bool,
+    label: &str,
+    counters: Option<CounterReader<B>>,
+    split: Option<fn(&B) -> WaitCounts>,
+) {
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = Sam31Weights::load(&ck).expect("weights");
     let show = |kind: &str, det_ms: f64, times: &[(usize, usize, f64)]| {
@@ -137,8 +150,13 @@ fn run<B: Backend>(make: impl Fn() -> B, mode: AutocastMode, label: &str, counte
     for pass in 1..=3 {
         let load = load_average();
         let before = counters.map(|read| read(&be));
-        let (det_ms, times) = measure(&be, &w, mode, |_| {});
+        let split_before = split.map(|read| read(&be));
+        let (det_ms, times) = measure(&be, &w, mode, trunk_bf16, |_| {});
         let delta = before.zip(counters.map(|read| read(&be))).map(|(b, a)| format!("; waits +{}, dispatches +{}", a.0 - b.0, a.1 - b.1)).unwrap_or_default();
+        let delta = match split_before.zip(split.map(|read| read(&be))) {
+            Some((b, a)) => format!("{delta}; waits by trigger {:?}", a.since(&b)),
+            None => delta,
+        };
         show(&format!("unprofiled pass {pass} (load before: {load}{delta})"), det_ms, &times);
     }
     drop(be);
@@ -148,7 +166,7 @@ fn run<B: Backend>(make: impl Fn() -> B, mode: AutocastMode, label: &str, counte
         Some(read) => Profiled::with_counters(make(), read),
         None => Profiled::new(make()),
     };
-    let (pdet, ptimes) = measure(&prof, &w, mode, |s| prof.set_stage(s));
+    let (pdet, ptimes) = measure(&prof, &w, mode, trunk_bf16, |s| prof.set_stage(s));
     show("profiled (every op synced)", pdet, &ptimes);
     prof.retain(|c| c.stage != "warm-up");
     println!("\n{}", prof.report());
@@ -160,17 +178,40 @@ fn run<B: Backend>(make: impl Fn() -> B, mode: AutocastMode, label: &str, counte
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the tracker fixture"]
 fn frame_profile_metal() {
-    run(|| MetalBackend::new(Budget::new(24 << 30)).expect("metal"), AutocastMode::Off, "Metal f32, contended", Some(|b: &MetalBackend| (b.waits(), b.dispatches())));
+    run(|| MetalBackend::new(Budget::new(24 << 30)).expect("metal"), AutocastMode::Off, false, "Metal f32, contended", Some(|b: &MetalBackend| (b.waits(), b.dispatches())), Some(|b: &MetalBackend| b.wait_counts()));
 }
 
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the tracker fixture"]
 fn frame_profile_metal_bf16() {
-    run(|| Autocast::new(MetalBackend::new(Budget::new(24 << 30)).expect("metal")), AutocastMode::Bf16, "Metal Autocast bf16, contended", None);
+    run(|| Autocast::new(shared_metal()), AutocastMode::Bf16, false, "Metal Autocast bf16, contended", Some(|_: &Autocast<&MetalBackend>| metal_counters()), Some(|_: &Autocast<&MetalBackend>| shared_metal().wait_counts()));
+}
+
+#[test]
+#[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the tracker fixture"]
+fn frame_profile_metal_bf16_linears() {
+    run(|| Autocast::new(shared_metal()), AutocastMode::Off, true, "Metal bf16 trunk linears, contended", Some(|_: &Autocast<&MetalBackend>| metal_counters()), Some(|_: &Autocast<&MetalBackend>| shared_metal().wait_counts()));
+}
+
+thread_local! {
+    /// The Metal backend under the Autocast variants: Autocast does not expose its inner
+    /// backend, and a counter reader is a plain `fn`, so it reads the counters here. One per
+    /// test thread, shared by the unprofiled and profiled passes (leaked: it lives for the
+    /// test process).
+    static METAL: &'static MetalBackend = Box::leak(Box::new(MetalBackend::new(Budget::new(24 << 30)).expect("metal")));
+}
+
+fn shared_metal() -> &'static MetalBackend {
+    METAL.with(|m| *m)
+}
+
+fn metal_counters() -> (u64, u64) {
+    let m = shared_metal();
+    (m.waits(), m.dispatches())
 }
 
 #[test]
 #[ignore = "needs the gated checkpoint, tokenizer files and the tracker fixture"]
 fn frame_profile_cpu() {
-    run(|| CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"), AutocastMode::Off, "CPU f32, contended", None);
+    run(|| CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"), AutocastMode::Off, false, "CPU f32, contended", None, None);
 }

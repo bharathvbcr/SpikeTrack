@@ -1,0 +1,171 @@
+    Checking ojas-core v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-core)
+    Checking st-video v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-video)
+error: using `chunks_exact` with a constant chunk size
+   --> crates/st-video/src/decode.rs:710:20
+    |
+710 |     for px in rgbx.chunks_exact(4) {
+    |                    ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+    = note: `-D clippy::chunks-exact-to-as-chunks` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::chunks_exact_to_as_chunks)]`
+
+error: the use of negated comparison operators on partially ordered types produces code that is hard to read and refactor, please consider using the `partial_cmp` method instead, to make it clear that the two values could be incomparable
+    --> crates/st-video/src/decode.rs:1112:23
+     |
+1112 |     if frames == 0 || !(duration > 0.0) {
+     |                       ^^^^^^^^^^^^^^^^^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#neg_cmp_op_on_partial_ord
+     = note: `-D clippy::neg-cmp-op-on-partial-ord` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::neg_cmp_op_on_partial_ord)]`
+
+error: using `chunks_exact` with a constant chunk size
+    --> crates/st-video/src/decode.rs:1145:32
+     |
+1145 |         for px in row[..w * 4].chunks_exact(4) {
+     |                                ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: manual implementation of `.is_multiple_of()`
+   --> crates/st-video/src/encode.rs:282:8
+    |
+282 |     if width % 2 != 0 || height % 2 != 0 {
+    |        ^^^^^^^^^^^^^^ help: replace with: `!width.is_multiple_of(2)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#manual_is_multiple_of
+    = note: `-D clippy::manual-is-multiple-of` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_is_multiple_of)]`
+
+error: manual implementation of `.is_multiple_of()`
+   --> crates/st-video/src/encode.rs:282:26
+    |
+282 |     if width % 2 != 0 || height % 2 != 0 {
+    |                          ^^^^^^^^^^^^^^^ help: replace with: `!height.is_multiple_of(2)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#manual_is_multiple_of
+
+error: using `chunks_exact_mut` with a constant chunk size
+   --> crates/st-video/src/encode.rs:659:43
+    |
+659 |             for (px, rgb) in row[..w * 4].chunks_exact_mut(4).zip(src.chunks_exact(3)) {
+    |                                           ^^^^^^^^^^^^^^^^^^^ help: consider using `as_chunks_mut` instead: `as_chunks_mut::<4>().0.iter_mut()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/st-video/src/encode.rs:659:71
+    |
+659 |             for (px, rgb) in row[..w * 4].chunks_exact_mut(4).zip(src.chunks_exact(3)) {
+    |                                                                       ^^^^^^^^^^^^^^^
+    |
+help: consider using `as_chunks::<3>()` instead
+   --> crates/st-video/src/encode.rs:659:71
+    |
+659 |             for (px, rgb) in row[..w * 4].chunks_exact_mut(4).zip(src.chunks_exact(3)) {
+    |                                                                       ^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: manual implementation of `.is_multiple_of()`
+   --> crates/st-video/src/jpeg.rs:564:15
+    |
+564 |     } else if h_out % h_in == 0 && v_out % v_in == 0 {
+    |               ^^^^^^^^^^^^^^^^^ help: replace with: `h_out.is_multiple_of(h_in)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#manual_is_multiple_of
+
+error: manual implementation of `.is_multiple_of()`
+   --> crates/st-video/src/jpeg.rs:564:36
+    |
+564 |     } else if h_out % h_in == 0 && v_out % v_in == 0 {
+    |                                    ^^^^^^^^^^^^^^^^^ help: replace with: `v_out.is_multiple_of(v_in)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#manual_is_multiple_of
+
+error: manual implementation of `.is_multiple_of()`
+   --> crates/st-video/src/jpeg.rs:671:37
+    |
+671 |                 let (nr, bias) = if y % 2 == 0 { (r.saturating_sub(1), 1) } else { ((r + 1).min(self.dh - 1), 2) };
+    |                                     ^^^^^^^^^^ help: replace with: `y.is_multiple_of(2)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#manual_is_multiple_of
+
+error: manual implementation of `.is_multiple_of()`
+   --> crates/st-video/src/jpeg.rs:694:29
+    |
+694 |                 let nr = if y % 2 == 0 { r.saturating_sub(1) } else { (r + 1).min(self.dh - 1) };
+    |                             ^^^^^^^^^^ help: replace with: `y.is_multiple_of(2)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#manual_is_multiple_of
+
+error: using `chunks_exact_mut` with a constant chunk size
+   --> crates/st-video/src/jpeg.rs:731:42
+    |
+731 |                     for (px, &g) in line.chunks_exact_mut(3).zip(rows[0].iter()) {
+    |                                          ^^^^^^^^^^^^^^^^^^^ help: consider using `as_chunks_mut` instead: `as_chunks_mut::<3>().0.iter_mut()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact_mut` with a constant chunk size
+   --> crates/st-video/src/jpeg.rs:736:41
+    |
+736 |                     for (x, px) in line.chunks_exact_mut(3).enumerate() {
+    |                                         ^^^^^^^^^^^^^^^^^^^ help: consider using `as_chunks_mut` instead: `as_chunks_mut::<3>().0.iter_mut()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact_mut` with a constant chunk size
+   --> crates/st-video/src/jpeg.rs:741:41
+    |
+741 |                     for (x, px) in line.chunks_exact_mut(3).enumerate() {
+    |                                         ^^^^^^^^^^^^^^^^^^^ help: consider using `as_chunks_mut` instead: `as_chunks_mut::<3>().0.iter_mut()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/st-video/src/jpeg.rs:938:25
+    |
+938 |         for c in p[6..].chunks_exact(3) {
+    |                         ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<3>().0`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+    --> crates/st-video/src/jpeg.rs:1031:34
+     |
+1031 |         for s in p[1..1 + 2 * n].chunks_exact(2) {
+     |                                  ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<2>().0`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: the loop variable `x` is used to index `row`
+  --> crates/st-video/src/resize.rs:60:18
+   |
+60 |         for x in 0..xmax {
+   |                  ^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_range_loop
+   = note: `-D clippy::needless-range-loop` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::needless_range_loop)]`
+help: consider using an iterator and enumerate()
+   |
+60 -         for x in 0..xmax {
+60 +         for (x, <item>) in row.iter_mut().enumerate().take(xmax) {
+   |
+
+error: the loop variable `y` is used to index `k`
+   --> crates/st-video/src/resize.rs:128:26
+    |
+128 |                 for y in 0..ymax {
+    |                          ^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_range_loop
+help: consider using an iterator and enumerate()
+    |
+128 -                 for y in 0..ymax {
+128 +                 for (y, <item>) in k.iter().enumerate().take(ymax) {
+    |
+
+error: could not compile `st-video` (lib) due to 18 previous errors
+warning: build failed, waiting for other jobs to finish...

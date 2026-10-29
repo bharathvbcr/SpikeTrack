@@ -1,0 +1,6 @@
+SpikeTrack 2ab09c4 CoreML port on macOS 27.0.1: the GPU is its fastest unit; the ANE is 5.2x slower on the backbone
+ojas-st 8b88328 Merge gp/78-attn-mpp: TensorOps flash cross-attention for D32 with no bias or lens (Lane A)
+tessl c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in
+Apple M5 Pro
+17:33  up 2 days,  9:48, 1 user, load averages: 6.52 7.17 8.34
+17:38  up 2 days,  9:53, 1 user, load averages: 10.43 8.50 8.49

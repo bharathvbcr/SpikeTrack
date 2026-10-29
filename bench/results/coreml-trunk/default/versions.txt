@@ -1,0 +1,2 @@
+SpikeTrack b11bb69 E10: --trunk-precision coreml-fp32|coreml-fp16 runs the ViT trunk as a CoreML ML Program behind Backbone::with_external_trunk, dirty 3
+10:18  up 3 days,  2:33, 1 user, load averages: 9.35 11.65 14.58

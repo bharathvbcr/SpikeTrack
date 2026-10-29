@@ -1,0 +1,66 @@
+{
+ "package": "/Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_mixed-res.mlpackage",
+ "precision": "mixed-res",
+ "compute_units": "CPU_AND_GPU",
+ "macos": "27.0.1",
+ "load_s": 1.89,
+ "first_call_s": 1.018,
+ "n": 10,
+ "median_s": 0.2689,
+ "min_s": 0.2661,
+ "max_s": 0.2774,
+ "all_s": [
+  0.2696,
+  0.2671,
+  0.2661,
+  0.2671,
+  0.2663,
+  0.269,
+  0.2688,
+  0.2737,
+  0.2772,
+  0.2774
+ ],
+ "load_avg": [
+  8.171875,
+  6.013671875,
+  4.6845703125
+ ],
+ "parity_vs_upstream_fp32_trunk_blocks_31": {
+  "visem_22_f0": {
+   "cosine": 0.9999090107622438,
+   "rel_l2": 0.01349118071503429,
+   "max_abs": 20.998964309692383,
+   "ref_max_abs": 213.60865783691406,
+   "finite": true
+  },
+  "visem_47_f300": {
+   "cosine": 0.9999861777109827,
+   "rel_l2": 0.005257803002510134,
+   "max_abs": 9.035806655883789,
+   "ref_max_abs": 234.56407165527344,
+   "finite": true
+  },
+  "visem_82_f600": {
+   "cosine": 0.9997957454037476,
+   "rel_l2": 0.020213606874715514,
+   "max_abs": 43.81619644165039,
+   "ref_max_abs": 234.803955078125,
+   "finite": true
+  },
+  "sam3_truck": {
+   "cosine": 0.9999158323625021,
+   "rel_l2": 0.01297443951389445,
+   "max_abs": 21.622520446777344,
+   "ref_max_abs": 211.2041015625,
+   "finite": true
+  },
+  "sam3_groceries": {
+   "cosine": 0.9998981133556537,
+   "rel_l2": 0.014275805896403995,
+   "max_abs": 22.309268951416016,
+   "ref_max_abs": 230.0897674560547,
+   "finite": true
+  }
+ }
+}

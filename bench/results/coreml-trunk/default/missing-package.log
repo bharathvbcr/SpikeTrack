@@ -1,0 +1,8 @@
+    Finished `release` profile [optimized] target(s) in 1.08s
+     Running unittests src/main.rs (target/release/deps/spiketrack-eac0b68cd1f7f7e8)
+
+running 1 test
+test track_cmd::tests::the_default_metal_trunk_without_its_package_is_an_error_not_a_fallback ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 79 filtered out; finished in 0.84s
+

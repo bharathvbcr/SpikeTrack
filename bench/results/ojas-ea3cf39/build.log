@@ -1,0 +1,20 @@
+   Compiling ojas-core v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-core)
+   Compiling ojas-io v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-io)
+   Compiling st-weights v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-weights)
+   Compiling ojas-device v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-device)
+   Compiling ojas-metal v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-metal)
+   Compiling ojas-cpu v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-cpu)
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+   Compiling st-eval v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-eval)
+   Compiling st-video v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-video)
+   Compiling spiketrack v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/spiketrack)
+warning: function `evaluate` is never used
+   --> crates/spiketrack/src/eval_visem.rs:220:8
+    |
+220 | pub fn evaluate(pred: &Path, ids: &[String], visem: &Path) -> Result<Evaluation, String> {
+    |        ^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `spiketrack` (bin "spiketrack") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 1m 04s

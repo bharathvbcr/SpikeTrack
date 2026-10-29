@@ -13,7 +13,7 @@ pub mod text;
 pub mod tokenizer;
 pub mod tracker;
 
-pub use backbone::{Backbone, Neck, Taps, IMAGE_SIZE};
+pub use backbone::{Backbone, ExternalTrunk, Neck, Taps, IMAGE_SIZE};
 pub use detector::{Detector, DetectorOut, DetectorTaps, DetectorWeights};
 /// The model's input size: the one runtime value every shape in the trunk, necks, detector and
 /// tracker derives from ([`Geometry::from_image_side`] validates it).

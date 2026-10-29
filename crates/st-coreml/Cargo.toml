@@ -1,0 +1,24 @@
+[package]
+name = "st-coreml"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "SAM 3.1's ViT trunk as a CoreML ML Program behind st-model's ExternalTrunk"
+
+[dependencies]
+ojas-core.workspace = true
+st-model = { path = "../st-model" }
+sha2 = "0.10.9"
+# The objc2 family tessl already builds against (objc2 0.6, objc2-foundation 0.3, block2 0.6).
+objc2 = "0.6.5"
+objc2-foundation = "0.3.2"
+objc2-core-ml = "0.3.2"
+block2 = "0.6.2"
+
+[dev-dependencies]
+ojas-cpu.workspace = true
+ojas-io.workspace = true
+st-weights.workspace = true
+st-gate = { path = "../st-gate" }

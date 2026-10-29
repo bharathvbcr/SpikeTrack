@@ -80,6 +80,7 @@ use ojas_metal::{MetalBackend, WaitCounts};
 use st_model::tracker::session::{Session, SessionConfig, YieldedFrame};
 use st_model::Geometry;
 use st_model::tracker::vos::Vos;
+use st_coreml::{CoremlTrunk, Units};
 use st_model::{Backbone, Detector, DetectorWeights, Text, Tokenizer};
 use st_video::encode;
 use st_video::{decode_image_with_source, resize_bilinear_pil, Rgb8, VideoFile, VideoReader, VideoWriter};
@@ -104,7 +105,8 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
                  [--start F] [--overlay K] [--overlay-video FILE] [--overlay-fps F]
                  [--video ID] [--boxes mask|detector] [--weights FILE]
                  [--lora FILE] [--model-dir DIR] [--threads N] [--trim-pool-every K]
-                 [--trunk-precision f32|bf16-linears] [--max-objects N] [--input-size N]
+                 [--trunk-precision f32|bf16-linears|coreml-fp32|coreml-fp16] [--max-objects N]
+                 [--input-size N]
 
   Tracks every instance of <text> through a video with SAM 3.1's multiplex tracker, forward
   from the first frame processed. <input> is a folder of <video>_frame_<n>.jpg frames
@@ -143,12 +145,23 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
   --input-size N    the square side every frame is resized to before the model, a multiple of 336
                     (the ViT's 14-pixel patches in 24-token windows): 1008 (default, the
                     checkpoint's native size), 672 or 336. Smaller is much faster, with an
-                    accuracy cost on small objects. No weight changes: the position embedding is
-                    tiled and the global blocks' RoPE regenerated for the grid (see
-                    st_model::backbone::vit_rope_tables). Recorded in run.json.
-  --trunk-precision P  f32 (default, upstream's numerics) or bf16-linears (an experiment: the
-                    ViT trunk's linears in bf16 through an Ojas Autocast region, everything else
-                    f32; not upstream, see Backbone::with_trunk_linears_bf16).
+                    accuracy cost on small objects: at 672 the held-out VISEM HOTA falls below
+                    0.47 (bench/results/track/held300-lora600-sperm-detector-672-max64). No weight
+                    changes: the position embedding is tiled and the global blocks' RoPE
+                    regenerated for the grid (see st_model::backbone::vit_rope_tables). The CoreML
+                    trunks are exported at 1008, so any other size needs --trunk-precision f32 or
+                    bf16-linears. Recorded in run.json.
+  --trunk-precision P  what runs the ViT trunk (default: coreml-fp32 on --backend metal, f32 on
+                    --backend cpu). coreml-fp32 / coreml-fp16: the trunk runs as a CoreML ML
+                    Program (CPU and GPU) from <model-dir>/coreml/sam3.1_trunk_<fp32|fp16>.mlpackage,
+                    exported by tools/baselines/coreml_trunk.py (a missing package is an error,
+                    never a fallback); the necks, detector and tracker stay on --backend.
+                    coreml-fp32 matches upstream's trunk to relative L2 ~1e-5, coreml-fp16 to ~1e-2
+                    (bench/results/coreml-trunk). The first run of a package compiles it beside
+                    itself, and loading it adds ~3-13 s to the model load. f32: the Ojas trunk,
+                    upstream's numerics. bf16-linears (an experiment: the trunk's linears in bf16
+                    through an Ojas Autocast region, everything else f32; not upstream, see
+                    Backbone::with_trunk_linears_bf16).
 
   Each frame's progress line ends with this process's physical footprint, the machine's pages
   paged out and swapped in during the frame and, on Metal, the frame's change in Ojas's wait
@@ -176,6 +189,21 @@ fn preprocessing_text(from_video: bool, size: usize) -> String {
 const PREPROCESSING_FOLDER: &str = "decode per \"decoders\" (pillow-exact-jpeg: byte-identical to Pillow 13 / libjpeg-turbo 3.2.0); Pillow-exact bilinear resize to {size}x{size}, as upstream's JPEG-folder path; /255, -0.5, /0.5 each rounded to float16 as upstream's loader stores frames (widened to f32 for the model)";
 const PREPROCESSING_VIDEO: &str = "AVFoundation decode (32BGRA); Pillow-exact bilinear resize to {size}x{size}; float16 normalisation as upstream. NOT upstream's mp4 path (OpenCV decode, cv2.INTER_CUBIC): GAP-MP4-PREPROCESSING";
 const BUDGET_BYTES: u64 = 28 << 30;
+/// Metal's memory cap for a track run: the bytes allocated (or freed) since the last waited
+/// commit before the device waits for one. ojas opens at min(1 GiB, budget / 4); at that default
+/// the cap forced 231 of 387 waits per 4-frame profile pass. 4 GiB was the knee of the sweep:
+/// ~0.87x frame time for +3 GiB peak footprint (11.0 -> 14.0 GiB;
+/// bench/results/speed-baseline/memcap-footprint). It changes when commits wait, not what runs.
+const METAL_MEM_CAP: u64 = 4 << 30;
+
+/// The Metal backend a track run uses: the budget above, the memory cap raised to
+/// [`METAL_MEM_CAP`]. Returns the cap the device reports, for run.json.
+fn open_metal() -> Result<(MetalBackend, u64), CliError> {
+    let be = MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?;
+    be.set_mem_cap(METAL_MEM_CAP).map_err(CliError::from_err)?;
+    let cap = be.mem_cap().map_err(CliError::from_err)?;
+    Ok((be, cap))
+}
 
 // ---------------------------------------------------------------------------
 // The model input, as upstream's video loader makes it
@@ -728,17 +756,65 @@ struct Options {
     weights: PathBuf,
     model_dir: PathBuf,
     trim_pool_every: Option<u32>,
-    /// `--trunk-precision bf16-linears`.
-    trunk_linears_bf16: bool,
+    /// `--trunk-precision`.
+    trunk: TrunkPrecision,
     /// `--max-objects`.
     max_objects: usize,
     /// `--input-size`, validated: the model's token grid and every size derived from it.
     geometry: Geometry,
 }
 
+/// `--trunk-precision`: what computes the ViT trunk.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TrunkPrecision {
+    F32,
+    Bf16Linears,
+    /// The CoreML package of this precision ("fp32" or "fp16").
+    Coreml(&'static str),
+}
+
+impl TrunkPrecision {
+    fn parse(s: &str) -> Result<Self, CliError> {
+        Ok(match s {
+            "f32" => Self::F32,
+            "bf16-linears" => Self::Bf16Linears,
+            "coreml-fp32" => Self::Coreml("fp32"),
+            "coreml-fp16" => Self::Coreml("fp16"),
+            other => return Err(CliError::usage(format!("--trunk-precision: {other:?} is not f32, bf16-linears, coreml-fp32 or coreml-fp16"))),
+        })
+    }
+
+    /// What `--trunk-precision` defaults to. On Metal, the CoreML fp32 trunk: E10 measured it at
+    /// 0.80x the Ojas trunk's frame, with the same id sets on all 1500 held-out VISEM frames and the
+    /// same HOTA (bench/results/coreml-trunk). On CPU, the Ojas f32 trunk: that path is the
+    /// upstream-parity oracle, and CoreML would run on the GPU anyway.
+    fn default_for(backend: BackendChoice) -> Self {
+        match backend {
+            BackendChoice::Metal => Self::Coreml("fp32"),
+            BackendChoice::Cpu => Self::F32,
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::F32 => "f32",
+            Self::Bf16Linears => "bf16-linears",
+            Self::Coreml("fp16") => "coreml-fp16",
+            Self::Coreml(_) => "coreml-fp32",
+        }
+    }
+}
+
+/// `<model-dir>/coreml/sam3.1_trunk_<precision>.mlpackage`, where tools/baselines/coreml_trunk.py writes it.
+fn coreml_package(model_dir: &Path, precision: &str) -> PathBuf {
+    model_dir.join("coreml").join(format!("sam3.1_trunk_{precision}.mlpackage"))
+}
+
 struct Timing {
     load_seconds: f64,
     frame_seconds: Vec<f64>,
+    /// `Backbone::external_trunk`: `None` when the Ojas blocks computed the trunk.
+    external_trunk: Option<String>,
 }
 
 const MIB: f64 = (1u64 << 20) as f64;
@@ -869,8 +945,24 @@ fn track_on<B: Backend>(
     telemetry: &mut dyn FrameTelemetry<B>,
 ) -> Result<Timing, CliError> {
     let t_load = Instant::now();
-    let backbone = Backbone::new_at(be, &w.vision, opts.geometry).map_err(CliError::from_err)?;
-    let backbone = if opts.trunk_linears_bf16 { backbone.with_trunk_linears_bf16().map_err(CliError::from_err)? } else { backbone };
+    let backbone = match opts.trunk {
+        TrunkPrecision::F32 => Backbone::new_at(be, &w.vision, opts.geometry).map_err(CliError::from_err)?,
+        TrunkPrecision::Bf16Linears => Backbone::new_at(be, &w.vision, opts.geometry).and_then(|b| b.with_trunk_linears_bf16()).map_err(CliError::from_err)?,
+        TrunkPrecision::Coreml(precision) => {
+            let package = coreml_package(&opts.model_dir, precision);
+            if !package.is_dir() {
+                return Err(CliError::failed(format!(
+                    "--trunk-precision {}: {} does not exist; export it with tools/baselines/coreml_trunk.py export --precision {precision}, or pass --trunk-precision f32 for the Ojas trunk",
+                    opts.trunk.name(),
+                    package.display()
+                )));
+            }
+            let trunk = CoremlTrunk::load(&package, Units::CpuAndGpu).map_err(CliError::from_err)?;
+            println!("CoreML trunk {} loaded in {:.1} s ({})", package.display(), trunk.load_seconds, if trunk.compiled { "compiled this run" } else { "compiled model reused" });
+            Backbone::with_external_trunk(be, &w.vision, Box::new(trunk)).map_err(CliError::from_err)?
+        }
+    };
+    let external_trunk = backbone.external_trunk();
     let text = Text::new(be, &w.text).map_err(CliError::from_err)?;
     let detector = Detector::new_at(
         be,
@@ -911,7 +1003,7 @@ fn track_on<B: Backend>(
     for y in session.finish() {
         collector.accept(y)?;
     }
-    Ok(Timing { load_seconds, frame_seconds })
+    Ok(Timing { load_seconds, frame_seconds, external_trunk })
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
@@ -939,11 +1031,18 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         return Err(CliError::usage(format!("--max-objects {max_objects} is outside 1..=128")));
     }
     let geometry = parse_input_size(args.parsed("input-size", DEFAULT_INPUT_SIZE)?)?;
-    let trunk_linears_bf16 = match args.get("trunk-precision").unwrap_or("f32") {
-        "f32" => false,
-        "bf16-linears" => true,
-        other => return Err(CliError::usage(format!("--trunk-precision: {other:?} is not f32 or bf16-linears"))),
+    let trunk = match args.get("trunk-precision") {
+        Some(p) => TrunkPrecision::parse(p)?,
+        None => TrunkPrecision::default_for(backend),
     };
+    if matches!(trunk, TrunkPrecision::Coreml(_)) && geometry != Geometry::SAM3 {
+        return Err(CliError::usage(format!(
+            "--input-size {}: the CoreML trunk ({}) is exported at {}; pass --trunk-precision f32 or bf16-linears",
+            geometry.pixels(),
+            trunk.name(),
+            Geometry::SAM3.pixels()
+        )));
+    }
     let threads: usize = args.parsed("threads", 8)?;
     if !(1..=256).contains(&threads) {
         return Err(CliError::usage(format!("--threads {threads} is outside 1..=256")));
@@ -986,7 +1085,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     let weights = existing_path(args.get("weights"), "SPIKETRACK_WEIGHTS", "weights", "weights")?;
     let lora = weights::lora_path(args.get("lora"))?;
     let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
-    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir, trim_pool_every, trunk_linears_bf16, max_objects, geometry };
+    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir, trim_pool_every, trunk, max_objects, geometry };
 
     let (w, applied) = weights::load(&opts.weights, lora.as_deref())?;
     let mut collector = Collector::new(&opts.out, &stream.video, stream.first_n, stream.height, stream.width, opts.overlay_every, opts.boxes)?;
@@ -997,21 +1096,21 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         collector.set_overlay_video(writer)?;
     }
     let t_all = Instant::now();
-    let timing = match opts.backend {
-        BackendChoice::Cpu if opts.trunk_linears_bf16 => {
+    let (timing, metal_mem_cap) = match opts.backend {
+        BackendChoice::Cpu if opts.trunk == TrunkPrecision::Bf16Linears => {
             let be = Autocast::new(CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?);
-            track_on(&be, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?
+            (track_on(&be, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?, None)
         }
-        BackendChoice::Cpu => track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?,
-        BackendChoice::Metal if opts.trunk_linears_bf16 => {
-            let metal = MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?;
+        BackendChoice::Cpu => (track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?, None),
+        BackendChoice::Metal if opts.trunk == TrunkPrecision::Bf16Linears => {
+            let (metal, cap) = open_metal()?;
             let mut telemetry = MetalTelemetry::new(&metal, opts.trim_pool_every)?;
-            track_on(&Autocast::new(metal), &w, &mut stream, &opts, &mut collector, &mut telemetry)?
+            (track_on(&Autocast::new(metal), &w, &mut stream, &opts, &mut collector, &mut telemetry)?, Some(cap))
         }
         BackendChoice::Metal => {
-            let be = MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?;
+            let (be, cap) = open_metal()?;
             let mut telemetry = MetalTelemetry::new(&be, opts.trim_pool_every)?;
-            track_on(&be, &w, &mut stream, &opts, &mut collector, &mut telemetry)?
+            (track_on(&be, &w, &mut stream, &opts, &mut collector, &mut telemetry)?, Some(cap))
         }
     };
     let total_seconds = t_all.elapsed().as_secs_f64();
@@ -1032,7 +1131,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
-        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"max_objects\": {},\n  \"input_size\": {}\n}}\n",
+        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"external_trunk\": {},\n  \"max_objects\": {},\n  \"metal_mem_cap_bytes\": {},\n  \"input_size\": {}\n}}\n",
         json::string(&stream.video),
         json::string(&input.to_string_lossy()),
         json::string(&opts.prompt),
@@ -1056,8 +1155,10 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         video_fps_json,
         video_fps_source_json,
         video_frames_json,
-        json::string(if opts.trunk_linears_bf16 { "bf16-linears" } else { "f32" }),
+        json::string(opts.trunk.name()),
+        timing.external_trunk.as_deref().map_or_else(|| "null".to_string(), json::string),
         opts.max_objects,
+        metal_mem_cap.map_or_else(|| "null".to_string(), |b| b.to_string()),
         opts.geometry.pixels(),
     );
     let run_path = opts.out.join(format!("{}.run.json", stream.video));
@@ -1598,6 +1699,12 @@ mod tests {
         assert!(usage(&["in", "--prompt", "p", "--threads", "0"]));
         assert!(usage(&["in", "--prompt", "p", "--video", "a/b"]));
         assert!(usage(&["in", "--prompt", "p", "--bogus", "1"]));
+        // The CoreML trunks exist at 1008 only, and coreml-fp32 is the Metal default.
+        assert!(usage(&["in", "--prompt", "p", "--input-size", "672"]), "default Metal trunk at 672");
+        assert!(usage(&["in", "--prompt", "p", "--input-size", "672", "--trunk-precision", "coreml-fp16"]));
+        assert!(usage(&["in", "--prompt", "p", "--input-size", "672", "--backend", "cpu", "--trunk-precision", "coreml-fp32"]));
+        assert!(!usage(&["in", "--prompt", "p", "--input-size", "672", "--trunk-precision", "f32"]), "the Ojas trunk takes 672");
+        assert!(!usage(&["in", "--prompt", "p", "--input-size", "672", "--backend", "cpu"]), "the CPU default is the Ojas trunk");
     }
 
     #[test]
@@ -1654,6 +1761,84 @@ mod tests {
     ///
     /// `SPIKETRACK_WEIGHTS=... SPIKETRACK_MODEL_DIR=... tools/locked.sh track-e2e cargo test --release -p spiketrack track_cmd::tests::visem_22 -- --ignored --nocapture`
     #[test]
+    #[ignore = "needs a Metal GPU"]
+    fn a_track_runs_metal_backend_has_the_raised_memory_cap() {
+        let default = MetalBackend::new(Budget::new(BUDGET_BYTES)).expect("metal").mem_cap().expect("mem_cap");
+        let (_be, cap) = open_metal().expect("open_metal");
+        assert_eq!(default, 1 << 30, "ojas's default is min(1 GiB, budget / 4)");
+        assert_eq!(cap, METAL_MEM_CAP);
+    }
+
+    #[test]
+    fn trunk_precision_parses_its_four_names_and_nothing_else() {
+        for name in ["f32", "bf16-linears", "coreml-fp32", "coreml-fp16"] {
+            assert_eq!(TrunkPrecision::parse(name).expect(name).name(), name);
+        }
+        assert_eq!(TrunkPrecision::parse("coreml-fp16").unwrap(), TrunkPrecision::Coreml("fp16"));
+        for bad in ["", "fp32", "coreml", "coreml-bf16", "F32"] {
+            assert!(TrunkPrecision::parse(bad).is_err(), "{bad:?} accepted");
+        }
+        assert_eq!(coreml_package(Path::new("/m"), "fp32"), PathBuf::from("/m/coreml/sam3.1_trunk_fp32.mlpackage"));
+    }
+
+    #[test]
+    fn the_default_trunk_is_coreml_fp32_on_metal_and_the_ojas_trunk_on_cpu() {
+        assert_eq!(TrunkPrecision::default_for(BackendChoice::Metal), TrunkPrecision::Coreml("fp32"));
+        assert_eq!(TrunkPrecision::default_for(BackendChoice::Cpu), TrunkPrecision::F32);
+    }
+
+    /// With no --trunk-precision, a Metal run whose model dir has no CoreML package fails loud and
+    /// names both ways out; it does not quietly fall back to the Ojas trunk.
+    #[test]
+    #[ignore = "needs the gated checkpoint, tokenizer files and data/visem"]
+    fn the_default_metal_trunk_without_its_package_is_an_error_not_a_fallback() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let images = root.join("data/visem/VISEM_Tracking_Train_v4/Train/22/images");
+        let model_dir = temp("no-coreml-model-dir");
+        let tokenizer = PathBuf::from(std::env::var("SPIKETRACK_MODEL_DIR").expect("set SPIKETRACK_MODEL_DIR"));
+        for f in ["vocab.json", "merges.txt"] {
+            std::fs::copy(tokenizer.join(f), model_dir.join(f)).unwrap();
+        }
+        let out = temp("default-trunk-missing");
+        let r = run(&args(&[images.to_str().unwrap(), "--prompt", "cell", "--out", out.to_str().unwrap(), "--max-frames", "1", "--model-dir", model_dir.to_str().unwrap()]));
+        let Err(CliError::Failed(msg)) = r else { panic!("expected a failure, got {r:?}") };
+        assert!(msg.starts_with("--trunk-precision coreml-fp32: "), "{msg}");
+        assert!(msg.contains("coreml_trunk.py export --precision fp32") && msg.contains("--trunk-precision f32"), "{msg}");
+        assert!(!out.join("22.json").exists(), "a failed run wrote predictions");
+    }
+
+    /// The CoreML fp32 trunk on the first 8 frames of VISEM 22 against the Ojas f32 trunk: run.json
+    /// names the trunk that ran, and the tracks agree (the two trunks differ by ~1e-5 relative).
+    #[test]
+    #[ignore = "needs the gated checkpoint, tokenizer files, data/visem, a Metal GPU and the exported CoreML fp32 trunk"]
+    fn visem_22_coreml_fp32_trunk_tracks_as_the_ojas_trunk() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let images = root.join("data/visem/VISEM_Tracking_Train_v4/Train/22/images");
+        let mut preds = Vec::new();
+        for precision in ["f32", "coreml-fp32"] {
+            let out = temp(&format!("visem22-{precision}"));
+            run(&args(&[images.to_str().unwrap(), "--prompt", "cell", "--out", out.to_str().unwrap(), "--backend", "metal", "--max-frames", "8", "--trunk-precision", precision])).expect("track");
+            let run_json = ojas_io::parse_json(&std::fs::read_to_string(out.join("22.run.json")).unwrap()).unwrap();
+            assert_eq!(run_json.get_str("trunk_precision").unwrap(), precision);
+            match precision {
+                "f32" => assert!(run_json.field("external_trunk").unwrap().is_null(), "the Ojas trunk reports no external trunk"),
+                _ => {
+                    let ext = run_json.get_str("external_trunk").unwrap();
+                    assert!(ext.starts_with("coreml sam3.1_trunk_fp32.mlpackage (cpu_and_gpu) sha256 "), "{ext}");
+                }
+            }
+            let text = std::fs::read_to_string(out.join("22.json")).unwrap();
+            preds.push(parse_predictions(&text, "22").expect("predictions"));
+        }
+        for n in 0..8u32 {
+            let ids = |i: usize| -> BTreeSet<String> { preds[i].frames[&n].iter().map(|(id, _)| id.clone()).collect() };
+            println!("frame {n}: ojas {} ids, coreml {} ids", ids(0).len(), ids(1).len());
+            assert_eq!(ids(0), ids(1), "frame {n}: the id sets differ");
+        }
+        assert!(!preds[0].frames[&0].is_empty(), "no object in frame 0: the comparison would be vacuous");
+    }
+
+    #[test]
     #[ignore = "needs the gated checkpoint, tokenizer files, data/visem and a Metal GPU"]
     fn visem_22_frames_0_to_7_on_metal() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -1686,6 +1871,7 @@ mod tests {
         assert_eq!(run_json.get_str("backend").unwrap(), "metal");
         assert_eq!(run_json.get_u64("frames").unwrap(), 8);
         assert_eq!(run_json.get_str("boxes").unwrap(), "mask");
+        assert_eq!(run_json.get_u64("metal_mem_cap_bytes").unwrap(), METAL_MEM_CAP);
 
         // Stability: print the id sets, then require that the ids of frame 0 are carried to
         // frame 7 and that a track's written mask (its centroid) moves less than 0.1 of the frame

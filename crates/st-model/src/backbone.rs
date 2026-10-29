@@ -299,6 +299,16 @@ enum DevLevel {
     Same { c1: DevConv, c3: DevConv },
 }
 
+/// A ViT trunk computed outside the Ojas backend, in place of [`Backbone::trunk`]'s own blocks.
+/// spiketrack's CoreML trunk (crate `st-coreml`) is the one implementation.
+pub trait ExternalTrunk {
+    /// What `run.json` records about it (format, precision, package hash).
+    fn describe(&self) -> String;
+    /// `image`: `[1, 3, 1008, 1008]` normalized (mean/std 0.5), row-major. Returns the trunk
+    /// output `[1, 72, 72, 1024]` (NHWC), row-major.
+    fn run(&self, image: &[f32]) -> Result<Vec<f32>, OjasError>;
+}
+
 /// The backbone with its weights resident on one backend.
 pub struct Backbone<'b, B: Backend + ?Sized> {
     be: &'b B,
@@ -308,11 +318,14 @@ pub struct Backbone<'b, B: Backend + ?Sized> {
     /// `pos_embed` without cls, tiled to `[1, grid, grid, 1024]` once at load (3x3 at 1008).
     pos_tiled: Tensor,
     ln_pre: DevNorm,
+    /// Empty when `external` is set: its weights are never uploaded.
     blocks: Vec<DevBlock>,
     necks: [Vec<DevLevel>; 3],
     /// [`Self::with_trunk_linears_bf16`]: the trunk's six linears per block run inside an Ojas
     /// Autocast bf16 region (bf16 operands on the matrix units, f32 sums), everything else f32.
     trunk_linears_bf16: bool,
+    /// [`Self::with_external_trunk`]: the trunk runs there; the necks stay on `be`.
+    external: Option<Box<dyn ExternalTrunk + 'b>>,
 }
 
 fn upload<B: Backend + ?Sized>(be: &B, data: &[f32], shape: &[usize]) -> Result<Tensor, OjasError> {
@@ -397,13 +410,32 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
     /// [`vit_rope_tables`] otherwise. The position embedding is the checkpoint's 24 x 24 grid
     /// tiled to `geo.grid`, and the windowed blocks' tables (24 x 24) are unchanged.
     pub fn new_at(be: &'b B, w: &VisionBackbone, geo: Geometry) -> Result<Self, OjasError> {
+        Self::load(be, w, geo, None)
+    }
+
+    /// The necks on `be` and the trunk computed by `trunk`; the 32 blocks' weights are not
+    /// uploaded. [`Self::trunk`] hands `trunk` the image on the host and uploads what it returns.
+    /// The gated trunk, block taps and [`Self::with_trunk_linears_bf16`] need the Ojas blocks and
+    /// refuse this backbone. The geometry is the native 1008 x 1008, the size the trunk is exported at.
+    pub fn with_external_trunk(be: &'b B, w: &VisionBackbone, trunk: Box<dyn ExternalTrunk + 'b>) -> Result<Self, OjasError> {
+        Self::load(be, w, Geometry::SAM3, Some(trunk))
+    }
+
+    /// What computes the trunk: `None` for the Ojas blocks, else the external trunk's description.
+    pub fn external_trunk(&self) -> Option<String> {
+        self.external.as_ref().map(|e| e.describe())
+    }
+
+    fn load(be: &'b B, w: &VisionBackbone, geo: Geometry, external: Option<Box<dyn ExternalTrunk + 'b>>) -> Result<Self, OjasError> {
         if geo.patch != VIT_PATCH || geo.window != VIT_WINDOW || geo.grid == 0 || geo.grid % geo.window != 0 {
             return Err(out_of_range("st_model::Backbone::new_at", format!("{geo:?} is not a {VIT_PATCH}-pixel patch, {VIT_WINDOW}-token window ViT grid")));
         }
         let t = &w.trunk;
         let mut blocks = Vec::with_capacity(t.blocks.len());
-        for blk in &t.blocks {
-            blocks.push(Self::block(be, blk, geo)?);
+        if external.is_none() {
+            for blk in &t.blocks {
+                blocks.push(Self::block(be, blk, geo)?);
+            }
         }
         let neck = |n: &FpnNeck| -> Result<Vec<DevLevel>, OjasError> {
             n.levels
@@ -437,7 +469,34 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
             blocks,
             necks: [neck(&w.convs)?, neck(&w.interactive_convs)?, neck(&w.propagation_convs)?],
             trunk_linears_bf16: false,
+            external,
         })
+    }
+
+    fn refuse_external(&self, op: &'static str) -> Result<(), OjasError> {
+        match &self.external {
+            Some(e) => Err(OjasError::Unsupported { op, detail: format!("needs the Ojas trunk blocks; this backbone's trunk is {}", e.describe()) }),
+            None => Ok(()),
+        }
+    }
+
+    /// The external trunk on `image`: download, run, upload. Block taps do not exist there.
+    fn run_external(&self, ext: &dyn ExternalTrunk, image: &Tensor, keep_blocks: &[usize], taps: &mut Taps) -> Result<Tensor, OjasError> {
+        const OP: &str = "st_model::Backbone::trunk";
+        if !keep_blocks.is_empty() {
+            return Err(OjasError::Unsupported { op: OP, detail: format!("block taps {keep_blocks:?} do not exist in {}", ext.describe()) });
+        }
+        let (side, grid) = (self.geo.pixels(), self.geo.grid);
+        if image.shape() != [1, 3, side, side] {
+            return Err(OjasError::Shape { op: OP, detail: format!("image is {:?}, want [1, 3, {side}, {side}]", image.shape()) });
+        }
+        let out = ext.run(&host_f32(self.be, image)?)?;
+        let want = grid * grid * VIT_DIM;
+        if out.len() != want {
+            return Err(OjasError::Shape { op: OP, detail: format!("{} returned {} values, want {want}", ext.describe(), out.len()) });
+        }
+        *taps = Taps::default();
+        upload(self.be, &out, &[1, grid, grid, VIT_DIM])
     }
 
     /// An experiment, not upstream's numerics: the trunk's q, k, v, proj, fc1 and fc2 linears run
@@ -449,6 +508,7 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
     /// untested. `be` must be an [`ojas_core::Autocast`] backend: anything else is refused here,
     /// rather than silently running f32.
     pub fn with_trunk_linears_bf16(mut self) -> Result<Self, OjasError> {
+        self.refuse_external("st_model::Backbone::with_trunk_linears_bf16")?;
         let be = self.be;
         drop(be.autocast_region(AutocastMode::Bf16)?);
         for blk in &mut self.blocks {
@@ -501,7 +561,12 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
     /// Trunk: `image` `[1, 3, S, S]` (normalized, `S` = [`Geometry::pixels`], 1008 by default) to
     /// `[1, S / 14, S / 14, 1024]`.
     /// `keep_blocks` lists the block outputs to return in `taps`.
+    /// With an external trunk ([`Self::with_external_trunk`]) the trunk runs there, `keep_blocks`
+    /// must be empty and `taps` is cleared.
     pub fn trunk(&self, image: &Tensor, keep_blocks: &[usize], taps: &mut Taps) -> Result<Tensor, OjasError> {
+        if let Some(ext) = &self.external {
+            return self.run_external(ext.as_ref(), image, keep_blocks, taps);
+        }
         self.run_trunk(image, keep_blocks, taps, Plan::Ungated).map(|(x, _)| x)
     }
 
@@ -559,6 +624,7 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         keep_blocks: &[usize],
         taps: &mut Taps,
     ) -> Result<(Tensor, GatedStats), OjasError> {
+        self.refuse_external("st_model::Backbone::trunk_gated")?;
         let side = self.geo.side();
         if recompute.side() != side {
             return Err(out_of_range("st_model::Backbone::trunk_gated", format!("window set is {0} x {0}, the trunk has {side} x {side}", recompute.side())));

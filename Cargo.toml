@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/st-weights", "crates/st-model", "crates/st-eval", "crates/st-video", "crates/spiketrack", "crates/st-gate"]
+members = ["crates/st-weights", "crates/st-model", "crates/st-eval", "crates/st-video", "crates/spiketrack", "crates/st-gate", "crates/st-coreml"]
 
 [workspace.package]
 edition = "2021"
@@ -9,7 +9,7 @@ rust-version = "1.97"
 publish = false
 
 # Pre-existing libraries. metal-smoke branch: path dependencies on the ojas-st
-# worktree (detached at 8b88328, which is in ojas main), because ojas-metal
+# worktree (detached at ea3cf39, which is in ojas main), because ojas-metal
 # reaches tessl as a sibling path (../../tessl = ~/Code/research/tessl) and that
 # does not resolve from a git checkout of ojas.
 [workspace.dependencies]

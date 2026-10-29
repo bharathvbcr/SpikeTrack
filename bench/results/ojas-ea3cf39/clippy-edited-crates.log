@@ -1,0 +1,243 @@
+    Checking objc2-metal v0.3.2
+    Checking ojas-io v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-io)
+    Checking st-weights v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-weights)
+    Checking ojas-device v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-device)
+    Checking ojas-simd v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-simd)
+    Checking st-video v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-video)
+    Checking st-gate v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-gate)
+    Checking ojas-cpu v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-cpu)
+    Checking st-eval v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-eval)
+    Checking st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+    Checking tessl v0.2.0 (/Users/bharath/Code/research/tessl)
+error: using `chunks_exact` with a constant chunk size
+   --> crates/st-model/src/backbone.rs:323:24
+    |
+323 |     for pair in f.data.chunks_exact(2) {
+    |                        ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<2>().0`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+    = note: `-D clippy::chunks-exact-to-as-chunks` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::chunks_exact_to_as_chunks)]`
+
+error: this function has too many arguments (8/7)
+   --> crates/st-model/src/detector.rs:116:5
+    |
+116 |     fn fwd<B: Backend + ?Sized>(&self, be: &B, x: &Tensor, pos: &Tensor, prompt: &Tensor, memory: &Tensor, mem_keys: &Tensor, rpb: &Tensor) -> Result<Tensor, OjasError> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_arguments
+    = note: `-D clippy::too-many-arguments` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_arguments)]`
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/st-model/src/detector.rs:336:23
+    |
+336 |         for row in pm.chunks_exact(D) {
+    |                       ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<D>().0`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/st-model/src/detector.rs:345:35
+    |
+345 | ...   taps.scores.push(proj.chunks_exact(D).map(|r| (r.iter().zip(&pp).map(|(a, b)| a * b).sum::<f32>() * scale).clamp(-12.0, 12.0)...
+    |                             ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<D>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/st-model/src/detector.rs:390:23
+    |
+390 |         for b in refs.chunks_exact(4) {
+    |                       ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+  --> crates/st-model/src/host.rs:62:20
+   |
+62 |     for b in boxes.chunks_exact(4) {
+   |                    ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: very complex type used. Consider factoring parts into `type` definitions
+  --> crates/st-model/src/profile.rs:82:23
+   |
+82 |         let mut rows: BTreeMap<(&str, &str, &str), (usize, f64, u64, u64)> = BTreeMap::new();
+   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#type_complexity
+   = note: `-D clippy::type-complexity` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::type_complexity)]`
+
+error: this function has too many arguments (9/7)
+  --> crates/st-model/src/tracker/interactive.rs:66:5
+   |
+66 |     pub fn fwd<B: Backend + ?Sized>(&self, be: &B, image: &Tensor, image_pe: &Tensor, sparse: &[f32], n_sparse: usize, dense: &Tensor, s0: &Tensor, s1: &Tensor) -> Result<InteractiveOut, OjasError> {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_arguments
+
+error: manual implementation of `.is_multiple_of()`
+   --> crates/st-model/src/tracker/memory_attention.rs:111:27
+    |
+111 |         if m != mi + p || mi % TOKENS != 0 {
+    |                           ^^^^^^^^^^^^^^^^ help: replace with: `!mi.is_multiple_of(TOKENS)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#manual_is_multiple_of
+    = note: `-D clippy::manual-is-multiple-of` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_is_multiple_of)]`
+
+error: doc list item overindented
+  --> crates/st-model/src/tracker/session.rs:28:5
+   |
+28 | //!       becomes `where((det > 0) == (trk > 0), trk, det)`; the states holding the objects get
+   |     ^^^^^^ help: try using `   ` (3 spaces)
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#doc_overindented_list_items
+   = note: `-D clippy::doc-overindented-list-items` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::doc_overindented_list_items)]`
+
+error: doc list item overindented
+  --> crates/st-model/src/tracker/session.rs:29:5
+   |
+29 | //!       `add_new_masks(reconditioning=True)` on the detector mask at 1152 and a preflight;
+   |     ^^^^^^ help: try using `   ` (3 spaces)
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#doc_overindented_list_items
+
+error: doc list item overindented
+  --> crates/st-model/src/tracker/session.rs:32:5
+   |
+32 | //!       area-shrinkage suppression (`_suppress_object_pw_area_shrinkage` `VD:3324-3368`), the
+   |     ^^^^^^ help: try using `   ` (3 spaces)
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#doc_overindented_list_items
+
+error: doc list item overindented
+  --> crates/st-model/src/tracker/session.rs:33:5
+   |
+33 | //!       +-10 area-proxy scores, then each state encodes its own objects (found by id, the
+   |     ^^^^^^ help: try using `   ` (3 spaces)
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#doc_overindented_list_items
+
+error: doc list item overindented
+  --> crates/st-model/src/tracker/session.rs:34:5
+   |
+34 | //!       dynamic-multiplex routing of `:2535-2580`);
+   |     ^^^^^^ help: try using `   ` (3 spaces)
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#doc_overindented_list_items
+
+error: very complex type used. Consider factoring parts into `type` definitions
+   --> crates/st-model/src/tracker/session.rs:176:12
+    |
+176 |     items: Vec<(i64, Bitmask, f32, f32, Option<[f32; 4]>)>,
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#type_complexity
+
+error: the use of negated comparison operators on partially ordered types produces code that is hard to read and refactor, please consider using the `partial_cmp` method instead, to make it clear that the two values could be incomparable
+   --> crates/st-model/src/tracker/session.rs:236:16
+    |
+236 |             if !(ratio >= 0.3) {
+    |                ^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#neg_cmp_op_on_partial_ord
+    = note: `-D clippy::neg-cmp-op-on-partial-ord` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::neg_cmp_op_on_partial_ord)]`
+
+error: very complex type used. Consider factoring parts into `type` definitions
+   --> crates/st-model/src/tracker/session.rs:383:19
+    |
+383 | ...   let kept: Vec<&(i64, Bitmask, f32, f32, Option<[f32; 4]>)> = buf.items.iter().filter(|(id, m, _, _, _)| m.area() > 0 && !hidd...
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#type_complexity
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/st-model/src/tracker/session.rs:431:14
+    |
+431 |             .chunks_exact(4)
+    |              ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/st-model/src/tracker/session.rs:434:49
+    |
+434 |         let corners: Vec<[f32; 4]> = boxes_xyxy.chunks_exact(4).map(|b| [b[0], b[1], b[2], b[3]]).collect();
+    |                                                 ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: very complex type used. Consider factoring parts into `type` definitions
+   --> crates/st-model/src/tracker/session.rs:626:24
+    |
+626 |         let mut items: Vec<(i64, Bitmask, f32, f32, Option<[f32; 4]>)> = Vec::with_capacity(total);
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#type_complexity
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/st-model/src/tracker/state.rs:489:52
+    |
+489 |                 let shifted: Vec<f32> = pos_tokens.chunks_exact(D).flat_map(|r| r.iter().zip(te).map(|(a, b)| a + b)).collect();
+    |                                                    ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<D>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: very complex type used. Consider factoring parts into `type` definitions
+   --> crates/st-model/src/tracker/state.rs:681:89
+    |
+681 | ...InterPix, masks: &[f32], n: usize) -> Result<(Vec<f32>, Vec<bool>, Vec<f32>), ModelError> {
+    |                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#type_complexity
+
+error: the use of negated comparison operators on partially ordered types produces code that is hard to read and refactor, please consider using the `partial_cmp` method instead, to make it clear that the two values could be incomparable
+   --> crates/st-model/src/tracker/state.rs:709:16
+    |
+709 |             if !(io.object_score_logits[o] > 0.0) {
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#neg_cmp_op_on_partial_ord
+
+error: the use of negated comparison operators on partially ordered types produces code that is hard to read and refactor, please consider using the `partial_cmp` method instead, to make it clear that the two values could be incomparable
+   --> crates/st-model/src/tracker/state.rs:751:16
+    |
+751 |             if !(score > 0.0) {
+    |                ^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#neg_cmp_op_on_partial_ord
+
+error: manual `RangeInclusive::contains` implementation
+   --> crates/st-model/src/tracker/vos.rs:189:17
+    |
+189 |         assert!(n >= 1 && n <= MUX, "{n} objects: one bucket of at most {MUX} is wired");
+    |                 ^^^^^^^^^^^^^^^^^^ help: use: `(1..=MUX).contains(&n)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#manual_range_contains
+    = note: `-D clippy::manual-range-contains` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_range_contains)]`
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/st-model/src/tracker/vos.rs:354:43
+    |
+354 |             memory_pos.extend(maskmem_pos.chunks_exact(D).flat_map(|r| r.iter().zip(te).map(|(a, b)| a + b)));
+    |                                           ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<D>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/st-model/src/tracker/vos.rs:356:43
+    |
+356 |             mimage_pos.extend(m.image_pos.chunks_exact(D).flat_map(|r| r.iter().zip(te).map(|(a, b)| a + b)));
+    |                                           ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<D>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+
+error: could not compile `st-model` (lib) due to 27 previous errors
+warning: build failed, waiting for other jobs to finish...

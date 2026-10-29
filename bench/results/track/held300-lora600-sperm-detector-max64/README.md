@@ -1,5 +1,11 @@
 # `--max-objects 64` on the dense held-out videos
 
+**Superseded 2026-10-29.** Video 21 was capped too. It has 16 active tracks at frame 0 at cap 16, but
+its row here was copied from the cap-16 run. All five videos re-run at 64 score **0.4922** / DetA
+0.3734 / AssA 0.6903; video 21 alone moves, 0.6204 -> 0.6422
+(`../held300-lora600-sperm-detector-f32-max64`, `../../coreml-trunk/README.md`). The 0.4868 below is
+kept as the record of this run.
+
 Measured 2026-10-28, Metal, ojas cbd5565. Same setup as `../held300-lora600-sperm-detector`:
 300 frames per video, prompt "sperm", `--boxes detector`, LoRA `fixtures/lora_runs/visem-lora-r16`.
 The only change is `--max-objects 64` (upstream's builder default, which that run used, is 16).

@@ -11,6 +11,8 @@
 # SPIKETRACK_LORA=FILE names a detector adapter, which every video then runs with (`track --lora`).
 # SPIKETRACK_BOXES=mask|detector picks `track --boxes` (default mask, upstream's boxes).
 # SPIKETRACK_MAX_OBJECTS=N passes `track --max-objects N` (default 64, track's default; 16 is upstream's builder cap).
+# SPIKETRACK_TRUNK=P passes `track --trunk-precision P` (default: track's, coreml-fp32 on Metal since
+# 2026-10-29; f32 reruns the Ojas trunk, which made every held-out run before then).
 # usage: tools/locked.sh track-visem bash tools/jobs/track_visem.sh [N=300]       all videos, then eval
 #        tools/locked.sh track-visem-21 bash tools/jobs/track_visem.sh N 21 [ID...]  only those videos, no
 #            eval (one lock hold per video, so a long run leaves the shared lock to others in between)
@@ -47,6 +49,8 @@ if [ -n "${SPIKETRACK_LORA:-}" ]; then
   [ -f "$SPIKETRACK_LORA" ] || { echo "SPIKETRACK_LORA=$SPIKETRACK_LORA is not a file" >&2; exit 2; }
   LORA_ARGS=(--lora "$SPIKETRACK_LORA")
 fi
+TRUNK_ARGS=()
+[ -n "${SPIKETRACK_TRUNK:-}" ] && TRUNK_ARGS=(--trunk-precision "$SPIKETRACK_TRUNK")
 
 for p in "$SPIKETRACK_WEIGHTS" "$SPIKETRACK_MODEL_DIR" "$VISEM" "$SPLIT"; do
   [ -e "$p" ] || { echo "missing $p" >&2; exit 2; }
@@ -94,9 +98,9 @@ cargo build --release -p spiketrack 2>&1 | tail -5
 uptime
 failed=""
 for id in $IDS; do
-  echo "== video $id: first $N frames on Metal, --boxes $BOXES, --max-objects $MAX_OBJECTS, prompt $PROMPT${SPIKETRACK_LORA:+, LoRA $SPIKETRACK_LORA}"
+  echo "== video $id: first $N frames on Metal, --boxes $BOXES, --max-objects $MAX_OBJECTS, prompt $PROMPT${SPIKETRACK_LORA:+, LoRA $SPIKETRACK_LORA}${SPIKETRACK_TRUNK:+, trunk $SPIKETRACK_TRUNK}"
   # ${LORA_ARGS[@]+...}: bash 3.2 (macOS) treats an empty array as unbound under set -u.
-  /usr/bin/time -l "$BIN" track "$VISEM/$id/images" --prompt "$PROMPT" --backend metal --max-frames "$N" --boxes "$BOXES" --max-objects "$MAX_OBJECTS" --out "$OUT/run" ${LORA_ARGS[@]+"${LORA_ARGS[@]}"} 2>&1 | tee "$OUT/logs/$id.log"
+  /usr/bin/time -l "$BIN" track "$VISEM/$id/images" --prompt "$PROMPT" --backend metal --max-frames "$N" --boxes "$BOXES" --max-objects "$MAX_OBJECTS" --out "$OUT/run" ${LORA_ARGS[@]+"${LORA_ARGS[@]}"} ${TRUNK_ARGS[@]+"${TRUNK_ARGS[@]}"} 2>&1 | tee "$OUT/logs/$id.log"
   [ "${PIPESTATUS[0]}" -eq 0 ] || failed="$failed $id"
 done
 uptime

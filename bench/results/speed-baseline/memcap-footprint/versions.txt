@@ -1,0 +1,4 @@
+SpikeTrack-memcap on a9e9407 Mem-cap A/B: an 8 GiB allocated-between-waits cap makes every mode ~20-28% faster + throwaway.patch
+ojas 7fd9fc3 style(core): order the SAM policy re-export where rustfmt puts it
+tessl c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in
+18:45  up 2 days, 11:01, 1 user, load averages: 6.65 8.10 9.60

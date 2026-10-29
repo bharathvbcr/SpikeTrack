@@ -2,7 +2,9 @@
 
 SAM 3.1, Meta's Segment Anything with its Object Multiplex video tracker, built as one Rust binary
 with no Python at runtime. It runs on Apple Silicon through Ojas's Metal backend on tessl, or on
-Ojas's CPU backend. The evaluation is many-sperm tracking in VISEM-Tracking. Built for the Meta
+Ojas's CPU backend. On Metal, `track` runs the ViT trunk by default as a CoreML ML Program that we
+export from the checkpoint (`--trunk-precision coreml-fp32`). That makes the frame 0.80x and leaves
+the tracks unchanged. `--trunk-precision f32` keeps the whole model on Ojas/tessl. The evaluation is many-sperm tracking in VISEM-Tracking. Built for the Meta
 hackathon, Oct 26 to Nov 4, 2026.
 
 ![VISEM-Tracking video 22, frame 30: every sperm head tracked with its id](docs/figures/visem22-frame30-sperm-lora.png)
@@ -30,15 +32,18 @@ fp32 on CPU (tools/reference).
 | Detector LoRA (rank 16, 983k params, trained on this Mac), 120 frames of 5 held-out VISEM videos | sperm recall at IoU 0.5: prompt "sperm" 0.000 -> 0.761 (precision 0.584), "cell" 0.212 -> 0.576 at 0.5; absent VISEM classes now fire on 16% of items (was 0) | [lora](bench/results/lora) |
 | LoRA merged in Rust | merged tensors vs PyTorch max abs diff 1.5e-8 on the real checkpoint; `--lora` on `image` and `track` | [merge-parity.log](bench/results/lora/merge-parity.log) |
 | Tracking, first 300 frames of the 5 held-out VISEM videos (1,500 frames, 32,949 GT boxes) | HOTA 0.1549 zero-shot (prompt "cell", upstream boxes) -> **0.4695** with the adapter, prompt "sperm" and `--boxes detector` (DetA 0.051 -> 0.320, AssA 0.594 -> 0.725) | [zero-shot](bench/results/track/held300-zeroshot-cell-mask/eval.txt), [adapter](bench/results/track/held300-lora600-sperm-detector/eval.txt), [box-convention](bench/results/track/box-convention) |
+| ViT trunk as CoreML fp32 (the Metal default since 2026-10-29) against the Ojas trunk, 49 frames of VISEM 22 interleaved over 3 rounds, and the 1,500 held-out frames | trunk rel L2 vs upstream <= 2.7e-5; frame 0.80x (2.70 against 3.40 s, contended machine); same id sets on all 1,500 held-out frames and the same HOTA, 0.4922 at cap 64; model load +3-12 s | [coreml-trunk](bench/results/coreml-trunk) |
 | CoreML port on the same M5 Pro (the speed reference) | 0.272 s backbone + 0.0775 s track step per frame | [baselines](bench/results/baselines) |
 
 Not yet: the speed target (restated to parity-or-better with the CoreML port; we are ~6-8x behind
 on the tracker path today, see [profile-cbd5565](bench/results/profile-cbd5565)). Upstream caps
 tracking at 16 objects, and that cap was binding on the two dense held-out videos (27-46 sperm per
 frame). `track` therefore defaults to `--max-objects 64`; `--max-objects 16` is upstream's setting.
-At 64 the five-video HOTA rises to 0.4868: DetA goes up to 0.363 and AssA down to 0.695. The peaks
-were 28 and 24 active tracks ([max64](bench/results/track/held300-lora600-sperm-detector-max64)).
-The 0.4695 above was measured at 16. Open issues are in gaps.jsonl.
+At 64 the five-video HOTA rises to 0.4922: DetA goes up to 0.373 and AssA down to 0.690
+([f32-max64](bench/results/track/held300-lora600-sperm-detector-f32-max64)). An earlier cap-64 run
+reported 0.4868, but it had copied video 21's row from the cap-16 run, and video 21 is capped too
+([max64](bench/results/track/held300-lora600-sperm-detector-max64), superseded). The 0.4695 above was
+measured at 16, and it reproduces on the current binary. Open issues are in gaps.jsonl.
 
 VISEM's ground truth is sperm-head boxes, while upstream's track boxes are the extent of the
 whole-sperm mask, tail included, so zero-shot HOTA with upstream's boxes mostly measures that

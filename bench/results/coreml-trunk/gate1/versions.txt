@@ -1,0 +1,4 @@
+SpikeTrack 33ac33e E10 input: SAM 3.1's ViT trunk alone as a CoreML ML Program; fp32 0.9-1.2 s near-exact, fp16 0.25-0.29 s at 0.5-2% rel L2, dirty 6
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+tessl c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in
+ 8:55  up 3 days,  1:11, 1 user, load averages: 9.76 11.38 9.04

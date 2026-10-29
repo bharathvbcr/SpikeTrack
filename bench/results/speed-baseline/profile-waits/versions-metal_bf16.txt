@@ -1,0 +1,4 @@
+SpikeTrack: 0cfc740 SPEED_PLAN: results of E0-E6 so far
+ojas-st:    8b88328 Merge gp/78-attn-mpp: TensorOps flash cross-attention for D32 with no bias or lens (Lane A)
+tessl:      c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in (dirty files: 0)
+load:       17:51  up 2 days, 10:06, 1 user, load averages: 5.90 8.73 9.61

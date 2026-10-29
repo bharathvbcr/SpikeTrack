@@ -1,0 +1,508 @@
+    Finished `release` profile [optimized] target(s) in 1.03s
+     Running unittests src/main.rs (target/release/deps/spiketrack-eac0b68cd1f7f7e8)
+
+running 80 tests
+test cli::tests::help_skips_the_positional_count ... ok
+test cli::tests::a_required_option_is_required ... ok
+test cli::tests::options_in_both_spellings_and_positionals ... ok
+test eval_visem::tests::real_ground_truth_as_predictions_scores_one ... ignored, needs data/visem (VISEM-Tracking)
+test cli::tests::a_bad_number_names_the_option ... ok
+test cli::tests::usage_errors_name_the_problem ... ok
+test image_cmd::tests::backends_are_cpu_and_metal ... ok
+test eval_visem::tests::splits_are_parsed_strictly ... ok
+test image_cmd::tests::a_non_finite_number_is_an_error_not_a_null ... ok
+test eval_visem::tests::a_json_split_needs_a_named_list ... ok
+test eval_visem::tests::malformed_predictions_are_errors_with_a_location ... ok
+test image_cmd::tests::detections_json_parses_and_carries_every_field ... ok
+test image_cmd::tests::select_keeps_above_threshold_sorted_by_score_and_scales_boxes ... ok
+test image_cmd::tests::select_refuses_inconsistent_outputs ... ok
+test json::tests::numbers_must_be_finite ... ok
+test json::tests::strings_are_escaped_and_parse_back ... ok
+test mask::tests::downsampling_samples_without_antialiasing ... ok
+test mask::tests::identity_size_returns_the_logits ... ok
+test mask::tests::rle_is_column_major_and_starts_with_zeros ... ok
+test mask::tests::rle_of_an_empty_and_a_full_mask ... ok
+test mask::tests::rle_round_trips_a_resized_mask ... ok
+test mask::tests::upsampling_follows_the_align_corners_false_rule ... ok
+test overlay::tests::a_box_is_outlined_inside_the_image_and_clipped ... ok
+test overlay::tests::a_label_is_drawn_above_the_box_in_its_colour_on_a_dark_backing ... ok
+test overlay::tests::a_label_with_no_room_above_goes_inside_the_box_and_is_clipped_at_the_edge ... ok
+test overlay::tests::a_mask_is_tinted_toward_its_colour_and_the_rest_is_untouched ... ok
+test overlay::tests::every_digit_glyph_is_distinct_and_nonempty ... ok
+test png::tests::bad_sizes_are_errors ... ok
+test png::tests::checksums_match_their_published_check_values ... ok
+test png::tests::stored_blocks_split_at_65535_and_end_with_the_adler_sum ... ok
+test png::tests::the_empty_chunk_has_the_well_known_iend_crc ... ok
+test track_cmd::tests::a_gap_inside_the_window_is_an_error_but_one_outside_is_not ... ok
+test track_cmd::tests::a_track_runs_metal_backend_has_the_raised_memory_cap ... ignored, needs a Metal GPU
+test track_cmd::tests::a_stem_must_be_video_frame_number ... ok
+test track_cmd::tests::bad_command_lines_fail_before_any_model_work ... ok
+test track_cmd::tests::bisect_visem_22_mask_balloon ... ignored, needs a Metal GPU, the gated checkpoint, tokenizer files and fixtures/detect_track/22.safetensors
+test track_cmd::tests::a_bad_input_fails_before_the_weights_are_looked_for ... ok
+test track_cmd::tests::boxes_become_xyxy_and_degenerate_ones_are_widened_and_counted ... ok
+test track_cmd::tests::detector_boxes_replace_mask_boxes_where_assigned_and_are_clipped ... ok
+test track_cmd::tests::f16_rounding_is_nearest_even ... ok
+test track_cmd::tests::help_mentions_the_mp4_preprocessing_gap ... ok
+test track_cmd::tests::inconsistent_or_non_finite_frames_are_errors ... ok
+test track_cmd::tests::max_objects_defaults_to_64_and_the_help_says_so ... ok
+test track_cmd::tests::run_json_records_the_overlay_video_or_null ... ok
+test procinfo::tests::vm_counters_match_vm_stat ... ok
+test eval_visem::tests::a_missing_prediction_file_or_ground_truth_is_an_error ... ok
+test track_cmd::tests::the_default_metal_trunk_without_its_package_is_an_error_not_a_fallback ... ignored, needs the gated checkpoint, tokenizer files and data/visem
+test eval_visem::tests::prediction_frames_outside_the_ground_truth_are_counted_not_scored ... ok
+test track_cmd::tests::the_overlay_frame_rate_comes_from_the_option_then_the_input_then_the_folder_default ... ok
+test track_cmd::tests::the_model_input_is_resized_then_normalised_planar ... ok
+test track_cmd::tests::the_default_trunk_is_coreml_fp32_on_metal_and_the_ojas_trunk_on_cpu ... ok
+test png::tests::it_round_trips_through_imageio ... ok
+test track_cmd::tests::the_predictions_file_is_what_eval_visem_reads ... ok
+test eval_visem::tests::no_predictions_score_zero ... ok
+test track_cmd::tests::the_overlay_video_is_checked_before_any_model_work ... ok
+test procinfo::tests::the_footprint_is_read_and_grows_with_an_allocation ... ok
+test track_cmd::tests::folders_that_cannot_be_tracked_are_refused ... ok
+test track_cmd::tests::the_collector_writes_masks_and_overlays_and_numbers_frames_from_the_start ... ok
+test track_cmd::tests::frames_are_ordered_numerically_not_alphabetically ... ok
+test eval_visem::tests::a_window_scores_only_its_frames_and_must_fit ... ok
+test track_cmd::tests::a_collector_prediction_file_scores_one_against_matching_ground_truth ... ok
+test eval_visem::tests::an_id_swap_costs_association_but_not_detection ... ok
+test eval_visem::tests::ground_truth_as_predictions_scores_one ... ok
+test eval_visem::tests::two_videos_combine_and_the_table_and_json_render ... ok
+test track_cmd::tests::the_upstream_normalisation_is_hand_checked_at_a_few_samples ... ok
+test track_cmd::tests::the_window_starts_at_a_frame_number_and_stops_at_max ... ok
+test track_cmd::tests::upstream_input_matches_upstreams_loader_on_a_visem_frame ... ignored, needs fixtures/detect_track/11.safetensors, fixtures/decode/11_frame_0.rgb and data/visem
+test track_cmd::tests::visem_22_coreml_fp32_trunk_tracks_as_the_ojas_trunk ... ignored, needs the gated checkpoint, tokenizer files, data/visem, a Metal GPU and the exported CoreML fp32 trunk
+test track_cmd::tests::trunk_precision_parses_its_four_names_and_nothing_else ... ok
+test track_cmd::tests::visem_22_frames_0_to_7_on_metal ... ignored, needs the gated checkpoint, tokenizer files, data/visem and a Metal GPU
+test track_cmd::tests::visem_22_overlay_video_on_metal ... ignored, needs the gated checkpoint, tokenizer files, data/visem and a Metal GPU
+test weights::tests::a_missing_adapter_path_is_refused ... ok
+test weights::tests::lora_json_is_null_or_a_valid_object ... ok
+test track_cmd::tests::the_overlay_video_may_go_under_an_out_directory_that_does_not_exist_yet ... ok
+test weights::tests::a_malformed_adapter_fails_before_the_checkpoint_is_read ... ok
+test track_cmd::tests::a_video_for_other_frames_is_refused ... ok
+test track_cmd::tests::a_frame_released_out_of_order_or_without_its_image_is_an_error ... ok
+test track_cmd::tests::a_collector_dropped_mid_run_leaves_no_partial_video ... ok
+test track_cmd::tests::the_video_and_the_pngs_are_independent_and_render_the_same_pixels ... ok
+test track_cmd::tests::the_overlay_video_has_every_frame_in_order_and_the_collector_holds_only_unreleased_frames ... ok
+
+test result: ok. 72 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running unittests src/lib.rs (target/release/deps/st_coreml-330acb8580d7a3c0)
+
+running 4 tests
+test tests::contiguous_strides_are_row_major ... ok
+test tests::compiled_path_carries_the_hash_prefix ... ok
+test tests::load_refuses_a_missing_package ... ok
+test tests::package_hash_changes_with_content_and_path ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/trunk_parity.rs (target/release/deps/trunk_parity-0d919bb29b82936e)
+
+running 2 tests
+test coreml_fp16_trunk_and_ojas_necks_keep_d2 ... ignored, needs the gated checkpoint, fixtures and the exported CoreML trunk (see the module docs)
+test coreml_fp32_trunk_and_ojas_necks_match_upstream ... ignored, needs the gated checkpoint, fixtures and the exported CoreML trunk (see the module docs)
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/release/deps/st_eval-604c68db73973c7f)
+
+running 10 tests
+test visem::tests::frame_names ... ok
+test hota::tests::empty_tracker_scores_zero ... ok
+test jf::tests::identical_masks_score_one ... ok
+test visem::tests::parses_a_label_line ... ok
+test jf::tests::empty_cases_follow_upstream ... ok
+test visem::tests::refuses_bad_lines ... ok
+test assign::tests::refuses_nan - should panic ... ok
+test hota::tests::perfect_tracking_scores_one ... ok
+test hota::tests::id_switch_halves_association ... ok
+test assign::tests::matches_brute_force_on_random_rectangles ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/hota_parity.rs (target/release/deps/hota_parity-c1674448c4ed9d6b)
+
+running 1 test
+test matches_trackeval_per_alpha_on_synthetic_cases ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/jf_parity.rs (target/release/deps/jf_parity-42243b7f3a7e51be)
+
+running 1 test
+test matches_davis2017_evaluation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/visem_data.rs (target/release/deps/visem_data-571d910397b79908)
+
+running 1 test
+test loads_all_twenty_videos_with_track_ids ... ignored, needs the VISEM-Tracking data: set SPIKETRACK_VISEM
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/release/deps/st_gate-76b355ba936d4bba)
+
+running 28 tests
+test change_map::tests::a_reused_map_is_fully_overwritten ... ok
+test bits::tests::window_set_is_row_major_and_ordered ... ok
+test bits::tests::or_and_clear ... ok
+test bits::tests::set_get_count_across_word_boundaries ... ok
+test change_map::tests::the_last_row_and_column_of_patches_and_windows_map_correctly ... ok
+test change_map::tests::refuses_frames_that_do_not_fit ... ok
+test change_map::tests::tau_zero_is_exact_one_sample_one_level_flags_exactly_its_patch_and_window ... ok
+test change_map::tests::the_difference_is_absolute_so_brighter_and_darker_agree ... ok
+test change_map::tests::tau_255_never_fires_even_on_a_full_swing ... ok
+test change_map::tests::identical_frames_change_nothing_at_every_threshold ... ok
+test bits::tests::full_masks_the_tail_so_equality_is_canonical ... ok
+test bits::tests::an_index_past_the_end_panics_instead_of_vanishing - should panic ... ok
+test policy::tests::a_windows_decision_updates_only_those_windows_of_the_reference ... ok
+test change_map::tests::the_threshold_is_a_strict_mean_over_the_whole_patch ... ok
+test policy::tests::all_windows_changed_is_full_not_a_full_window_set ... ok
+test policy::tests::first_frame_is_full_then_an_identical_frame_is_reused ... ok
+test policy::tests::frame_policy_is_all_or_nothing ... ok
+test policy::tests::full_above_percent_caps_the_changed_windows ... ok
+test policy::tests::off_never_compares_and_is_always_full ... ok
+test policy::tests::refresh_every_forces_a_full_on_the_nth_frame_and_counts_from_it ... ok
+test policy::tests::reset_forgets_the_reference ... ok
+test policy::tests::reuse_patches_trades_exactness_for_skipping ... ok
+test policy::tests::same_stream_same_decisions ... ok
+test policy::tests::the_reference_is_the_frame_at_the_last_recompute_so_slow_drift_is_caught ... ok
+test policy::tests::windows_policy_names_exactly_the_changed_windows ... ok
+test policy::tests::wrong_sized_frames_are_errors_not_decisions ... ok
+test change_map::tests::matches_a_direct_implementation_on_random_sparse_changes ... ok
+test change_map::tests::sam3_geometry_on_a_real_size_frame ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/gating.rs (target/release/deps/gating-a7cb26e83288f35b)
+
+running 4 tests
+test exact_window_policy_walks_the_stream_as_designed ... ok
+test frame_policy_reuses_only_when_nothing_changed ... ok
+test change_map_cost_is_under_five_percent_of_the_fastest_possible_frame ... ok
+test two_runs_over_the_same_stream_give_identical_decisions_and_map_hashes ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/lib.rs (target/release/deps/st_model-d010940cefbf25ca)
+
+running 38 tests
+test host::tests::sine_map_first_pixel ... ok
+test host::tests::inverse_sigmoid_round_trips_inside_the_clamp ... ok
+test backbone::tests::stages_split_at_global_blocks ... ok
+test tracker::associate::tests::iom_is_intersection_over_the_smaller_area ... ok
+test tokenizer::tests::splits_like_the_upstream_regex ... ok
+test backbone::tests::stats_count_work_and_a_full_run_is_one ... ok
+test tracker::associate::tests::nms_suppresses_contained_lower_scores_and_drops_low_probs ... ok
+test tracker::associate::tests::boundary_margin_is_strict ... ok
+test tracker::associate::tests::unkept_detections_match_nothing ... ok
+test tracker::associate::tests::an_ambiguous_detection_is_assigned_to_no_track ... ok
+test tokenizer::tests::byte_alphabet_is_a_bijection ... ok
+test tracker::associate::tests::each_track_takes_its_best_scoring_assigned_detection ... ok
+test tracker::associate::tests::association_new_matched_and_ambiguous ... ok
+test tracker::bookkeeping::tests::hide_log_looks_two_frames_ahead_and_clamps ... ok
+test tracker::bookkeeping::tests::cap_keeps_the_top_scores_and_ids_follow_score_order ... ok
+test tokenizer::tests::cleaning ... ok
+test tracker::bookkeeping::tests::births_take_consecutive_ids_and_are_hidden_until_confirmed ... ok
+test tracker::bookkeeping::tests::yield_buffer_releases_after_delay_frames_and_flushes_at_the_end ... ok
+test tracker::bookkeeping::tests::periodic_recondition_pairs_unique_high_confidence_matches_gated_by_the_tracker_score ... ok
+test tracker::bookkeeping::tests::suppression_sees_the_reconditioned_mask ... ok
+test tracker::session::tests::a_single_object_is_untouched_and_an_empty_mask_scores_minus_ten ... ok
+test tracker::bookkeeping::tests::occlusion_updates_last_occluded_and_suppresses_in_the_plan ... ok
+test tracker::bookkeeping::tests::suppression_goes_to_the_more_recently_occluded_of_two_overlapping_tracks ... ok
+test tracker::session::tests::mask_boxes_are_inclusive_extents_normalized_with_no_plus_one ... ok
+test tracker::bookkeeping::tests::weak_double_overlap_counts_and_removes_the_younger_track_on_the_eighth_frame ... ok
+test tracker::bookkeeping::tests::unmatched_track_in_hotstart_is_removed_on_the_eighth_unmatched_frame ... ok
+test tracker::session::tests::shrinkage_suppression_clamps_an_object_that_keeps_under_30_percent_of_its_area ... ok
+test tracker::bookkeeping::tests::an_ambiguous_detection_does_not_count_as_a_duplicate_pair ... ok
+test tracker::state::tests::mux_and_demux_are_inverse_on_valid_slots ... ok
+test tracker::bookkeeping::tests::same_frame_twins_never_remove_each_other ... ok
+test tracker::bookkeeping::tests::unmatched_track_after_the_hotstart_window_is_never_removed ... ok
+test tracker::session::tests::device_bf16_rounding_equals_the_host_rounding_it_replaced ... ok
+test tracker::state::tests::removing_every_object_empties_the_state ... ok
+test tracker::state::tests::removal_marks_the_slot_removed_renumbers_and_slices_rows ... ok
+test tracker::state::tests::removing_the_last_object_with_an_input_on_the_conditioning_frame_wipes_the_state ... ok
+test tracker::state::tests::prune_drops_old_masks_and_frames_outside_the_window ... ok
+test backbone::tests::gather_and_scatter_refuse_wrong_shapes ... ok
+test backbone::tests::gather_matches_window_partition_and_scatter_inverts_it ... ok
+
+test result: ok. 38 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/assoc_parity.rs (target/release/deps/assoc_parity-fa2b86606e7866e4)
+
+running 1 test
+test matches_upstream_nms_boundary_and_association ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/backbone_parity.rs (target/release/deps/backbone_parity-ef5bd91994fb9cd6)
+
+running 4 tests
+test backbone_matches_pytorch_fp32_on_five_images ... ignored, needs the gated checkpoint and fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_FIXTURES
+test backbone_matches_pytorch_fp32_on_five_images_on_metal ... ignored, needs a Metal GPU, the gated checkpoint and fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_FIXTURES
+test backbone_matches_pytorch_fp32_on_five_images_on_metal_bf16 ... ignored, needs a Metal GPU, the gated checkpoint and fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_FIXTURES
+test vit_layer_norm_eps_matches_upstream ... ignored, needs the gated checkpoint and fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_FIXTURES
+
+test result: ok. 0 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/bookkeeping_parity.rs (target/release/deps/bookkeeping_parity-5f5ac87e1b954081)
+
+running 4 tests
+test sigmoid_gate_matches_torch_around_the_threshold ... ok
+test occlusion_iou_threshold_matches_torch_on_exact_ratios ... ok
+test birth_selection_matches_upstream_cap_order_and_ids ... ok
+test matches_upstream_planning_phase_and_yield_hiding ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/d3_gate.rs (target/release/deps/d3_gate-309ee451682a4f26)
+
+running 3 tests
+test image_mode_masks_match_upstream_on_20_visem_frames ... ignored, needs the gated checkpoint, tokenizer files and detector fixtures
+test image_mode_masks_match_upstream_on_20_visem_frames_on_metal ... ignored, needs a Metal GPU, the gated checkpoint, tokenizer files and detector fixtures
+test image_mode_masks_match_upstream_on_20_visem_frames_on_metal_bf16 ... ignored, needs a Metal GPU, the gated checkpoint, tokenizer files and detector fixtures
+
+test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/detect_track_parity.rs (target/release/deps/detect_track_parity-0800673d882c563c)
+
+running 4 tests
+test session_matches_upstream_on_metal ... ignored, needs a Metal GPU, the gated checkpoint, tokenizer files and the detect_track fixtures
+test session_matches_upstream_on_metal_at_the_track_mem_cap ... ignored, needs a Metal GPU, the gated checkpoint, tokenizer files and the detect_track fixtures
+test session_matches_upstream_on_visem_11 ... ignored, needs the gated checkpoint, tokenizer files and the detect_track fixtures
+test session_with_bf16_trunk_linears_matches_upstream_on_metal ... ignored, needs a Metal GPU, the gated checkpoint, tokenizer files and the detect_track fixtures
+
+test result: ok. 0 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/detector_parity.rs (target/release/deps/detector_parity-a607ad779d89c686)
+
+running 2 tests
+test detector_matches_upstream_stage_by_stage ... ignored, needs the gated checkpoint and detector fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_DETECTOR_FIXTURES
+test detector_matches_upstream_stage_by_stage_on_metal ... ignored, needs a Metal GPU, the gated checkpoint and detector fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_DETECTOR_FIXTURES
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/frame_profile.rs (target/release/deps/frame_profile-5529388800ccf4eb)
+
+running 4 tests
+test frame_profile_cpu ... ignored, needs the gated checkpoint, tokenizer files and the tracker fixture
+test frame_profile_metal ... ignored, needs a Metal GPU, the gated checkpoint, tokenizer files and the tracker fixture
+test frame_profile_metal_bf16 ... ignored, needs a Metal GPU, the gated checkpoint, tokenizer files and the tracker fixture
+test frame_profile_metal_bf16_linears ... ignored, needs a Metal GPU, the gated checkpoint, tokenizer files and the tracker fixture
+
+test result: ok. 0 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/gating_parity.rs (target/release/deps/gating_parity-da3bc6ec3425d7fc)
+
+running 4 tests
+test gated_trunk_exactness_on_real_frames_cpu_exact_numerics ... ignored, needs the gated checkpoint and VISEM frames: set SPIKETRACK_WEIGHTS
+test gated_trunk_exactness_on_real_frames_cpu_fast_numerics_reported ... ignored, needs the gated checkpoint and VISEM frames: set SPIKETRACK_WEIGHTS
+test policy_recompute_fraction_and_wall_time_on_ten_consecutive_visem_frames ... ignored, needs the gated checkpoint and VISEM frames: set SPIKETRACK_WEIGHTS
+test synthetic_gated_trunk_is_exact_where_designed_and_carries_where_approximate ... ok
+
+test result: ok. 1 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 11.67s
+
+     Running tests/text_parity.rs (target/release/deps/text_parity-7a54d529fa126f2e)
+
+running 3 tests
+test text_encoder_matches_upstream ... ignored, needs the gated checkpoint and text fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_TEXT_FIXTURES
+test text_encoder_matches_upstream_on_metal ... ignored, needs a Metal GPU, the gated checkpoint and text fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_TEXT_FIXTURES
+test tokenizer_matches_upstream_ids ... ignored, needs facebook/sam3.1 vocab.json and merges.txt: set SPIKETRACK_MODEL_DIR
+
+test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/tracker_parity.rs (target/release/deps/tracker_parity-969385f32cb40849)
+
+running 8 tests
+test interactive_decoder_matches_upstream_on_the_conditioning_frame ... ignored, needs the gated checkpoint and tracker fixtures
+test interactive_decoder_matches_upstream_on_the_conditioning_frame_on_metal ... ignored, needs a Metal GPU, the gated checkpoint and tracker fixtures
+test memory_attention_matches_upstream ... ignored, needs the gated checkpoint and tracker fixtures
+test memory_attention_matches_upstream_on_metal ... ignored, needs a Metal GPU, the gated checkpoint and tracker fixtures
+test memory_encoder_matches_upstream ... ignored, needs the gated checkpoint and tracker fixtures
+test memory_encoder_matches_upstream_on_metal ... ignored, needs a Metal GPU, the gated checkpoint and tracker fixtures
+test multiplex_mask_decoder_matches_upstream ... ignored, needs the gated checkpoint and tracker fixtures
+test multiplex_mask_decoder_matches_upstream_on_metal ... ignored, needs a Metal GPU, the gated checkpoint and tracker fixtures
+
+test result: ok. 0 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/vos_gate.rs (target/release/deps/vos_gate-8e41d55912568613)
+
+running 2 tests
+test vos_jf_within_two_points_of_upstream ... ignored, needs the gated checkpoint and VOS fixtures (tools/reference/dump_vos_frames.py)
+test vos_jf_within_two_points_of_upstream_on_metal ... ignored, needs a Metal GPU; needs the gated checkpoint and VOS fixtures (tools/reference/dump_vos_frames.py)
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/vos_stages.rs (target/release/deps/vos_stages-12e32302516095c0)
+
+running 2 tests
+test vos_driver_tracks_upstream_state_frame_by_frame ... ignored, needs the gated checkpoint and tracker fixtures
+test vos_driver_tracks_upstream_state_frame_by_frame_on_metal ... ignored, needs a Metal GPU; needs the gated checkpoint and tracker fixtures
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/release/deps/st_video-8d27cab118703607)
+
+running 35 tests
+test decode::tests::identity_is_a_no_op ... ok
+test decode::tests::four_clockwise_turns_return_the_image ... ok
+test decode::tests::png_chunk_check_finds_cuts ... ok
+test decode::tests::rgb_channels_stay_together_under_rotation ... ok
+test decode::tests::right_angle_transforms_are_recognised ... ok
+test decode::tests::rotate_180_and_flips ... ok
+test decode::tests::rotate_90_clockwise ... ok
+test encode::tests::the_format_checks_name_what_they_refuse ... ok
+test encode::tests::the_noop_block_has_the_layout_the_runtime_expects ... ok
+test jpeg::tests::extend_matches_the_standard_sign_extension ... ok
+test decode::tests::rotate_90_counter_clockwise ... ok
+test jpeg::tests::h1v2_fancy_uses_bias_1_above_and_2_below ... ok
+test jpeg::tests::a_code_that_is_not_in_the_table_is_an_error ... ok
+test jpeg::tests::h2v1_fancy_matches_hand_computation ... ok
+test jpeg::tests::absurd_sizes_are_refused_before_anything_is_allocated ... ok
+test jpeg::tests::colour_space_guess_follows_default_decompress_parms ... ok
+test jpeg::tests::every_unsupported_variant_is_refused_by_name ... ok
+test jpeg::tests::a_hand_assembled_grayscale_block_decodes_to_the_expected_flat_level ... ok
+test jpeg::tests::h2v2_fancy_matches_hand_computation ... ok
+test jpeg::tests::huffman_decodes_canonical_codes_short_and_long ... ok
+test jpeg::tests::huffman_table_validation ... ok
+test jpeg::tests::idct_shortcuts_equal_the_full_path_and_a_flat_block_is_flat ... ok
+test jpeg::tests::malformed_headers_are_errors_not_panics ... ok
+test jpeg::tests::malformed_tables_are_errors ... ok
+test jpeg::tests::missing_tables_are_errors ... ok
+test jpeg::tests::narrow_planes_fall_back_to_the_box_filter ... ok
+test jpeg::tests::natural_order_is_a_zigzag_permutation ... ok
+test jpeg::tests::the_bit_reader_stops_at_a_marker_and_counts_padding ... ok
+test jpeg::tests::the_hand_assembled_file_errors_when_cut_or_damaged ... ok
+test jpeg::tests::upsampler_dispatch_follows_jinit_upsampler ... ok
+test jpeg::tests::ycc_constants_are_fix_of_the_stated_coefficients ... ok
+test resize::tests::constant_image_stays_constant ... ok
+test jpeg::tests::the_post_idct_range_limit_matches_the_libjpeg_table ... ok
+test resize::tests::identity_size_is_a_copy ... ok
+test jpeg::tests::islow_idct_is_within_one_level_of_the_exact_transform_on_random_blocks ... ok
+
+test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/decode.rs (target/release/deps/decode-258be12c2221f88d)
+
+running 12 tests
+test a_video_with_rotation_metadata_is_delivered_upright ... ignored, needs fixtures/decode/rot90.mp4 (see this file's header for the ffmpeg command)
+test avfoundation_decodes_visem_video_11_and_is_compared_with_its_jpegs ... ignored, needs data/visem (VISEM-Tracking video 11)
+test decode_time_per_frame_native_against_imageio ... ignored, timing: needs data/visem and fixtures/decode; run in release
+test imageio_decode_against_pillow_on_visem_jpegs ... ignored, needs data/visem and fixtures/decode (tools/reference/decode_oracle.py)
+test pillow_exact_jpeg_decode_is_byte_identical_to_pillow_on_visem_frames ... ignored, needs data/visem and fixtures/decode (tools/reference/decode_oracle.py)
+test a_missing_file_is_an_io_error ... ok
+test a_damaged_jpeg_is_not_handed_to_imageio ... ok
+test a_synthetic_jpeg_decodes_upright_and_in_rgb_order ... ok
+test a_file_that_is_not_an_image_is_an_error ... ok
+test refused_jpeg_variants_and_other_formats_fall_back_to_imageio ... ok
+test a_file_that_is_not_a_video_is_an_error ... ok
+test every_truncated_prefix_of_a_jpeg_is_an_error ... ok
+
+test result: ok. 7 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests/encode.rs (target/release/deps/encode-0b44c27924feb91c)
+
+running 13 tests
+test an_odd_size_is_refused_and_nothing_is_created ... ok
+test a_bad_output_path_is_refused ... ok
+test an_unwritable_directory_is_an_error_not_a_panic ... ok
+test a_writer_with_no_frame_has_no_video ... ok
+test a_frame_of_another_size_or_a_short_pixel_vector_is_refused_and_the_writer_carries_on ... ok
+test the_smallest_accepted_size_is_written ... ok
+test an_existing_file_is_refused_unless_overwrite_is_asked_for ... ok
+test the_picture_is_upright_and_in_rgb_order ... ok
+test a_dropped_unfinished_writer_leaves_no_file_and_no_hang ... ok
+test a_writer_whose_output_disappears_reports_the_failure ... ok
+test a_fractional_frame_rate_is_stored_exactly_to_three_decimals ... ok
+test a_synthetic_clip_reads_back_with_its_frame_count_size_times_and_colours ... ok
+test a_clip_the_encoder_cannot_keep_up_with_is_written_in_full ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+
+     Running tests/jpeg_pillow.rs (target/release/deps/jpeg_pillow-19039d584b9d1038)
+
+running 4 tests
+test truncated_error_kinds_are_not_unsupported ... ok
+test every_case_is_byte_identical_to_pillow ... ok
+test every_proper_prefix_of_every_case_is_an_error ... ok
+test single_byte_corruption_never_panics ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.79s
+
+     Running tests/resize_parity.rs (target/release/deps/resize_parity-1fd21fbf48ab8d02)
+
+running 1 test
+test matches_pillow_bilinear_bit_for_bit ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/lib.rs (target/release/deps/st_weights-687a8272a4599119)
+
+running 10 tests
+test lora::tests::zero_b_is_the_identity_bit_for_bit ... ok
+test lora::tests::overflow_to_infinity_is_refused ... ok
+test lora::tests::missing_metadata_and_non_f32_are_refused ... ok
+test lora::tests::shape_mismatches_are_refused_without_changes ... ok
+test lora::tests::targets_found_across_several_maps ... ok
+test lora::tests::unknown_target_is_refused_and_nothing_changes ... ok
+test lora::tests::merge_matches_an_f64_reference_and_leaves_other_rows_alone ... ok
+test lora::tests::scale_is_alpha_over_rank ... ok
+test lora::tests::malformed_adapters_are_refused ... ok
+test lora::tests::open_reads_a_file ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/load.rs (target/release/deps/load-a193e2102b882679)
+
+running 3 tests
+test loads_full_checkpoint_and_claims_everything ... ignored, needs the gated checkpoint: set SPIKETRACK_WEIGHTS
+test refuses_wrong_shape_and_double_claim_and_leftovers ... ignored, needs the gated checkpoint: set SPIKETRACK_WEIGHTS
+test schema_claims_every_manifest_tensor_exactly_once ... ok
+
+test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/lora_merge.rs (target/release/deps/lora_merge-0281b3bbad89a368)
+
+running 3 tests
+test a_target_the_checkpoint_does_not_have_is_refused ... ignored, needs SPIKETRACK_WEIGHTS
+test adapter_applies_to_the_fully_loaded_checkpoint ... ignored, needs SPIKETRACK_WEIGHTS, fixtures/lora and about 4 GB of RAM
+test merged_tensors_match_pytorch_on_checkpoint_weights ... ignored, needs SPIKETRACK_WEIGHTS and fixtures/lora
+
+test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+   Doc-tests st_coreml
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests st_eval
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Doc-tests st_gate
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests st_model
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+   Doc-tests st_video
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests st_weights
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,30 @@
+round 1 f32: load { 15.39 15.33 12.11 }, GPU 80%
+round 1 f32: 3.3528 s/frame mean over 49 frames, 12 tracks, load 1.2 s, external None
+round 1 coreml-fp32: load { 12.33 14.02 12.12 }, GPU 92%
+round 1 coreml-fp32: 2.6496 s/frame mean over 49 frames, 12 tracks, load 12.7 s, external coreml sam3.1_trunk_fp32.mlpackage (cpu_and_gpu) sha256 826a25595acce9c8ab4e46b878c1233547dc09cb1af45279fe0b28fd571776bc
+round 1 coreml-fp16: load { 9.73 13.50 12.32 }, GPU 92%
+round 1 coreml-fp16: 1.8553 s/frame mean over 49 frames, 12 tracks, load 8.9 s, external coreml sam3.1_trunk_fp16.mlpackage (cpu_and_gpu) sha256 cabb997988e766451fd230bcb3e4e7803ea0bdbe441b7159b824cbbdb5249f33
+round 2 coreml-fp32: load { 12.53 13.75 12.57 }, GPU 88%
+round 2 coreml-fp32: 2.7445 s/frame mean over 49 frames, 12 tracks, load 9.0 s, external coreml sam3.1_trunk_fp32.mlpackage (cpu_and_gpu) sha256 826a25595acce9c8ab4e46b878c1233547dc09cb1af45279fe0b28fd571776bc
+round 2 coreml-fp16: load { 16.86 15.15 13.34 }, GPU 92%
+round 2 coreml-fp16: 1.9601 s/frame mean over 49 frames, 12 tracks, load 4.1 s, external coreml sam3.1_trunk_fp16.mlpackage (cpu_and_gpu) sha256 cabb997988e766451fd230bcb3e4e7803ea0bdbe441b7159b824cbbdb5249f33
+round 2 f32: load { 14.82 15.42 13.67 }, GPU 88%
+round 2 f32: 3.3649 s/frame mean over 49 frames, 12 tracks, load 0.6 s, external None
+round 3 coreml-fp16: load { 9.26 12.63 12.83 }, GPU 92%
+round 3 coreml-fp16: 1.8140 s/frame mean over 49 frames, 12 tracks, load 3.9 s, external coreml sam3.1_trunk_fp16.mlpackage (cpu_and_gpu) sha256 cabb997988e766451fd230bcb3e4e7803ea0bdbe441b7159b824cbbdb5249f33
+round 3 f32: load { 11.35 12.06 12.57 }, GPU 89%
+round 3 f32: 3.4746 s/frame mean over 49 frames, 12 tracks, load 0.7 s, external None
+round 3 coreml-fp32: load { 15.23 12.01 12.36 }, GPU 91%
+round 3 coreml-fp32: 2.7132 s/frame mean over 49 frames, 12 tracks, load 7.7 s, external coreml sam3.1_trunk_fp32.mlpackage (cpu_and_gpu) sha256 826a25595acce9c8ab4e46b878c1233547dc09cb1af45279fe0b28fd571776bc
+round 1: coreml-fp32 predictions differ from f32
+round 2: coreml-fp32 predictions differ from f32
+round 3: coreml-fp32 predictions differ from f32
+round 1: coreml-fp16 predictions differ from f32
+round 2: coreml-fp16 predictions differ from f32
+round 3: coreml-fp16 predictions differ from f32
+f32 rounds 1 and 2 byte-identical
+f32 rounds 1 and 3 byte-identical
+coreml-fp32 rounds 1 and 2 byte-identical
+coreml-fp32 rounds 1 and 3 byte-identical
+coreml-fp16 rounds 1 and 2 byte-identical
+coreml-fp16 rounds 1 and 3 byte-identical

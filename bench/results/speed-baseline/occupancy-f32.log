@@ -1,0 +1,20 @@
+model loaded in 0.4 s on metal; tracking 16 frame(s) of "22"
+frame 0 (1/16): 2.90 s, 11 active track(s), 0 frame(s) released; waits +62 (upload 3, read 24, mem_cap 29, freed 6), dispatches +6337, metal allocated 4388 MiB (frame peak 5802 MiB), footprint 10074 MiB, pageouts +9, swapins +0
+frame 1 (2/16): 2.96 s, 11 active track(s), 0 frame(s) released; waits +50 (upload 2, read 16, mem_cap 26, freed 6), dispatches +5243, metal allocated 4379 MiB (frame peak 5704 MiB), footprint 9952 MiB, pageouts +0, swapins +0
+frame 2 (3/16): 3.42 s, 12 active track(s), 0 frame(s) released; waits +59 (upload 3, read 22, mem_cap 28, freed 6), dispatches +5878, metal allocated 4403 MiB (frame peak 5866 MiB), footprint 9930 MiB, pageouts +0, swapins +0
+frame 3 (4/16): 3.05 s, 12 active track(s), 0 frame(s) released; waits +51 (upload 2, read 16, mem_cap 26, freed 7), dispatches +5235, metal allocated 4383 MiB (frame peak 5744 MiB), footprint 10102 MiB, pageouts +0, swapins +0
+frame 4 (5/16): 3.10 s, 12 active track(s), 0 frame(s) released; waits +51 (upload 2, read 16, mem_cap 27, freed 6), dispatches +5237, metal allocated 4380 MiB (frame peak 5744 MiB), footprint 10210 MiB, pageouts +1, swapins +0
+frame 5 (6/16): 3.21 s, 12 active track(s), 0 frame(s) released; waits +51 (upload 2, read 16, mem_cap 26, freed 7), dispatches +5239, metal allocated 4383 MiB (frame peak 5747 MiB), footprint 10339 MiB, pageouts +0, swapins +0
+frame 6 (7/16): 3.28 s, 12 active track(s), 0 frame(s) released; waits +51 (upload 1, read 16, mem_cap 27, freed 7), dispatches +5241, metal allocated 4382 MiB (frame peak 5745 MiB), footprint 10484 MiB, pageouts +0, swapins +0
+frame 7 (8/16): 3.25 s, 12 active track(s), 0 frame(s) released; waits +52 (upload 2, read 16, mem_cap 28, freed 6), dispatches +5243, metal allocated 4381 MiB (frame peak 5744 MiB), footprint 10655 MiB, pageouts +0, swapins +0
+frame 8 (9/16): 3.31 s, 12 active track(s), 0 frame(s) released; waits +52 (upload 2, read 16, mem_cap 28, freed 6), dispatches +5243, metal allocated 4382 MiB (frame peak 5743 MiB), footprint 10842 MiB, pageouts +0, swapins +0
+frame 9 (10/16): 3.31 s, 12 active track(s), 0 frame(s) released; waits +52 (upload 2, read 16, mem_cap 28, freed 6), dispatches +5243, metal allocated 4382 MiB (frame peak 5743 MiB), footprint 10821 MiB, pageouts +0, swapins +0
+frame 10 (11/16): 3.29 s, 12 active track(s), 0 frame(s) released; waits +52 (upload 2, read 16, mem_cap 28, freed 6), dispatches +5243, metal allocated 4382 MiB (frame peak 5743 MiB), footprint 10916 MiB, pageouts +0, swapins +0
+frame 11 (12/16): 3.23 s, 12 active track(s), 0 frame(s) released; waits +52 (upload 2, read 16, mem_cap 28, freed 6), dispatches +5243, metal allocated 4382 MiB (frame peak 5743 MiB), footprint 10712 MiB, pageouts +0, swapins +0
+frame 12 (13/16): 3.27 s, 12 active track(s), 0 frame(s) released; waits +52 (upload 2, read 16, mem_cap 28, freed 6), dispatches +5243, metal allocated 4382 MiB (frame peak 5743 MiB), footprint 10814 MiB, pageouts +0, swapins +0
+frame 13 (14/16): 3.27 s, 12 active track(s), 0 frame(s) released; waits +52 (upload 2, read 16, mem_cap 28, freed 6), dispatches +5243, metal allocated 4382 MiB (frame peak 5743 MiB), footprint 10869 MiB, pageouts +0, swapins +0
+frame 14 (15/16): 3.20 s, 12 active track(s), 1 frame(s) released; waits +52 (upload 2, read 16, mem_cap 28, freed 6), dispatches +5243, metal allocated 4382 MiB (frame peak 5743 MiB), footprint 10713 MiB, pageouts +0, swapins +0
+frame 15 (16/16): 3.35 s, 12 active track(s), 15 frame(s) released; waits +52 (upload 2, read 16, mem_cap 28, freed 6), dispatches +5243, metal allocated 4382 MiB (frame peak 5743 MiB), footprint 10486 MiB, pageouts +0, swapins +0
+16 frame(s) of "22" tracked on metal: 12 track(s) born, 3.21 s/frame (model, mean), 52.1 s total
+  bench/results/speed-baseline/occupancy-f32/22.json
+  bench/results/speed-baseline/occupancy-f32/22.run.json

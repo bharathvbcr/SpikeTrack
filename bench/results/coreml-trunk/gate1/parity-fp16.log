@@ -1,0 +1,69 @@
+    Finished `release` profile [optimized] target(s) in 0.04s
+     Running tests/trunk_parity.rs (target/release/deps/trunk_parity-3ea9dcad239d74e4)
+
+running 1 test
+test coreml_fp16_trunk_and_ojas_necks_keep_d2 ... [coreml-fp16] loaded in 5.28 s (compiled this run: true), sha256 cabb997988e766451fd230bcb3e4e7803ea0bdbe441b7159b824cbbdb5249f33
+
+| image | stage | cosine | rel L2 | max abs |
+|---|---|---|---|---|
+| visem_22_f0 | trunk | 0.9998570 | 1.691e-2 | 3.119e1 |
+| visem_22_f0 | convs[0] | 0.9999888 | 4.731e-3 | 1.189e-2 |
+| visem_22_f0 | convs[1] | 0.9999518 | 9.816e-3 | 1.098e0 |
+| visem_22_f0 | convs[2] | 0.9999410 | 1.086e-2 | 5.494e-1 |
+| visem_22_f0 | interactive_convs[0] | 0.9999721 | 7.465e-3 | 1.031e-1 |
+| visem_22_f0 | interactive_convs[1] | 0.9999345 | 1.145e-2 | 2.258e-1 |
+| visem_22_f0 | interactive_convs[2] | 0.9999476 | 1.024e-2 | 2.362e-1 |
+| visem_22_f0 | propagation_convs[0] | 0.9999856 | 5.366e-3 | 6.058e-2 |
+| visem_22_f0 | propagation_convs[1] | 0.9999708 | 7.645e-3 | 1.810e-1 |
+| visem_22_f0 | propagation_convs[2] | 0.9999520 | 9.801e-3 | 3.471e-1 |
+[coreml-fp16] visem_22_f0: trunk call 0.767 s (in-process, incl. download and upload)
+| visem_47_f300 | trunk | 0.9999849 | 5.491e-3 | 5.550e0 |
+| visem_47_f300 | convs[0] | 0.9999975 | 2.247e-3 | 5.278e-3 |
+| visem_47_f300 | convs[1] | 0.9999887 | 4.762e-3 | 3.333e-1 |
+| visem_47_f300 | convs[2] | 0.9999875 | 5.009e-3 | 1.683e-1 |
+| visem_47_f300 | interactive_convs[0] | 0.9999946 | 3.274e-3 | 2.117e-2 |
+| visem_47_f300 | interactive_convs[1] | 0.9999856 | 5.375e-3 | 5.990e-2 |
+| visem_47_f300 | interactive_convs[2] | 0.9999885 | 4.797e-3 | 7.159e-2 |
+| visem_47_f300 | propagation_convs[0] | 0.9999967 | 2.561e-3 | 2.519e-2 |
+| visem_47_f300 | propagation_convs[1] | 0.9999933 | 3.653e-3 | 4.381e-2 |
+| visem_47_f300 | propagation_convs[2] | 0.9999886 | 4.778e-3 | 9.697e-2 |
+[coreml-fp16] visem_47_f300: trunk call 0.333 s (in-process, incl. download and upload)
+| visem_82_f600 | trunk | 0.9997793 | 2.101e-2 | 5.174e1 |
+| visem_82_f600 | convs[0] | 0.9999866 | 5.181e-3 | 2.083e-2 |
+| visem_82_f600 | convs[1] | 0.9999527 | 9.725e-3 | 1.153e0 |
+| visem_82_f600 | convs[2] | 0.9999507 | 9.933e-3 | 6.417e-1 |
+| visem_82_f600 | interactive_convs[0] | 0.9999602 | 8.927e-3 | 2.337e-1 |
+| visem_82_f600 | interactive_convs[1] | 0.9999360 | 1.132e-2 | 3.882e-1 |
+| visem_82_f600 | interactive_convs[2] | 0.9999471 | 1.029e-2 | 4.088e-1 |
+| visem_82_f600 | propagation_convs[0] | 0.9999816 | 6.075e-3 | 1.145e-1 |
+| visem_82_f600 | propagation_convs[1] | 0.9999730 | 7.348e-3 | 1.712e-1 |
+| visem_82_f600 | propagation_convs[2] | 0.9999577 | 9.197e-3 | 3.998e-1 |
+[coreml-fp16] visem_82_f600: trunk call 0.327 s (in-process, incl. download and upload)
+| sam3_truck | trunk | 0.9998618 | 1.663e-2 | 2.955e1 |
+| sam3_truck | convs[0] | 0.9999897 | 4.543e-3 | 1.523e-2 |
+| sam3_truck | convs[1] | 0.9999543 | 9.560e-3 | 8.707e-1 |
+| sam3_truck | convs[2] | 0.9999210 | 1.257e-2 | 7.990e-1 |
+| sam3_truck | interactive_convs[0] | 0.9999728 | 7.379e-3 | 9.163e-2 |
+| sam3_truck | interactive_convs[1] | 0.9999206 | 1.261e-2 | 2.660e-1 |
+| sam3_truck | interactive_convs[2] | 0.9999425 | 1.073e-2 | 2.606e-1 |
+| sam3_truck | propagation_convs[0] | 0.9999872 | 5.058e-3 | 6.613e-2 |
+| sam3_truck | propagation_convs[1] | 0.9999633 | 8.571e-3 | 1.540e-1 |
+| sam3_truck | propagation_convs[2] | 0.9999492 | 1.008e-2 | 3.682e-1 |
+[coreml-fp16] sam3_truck: trunk call 0.405 s (in-process, incl. download and upload)
+| sam3_groceries | trunk | 0.9998918 | 1.471e-2 | 2.250e1 |
+| sam3_groceries | convs[0] | 0.9999884 | 4.811e-3 | 1.661e-2 |
+| sam3_groceries | convs[1] | 0.9999626 | 8.649e-3 | 8.851e-1 |
+| sam3_groceries | convs[2] | 0.9999500 | 1.001e-2 | 4.877e-1 |
+| sam3_groceries | interactive_convs[0] | 0.9999713 | 7.589e-3 | 6.801e-2 |
+| sam3_groceries | interactive_convs[1] | 0.9999417 | 1.080e-2 | 1.939e-1 |
+| sam3_groceries | interactive_convs[2] | 0.9999564 | 9.344e-3 | 1.860e-1 |
+| sam3_groceries | propagation_convs[0] | 0.9999839 | 5.678e-3 | 4.191e-2 |
+| sam3_groceries | propagation_convs[1] | 0.9999647 | 8.397e-3 | 9.803e-2 |
+| sam3_groceries | propagation_convs[2] | 0.9999596 | 8.993e-3 | 3.314e-1 |
+[coreml-fp16] sam3_groceries: trunk call 0.345 s (in-process, incl. download and upload)
+
+[coreml-fp16] worst cosine 0.9997793, worst rel L2 2.101e-2 over 5 images x 10 stages
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 16.97s
+

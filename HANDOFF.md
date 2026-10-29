@@ -12,6 +12,14 @@ The application promised: SAM 3.1 multiplex natively on Metal 4 tensor ops via O
 
 **Speed target restated (2026-10-27, Bharath):** parity-or-better with the CoreML port on the tracker path at 16 objects, leading with what that port cannot do: text-prompted detection with births and stable IDs, upstream-exact parity on CPU and Metal, a single binary with no Python, and LoRA domain adaptation.
 
+**Trunk default changed (2026-10-29, owner's call, E10 in docs/SPEED_PLAN.md):** on `--backend
+metal`, `track` runs the ViT trunk as a CoreML fp32 ML Program that we export from the checkpoint
+(`tools/baselines/coreml_trunk.py`). The frame is 0.80x, with the same id sets on all 1,500 held-out
+frames and the same HOTA, 0.4922 at cap 64. With the default, the trunk is Apple's CoreML, not
+Ojas/tessl. The necks, text encoder, detector and tracker still run on Ojas. `--trunk-precision f32`
+is the all-Ojas path, and `--backend cpu` keeps it as the parity oracle. Say this plainly in every
+write-up that leads with Ojas/tessl.
+
 ## 2. Why it is new (keep this framing in every write-up)
 
 - A pure-Rust SAM 3 exists (`rlx-sam3`, crates.io, v0.2.11 2026-07-06) but states **"SAM 3.1 multiplex is intentionally out of scope"** [V].

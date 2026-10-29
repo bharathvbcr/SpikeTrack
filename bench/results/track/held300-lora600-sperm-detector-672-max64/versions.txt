@@ -1,0 +1,4 @@
+SpikeTrack-e7 45e5d63 672 gate also checks the sine position maps against upstream's; gate logs rerun at the tightened RoPE bound
+ojas-st 8b88328 Merge gp/78-attn-mpp: TensorOps flash cross-attention for D32 with no bias or lens (Lane A)
+tessl c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in
+19:25  up 2 days, 11:40, 1 user, load averages: 11.46 10.52 11.10

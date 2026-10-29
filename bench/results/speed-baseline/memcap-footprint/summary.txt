@@ -1,0 +1,9 @@
+1-budget24-capdefault.log    det 2421 tr [2159, 2246, 3080] mean 2495 waits 387           peak footprint 11.01 GiB
+2-budget24-cap2g.log         det 2806 tr [2389, 2484, 4055] mean 2976 waits 236           peak footprint 12.00 GiB
+3-budget24-cap4g.log         det 2238 tr [1947, 2036, 2231] mean 2071 waits 149           peak footprint 13.99 GiB
+4-budget24-cap8g.log         det 2395 tr [1881, 1867, 2290] mean 2013 waits 119           peak footprint 15.86 GiB
+5-budget24-cap8g.log         det 2111 tr [1738, 1860, 2179] mean 1926 waits 119           peak footprint 15.80 GiB
+6-budget24-cap4g.log         det 2220 tr [1874, 2002, 2114] mean 1997 waits 149           peak footprint 14.01 GiB
+7-budget24-cap2g.log         det 2369 tr [2091, 2165, 2355] mean 2204 waits 236           peak footprint 11.81 GiB
+8-budget24-capdefault.log    det 2387 tr [2131, 2277, 2421] mean 2276 waits 387           peak footprint 11.01 GiB
+9-budget3-capdefault.log     FAILED                                                       peak footprint 6.66 GiB
