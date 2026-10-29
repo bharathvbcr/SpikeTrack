@@ -1,0 +1,4 @@
+SpikeTrack 4a13c09 Ojas pin 8b88328 -> ea3cf39; spiketrack track sets a 4 GiB Metal memory cap and records it in run.json, dirty 0
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+tessl c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in
+ 1:51  up 2 days, 18:06, 1 user, load averages: 2.88 3.48 3.57

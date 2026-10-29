@@ -1,0 +1,31 @@
+    Finished `release` profile [optimized] target(s) in 0.99s
+     Running unittests src/main.rs (target/release/deps/spiketrack-78272286d371a522)
+
+running 2 tests
+test track_cmd::tests::a_track_runs_metal_backend_has_the_raised_memory_cap ... ok
+test track_cmd::tests::visem_22_frames_0_to_7_on_metal ... model loaded in 0.4 s on metal; tracking 8 frame(s) of "22"
+frame 0 (1/8): 3.45 s, 19 active track(s), 0 frame(s) released; waits +49 (upload 3, read 40, mem_cap 6), dispatches +7427, metal allocated 4415 MiB (frame peak 7871 MiB), footprint 10238 MiB, pageouts +0, swapins +0
+frame 1 (2/8): 2.84 s, 19 active track(s), 0 frame(s) released; waits +29 (upload 3, read 20, mem_cap 6), dispatches +6284, metal allocated 4395 MiB (frame peak 8842 MiB), footprint 10304 MiB, pageouts +0, swapins +0
+frame 2 (3/8): 2.99 s, 19 active track(s), 0 frame(s) released; waits +29 (upload 3, read 20, mem_cap 6), dispatches +6288, metal allocated 4396 MiB (frame peak 8842 MiB), footprint 10334 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 2.95 s, 19 active track(s), 0 frame(s) released; waits +29 (upload 3, read 20, mem_cap 6), dispatches +6268, metal allocated 4396 MiB (frame peak 8842 MiB), footprint 10585 MiB, pageouts +0, swapins +0
+frame 4 (5/8): 3.33 s, 20 active track(s), 0 frame(s) released; waits +36 (upload 4, read 26, mem_cap 6), dispatches +6905, metal allocated 4418 MiB (frame peak 8842 MiB), footprint 10854 MiB, pageouts +0, swapins +0
+frame 5 (6/8): 3.20 s, 20 active track(s), 0 frame(s) released; waits +29 (upload 3, read 20, mem_cap 6), dispatches +6276, metal allocated 4395 MiB (frame peak 8842 MiB), footprint 11189 MiB, pageouts +0, swapins +0
+frame 6 (7/8): 3.25 s, 20 active track(s), 0 frame(s) released; waits +29 (upload 3, read 20, mem_cap 6), dispatches +6280, metal allocated 4395 MiB (frame peak 8845 MiB), footprint 11242 MiB, pageouts +0, swapins +0
+frame 7 (8/8): 3.44 s, 17 active track(s), 8 frame(s) released; waits +29 (upload 3, read 20, mem_cap 6), dispatches +6284, metal allocated 4400 MiB (frame peak 8845 MiB), footprint 10405 MiB, pageouts +0, swapins +0
+8 frame(s) of "22" tracked on metal: 18 track(s) born, 3.18 s/frame (model, mean), 26.0 s total
+  /var/folders/wl/qc_0nnp91cd5kfy179krkjxr0000gn/T/spiketrack-track-visem22-93439/22.json
+  /var/folders/wl/qc_0nnp91cd5kfy179krkjxr0000gn/T/spiketrack-track-visem22-93439/22.run.json
+frame 0: 15 objects
+frame 1: 15 objects
+frame 2: 15 objects
+frame 3: 15 objects
+frame 4: 15 objects
+frame 5: 18 objects
+frame 6: 18 objects
+frame 7: 18 objects
+ids in frame 0: 15, still present in frame 7: 15
+HOTA on frames 0..8 of video 22: 0.0551
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 74 filtered out; finished in 26.66s
+

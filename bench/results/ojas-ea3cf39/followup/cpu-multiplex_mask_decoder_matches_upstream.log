@@ -1,0 +1,41 @@
+    Finished `release` profile [optimized] target(s) in 0.89s
+     Running tests/tracker_parity.rs (target/release/deps/tracker_parity-969385f32cb40849)
+
+running 1 test
+test multiplex_mask_decoder_matches_upstream ... [CPU]
+| frame | output | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|
+| 1 | masks | 1.0000000 | 3.643e-4 | 9.304e-6 |
+| 1 | iou_pred | 1.0000000 | 2.069e-4 | 5.333e-6 |
+| 1 | object_score_logits | 1.0000000 | 2.241e-5 | 1.639e-6 |
+| 1 | sam_tokens | 1.0000000 | 9.632e-5 | 8.209e-6 |
+| 2 | masks | 1.0000000 | 3.891e-4 | 9.910e-6 |
+| 2 | iou_pred | 1.0000000 | 1.526e-4 | 3.683e-6 |
+| 2 | object_score_logits | 1.0000000 | 1.335e-5 | 1.014e-6 |
+| 2 | sam_tokens | 1.0000000 | 7.725e-5 | 6.466e-6 |
+| 3 | masks | 1.0000000 | 3.891e-4 | 1.024e-5 |
+| 3 | iou_pred | 1.0000000 | 3.872e-4 | 9.043e-6 |
+| 3 | object_score_logits | 1.0000000 | 2.789e-5 | 2.217e-6 |
+| 3 | sam_tokens | 1.0000000 | 1.059e-4 | 8.722e-6 |
+| 4 | masks | 1.0000000 | 4.425e-4 | 1.108e-5 |
+| 4 | iou_pred | 1.0000000 | 1.850e-4 | 4.418e-6 |
+| 4 | object_score_logits | 1.0000000 | 2.789e-5 | 2.272e-6 |
+| 4 | sam_tokens | 1.0000000 | 9.727e-5 | 7.985e-6 |
+| 5 | masks | 1.0000000 | 3.033e-4 | 7.887e-6 |
+| 5 | iou_pred | 1.0000000 | 2.012e-4 | 4.852e-6 |
+| 5 | object_score_logits | 1.0000000 | 1.740e-5 | 1.449e-6 |
+| 5 | sam_tokens | 1.0000000 | 8.202e-5 | 6.671e-6 |
+| 6 | masks | 1.0000000 | 2.670e-4 | 7.060e-6 |
+| 6 | iou_pred | 1.0000000 | 1.602e-4 | 4.194e-6 |
+| 6 | object_score_logits | 1.0000000 | 1.383e-5 | 1.179e-6 |
+| 6 | sam_tokens | 1.0000000 | 8.583e-5 | 6.925e-6 |
+| 7 | masks | 1.0000000 | 2.060e-4 | 5.527e-6 |
+| 7 | iou_pred | 1.0000000 | 2.460e-4 | 6.543e-6 |
+| 7 | object_score_logits | 1.0000000 | 2.074e-5 | 1.854e-6 |
+| 7 | sam_tokens | 1.0000000 | 8.965e-5 | 7.091e-6 |
+
+mask decoder worst cosine 1.0000000
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.88s
+

@@ -17,13 +17,13 @@ What changes in SpikeTrack:
 |---|---|
 | build (release, workspace, tests and bins) | ok (one pre-existing dead-code warning: `eval_visem::evaluate`) |
 | workspace unit tests | ok, 0 failed (`unit-tests.log`) |
-| `a_track_runs_metal_backend_has_the_raised_memory_cap` (GPU) | ok: ojas opens at 1 GiB, `open_metal` reports 4 GiB |
+| `a_track_runs_metal_backend_has_the_raised_memory_cap` (GPU) | ok: ojas opens at 1 GiB, `open_metal` reports 4 GiB. It does not depend on test order: each `MetalBackend::new` spawns its own device thread (ojas backend.rs:204-210), and `set_mem_cap` sets that thread's book (device.rs:1419-1421). The test also passes in one process with the smoke test (`followup/cap-after-smoke.log`; libtest ran it first by name) |
 | `visem_22_frames_0_to_7_on_metal` (GPU, now also asserts `metal_mem_cap_bytes`) | ok |
 | session parity VISEM 22, Metal, ojas's default cap | 0 id-set misses, mean mask IoU 0.99855 over 470 pairs (8b88328: 0.99855) |
 | session parity VISEM 22, Metal, 4 GiB cap (new test) | 0 id-set misses, mean mask IoU 0.99855 over 470 pairs |
 | Metal module gates: text, backbone, the four tracker modules | ok |
 | Metal detector gate | not run: `fixtures/detector` is not on disk (GAP-FIXTURES-DELETED-FOR-DISK) |
-| CPU gates | not run; production is Metal. The range touches the CPU softmax row kernel (8cb6c5d, 82d8c2c) |
+| CPU text and four tracker-module gates (run after the commit, `followup/`) | ok. The range changed the CPU softmax row kernel (8cb6c5d, 82d8c2c); `memory_attention_matches_upstream` exercises it. CPU backbone and session parity were not rerun |
 | `cargo fmt --check` | fails across the whole repo (1192 hunks in files this change does not touch). SpikeTrack has never been rustfmt-clean and no tool runs fmt. Recorded, not gated |
 | clippy `-D warnings` | cannot lint this change: `st-video` and `st-model` fail on lints new in clippy 1.99 (`chunks_exact_to_as_chunks`, `too_many_arguments`, ...), none in changed lines (`clippy*.log`, GAP-CLIPPY-199) |
 
@@ -48,6 +48,11 @@ What changes in SpikeTrack:
 - Load was 2.7-4.0 and the GPU was 75-92% busy before each arm, including other sessions' work.
 - The gain is smaller than the frame profile's ~0.87x at 4 GiB. That profile timed the tracker frames of a 4-frame
   judo clip; this run is a whole tracking run with 12 tracks. The difference is not decomposed.
+- Memory, from the per-frame telemetry, old -> new. These numbers are the same in all three rounds of each arm.
+  - Peak process footprint: 10.89 -> 11.51 GiB (+0.6 GiB). That is far under the 28 GiB budget and the
+    mac_heavy footprint guard.
+  - Peak Metal allocation within a frame: 5.9 -> 8.8 GiB.
+  - Median waited commits per frame: 52 -> 24.
 - Predictions (`22.json`) are byte-identical between old and new in all three rounds, and across the three new
   rounds. Neither the bump nor the cap changes what is tracked on this clip.
 
