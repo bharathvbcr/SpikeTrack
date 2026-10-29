@@ -91,9 +91,15 @@ upstream to cosine 0.99995 [V], so it is not exact either.
 - E7 [V, refuted at the gate]: on `speed/e7-geometry` (45e5d63) the 672 trunk + necks match upstream
   at 672 (cosine 1.0000000), and 1008 is byte-identical to before. Held-out HOTA at 672 with the
   1008-trained LoRA is 0.4645 at cap 64 and 0.4479 at cap 16, against 0.4868 / 0.4695 at 1008
-  (gate 0.47). DetA holds, AssA falls (0.69 -> 0.62); videos 47 and 21 carry most of it. The runs
-  are ~2.3-2.5x faster per frame (`bench/results/track/held300-lora600-sperm-detector-672-max64`).
-  The branch is not merged. Whether a 672-trained LoRA closes the gap is untested.
+  (gate 0.47). DetA holds; AssA falls (0.69 -> 0.62) and LocA falls on all five videos; videos 47
+  and 21 carry most of it (`bench/results/track/held300-lora600-sperm-detector-672-max64`). Speed:
+  the paired 8-frame smoke on the branch is 2.27x (1008 3.10 / 3.02 s/frame, 672 1.36 / 1.34); the
+  held-out runs look faster still, but they are unpaired against the 1008 runs.
+  Fable's ruling: no `--fast` 672, no 672 LoRA retrain this week (DetA, the part an adapter would
+  most plausibly fix, did not drop), and the branch stays parked unmerged. Its only tested
+  non-default size fails the gate, and `image`, GatedStats flops and the 192² threshold
+  calibration still assume 1008. It reopens if the owner changes the gate or a 672-trained
+  adapter is scheduled. It is the largest single speed lever found.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 
