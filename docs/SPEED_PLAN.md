@@ -83,9 +83,11 @@ upstream to cosine 0.99995 [V], so it is not exact either.
   cap raised, bf16 trunk linears are still level with f32: the cap is not what hides bf16's gain.
 - Fable's ruling (via ojas-78): ojas's default cap stays; SpikeTrack sets its own (4 GiB).
   Owner, 2026-10-28: promote `set_mem_cap` to public API (ojas-78), and bump SpikeTrack's ojas pin
-  once, to an ojas main that has both it and the O1 bf16-weight slice. Then SpikeTrack sets the
-  cap at startup, records it in run.json, and loads the trunk linear weights as resident
-  `DType::Bf16` for the bf16 path, re-verified together.
+  once, to an ojas main that has it (Lane M: the plan set-aside and the promotion). Then SpikeTrack
+  sets the cap at startup and records it in run.json, re-verified. Not `DType::Bf16` weights: a
+  Bf16-dtype operand is never bf16-exact, so it takes the exact-f32 lane after a widen (ojas-78,
+  link.rs:202-208); `with_trunk_linears_bf16` already pre-casts the weights to f32-stored
+  bf16-exact once at load, which is the right form. The O1 ojas weight slice is not needed.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 
