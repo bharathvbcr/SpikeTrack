@@ -57,6 +57,8 @@ upstream to cosine 0.99995 [V], so it is not exact either.
 | E9 | bf16 trunk as `--fast` once E1-E4 land | SpikeTrack | trunk <= 500 ms | D3 or session gate fails |
 | E10 | the ViT trunk as a CoreML ML Program (`--trunk-precision coreml-fp32 / coreml-fp16`); necks, detector and tracker stay on Ojas | SpikeTrack | fp32: frame <= 0.90x of the ea3cf39 main with the same tracks; fp16: frame <= 0.70x | fp32: frame > 0.95x, or any stage's rel L2 >= 1e-4, or VISEM 22 ids differ from the Ojas trunk on 8 frames. fp16 as `--fast`: held-out HOTA below 0.47 at cap 64 or 16, or more than 0.005 below the f32 run at the same cap (0.4868 / 0.4695) |
 
+| E11 | profile the production frame with the CoreML fp32 trunk (`track --profile stages\|ops`), VISEM 22 (one tracker state) and 82 (two), 16 frames, cap 64 | SpikeTrack | names the next lever: trunk >= 40% of the steady frame means the trunk is still it (fp16 is refuted, so not "use fp16"); tracker states >= 40% on 82 means the tracker is | the stage table is read literally only if its in-Session sum is within 10% of the unprofiled controls' push_frame time; predictions with the marker must be byte-identical to the controls' |
+
 ## Results so far (2026-10-28, ojas 8b88328, tessl c9adc87; contended machine, load recorded)
 
 - E0 [V]: CoreML backbone 0.2715 s on CPU_AND_GPU, 0.2754 s on ALL (stays on the GPU), 1.41 s on
@@ -160,6 +162,16 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     0.47 floor and 0.0057 under f32. One near-threshold detection on video 21's first frame drops
     under fp16, and that renumbers the whole video. `--trunk-precision coreml-fp16` stays an explicit,
     unrecommended flag.
+- E11 [V, `bench/results/profile-coreml`]: the profile is valid. Its stage sums are within 1.1% of
+  the unprofiled controls, and predictions are byte-identical with the marker on.
+  - Steady frames: trunk 925 / 928 ms (38.5% on 22, 32.0% on 82); detector neck + detector 786 / 821
+    (32.7% / 28.3%); tracker states 344 on 22, and 337 + 284 on 82 (21.4%); memory encode 158 / 258;
+    propagation neck ~140.
+  - Neither pre-stated reading holds: no stage reaches 40%.
+  - ~610 ms per frame on 82 is not backend op time [I]: host reads of large tensors and host loops.
+    These are the detector's 66 MB `pred_masks` readback, memory encode's 1152 x 1152 masks, and the
+    tracker states' outputs.
+  - Next: which experiment to take goes to Fable.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

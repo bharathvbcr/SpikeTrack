@@ -93,6 +93,8 @@ use crate::mask::Rle;
 use crate::overlay::{self, Drawn};
 use crate::png;
 use crate::procinfo::{phys_footprint_bytes, vm_pageouts_swapins};
+use crate::track_profile::{self, OpsLabels, ProfileMode, StageClock, StageSink};
+use st_model::profile::Profiled;
 use crate::weights::{self, lora_json};
 
 /// `--max-objects` when not given. Upstream's builder caps tracking at 16, which bounds the dense
@@ -106,7 +108,7 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
                  [--video ID] [--boxes mask|detector] [--weights FILE]
                  [--lora FILE] [--model-dir DIR] [--threads N] [--trim-pool-every K]
                  [--trunk-precision f32|bf16-linears|coreml-fp32|coreml-fp16] [--max-objects N]
-                 [--input-size N]
+                 [--input-size N] [--profile stages|ops]
 
   Tracks every instance of <text> through a video with SAM 3.1's multiplex tracker, forward
   from the first frame processed. <input> is a folder of <video>_frame_<n>.jpg frames
@@ -138,6 +140,11 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
   --threads N       CPU worker threads for --backend cpu, 1 to 256 (default 8)
   --trim-pool-every K  diagnostic, --backend metal only: hand Ojas's cached free buffers back to
                     the device after every K-th frame (MetalBackend::trim_pool)
+  --profile MODE    diagnostic, --backend metal only (not with bf16-linears): break each frame
+                    down by stage (trunk, detector, each tracker state, memory, births, outputs,
+                    decode, collector) into <out>/<video>.profile-<MODE>.md. stages: wall time
+                    per stage, the device synced as each begins (frame times grow a little);
+                    ops: every backend op timed and synced (much slower). Frame 0 is apart.
   --max-objects N   most objects tracked at once, 1 to 128 (default 64; upstream's builder uses
                     16 and its class allows 128). Above 16 new objects fill extra tracker states
                     16 at a time, which costs one more tracker step per state per frame and is not
@@ -762,6 +769,8 @@ struct Options {
     max_objects: usize,
     /// `--input-size`, validated: the model's token grid and every size derived from it.
     geometry: Geometry,
+    /// `--profile`.
+    profile: Option<ProfileMode>,
 }
 
 /// `--trunk-precision`: what computes the ViT trunk.
@@ -943,6 +952,7 @@ fn track_on<B: Backend>(
     opts: &Options,
     collector: &mut Collector,
     telemetry: &mut dyn FrameTelemetry<B>,
+    profile: Option<&dyn StageSink>,
 ) -> Result<Timing, CliError> {
     let t_load = Instant::now();
     let backbone = match opts.trunk {
@@ -977,13 +987,20 @@ fn track_on<B: Backend>(
     let mut cfg = SessionConfig::new(stream.len, stream.height, stream.width);
     cfg.book.max_num_objects = opts.max_objects;
     let mut session = Session::new(&vos, &detector, prompt, cfg);
+    if let Some(p) = profile {
+        session.set_stage_marker(move |stage| p.enter(stage));
+    }
     let load_seconds = t_load.elapsed().as_secs_f64();
     println!("model loaded in {load_seconds:.1} s on {}; tracking {} frame(s) of {:?}", opts.backend.name(), stream.len, stream.video);
 
     let side = opts.geometry.pixels();
     let mut frame_seconds = Vec::with_capacity(stream.len);
     let mut index = 0usize;
-    while let Some((n, image)) = stream.next_frame()? {
+    loop {
+        if let Some(p) = profile {
+            p.enter(track_profile::DECODE);
+        }
+        let Some((n, image)) = stream.next_frame()? else { break };
         let input = upstream_input(&image, side);
         let tensor = Tensor::from_f32(&input, &[1, 3, side, side], be.budget()).map_err(CliError::from_err)?;
         let device = be.upload(&tensor).map_err(CliError::from_err)?;
@@ -993,10 +1010,16 @@ fn track_on<B: Backend>(
         be.sync().map_err(CliError::from_err)?;
         let secs = t0.elapsed().as_secs_f64();
         frame_seconds.push(secs);
+        if let Some(p) = profile {
+            p.enter(track_profile::COLLECTOR);
+        }
         let extra = telemetry.after_frame(be, index)?;
         println!("frame {n} ({}/{}): {secs:.2} s, {} active track(s), {} frame(s) released; {extra}", index + 1, stream.len, session.book().obj_ids().len(), released.len());
         for y in released {
             collector.accept(y)?;
+        }
+        if let Some(p) = profile {
+            p.end_frame()?;
         }
         index += 1;
     }
@@ -1007,7 +1030,7 @@ fn track_on<B: Backend>(
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
-    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "overlay-video", "overlay-fps", "video", "boxes", "weights", "lora", "model-dir", "threads", "trim-pool-every", "trunk-precision", "max-objects", "input-size"], 1)?;
+    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "overlay-video", "overlay-fps", "video", "boxes", "weights", "lora", "model-dir", "threads", "trim-pool-every", "trunk-precision", "max-objects", "input-size", "profile"], 1)?;
     if args.help {
         println!("{USAGE}");
         return Ok(());
@@ -1035,6 +1058,10 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         Some(p) => TrunkPrecision::parse(p)?,
         None => TrunkPrecision::default_for(backend),
     };
+    let profile = args.get("profile").map(ProfileMode::parse).transpose()?;
+    if profile.is_some() && (backend != BackendChoice::Metal || trunk == TrunkPrecision::Bf16Linears) {
+        return Err(CliError::usage("--profile is for --backend metal, with any --trunk-precision but bf16-linears"));
+    }
     if matches!(trunk, TrunkPrecision::Coreml(_)) && geometry != Geometry::SAM3 {
         return Err(CliError::usage(format!(
             "--input-size {}: the CoreML trunk ({}) is exported at {}; pass --trunk-precision f32 or bf16-linears",
@@ -1085,7 +1112,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     let weights = existing_path(args.get("weights"), "SPIKETRACK_WEIGHTS", "weights", "weights")?;
     let lora = weights::lora_path(args.get("lora"))?;
     let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
-    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir, trim_pool_every, trunk, max_objects, geometry };
+    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir, trim_pool_every, trunk, max_objects, geometry, profile };
 
     let (w, applied) = weights::load(&opts.weights, lora.as_deref())?;
     let mut collector = Collector::new(&opts.out, &stream.video, stream.first_n, stream.height, stream.width, opts.overlay_every, opts.boxes)?;
@@ -1096,24 +1123,48 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         collector.set_overlay_video(writer)?;
     }
     let t_all = Instant::now();
-    let (timing, metal_mem_cap) = match opts.backend {
+    let (timing, metal_mem_cap, profile_text) = match opts.backend {
         BackendChoice::Cpu if opts.trunk == TrunkPrecision::Bf16Linears => {
             let be = Autocast::new(CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?);
-            (track_on(&be, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?, None)
+            (track_on(&be, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new(), None)?, None, None)
         }
-        BackendChoice::Cpu => (track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?, None),
+        BackendChoice::Cpu => {
+            let be = CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?;
+            (track_on(&be, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new(), None)?, None, None)
+        }
         BackendChoice::Metal if opts.trunk == TrunkPrecision::Bf16Linears => {
             let (metal, cap) = open_metal()?;
             let mut telemetry = MetalTelemetry::new(&metal, opts.trim_pool_every)?;
-            (track_on(&Autocast::new(metal), &w, &mut stream, &opts, &mut collector, &mut telemetry)?, Some(cap))
+            (track_on(&Autocast::new(metal), &w, &mut stream, &opts, &mut collector, &mut telemetry, None)?, Some(cap), None)
         }
         BackendChoice::Metal => {
             let (be, cap) = open_metal()?;
             let mut telemetry = MetalTelemetry::new(&be, opts.trim_pool_every)?;
-            (track_on(&be, &w, &mut stream, &opts, &mut collector, &mut telemetry)?, Some(cap))
+            match opts.profile {
+                None => (track_on(&be, &w, &mut stream, &opts, &mut collector, &mut telemetry, None)?, Some(cap), None),
+                Some(ProfileMode::Stages) => {
+                    let clock = StageClock::new(&be);
+                    let timing = track_on(&be, &w, &mut stream, &opts, &mut collector, &mut telemetry, Some(&clock))?;
+                    let text = track_profile::stage_report(&clock.rows(), &timing.frame_seconds);
+                    (timing, Some(cap), Some(text))
+                }
+                Some(ProfileMode::Ops) => {
+                    let profiled = Profiled::with_counters(be.clone(), track_profile::metal_counters);
+                    let labels = OpsLabels::new(&profiled);
+                    let timing = track_on(&profiled, &w, &mut stream, &opts, &mut collector, &mut telemetry, Some(&labels))?;
+                    // Before the first frame's first stage: the model load's uploads.
+                    profiled.retain(|c| c.stage != "unlabelled");
+                    (timing, Some(cap), Some(profiled.report()))
+                }
+            }
         }
     };
     let total_seconds = t_all.elapsed().as_secs_f64();
+    if let (Some(mode), Some(text)) = (opts.profile, profile_text) {
+        let path = opts.out.join(format!("{}.profile-{}.md", stream.video, mode.name()));
+        std::fs::write(&path, text).map_err(|e| CliError::failed(format!("{}: {e}", path.display())))?;
+        println!("profile ({}) written to {}", mode.name(), path.display());
+    }
 
     let mut results = std::mem::take(&mut collector.results);
     results.sort_by_key(|r| r.n);
@@ -1131,7 +1182,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
-        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"external_trunk\": {},\n  \"max_objects\": {},\n  \"metal_mem_cap_bytes\": {},\n  \"input_size\": {}\n}}\n",
+        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"external_trunk\": {},\n  \"max_objects\": {},\n  \"metal_mem_cap_bytes\": {},\n  \"input_size\": {},\n  \"profile\": {}\n}}\n",
         json::string(&stream.video),
         json::string(&input.to_string_lossy()),
         json::string(&opts.prompt),
@@ -1160,6 +1211,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         opts.max_objects,
         metal_mem_cap.map_or_else(|| "null".to_string(), |b| b.to_string()),
         opts.geometry.pixels(),
+        opts.profile.map_or_else(|| "null".to_string(), |m| json::string(m.name())),
     );
     let run_path = opts.out.join(format!("{}.run.json", stream.video));
     std::fs::write(&run_path, run_text).map_err(|e| CliError::failed(format!("{}: {e}", run_path.display())))?;
@@ -1705,6 +1757,11 @@ mod tests {
         assert!(usage(&["in", "--prompt", "p", "--input-size", "672", "--backend", "cpu", "--trunk-precision", "coreml-fp32"]));
         assert!(!usage(&["in", "--prompt", "p", "--input-size", "672", "--trunk-precision", "f32"]), "the Ojas trunk takes 672");
         assert!(!usage(&["in", "--prompt", "p", "--input-size", "672", "--backend", "cpu"]), "the CPU default is the Ojas trunk");
+        assert!(usage(&["in", "--prompt", "p", "--profile", "all"]));
+        assert!(usage(&["in", "--prompt", "p", "--profile", "stages", "--backend", "cpu"]));
+        assert!(usage(&["in", "--prompt", "p", "--profile", "ops", "--trunk-precision", "bf16-linears"]));
+        assert!(!usage(&["in", "--prompt", "p", "--profile", "stages"]), "the default Metal trunk profiles");
+        assert!(!usage(&["in", "--prompt", "p", "--profile", "ops", "--trunk-precision", "f32"]));
     }
 
     #[test]

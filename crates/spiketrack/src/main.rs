@@ -18,6 +18,7 @@ mod overlay;
 mod png;
 mod procinfo;
 mod track_cmd;
+mod track_profile;
 mod weights;
 
 use std::process::ExitCode;
