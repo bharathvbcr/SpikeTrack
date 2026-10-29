@@ -9,7 +9,7 @@ rust-version = "1.97"
 publish = false
 
 # Pre-existing libraries. metal-smoke branch: path dependencies on the ojas-st
-# worktree (detached at 8b88328, which is in ojas main), because ojas-metal
+# worktree (detached at ea3cf39, which is in ojas main), because ojas-metal
 # reaches tessl as a sibling path (../../tessl = ~/Code/research/tessl) and that
 # does not resolve from a git checkout of ojas.
 [workspace.dependencies]

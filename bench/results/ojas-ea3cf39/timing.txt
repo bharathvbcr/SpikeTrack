@@ -1,0 +1,17 @@
+round 1 old: load { 2.66 3.32 3.69 }, GPU 75%
+round 1 old: 3.0469 s/frame mean over 49 frames, 12 tracks, mem cap None
+round 1 new: load { 3.21 3.34 3.63 }, GPU 84%
+round 1 new: 2.8854 s/frame mean over 49 frames, 12 tracks, mem cap 4294967296
+round 2 new: load { 3.42 3.35 3.59 }, GPU 92%
+round 2 new: 2.8676 s/frame mean over 49 frames, 12 tracks, mem cap 4294967296
+round 2 old: load { 3.38 3.38 3.56 }, GPU 92%
+round 2 old: 3.0829 s/frame mean over 49 frames, 12 tracks, mem cap None
+round 3 old: load { 2.97 3.26 3.48 }, GPU 84%
+round 3 old: 3.0948 s/frame mean over 49 frames, 12 tracks, mem cap None
+round 3 new: load { 4.04 3.46 3.51 }, GPU 84%
+round 3 new: 2.8675 s/frame mean over 49 frames, 12 tracks, mem cap 4294967296
+round 1: predictions byte-identical
+round 2: predictions byte-identical
+round 3: predictions byte-identical
+new rounds 1 and 2 byte-identical
+new rounds 1 and 3 byte-identical

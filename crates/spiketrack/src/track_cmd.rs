@@ -156,6 +156,21 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
 const PREPROCESSING_FOLDER: &str = "decode per \"decoders\" (pillow-exact-jpeg: byte-identical to Pillow 13 / libjpeg-turbo 3.2.0); Pillow-exact bilinear resize to 1008x1008, as upstream's JPEG-folder path; /255, -0.5, /0.5 each rounded to float16 as upstream's loader stores frames (widened to f32 for the model)";
 const PREPROCESSING_VIDEO: &str = "AVFoundation decode (32BGRA); Pillow-exact bilinear resize to 1008x1008; float16 normalisation as upstream. NOT upstream's mp4 path (OpenCV decode, cv2.INTER_CUBIC): GAP-MP4-PREPROCESSING";
 const BUDGET_BYTES: u64 = 28 << 30;
+/// Metal's memory cap for a track run: the bytes allocated (or freed) since the last waited
+/// commit before the device waits for one. ojas opens at min(1 GiB, budget / 4); at that default
+/// the cap forced 231 of 387 waits per 4-frame profile pass. 4 GiB was the knee of the sweep:
+/// ~0.87x frame time for +3 GiB peak footprint (11.0 -> 14.0 GiB;
+/// bench/results/speed-baseline/memcap-footprint). It changes when commits wait, not what runs.
+const METAL_MEM_CAP: u64 = 4 << 30;
+
+/// The Metal backend a track run uses: the budget above, the memory cap raised to
+/// [`METAL_MEM_CAP`]. Returns the cap the device reports, for run.json.
+fn open_metal() -> Result<(MetalBackend, u64), CliError> {
+    let be = MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?;
+    be.set_mem_cap(METAL_MEM_CAP).map_err(CliError::from_err)?;
+    let cap = be.mem_cap().map_err(CliError::from_err)?;
+    Ok((be, cap))
+}
 
 // ---------------------------------------------------------------------------
 // The model input, as upstream's video loader makes it
@@ -967,21 +982,21 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         collector.set_overlay_video(writer)?;
     }
     let t_all = Instant::now();
-    let timing = match opts.backend {
+    let (timing, metal_mem_cap) = match opts.backend {
         BackendChoice::Cpu if opts.trunk_linears_bf16 => {
             let be = Autocast::new(CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?);
-            track_on(&be, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?
+            (track_on(&be, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?, None)
         }
-        BackendChoice::Cpu => track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?,
+        BackendChoice::Cpu => (track_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new())?, None),
         BackendChoice::Metal if opts.trunk_linears_bf16 => {
-            let metal = MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?;
+            let (metal, cap) = open_metal()?;
             let mut telemetry = MetalTelemetry::new(&metal, opts.trim_pool_every)?;
-            track_on(&Autocast::new(metal), &w, &mut stream, &opts, &mut collector, &mut telemetry)?
+            (track_on(&Autocast::new(metal), &w, &mut stream, &opts, &mut collector, &mut telemetry)?, Some(cap))
         }
         BackendChoice::Metal => {
-            let be = MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?;
+            let (be, cap) = open_metal()?;
             let mut telemetry = MetalTelemetry::new(&be, opts.trim_pool_every)?;
-            track_on(&be, &w, &mut stream, &opts, &mut collector, &mut telemetry)?
+            (track_on(&be, &w, &mut stream, &opts, &mut collector, &mut telemetry)?, Some(cap))
         }
     };
     let total_seconds = t_all.elapsed().as_secs_f64();
@@ -1002,7 +1017,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
-        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"max_objects\": {}\n}}\n",
+        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"max_objects\": {},\n  \"metal_mem_cap_bytes\": {}\n}}\n",
         json::string(&stream.video),
         json::string(&input.to_string_lossy()),
         json::string(&opts.prompt),
@@ -1028,6 +1043,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         video_frames_json,
         json::string(if opts.trunk_linears_bf16 { "bf16-linears" } else { "f32" }),
         opts.max_objects,
+        metal_mem_cap.map_or_else(|| "null".to_string(), |b| b.to_string()),
     );
     let run_path = opts.out.join(format!("{}.run.json", stream.video));
     std::fs::write(&run_path, run_text).map_err(|e| CliError::failed(format!("{}: {e}", run_path.display())))?;
@@ -1602,6 +1618,15 @@ mod tests {
     ///
     /// `SPIKETRACK_WEIGHTS=... SPIKETRACK_MODEL_DIR=... tools/locked.sh track-e2e cargo test --release -p spiketrack track_cmd::tests::visem_22 -- --ignored --nocapture`
     #[test]
+    #[ignore = "needs a Metal GPU"]
+    fn a_track_runs_metal_backend_has_the_raised_memory_cap() {
+        let default = MetalBackend::new(Budget::new(BUDGET_BYTES)).expect("metal").mem_cap().expect("mem_cap");
+        let (_be, cap) = open_metal().expect("open_metal");
+        assert_eq!(default, 1 << 30, "ojas's default is min(1 GiB, budget / 4)");
+        assert_eq!(cap, METAL_MEM_CAP);
+    }
+
+    #[test]
     #[ignore = "needs the gated checkpoint, tokenizer files, data/visem and a Metal GPU"]
     fn visem_22_frames_0_to_7_on_metal() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -1634,6 +1659,7 @@ mod tests {
         assert_eq!(run_json.get_str("backend").unwrap(), "metal");
         assert_eq!(run_json.get_u64("frames").unwrap(), 8);
         assert_eq!(run_json.get_str("boxes").unwrap(), "mask");
+        assert_eq!(run_json.get_u64("metal_mem_cap_bytes").unwrap(), METAL_MEM_CAP);
 
         // Stability: print the id sets, then require that the ids of frame 0 are carried to
         // frame 7 and that a track's written mask (its centroid) moves less than 0.1 of the frame

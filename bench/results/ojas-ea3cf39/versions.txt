@@ -1,0 +1,8 @@
+SpikeTrack e9b6b8e SPEED_PLAN: E4b parked (Fable); the 85 ms estimate compared against four dispatches, not ojas's one-pass emit + uncommitted:
+ M Cargo.toml
+ M crates/spiketrack/src/track_cmd.rs
+ M crates/st-model/tests/detect_track_parity.rs
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+tessl c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in (dirty files: 0)
+2026-10-29T06:21:22Z
+ 1:21  up 2 days, 17:36, 1 user, load averages: 3.21 3.41 3.84

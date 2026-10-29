@@ -117,6 +117,11 @@ upstream to cosine 0.99995 [V], so it is not exact either.
   non-default size fails the gate, and `image`, GatedStats flops and the 192² threshold
   calibration still assume 1008. It reopens if the owner changes the gate or a 672-trained
   adapter is scheduled. It is the largest single speed lever found.
+- Mem cap shipped [V]: ojas pin 8b88328 -> ea3cf39. `spiketrack track` on Metal sets a 4 GiB cap
+  and records it in run.json (`metal_mem_cap_bytes`). Session parity on VISEM 22 is unchanged at
+  the default cap and at 4 GiB (IoU 0.99855). 49 frames of VISEM 22 (LoRA, 12 tracks),
+  interleaved over 3 rounds: 0.930x frame time (0.947 / 0.930 / 0.927), with byte-identical
+  predictions (`bench/results/ojas-ea3cf39`).
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

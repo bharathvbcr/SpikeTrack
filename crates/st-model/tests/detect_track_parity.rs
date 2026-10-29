@@ -365,6 +365,17 @@ fn session_matches_upstream_on_metal() {
     session_parity(&MetalBackend::new(Budget::new(28 << 30)).expect("metal backend"), "Metal", false);
 }
 
+/// The Metal session at the memory cap `spiketrack track` sets (`METAL_MEM_CAP` in
+/// crates/spiketrack/src/track_cmd.rs, 4 GiB), under the same gate. The cap moves when commits
+/// wait, so a miss here means the waits were hiding an ordering bug.
+#[test]
+#[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the detect_track fixtures"]
+fn session_matches_upstream_on_metal_at_the_track_mem_cap() {
+    let be = MetalBackend::new(Budget::new(28 << 30)).expect("metal backend");
+    be.set_mem_cap(4 << 30).expect("4 GiB memory cap");
+    session_parity(&be, "Metal, 4 GiB mem cap", false);
+}
+
 /// The experiment `Backbone::with_trunk_linears_bf16` (the ViT trunk's linears in bf16, everything
 /// else f32) against the same upstream fp32 oracle and the same gate as the f32 session, stated
 /// before any run: every yielded frame's id set equal and mean per-id mask IoU >= 0.95. A miss here
