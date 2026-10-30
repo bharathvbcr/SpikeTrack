@@ -241,6 +241,22 @@ upstream to cosine 0.99995 [V], so it is not exact either.
   - Footprint: Metal allocated is flat after ~frame 100, so the device caches are bounded. But the
     process footprint rises 0.6-1.6 MiB per frame on all 5 videos, where E10's was flat. The cause
     is not yet tied to E12, E13 or E15 (GAP-E15-HOST-FOOTPRINT-CREEP).
+- E16: footprint bisect and the parity suites run, not just compiled (pre-stated before the run,
+  `bench/results/e16-bisect-parity`). One mac_heavy hold.
+  - Bisect: held-out video 47 (the largest slope), 300 frames, committed held-out settings. One run
+    of each binary: E15 (8567e60a), E10 (cdd2cf79), E12 B (fd7a8bcb), E13 (49a92571), E11b
+    (457ca88d). The slope is footprint MiB per frame, least squares over frames 16-299; Metal
+    allocated is read the same way.
+    - If E10 here gives >= 0.5, the creep is the machine, not the code, and the gap's attribution
+      is refuted.
+    - Otherwise the first build at >= 0.5 whose predecessor is <= 0.2 owns it. A gradual rise with
+      no such step is reported as unattributed. With n = 1 per build, a step under 0.3 is not read.
+    - Every build's predictions must `cmp` byte-identical to the committed held-out 47.json.
+  - Parity: `tracker_parity`, all its ignored tests (judo, CPU and Metal), must pass. Then
+    `detect_track_parity` on video 22, CPU and Metal, must hold its gate: every id set equal and
+    mean IoU >= 0.95.
+    - The expected summary lines are the committed ones (0.99854 CPU, 0.99855 Metal, 470 pairs).
+    - A pass with a different IoU is reported with its table diff, not hidden.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 
