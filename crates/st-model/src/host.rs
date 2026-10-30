@@ -3,23 +3,82 @@
 //! Ojas backend.
 
 /// `y = x @ w^T + b` for `x` `[n, inp]` and `w` `[out, inp]`.
+///
+/// Every output is `(((0 + x0 w0) + x1 w1) + ...) + b`: one mul and one add per
+/// term, in input order, with no fused multiply-add. The result is the same bit
+/// for bit however the work is split. Outputs are computed in blocks of 8 or 4
+/// that share one pass over the input row, which gives independent add chains
+/// without reordering any one of them. Rows go to up to [`MAX_THREADS`] scoped
+/// threads once a call holds [`THREAD_MIN_MACS`] multiply-adds.
 pub fn linear(x: &[f32], n: usize, w: &[f32], b: &[f32], out: usize) -> Vec<f32> {
+    assert!(out > 0, "linear with no outputs");
     let inp = w.len() / out;
+    assert_eq!(w.len(), out * inp, "linear weight");
     assert_eq!(x.len(), n * inp, "linear input");
     assert_eq!(b.len(), out, "linear bias");
     let mut y = vec![0f32; n * out];
-    for r in 0..n {
-        let xr = &x[r * inp..(r + 1) * inp];
-        for o in 0..out {
-            let wr = &w[o * inp..(o + 1) * inp];
-            let mut acc = 0f32;
-            for i in 0..inp {
-                acc += xr[i] * wr[i];
-            }
-            y[r * out + o] = acc + b[o];
+    if n == 0 {
+        return y;
+    }
+    if inp == 0 {
+        y.chunks_exact_mut(out).for_each(|yr| yr.iter_mut().zip(b).for_each(|(v, &bo)| *v = 0f32 + bo));
+        return y;
+    }
+    let threads = if n * inp * out >= THREAD_MIN_MACS {
+        std::thread::available_parallelism().map_or(1, |p| p.get()).min(MAX_THREADS).min(n)
+    } else {
+        1
+    };
+    if threads <= 1 {
+        linear_rows(x, w, b, inp, out, &mut y);
+        return y;
+    }
+    let per = n.div_ceil(threads);
+    std::thread::scope(|s| {
+        for (xc, yc) in x.chunks(per * inp).zip(y.chunks_mut(per * out)) {
+            s.spawn(move || linear_rows(xc, w, b, inp, out, yc));
+        }
+    });
+    y
+}
+
+/// The most threads one [`linear`] call uses.
+pub const MAX_THREADS: usize = 8;
+/// The multiply-add count from which [`linear`] splits rows across threads.
+pub const THREAD_MIN_MACS: usize = 1 << 20;
+
+fn linear_rows(x: &[f32], w: &[f32], b: &[f32], inp: usize, out: usize, y: &mut [f32]) {
+    for (xr, yr) in x.chunks_exact(inp).zip(y.chunks_exact_mut(out)) {
+        let mut o = 0;
+        while o + 8 <= out {
+            linear_block::<8>(xr, w, b, inp, o, yr);
+            o += 8;
+        }
+        if o + 4 <= out {
+            linear_block::<4>(xr, w, b, inp, o, yr);
+            o += 4;
+        }
+        while o < out {
+            linear_block::<1>(xr, w, b, inp, o, yr);
+            o += 1;
         }
     }
-    y
+}
+
+/// Outputs `o0..o0 + N` of one row.
+#[inline(always)]
+fn linear_block<const N: usize>(xr: &[f32], w: &[f32], b: &[f32], inp: usize, o0: usize, yr: &mut [f32]) {
+    let wr: [&[f32]; N] = std::array::from_fn(|k| &w[(o0 + k) * inp..(o0 + k + 1) * inp]);
+    let mut acc = [0f32; N];
+    for i in 0..inp {
+        let v = xr[i];
+        for k in 0..N {
+            acc[k] += v * wr[k][i];
+        }
+    }
+    for k in 0..N {
+        yr[o0 + k] = acc[k] + b[o0 + k];
+    }
 }
 
 pub fn relu_in_place(x: &mut [f32]) {
@@ -97,6 +156,65 @@ pub fn sine_position_map(h: usize, w: usize) -> Vec<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The pre-blocking `linear`, one output at a time: the oracle the blocked,
+    /// threaded one must match bit for bit.
+    fn linear_scalar(x: &[f32], n: usize, w: &[f32], b: &[f32], out: usize) -> Vec<f32> {
+        let inp = w.len() / out;
+        let mut y = vec![0f32; n * out];
+        for r in 0..n {
+            let xr = &x[r * inp..(r + 1) * inp];
+            for o in 0..out {
+                let wr = &w[o * inp..(o + 1) * inp];
+                let mut acc = 0f32;
+                for i in 0..inp {
+                    acc += xr[i] * wr[i];
+                }
+                y[r * out + o] = acc + b[o];
+            }
+        }
+        y
+    }
+
+    /// Deterministic values over several binades, signs mixed, so that a
+    /// reordered sum would round differently.
+    fn values(len: usize, seed: u32) -> Vec<f32> {
+        let mut s = seed.wrapping_mul(2_654_435_761).wrapping_add(1);
+        (0..len)
+            .map(|_| {
+                s ^= s << 13;
+                s ^= s >> 17;
+                s ^= s << 5;
+                let m = (s >> 8) as f32 / (1u32 << 24) as f32 - 0.5;
+                m * [1e-3f32, 1.0, 37.0, 1e3][(s & 3) as usize]
+            })
+            .collect()
+    }
+
+    #[test]
+    fn blocked_threaded_linear_is_bit_identical_to_the_scalar_one() {
+        // (rows, in, out): the detector's shapes (box RPB 2 -> 256 -> 8 over 200 x 72 rows,
+        // ref_point_head 512 -> 256, bbox_embed 256 -> 4), single rows, and out not a multiple
+        // of 4 or 8. The 14400-row cases cross THREAD_MIN_MACS, with rows not divisible by the
+        // thread count.
+        for (case, &(n, inp, out)) in [(14_400, 2, 256), (14_400, 256, 8), (200, 512, 256), (200, 256, 4), (1, 256, 256), (3, 7, 13), (14_401, 5, 15), (2, 1, 1)].iter().enumerate() {
+            let x = values(n * inp, case as u32);
+            let w = values(out * inp, 100 + case as u32);
+            let b = values(out, 200 + case as u32);
+            let (got, want) = (linear(&x, n, &w, &b, out), linear_scalar(&x, n, &w, &b, out));
+            assert_eq!(got.len(), want.len());
+            for (i, (g, e)) in got.iter().zip(&want).enumerate() {
+                assert_eq!(g.to_bits(), e.to_bits(), "case {case} ({n}, {inp}, {out}) element {i}: {g} vs {e}");
+            }
+        }
+        assert!(14_400 * 256 * 8 >= THREAD_MIN_MACS, "the threaded path is exercised");
+    }
+
+    #[test]
+    fn linear_edge_shapes() {
+        assert!(linear(&[], 0, &[1.0, 2.0], &[0.5, 0.25], 2).is_empty());
+        assert_eq!(linear(&[], 3, &[], &[0.5, -0.0], 2), vec![0.5, 0.0, 0.5, 0.0, 0.5, 0.0]);
+    }
 
     #[test]
     fn inverse_sigmoid_round_trips_inside_the_clamp() {
