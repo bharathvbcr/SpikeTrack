@@ -75,6 +75,21 @@ script is `job.sh`. The control is the E19 binary.
 | upsampled readback | 13.0 (per frame) | | 12.7 |
 | area rule | 32.3 (per frame) | | 25.9 |
 
+**The E19 column is not a "before".** It comes from a table that failed validity under different
+load. So the pair is not a before-and-after, and nothing on 82 is confirmed or refuted by it. The
+mask-channels pair (25.8 against 32.1) is not a rise E20 caused. On 22, where both tables are
+valid, mask channels fell.
+
+Three 82 readings of the two qualifying sub-phases:
+
+| reading | area rule | mask channels |
+|---|---|---|
+| E19 run (invalid) | 30.0 | 33.5 |
+| E20 run 1 (valid) | 28.7 | 31.3 |
+| E20 run 2 (valid) | 32.3 | 35.5 |
+
+All three readings clear 20 ms.
+
 - Under E20, mask upload follows the state's object count: 18.8 ms for state 0 and 9.4 ms for
   state 1, which has few objects. Under E19 both states paid 14-20 ms [I: the E19 tables are
   invalid].
@@ -88,7 +103,12 @@ script is `job.sh`. The control is the E19 binary.
 | 82 | 8712 MiB | 8382 MiB (-330) | 5664 / 5667 MiB |
 | 22 | 8503 MiB | 7934 MiB (-569) | 5555 / 5558 MiB |
 
-- The host footprint falls because the 170 MB zeroed mask buffer and the per-state gather are gone.
+- The fall is [V]. The cause, that the 170 MB zeroed mask buffer and the per-state gather are gone,
+  is [I]. 82, with two states, drops less than 22 with one, which a simple per-state sum does not
+  explain.
+- The fix's regression guard is the ignored, fixture-gated CPU detect_track_parity test, which took
+  48 minutes here. The `to_host` + drop + `f32_slice_mut` sequence is inline in `Session`, with no
+  seam for a lib test.
 - Metal allocated rises 3 MiB, for the cached constant planes.
 
 ## Next, against the pre-stated rule [V]
@@ -100,6 +120,16 @@ On E20's valid 82 table, both of these are at 20 ms or more:
 
 **So E21 is exact threading of the sigmoid fill and the area rule**, with the same f32 op per
 element and E12's shape.
+
+Read for E21 [V, `crates/st-model/src/tracker/session.rs:254`]: `suppress_area_shrinkage` has no
+float sum.
+
+- Its per-pixel winner is a strict-greater argmax over objects, so the first index wins ties.
+- Its before and after areas are `usize` counts.
+- Its clamp and score are per element or `any`.
+
+So threading it over pixels (the winner) and over objects or pixel chunks (the counts) is exact in
+any split order. The sigmoid fill is elementwise, so the same holds for it.
 
 Files: the run directories and logs (masks removed), `run1-957c66d/` (the failed first run), the
 test and build logs, the table diffs (empty for run 2), `job.sh` and `versions.txt`.
