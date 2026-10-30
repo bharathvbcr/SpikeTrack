@@ -1,0 +1,8 @@
+SpikeTrack b0c5437 SPEED_PLAN: pre-state E16, the footprint bisect over five binaries and the parity suites run, dirty 0
+e15 8567e60a1aa29570
+e10 cdd2cf798bdbfb9e
+e12b fd7a8bcb980f6f96
+e13 49a9257192ed2ddf
+e11b 457ca88dd790b37e
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+ 1:45  up 3 days, 18 hrs, 1 user, load averages: 3.53 3.21 4.57

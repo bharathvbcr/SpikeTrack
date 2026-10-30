@@ -257,6 +257,14 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     mean IoU >= 0.95.
     - The expected summary lines are the committed ones (0.99854 CPU, 0.99855 Metal, 470 pairs).
     - A pass with a different IoU is reported with its table diff, not hidden.
+- E16 result [V, `bench/results/e16-bisect-parity`]:
+  - E15 owns the creep. Slopes: E11b -0.53, E12 B -0.85, E13 -0.94, E15 +2.46 MiB/frame.
+  - E15 starts ~1.2 GB below E13 and ends ~400 MiB below it at frame 299. Whether it levels off is
+    not decided at 300 frames.
+  - The E10 arm is invalid: the saved binary predates the CoreML default and ran the Ojas trunk.
+  - Every other build is byte-identical on 47.
+  - Parity: tracker 8 of 8 pass. detect-track CPU is identical to the committed table. Metal has
+    identical IoUs (0.99855), and only `prob dmax` moved, 2.3e-6 -> 2.7e-6.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

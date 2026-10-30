@@ -1,0 +1,157 @@
+    Finished `release` profile [optimized] target(s) in 1.62s
+     Running tests/tracker_parity.rs (target/release/deps/tracker_parity-f20c02a63e328723)
+
+running 8 tests
+test interactive_decoder_matches_upstream_on_the_conditioning_frame ... [CPU]
+interactive mask 0: cosine 1.0000000, max abs 6.580e-5, rel 3.967e-6
+interactive iou 0: cosine 1.0000000, max abs 4.530e-6, rel 1.570e-6
+interactive token 0: cosine 1.0000000, max abs 7.939e-5, rel 7.623e-6
+interactive object score: cosine 1.0000000, max abs 1.192e-5, rel 1.706e-6
+ok
+test interactive_decoder_matches_upstream_on_the_conditioning_frame_on_metal ... [Metal]
+interactive mask 0: cosine 1.0000000, max abs 4.387e-5, rel 2.644e-6
+interactive iou 0: cosine 1.0000000, max abs 2.861e-6, rel 9.914e-7
+interactive token 0: cosine 1.0000000, max abs 4.029e-5, rel 3.869e-6
+interactive object score: cosine 1.0000000, max abs 7.629e-6, rel 1.092e-6
+ok
+test memory_attention_matches_upstream ... [CPU]
+| frame | memory frames | pointer tokens | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|---|
+| 1 | 1 | 16 | 1.0000000 | 7.039e-5 | 7.920e-6 |
+| 2 | 2 | 32 | 1.0000000 | 2.017e-4 | 2.166e-5 |
+| 3 | 3 | 48 | 1.0000000 | 2.240e-4 | 2.404e-5 |
+| 4 | 4 | 64 | 1.0000000 | 2.522e-4 | 2.746e-5 |
+| 5 | 5 | 80 | 1.0000000 | 3.505e-4 | 3.719e-5 |
+| 6 | 6 | 96 | 1.0000000 | 5.708e-4 | 6.108e-5 |
+| 7 | 7 | 112 | 1.0000000 | 6.204e-4 | 6.558e-5 |
+
+memory attention worst cosine 1.0000000
+ok
+test memory_attention_matches_upstream_on_metal ... [Metal]
+| frame | memory frames | pointer tokens | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|---|
+| 1 | 1 | 16 | 1.0000000 | 2.623e-5 | 2.951e-6 |
+| 2 | 2 | 32 | 1.0000000 | 1.812e-5 | 1.946e-6 |
+| 3 | 3 | 48 | 1.0000000 | 1.097e-5 | 1.177e-6 |
+| 4 | 4 | 64 | 1.0000000 | 1.132e-5 | 1.233e-6 |
+| 5 | 5 | 80 | 1.0000000 | 2.050e-5 | 2.175e-6 |
+| 6 | 6 | 96 | 1.0000000 | 1.335e-5 | 1.429e-6 |
+| 7 | 7 | 112 | 1.0000000 | 1.502e-5 | 1.588e-6 |
+
+memory attention worst cosine 1.0000000
+ok
+test memory_encoder_matches_upstream ... [CPU]
+| frame | output | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|
+| 0 | features | 1.0000000 | 1.240e-5 | 1.602e-6 |
+| 0 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 1 | features | 1.0000000 | 5.102e-5 | 6.499e-6 |
+| 1 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 2 | features | 1.0000000 | 4.768e-5 | 5.970e-6 |
+| 2 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 3 | features | 1.0000000 | 4.673e-5 | 5.793e-6 |
+| 3 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 4 | features | 1.0000000 | 5.889e-5 | 7.420e-6 |
+| 4 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 5 | features | 1.0000000 | 5.484e-5 | 6.706e-6 |
+| 5 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 6 | features | 1.0000000 | 5.436e-5 | 6.751e-6 |
+| 6 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 7 | features | 1.0000000 | 4.792e-5 | 5.900e-6 |
+| 7 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+
+memory encoder worst cosine 1.0000000
+ok
+test memory_encoder_matches_upstream_on_metal ... [Metal]
+| frame | output | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|
+| 0 | features | 1.0000000 | 1.454e-5 | 1.879e-6 |
+| 0 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 1 | features | 1.0000000 | 4.673e-5 | 5.953e-6 |
+| 1 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 2 | features | 1.0000000 | 4.435e-5 | 5.552e-6 |
+| 2 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 3 | features | 1.0000000 | 5.054e-5 | 6.266e-6 |
+| 3 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 4 | features | 1.0000000 | 6.628e-5 | 8.352e-6 |
+| 4 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 5 | features | 1.0000000 | 5.150e-5 | 6.297e-6 |
+| 5 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 6 | features | 1.0000000 | 5.651e-5 | 7.018e-6 |
+| 6 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+| 7 | features | 1.0000000 | 5.865e-5 | 7.220e-6 |
+| 7 | pos | 1.0000000 | 5.960e-8 | 5.960e-8 |
+
+memory encoder worst cosine 1.0000000
+ok
+test multiplex_mask_decoder_matches_upstream ... [CPU]
+| frame | output | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|
+| 1 | masks | 1.0000000 | 3.643e-4 | 9.304e-6 |
+| 1 | iou_pred | 1.0000000 | 2.069e-4 | 5.333e-6 |
+| 1 | object_score_logits | 1.0000000 | 2.241e-5 | 1.639e-6 |
+| 1 | sam_tokens | 1.0000000 | 9.632e-5 | 8.209e-6 |
+| 2 | masks | 1.0000000 | 3.891e-4 | 9.910e-6 |
+| 2 | iou_pred | 1.0000000 | 1.526e-4 | 3.683e-6 |
+| 2 | object_score_logits | 1.0000000 | 1.335e-5 | 1.014e-6 |
+| 2 | sam_tokens | 1.0000000 | 7.725e-5 | 6.466e-6 |
+| 3 | masks | 1.0000000 | 3.891e-4 | 1.024e-5 |
+| 3 | iou_pred | 1.0000000 | 3.872e-4 | 9.043e-6 |
+| 3 | object_score_logits | 1.0000000 | 2.789e-5 | 2.217e-6 |
+| 3 | sam_tokens | 1.0000000 | 1.059e-4 | 8.722e-6 |
+| 4 | masks | 1.0000000 | 4.425e-4 | 1.108e-5 |
+| 4 | iou_pred | 1.0000000 | 1.850e-4 | 4.418e-6 |
+| 4 | object_score_logits | 1.0000000 | 2.789e-5 | 2.272e-6 |
+| 4 | sam_tokens | 1.0000000 | 9.727e-5 | 7.985e-6 |
+| 5 | masks | 1.0000000 | 3.033e-4 | 7.887e-6 |
+| 5 | iou_pred | 1.0000000 | 2.012e-4 | 4.852e-6 |
+| 5 | object_score_logits | 1.0000000 | 1.740e-5 | 1.449e-6 |
+| 5 | sam_tokens | 1.0000000 | 8.202e-5 | 6.671e-6 |
+| 6 | masks | 1.0000000 | 2.670e-4 | 7.060e-6 |
+| 6 | iou_pred | 1.0000000 | 1.602e-4 | 4.194e-6 |
+| 6 | object_score_logits | 1.0000000 | 1.383e-5 | 1.179e-6 |
+| 6 | sam_tokens | 1.0000000 | 8.583e-5 | 6.925e-6 |
+| 7 | masks | 1.0000000 | 2.060e-4 | 5.527e-6 |
+| 7 | iou_pred | 1.0000000 | 2.460e-4 | 6.543e-6 |
+| 7 | object_score_logits | 1.0000000 | 2.074e-5 | 1.854e-6 |
+| 7 | sam_tokens | 1.0000000 | 8.965e-5 | 7.091e-6 |
+
+mask decoder worst cosine 1.0000000
+ok
+test multiplex_mask_decoder_matches_upstream_on_metal ... [Metal]
+| frame | output | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|
+| 1 | masks | 1.0000000 | 2.251e-4 | 5.748e-6 |
+| 1 | iou_pred | 1.0000000 | 1.683e-4 | 4.338e-6 |
+| 1 | object_score_logits | 1.0000000 | 2.623e-5 | 1.917e-6 |
+| 1 | sam_tokens | 1.0000000 | 4.053e-5 | 3.454e-6 |
+| 2 | masks | 1.0000000 | 2.022e-4 | 5.149e-6 |
+| 2 | iou_pred | 1.0000000 | 1.554e-4 | 3.752e-6 |
+| 2 | object_score_logits | 1.0000000 | 3.123e-5 | 2.373e-6 |
+| 2 | sam_tokens | 1.0000000 | 4.530e-5 | 3.792e-6 |
+| 3 | masks | 1.0000000 | 1.411e-4 | 3.716e-6 |
+| 3 | iou_pred | 1.0000000 | 2.260e-4 | 5.279e-6 |
+| 3 | object_score_logits | 1.0000000 | 2.980e-5 | 2.369e-6 |
+| 3 | sam_tokens | 1.0000000 | 4.148e-5 | 3.418e-6 |
+| 4 | masks | 1.0000000 | 1.488e-4 | 3.725e-6 |
+| 4 | iou_pred | 1.0000000 | 2.098e-4 | 5.011e-6 |
+| 4 | object_score_logits | 1.0000000 | 3.171e-5 | 2.583e-6 |
+| 4 | sam_tokens | 1.0000000 | 3.839e-5 | 3.151e-6 |
+| 5 | masks | 1.0000000 | 1.945e-4 | 5.060e-6 |
+| 5 | iou_pred | 1.0000000 | 1.450e-4 | 3.495e-6 |
+| 5 | object_score_logits | 1.0000000 | 2.146e-5 | 1.786e-6 |
+| 5 | sam_tokens | 1.0000000 | 5.481e-5 | 4.458e-6 |
+| 6 | masks | 1.0000000 | 2.022e-4 | 5.345e-6 |
+| 6 | iou_pred | 1.0000000 | 1.650e-4 | 4.319e-6 |
+| 6 | object_score_logits | 1.0000000 | 1.740e-5 | 1.484e-6 |
+| 6 | sam_tokens | 1.0000000 | 5.627e-5 | 4.540e-6 |
+| 7 | masks | 1.0000000 | 1.831e-4 | 4.913e-6 |
+| 7 | iou_pred | 1.0000000 | 9.537e-5 | 2.536e-6 |
+| 7 | object_score_logits | 1.0000000 | 1.574e-5 | 1.406e-6 |
+| 7 | sam_tokens | 1.0000000 | 6.652e-5 | 5.262e-6 |
+
+mask decoder worst cosine 1.0000000
+ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 42.60s
+
