@@ -52,9 +52,11 @@ Dirty MiB by `footprint` category:
     that category is a within-frame transient, not the creep.
 - **The steady growth is in Malloc Large [I].** It goes 4396 -> 4894 MiB from frame 30 to 1100,
   then holds, which matches the ~420 MiB rise and plateau in the per-frame lines.
-  - E13's Malloc Large is flat at ~5.3 GB, ~400 MiB above E15's plateau.
-  - E15 drops the host token copies, so it starts lower. The large-allocation zone then fills back
-    toward a steady size over ~500-700 frames.
+  - E13's Malloc Large swings 4650-5319 MiB between snapshots, so six samples cannot pin the
+    growth to that category.
+  - The rise and plateau are consistent with Malloc Large and with nothing else in the table.
+  - E15 drops the host token copies, so it starts lower. The large-allocation zone may then fill
+    back toward a steady size over ~500-700 frames.
   - That reads as the allocator's free-region retention settling, not a structure that grows. It
     is not instrumented further.
 - Metal device allocations (`currentAllocatedSize`, which includes Ojas's capped pool) stayed flat
