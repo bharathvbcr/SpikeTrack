@@ -1,0 +1,58 @@
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+    Finished `release` profile [optimized] target(s) in 4.32s
+     Running unittests src/lib.rs (target/release/deps/st_model-57fa0469950dda5c)
+
+running 50 tests
+test backbone::tests::stats_count_work_and_a_full_run_is_one ... ok
+test detector::tests::the_rpb_bias_matches_the_host_loop_bit_for_bit_on_metal ... ignored, needs the Metal GPU: cargo test -p st-model --lib -- --ignored rpb
+test backbone::tests::stats_follow_the_grid_they_are_asked_about ... ok
+test backbone::tests::stages_split_at_global_blocks ... ok
+test host::tests::inverse_sigmoid_round_trips_inside_the_clamp ... ok
+test host::tests::linear_edge_shapes ... ok
+test tokenizer::tests::byte_alphabet_is_a_bijection ... ok
+test host::tests::sine_map_first_pixel ... ok
+test tokenizer::tests::cleaning ... ok
+test tokenizer::tests::splits_like_the_upstream_regex ... ok
+test tracker::associate::tests::an_ambiguous_detection_is_assigned_to_no_track ... ok
+test tracker::associate::tests::association_new_matched_and_ambiguous ... ok
+test tracker::associate::tests::boundary_margin_is_strict ... ok
+test tracker::bookkeeping::tests::cap_keeps_the_top_scores_and_ids_follow_score_order ... ok
+test tracker::bookkeeping::tests::occlusion_updates_last_occluded_and_suppresses_in_the_plan ... ok
+test tracker::associate::tests::each_track_takes_its_best_scoring_assigned_detection ... ok
+test tracker::associate::tests::iom_is_intersection_over_the_smaller_area ... ok
+test tracker::associate::tests::nms_suppresses_contained_lower_scores_and_drops_low_probs ... ok
+test tracker::associate::tests::unkept_detections_match_nothing ... ok
+test tracker::bookkeeping::tests::births_take_consecutive_ids_and_are_hidden_until_confirmed ... ok
+test tracker::bookkeeping::tests::an_ambiguous_detection_does_not_count_as_a_duplicate_pair ... ok
+test tracker::bookkeeping::tests::hide_log_looks_two_frames_ahead_and_clamps ... ok
+test tracker::bookkeeping::tests::periodic_recondition_pairs_unique_high_confidence_matches_gated_by_the_tracker_score ... ok
+test tracker::bookkeeping::tests::same_frame_twins_never_remove_each_other ... ok
+test tracker::bookkeeping::tests::unmatched_track_after_the_hotstart_window_is_never_removed ... ok
+test tracker::bookkeeping::tests::suppression_goes_to_the_more_recently_occluded_of_two_overlapping_tracks ... ok
+test tracker::session::tests::a_single_object_is_untouched_and_an_empty_mask_scores_minus_ten ... ok
+test tracker::session::tests::mask_boxes_are_inclusive_extents_normalized_with_no_plus_one ... ok
+test tracker::session::tests::device_bf16_rounding_equals_the_host_rounding_it_replaced ... ok
+test backbone::tests::a_global_block_spans_the_same_positions_at_every_grid ... ok
+test tracker::bookkeeping::tests::yield_buffer_releases_after_delay_frames_and_flushes_at_the_end ... ok
+test tracker::bookkeeping::tests::suppression_sees_the_reconditioned_mask ... ok
+test tracker::bookkeeping::tests::weak_double_overlap_counts_and_removes_the_younger_track_on_the_eighth_frame ... ok
+test tracker::bookkeeping::tests::unmatched_track_in_hotstart_is_removed_on_the_eighth_unmatched_frame ... ok
+test tracker::session::tests::shrinkage_suppression_clamps_an_object_that_keeps_under_30_percent_of_its_area ... ok
+test tracker::state::tests::mux_and_demux_are_inverse_on_valid_slots ... ok
+test tracker::state::tests::removing_every_object_empties_the_state ... ok
+test host::tests::chunked_pieces_cover_every_index_once_at_their_start ... ok
+test tracker::state::tests::removal_marks_the_slot_removed_renumbers_and_slices_rows ... ok
+test tracker::state::tests::removing_the_last_object_with_an_input_on_the_conditioning_frame_wipes_the_state ... ok
+test tracker::state::tests::prune_drops_old_masks_and_frames_outside_the_window ... ok
+test tracker::state::tests::threaded_sigmoid_fill_is_bit_identical_to_the_serial_one ... ok
+test backbone::tests::generated_rope_tables_follow_compute_axial_cis_at_every_grid ... ok
+test backbone::tests::the_position_embedding_tiles_at_any_whole_number_of_windows ... ok
+test backbone::tests::gather_and_scatter_refuse_wrong_shapes ... ok
+test tracker::session::tests::threaded_area_rule_is_bit_identical_to_the_serial_one ... ok
+test backbone::tests::gather_and_scatter_follow_the_grid_of_the_tensor ... ok
+test detector::tests::the_rpb_bias_matches_the_host_loop_bit_for_bit_on_cpu ... ok
+test backbone::tests::gather_matches_window_partition_and_scatter_inverts_it ... ok
+test host::tests::blocked_threaded_linear_is_bit_identical_to_the_scalar_one ... ok
+
+test result: ok. 49 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.04s
+

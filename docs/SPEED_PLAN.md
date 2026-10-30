@@ -437,8 +437,8 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     - that is about 14 ms per frame, under 1%. The frame time is not claimed: the controls differ
       by up to 9%.
   - On 82 under E20, mask upload follows n: 18.8 ms for state 0 and 9.4 ms for state 1.
-  - Host footprint at frame 15 is down 330 MiB on 82 and 569 MiB on 22. That is deterministic: both
-    controls are equal.
+  - Host footprint at frame 15 is down 330 MiB on 82 and 569 MiB on 22. E20 read that as
+    deterministic, since both controls were equal. E21's hold contradicts it: see the E21 result.
   - Next, by the rule: E21. On E20's valid 82 table, mask channels (35.5 ms over two states) and the
     area rule (32.3 ms) both exceed 20 ms.
 - Zero-copy transfers: ojas-78's side.
@@ -488,6 +488,34 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     - A table is read only if its stage sum is within 10% of both controls.
   - Refute: on a valid same-hold pair, either sub-phase is not below 0.7x E20's.
   - Next: the detector prep's sine and query-MLP split.
+- E21 result [V, `bench/results/e21-host-threads`, attempt 3]:
+  - Attempts 1 and 2 are kept but not read.
+    - Attempt 1: no Metal toolchain after the Xcode 27.2 update.
+    - Attempt 2: the "E20 control" was E21. The main tree and the E20 worktree shared a target
+      dir and get the same unit hashes, so cargo linked E21's `st-model` into the control.
+    - Attempt 3 builds the control in its own target dir, and gates each binary on code only one
+      side has.
+  - Every gate passes:
+    - 49 lib tests, including the three bit-identity tests;
+    - tracker_parity 8 of 8;
+    - detect_track_parity, Metal and CPU, with tables identical to E16's;
+    - predictions byte-identical in 8 of 8 runs.
+  - All four tables are valid, within 6.3% of both controls.
+  - E20 then E21, ms per steady frame:
+
+    | video | area rule | mask channels |
+    |---|---|---|
+    | 82 | 27.1 -> 5.8 (0.21x) | 31.1 -> 5.7 (0.18x) |
+    | 22 | 13.5 -> 3.3 (0.24x) | 16.8 -> 3.3 (0.20x) |
+
+    That is about 47 ms per frame on 82 and 24 ms on 22.
+  - **E21 holds.**
+  - The frame time is not claimed. The expected 1.3-1.9% is below the 4.5-6.3% spread between
+    the controls.
+  - Later evidence on E20's footprint: the host footprint is not deterministic run to run. E20 code
+    reads 8000-8391 MiB on 82 across four runs. So E20's -330 MiB on 82 is not established; its
+    -569 MiB on 22 is larger than the 190 MiB spread there.
+  - Next, by the rule: the detector's decoder host prep (52.0 ms per frame on E21's 82 table).
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

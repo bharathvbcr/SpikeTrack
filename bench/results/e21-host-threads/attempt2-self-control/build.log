@@ -1,0 +1,10 @@
+warning: function `evaluate` is never used
+   --> crates/spiketrack/src/eval_visem.rs:220:8
+    |
+220 | pub fn evaluate(pred: &Path, ids: &[String], visem: &Path) -> Result<Evaluation, String> {
+    |        ^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `spiketrack` (bin "spiketrack") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 1.31s

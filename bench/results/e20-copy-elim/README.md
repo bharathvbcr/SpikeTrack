@@ -96,7 +96,11 @@ All three readings clear 20 ms.
 - What is left in a few-object upload (~9 ms) is, by inference, mostly the `Wait::Upload` drain
   plus the device fill and concat [I: not split].
 
-## Memory, frame 15 [V, deterministic: both controls equal]
+## Memory, frame 15 [V for this hold: both controls equal]
+
+Later evidence (E21, `../e21-host-threads/README.md`): the host footprint is not deterministic
+run to run. The same E20 code read 8000-8391 MiB on 82 and 7944-8134 MiB on 22 there. The 82
+fall below is inside that spread, so it is not established. The 22 fall is larger than it.
 
 | video | footprint, control | footprint, E20 | Metal allocated, control / E20 |
 |---|---|---|---|

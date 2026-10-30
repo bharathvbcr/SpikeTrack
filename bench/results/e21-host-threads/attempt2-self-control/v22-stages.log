@@ -1,0 +1,22 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 0.4 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 0.45 s)
+model loaded in 1.1 s on metal; tracking 16 frame(s) of "22"
+frame 0 (1/16): 5.53 s, 11 active track(s), 0 frame(s) released; waits +35 (upload 2, read 15, sync 18), dispatches +4133, metal allocated 5401 MiB (frame peak 7453 MiB), footprint 8049 MiB, pageouts +0, swapins +0
+frame 1 (2/16): 4.31 s, 11 active track(s), 0 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3018, metal allocated 5418 MiB (frame peak 7470 MiB), footprint 8037 MiB, pageouts +0, swapins +0
+frame 2 (3/16): 5.27 s, 12 active track(s), 0 frame(s) released; waits +34 (upload 1, read 13, sync 20), dispatches +3682, metal allocated 5447 MiB (frame peak 7482 MiB), footprint 8322 MiB, pageouts +0, swapins +0
+frame 3 (4/16): 4.84 s, 12 active track(s), 0 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3019, metal allocated 5432 MiB (frame peak 7487 MiB), footprint 8213 MiB, pageouts +0, swapins +0
+frame 4 (5/16): 5.49 s, 12 active track(s), 0 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3025, metal allocated 5445 MiB (frame peak 7497 MiB), footprint 8291 MiB, pageouts +0, swapins +0
+frame 5 (6/16): 5.22 s, 12 active track(s), 0 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3031, metal allocated 5458 MiB (frame peak 7510 MiB), footprint 8291 MiB, pageouts +0, swapins +0
+frame 6 (7/16): 5.52 s, 12 active track(s), 0 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3037, metal allocated 5467 MiB (frame peak 7518 MiB), footprint 7996 MiB, pageouts +0, swapins +0
+frame 7 (8/16): 6.87 s, 12 active track(s), 0 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3043, metal allocated 5194 MiB (frame peak 7643 MiB), footprint 7823 MiB, pageouts +0, swapins +0
+frame 8 (9/16): 8.30 s, 12 active track(s), 0 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3043, metal allocated 4923 MiB (frame peak 7542 MiB), footprint 7837 MiB, pageouts +0, swapins +0
+frame 9 (10/16): 5.98 s, 12 active track(s), 0 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3043, metal allocated 5403 MiB (frame peak 7660 MiB), footprint 8276 MiB, pageouts +0, swapins +0
+frame 10 (11/16): 7.09 s, 12 active track(s), 0 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3043, metal allocated 5225 MiB (frame peak 7671 MiB), footprint 7884 MiB, pageouts +0, swapins +0
+frame 11 (12/16): 6.84 s, 12 active track(s), 0 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3043, metal allocated 5235 MiB (frame peak 7682 MiB), footprint 7875 MiB, pageouts +0, swapins +0
+frame 12 (13/16): 9.90 s, 12 active track(s), 0 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3043, metal allocated 4963 MiB (frame peak 7394 MiB), footprint 7892 MiB, pageouts +0, swapins +0
+frame 13 (14/16): 8.20 s, 12 active track(s), 0 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3043, metal allocated 4973 MiB (frame peak 7516 MiB), footprint 8191 MiB, pageouts +0, swapins +0
+frame 14 (15/16): 10.58 s, 12 active track(s), 1 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3043, metal allocated 4983 MiB (frame peak 7415 MiB), footprint 7923 MiB, pageouts +0, swapins +0
+frame 15 (16/16): 12.98 s, 12 active track(s), 15 frame(s) released; waits +27 (upload 1, read 7, sync 19), dispatches +3043, metal allocated 4993 MiB (frame peak 7425 MiB), footprint 7875 MiB, pageouts +0, swapins +0
+profile (stages) written to /Users/bharath/Code/research/SpikeTrack/bench/results/e21-host-threads/v22-stages/22.profile-stages.md
+16 frame(s) of "22" tracked on metal: 12 track(s) born, 7.06 s/frame (model, mean), 116.1 s total
+  /Users/bharath/Code/research/SpikeTrack/bench/results/e21-host-threads/v22-stages/22.json
+  /Users/bharath/Code/research/SpikeTrack/bench/results/e21-host-threads/v22-stages/22.run.json

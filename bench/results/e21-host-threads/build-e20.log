@@ -1,0 +1,46 @@
+   Compiling objc2 v0.6.5
+   Compiling objc2-encode v4.1.0
+   Compiling libc v0.2.191
+   Compiling bitflags v2.13.2
+   Compiling objc2-core-foundation v0.3.2
+   Compiling version_check v0.9.5
+   Compiling generic-array v0.14.7
+   Compiling block2 v0.6.2
+   Compiling ojas-core v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-core)
+   Compiling typenum v1.20.1
+   Compiling objc2-foundation v0.3.2
+   Compiling dispatch2 v0.3.1
+   Compiling tessl v0.2.0 (/Users/bharath/Code/research/tessl)
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling ojas-io v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-io)
+   Compiling objc2-metal v0.3.2
+   Compiling st-weights v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e20/crates/st-weights)
+   Compiling digest v0.10.7
+   Compiling objc2-image-io v0.3.2
+   Compiling objc2-core-video v0.3.2
+   Compiling objc2-core-graphics v0.3.2
+   Compiling cpufeatures v0.2.17
+   Compiling ojas-metal v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-metal)
+   Compiling cfg-if v1.0.5
+   Compiling st-video v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e20/crates/st-video)
+   Compiling st-gate v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e20/crates/st-gate)
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e20/crates/st-model)
+   Compiling sha2 v0.10.9
+   Compiling objc2-core-ml v0.3.2
+   Compiling ojas-device v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-device)
+   Compiling ojas-simd v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-simd)
+   Compiling ojas-cpu v0.1.0 (/Users/bharath/Code/research/ojas-st/ojas-cpu)
+   Compiling st-coreml v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e20/crates/st-coreml)
+   Compiling st-eval v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e20/crates/st-eval)
+   Compiling spiketrack v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e20/crates/spiketrack)
+warning: function `evaluate` is never used
+   --> crates/spiketrack/src/eval_visem.rs:220:8
+    |
+220 | pub fn evaluate(pred: &Path, ids: &[String], visem: &Path) -> Result<Evaluation, String> {
+    |        ^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `spiketrack` (bin "spiketrack") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 53.43s
