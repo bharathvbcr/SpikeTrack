@@ -44,7 +44,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use ojas_core::{Backend, Conv2dParams, OjasError, Tensor};
+use ojas_core::{Backend, Conv2dParams, DType, OjasError, Tensor};
 
 use crate::host;
 use crate::layers::{host_of, up};
@@ -410,7 +410,8 @@ impl TrackerState {
             let mut hr = host_of(&be.interpolate_bilinear_forward(&low, [image, image], false)?, be)?;
             crate::tracker::vos::non_overlap(&mut hr, n, image * image);
             let slot_of = self.slot_of();
-            merged.maskmem = Some(vos.encode_mask_memory(ctx, &hr, image, &merged.scores, &merged.cond_objs, &slot_of, &mut |_| {})?);
+            let rows: Vec<usize> = (0..n).collect();
+            merged.maskmem = Some(vos.encode_mask_memory(ctx, &hr, &rows, image, &merged.scores, &merged.cond_objs, &slot_of, &mut |_| {})?);
             merged.feats = Some(ctx.feats.clone());
         }
         if p.is_cond {
@@ -428,16 +429,25 @@ impl TrackerState {
     }
 
     /// `_run_memory_encoder` as the frame's memory update calls it: encode the state's masks at
-    /// 1152 (`hr`: `[n, 1152 * 1152]` logits, state object order) with the given object-score
-    /// logits and store the result in the frame's output (both storages, as upstream loops over
-    /// them). The conditioning set is the stored output's (`conditioning_objects=None` lookup).
-    /// `mark` is called with each [`ENCODE_STAGES`] name as that phase begins (a profiler's marker;
-    /// `&mut |_| {}` otherwise).
-    pub fn encode_memory<B: Backend + ?Sized>(&mut self, vos: &Vos<'_, B>, ctx: &FrameCtx, hr: &[f32], scores: &[f32], mark: &mut dyn FnMut(&str)) -> Result<(), ModelError> {
+    /// 1152 with the given object-score logits (state object order) and store the result in the
+    /// frame's output (both storages, as upstream loops over them). `hr` holds `1152 * 1152`
+    /// logit planes, and the state's object `k` is plane `rows[k]`, so a caller holding every
+    /// track's planes passes them without gathering a copy. The conditioning set is the stored
+    /// output's (`conditioning_objects=None` lookup). `mark` is called with each
+    /// [`ENCODE_STAGES`] name as that phase begins (a profiler's marker; `&mut |_| {}` otherwise).
+    pub fn encode_memory<B: Backend + ?Sized>(
+        &mut self,
+        vos: &Vos<'_, B>,
+        ctx: &FrameCtx,
+        hr: &[f32],
+        rows: &[usize],
+        scores: &[f32],
+        mark: &mut dyn FnMut(&str),
+    ) -> Result<(), ModelError> {
         let frame = ctx.frame;
         let cond = self.stored(frame).map(|s| s.cond_objs.clone()).ok_or_else(|| err(format!("conditioning objects not found at frame {frame}")))?;
         let slot_of = self.slot_of();
-        let mm = vos.encode_mask_memory(ctx, hr, vos.geo.input_mask(), scores, &cond, &slot_of, mark)?;
+        let mm = vos.encode_mask_memory(ctx, hr, rows, vos.geo.input_mask(), scores, &cond, &slot_of, mark)?;
         for map in [&mut self.cond, &mut self.non_cond] {
             if let Some(st) = map.get_mut(&frame) {
                 st.maskmem = Some(mm.clone());
@@ -761,7 +771,8 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         Ok((ptrs, appearing, low))
     }
 
-    /// `_encode_new_memory` + bf16 storage for `n` objects' mask logits `hr` `[n, size * size]`
+    /// `_encode_new_memory` + bf16 storage for `n` objects' mask logits, object `o` being plane
+    /// `rows[o]` of `hr` (`size * size` values per plane)
     /// (`size` = the image side, 1008, for a consolidated frame, 1152 for the frame memory update;
     /// the encoder resizes to `16 * grid`). `scores`: the object-score logits that decide which slots get
     /// `no_obj_embed_spatial` (padding and removed slots count as score 0). `slot_of[o]`: slot of
@@ -772,6 +783,7 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         &self,
         ctx: &FrameCtx,
         hr: &[f32],
+        rows: &[usize],
         size: usize,
         scores: &[f32],
         cond: &BTreeSet<usize>,
@@ -783,21 +795,65 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         let tokens = self.geo.tokens();
         let px = size * size;
         let n = slot_of.len();
-        if hr.len() != n * px || scores.len() != n {
-            return Err(err(format!("encode_mask_memory: {} mask values and {} scores for {n} objects of {size}x{size}", hr.len(), scores.len())));
+        if rows.len() != n || scores.len() != n || rows.iter().any(|&r| (r + 1) * px > hr.len()) {
+            return Err(err(format!(
+                "encode_mask_memory: rows {rows:?} of {} mask values and {} scores for {n} objects of {size}x{size}",
+                hr.len(),
+                scores.len()
+            )));
         }
-        let mut chans = vec![0f32; 2 * MUX * px];
-        for o in 0..n {
-            let s = slot_of[o];
-            for i in 0..px {
-                chans[s * px + i] = host::sigmoid(hr[o * px + i]) * 2.0 - 1.0;
-            }
-            if cond.contains(&o) {
-                chans[(MUX + s) * px..(MUX + s + 1) * px].iter_mut().for_each(|v| *v = 1.0);
+        let mut obj_of_slot = [None; MUX];
+        for (o, &s) in slot_of.iter().enumerate() {
+            if s >= MUX || obj_of_slot[s].replace(o).is_some() {
+                return Err(err(format!("encode_mask_memory: slots {slot_of:?} are not distinct slots below {MUX}")));
             }
         }
-        mark(ENCODE_STAGES[1]);
-        let masks = up(be, &chans, &[1, 2 * MUX, size, size])?;
+        // The encoder's input is 2 * MUX planes in slot order: each slot's sigmoid mask (0 for an
+        // empty slot), then each slot's condition plane (1 for a conditioning object, else 0). Only
+        // the n object planes cross to the device, in slot order; the constant planes are device
+        // fills and the concat moves bits, so the input is the one the host used to build.
+        let by_slot: Vec<usize> = obj_of_slot.iter().flatten().copied().collect();
+        let objs = if n > 0 {
+            let mut t = Tensor::zeros(&[n, size, size], DType::F32, be.budget())?;
+            let dst = t.f32_slice_mut()?;
+            for (k, &o) in by_slot.iter().enumerate() {
+                let src = &hr[rows[o] * px..(rows[o] + 1) * px];
+                for (d, &x) in dst[k * px..(k + 1) * px].iter_mut().zip(src) {
+                    *d = host::sigmoid(x) * 2.0 - 1.0;
+                }
+            }
+            mark(ENCODE_STAGES[1]);
+            Some(be.upload(&t)?)
+        } else {
+            mark(ENCODE_STAGES[1]);
+            None
+        };
+        let zero = be.fill(&[1, size, size], DType::F32, 0.0)?;
+        let one = if cond.is_empty() { None } else { Some(be.fill(&[1, size, size], DType::F32, 1.0)?) };
+        let mut parts: Vec<Tensor> = Vec::with_capacity(2 * MUX);
+        let (mut s, mut k) = (0, 0);
+        while s < MUX {
+            if obj_of_slot[s].is_none() {
+                parts.push(zero.clone());
+                s += 1;
+                continue;
+            }
+            let start = k;
+            while s < MUX && obj_of_slot[s].is_some() {
+                s += 1;
+                k += 1;
+            }
+            let objs = objs.as_ref().ok_or_else(|| err("encode_mask_memory: an occupied slot with no object planes"))?;
+            parts.push(if k - start == n { objs.clone() } else { be.slice(objs, 0, start, k - start)? });
+        }
+        for o in obj_of_slot {
+            parts.push(match (o, &one) {
+                (Some(o), Some(one)) if cond.contains(&o) => one.clone(),
+                _ => zero.clone(),
+            });
+        }
+        let refs: Vec<&Tensor> = parts.iter().collect();
+        let masks = be.concat(&refs, 0)?.reshape(&[1, 2 * MUX, size, size])?;
         mark(ENCODE_STAGES[2]);
         let enc = self.mem_enc.fwd(be, &ctx.prop72, &masks)?;
         let mut feat = host_of(&enc.features, be)?;

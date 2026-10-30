@@ -600,24 +600,26 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
             if self.marker.is_some() {
                 mark(&mut self.marker, &format!("{}: {}", STAGES[8], MEMORY_UPDATE_STAGES[0]));
             }
-            let mut hr = host_of(&upsampled, be)?;
+            // The host tensor the readback made is the working copy: no second copy into a Vec.
+            let mut hr_host = upsampled.to_host(be.budget())?;
+            let hr = hr_host.f32_slice_mut()?;
             if self.marker.is_some() {
                 mark(&mut self.marker, &format!("{}: {}", STAGES[8], MEMORY_UPDATE_STAGES[1]));
             }
-            let proxy = suppress_area_shrinkage(&mut hr, n, input_mask * input_mask);
+            let proxy = suppress_area_shrinkage(hr, n, input_mask * input_mask);
             mark(&mut self.marker, STAGES[9]);
             for (si, st) in self.states.iter_mut().enumerate() {
                 if st.is_empty() {
                     continue;
                 }
-                let (mut local, mut local_scores) = (Vec::with_capacity(st.len() * input_mask * input_mask), Vec::with_capacity(st.len()));
-                for id in st.obj_ids() {
-                    let row = prev_ids.binary_search(id).map_err(|_| err(format!("state object {id} is not a track")))?;
-                    local.extend_from_slice(&hr[row * input_mask * input_mask..(row + 1) * input_mask * input_mask]);
-                    local_scores.push(proxy[row]);
-                }
+                let rows = st
+                    .obj_ids()
+                    .iter()
+                    .map(|id| prev_ids.binary_search(id).map_err(|_| err(format!("state object {id} is not a track"))))
+                    .collect::<Result<Vec<usize>, ModelError>>()?;
+                let local_scores: Vec<f32> = rows.iter().map(|&r| proxy[r]).collect();
                 let marker = &mut self.marker;
-                st.encode_memory(vos, ctx, &local, &local_scores, &mut |s| {
+                st.encode_memory(vos, ctx, hr, &rows, &local_scores, &mut |s| {
                     if marker.is_some() {
                         mark(marker, &format!("{}, state {si}: {s}", STAGES[9]));
                     }
