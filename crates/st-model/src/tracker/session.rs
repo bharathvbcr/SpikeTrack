@@ -600,8 +600,11 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
             if self.marker.is_some() {
                 mark(&mut self.marker, &format!("{}: {}", STAGES[8], MEMORY_UPDATE_STAGES[0]));
             }
-            // The host tensor the readback made is the working copy: no second copy into a Vec.
+            // The host tensor the readback made is the working copy: no second copy into a Vec. On a
+            // host backend `to_host` is a clone sharing `upsampled`'s storage, so `upsampled` is
+            // dropped first to leave the allocation uniquely owned for the in-place area rule.
             let mut hr_host = upsampled.to_host(be.budget())?;
+            drop(upsampled);
             let hr = hr_host.f32_slice_mut()?;
             if self.marker.is_some() {
                 mark(&mut self.marker, &format!("{}: {}", STAGES[8], MEMORY_UPDATE_STAGES[1]));
