@@ -265,6 +265,30 @@ upstream to cosine 0.99995 [V], so it is not exact either.
   - Every other build is byte-identical on 47.
   - Parity: tracker 8 of 8 pass. detect-track CPU is identical to the committed table. Metal has
     identical IoUs (0.99855), and only `prob dmax` moved, 2.3e-6 -> 2.7e-6.
+- E17: which memory category E15's creep is in, and whether it levels off (pre-stated before the
+  run, `bench/results/e17-footprint-categories`).
+  - Already known, free: the progress line's "metal allocated" is `MTLDevice.currentAllocatedSize`
+    (tessl `runtime.rs` `current_allocated_bytes`). That includes Ojas's cached free buffers, and
+    the pool cache is capped at 64 MiB (ojas-metal `SESSION_POOL_CACHE_BYTES`). Pool slack is
+    therefore not the creep.
+  - Runs:
+    - E13 (49a92571), 47 x 300, snapshots at frames 30 / 150 / 290: the control.
+    - E15 (8567e60a), all 1,470 frames of 47, snapshots at frames 30 / 150 / 290 / 700 / 1100 /
+      1460.
+    - Each snapshot is `footprint --pid` (by category) plus `vmmap -summary`.
+  - Owner: the category whose dirty + swapped size grows by >= 60% of E15's footprint delta from
+    frame 30 to 290, while it does not grow in E13.
+    - MALLOC means a host structure (SpikeTrack or Ojas host side).
+    - IOAccelerator, IOSurface or IOKit means driver residency outside `currentAllocatedSize`.
+    - Mapped file or CoreML / ANE regions mean the CoreML trunk.
+    - If no category reaches 60%, it is reported as unattributed.
+  - Levels off or leaks: from E15's per-frame footprint lines, the slope over frames 700-1469.
+    - <= 0.2 MiB per frame means it settles.
+    - >= 0.5 means it is still climbing, and E15's device caches become a bug to fix before any
+      further speed work.
+    - In between is reported as unresolved.
+  - The E13 300-frame predictions must `cmp` byte-identical to the committed 47.json. Frame times
+    from these runs are not read.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 
