@@ -27,7 +27,8 @@ lock competes for CPU and gains less.
   load 10-23).
 - The 1,500 held-out frames are byte-identical to the committed CoreML fp32 run, so HOTA stays
   0.4922.
-- The footprint stays flat through frame 300.
+- Metal allocated is flat. The process footprint creeps 0.6-1.6 MiB per frame, where E10's was
+  flat (GAP-E15-HOST-FOOTPRINT-CREEP, open).
 **E13 / E15 (2026-10-30):**
 - Memory attention is 74% of each tracker state's time. It does not shrink with objects, and its
   cost is in Ojas kernels (`bench/results/profile-tracker`); the numbers went to ojas-78.

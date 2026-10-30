@@ -44,7 +44,8 @@ Steady mean, frames 1-15, ms. The 1-minute load is read just before each run.
   frames). That makes the identity gate hold from E10 through E15 on the full held-out set.
 - **HOTA 0.4922** (DetA 0.3734, AssA 0.6903, LocA 0.7221). `held300/eval.txt` matches the committed
   `eval.txt` line for line.
-- **Footprint levels off [V].** MiB at frames 15 / 99 / 199 / last:
+- **Footprint: the device caches are bounded, but the process footprint creeps [V].** MiB at
+  frames 15 / 99 / 199 / last:
 
   | video | 15 | 99 | 199 | 299 |
   |---|---|---|---|---|
@@ -54,8 +55,27 @@ Steady mean, frames 1-15, ms. The 1-minute load is read just before each run.
   | 47 | 9207 | 9311 | 9305 | 8698 |
   | 82 | 8872 | 9178 | 9054 | 9110 |
 
-  No video climbs past frame 16. Only 21 rises at every checkpoint, and it stays inside
-  8.4-9.0 GB, the same band as the others. The peak is 9.3 GB.
+  The four samples hide a trend. Over all 300 frames, slope from frame 16, MiB per frame:
+
+  | video | E15 footprint | E10 footprint (committed run) | E15 Metal allocated |
+  |---|---|---|---|
+  | 21 | +1.23 | -0.11 | +0.03 |
+  | 22 | +0.87 | -0.93 | 0.00 |
+  | 36 | +0.72 | -0.14 | +0.23 |
+  | 47 | +1.55 | -0.03 | +0.02 |
+  | 82 | +0.58 | -0.25 | +0.03 |
+
+  - **Metal allocated is flat after ~frame 100** (36 rises while it gains tracker states). The
+    device token caches E15 added are released with their frames [V]. They sit ~400 MiB above E10's
+    Metal allocation (5557-5649 against 5185-5206 MiB at frame 16), and the process footprint at
+    frames 250-299 is no higher than E10's.
+  - **The process footprint keeps rising on every E15 video, and did not on E10.** Over frames
+    250-299 it averages 80-177 MiB more than over 100-149. By the letter of the pre-stated rule, this
+    is a footprint that keeps climbing past frame 16.
+  - The growth is outside Metal allocations [I], and it is smaller than one leaked 5 MiB token
+    tensor per frame. It is not yet tied to E12 (scoped host threads), E13 or E15 [unexplained].
+  - At ~1.5 MiB per frame, a 3,000-frame video would gain ~4 GB, so this matters beyond 300 frames.
+    It is recorded as GAP-E15-HOST-FOOTPRINT-CREEP.
 - **Unpaired context only**, not a ratio: the steady held-out mean is 2165 ms per frame over the
   5 videos (21 2480, 22 1924, 36 2312, 47 1855, 82 2256). The committed E10 run averaged 3019. It ran
   on another day at another load, so the README and WRITEUP do not carry it.

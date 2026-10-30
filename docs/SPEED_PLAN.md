@@ -232,12 +232,15 @@ upstream to cosine 0.99995 [V], so it is not exact either.
       the gate instead of identity.
     - A footprint that keeps climbing past frame 16 means the cache lifetime is wrong, not that E15
       gains.
-- Closing result [V, `bench/results/closing-e15`]: every rule passes.
+- Closing result [V, `bench/results/closing-e15`]: compile, speed and identity pass. The footprint
+  rule fails in letter.
   - All 14 test executables compile.
   - E15 / E11b, min of 3: 82 0.843x, 22 0.825x. Paired: 0.833-0.849 and 0.795-0.829, 6 of 6
     faster, load 9.7-23.1. All 6 E15 runs are byte-identical to E11b.
   - Held-out: 5 of 5 videos byte-identical to the committed coreml-fp32-max64 run, and HOTA 0.4922.
-    Footprint is 8.4-9.3 GB at frames 15 / 99 / 199 / 299, not climbing.
+  - Footprint: Metal allocated is flat after ~frame 100, so the device caches are bounded. But the
+    process footprint rises 0.6-1.6 MiB per frame on all 5 videos, where E10's was flat. The cause
+    is not yet tied to E12, E13 or E15 (GAP-E15-HOST-FOOTPRINT-CREEP).
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 
