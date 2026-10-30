@@ -373,6 +373,53 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     - The largest qualifying item is E20.
     - None >= 20 ms: the memory encode is shelved, and the detector prep's sine and query-MLP split
       is next.
+- E19 result [V, `bench/results/e19-memory-encode-split`]:
+  - Every E19 run's predictions are byte-identical to control-1 on 82 and 22.
+  - **The 82 table fails the validity rule.**
+    - Its stage sum is 3092.5 ms, against controls of 3308.7 and 2340.0 ms.
+    - The controls differ by 30%: the load fell from 21 to 11 during the hold.
+    - The 82 table is not read. Its re-read is folded into E20's hold.
+  - The 22 table is valid: 1982.8 ms, against 1893.3 and 2044.7 ms.
+    - The only sub-phase at 20 ms or more is mask channels: 21.3 ms, host compute.
+    - Below it: mask upload 17.1 ms, area rule 17.0 ms, upsampled readback 8.3 ms.
+  - Decision: E20 drops the redundant work in mask channels, the branch of the rule that drops
+    rather than threads. Threading does not join E20.
+    - On the invalid 82 table, the largest item would be mask upload (36.0 ms over two states),
+      also in E20's scope.
+- E20: the memory encode without duplicate host copies (pre-stated before the run, branch
+  `e20-copy-elim` 957c66d, `bench/results/e20-copy-elim`).
+  - Change (exact by construction: the same f32 values reach the encoder; no op is reordered):
+    - Mask channels: only the n object planes are built on the host. Each is written once, as
+      `host::sigmoid(x) * 2 - 1`, into a fresh tensor that is then uploaded. There is no 170 MB
+      zeroed buffer.
+    - The 32 - n constant planes (0, or 1 for conditioning slots) are made on the device with
+      `fill` and assembled in slot order with `slice` and `concat`. These are bit copies.
+    - Memory update: the readback's own host tensor is used in place (`to_host` +
+      `f32_slice_mut`), with no third `to_f32_vec` copy.
+    - Each state reads its rows from the shared logits by index, instead of gathering its own copy.
+  - Hold: per video (82, 22), 16 frames, in this order:
+    1. the E19 binary as the unprofiled control;
+    2. E20 unprofiled;
+    3. E20 with `--profile stages`;
+    4. the E19 binary with `--profile stages` (E19's re-read, under the same load);
+    5. the control again.
+  - Gates, all required:
+    - st-model lib tests pass.
+    - tracker_parity passes.
+    - detect_track_parity on video 22, Metal and CPU: the visit and yield tables are identical,
+      line for line, to E16's (`e16-bisect-parity`).
+    - Every E20 run's predictions are byte-identical to control-1.
+  - A table is read only if its stage sum is within 10% of both controls.
+  - Expected direction, each sub-phase read against the same-hold E19 table; a rise in any one
+    refutes E20 for that sub-phase:
+    - mask upload per state falls, and now scales with n;
+    - mask channels for state 0 falls by the zero-fill share;
+    - upsampled readback falls by one copy.
+  - Next:
+    - E21 is exact threading if, on valid tables, either of these is still at 20 ms or more:
+      - mask channels, summed over states;
+      - the area rule, on 82.
+    - Otherwise the detector prep's sine and query-MLP split is next.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

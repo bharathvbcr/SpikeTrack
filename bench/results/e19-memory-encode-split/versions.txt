@@ -1,0 +1,5 @@
+SpikeTrack 0dd25eb st-model: mark the memory update's readback and area rule, and each state's encode phases; pre-state E19, dirty 0 (binary 6e86d6e4b658277b)
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+tessl c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in
+10:23  up 4 days,  2:38, 1 user, load averages: 20.99 28.37 26.94
+control spiketrack-e18b 674d96b58ad1ce4f
