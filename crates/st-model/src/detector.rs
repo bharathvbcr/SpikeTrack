@@ -366,7 +366,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             let mut pos = vec![0f32; D];
             pos.extend_from_slice(&qpos);
             let pos = up(be, &pos, &[1, 1 + QUERIES, D])?;
-            let rpb = up(be, &self.rpb_bias(&refs), &[1, HEADS, 1 + QUERIES, tokens])?;
+            let rpb = self.rpb_bias(&refs)?;
             mark(DETECTOR_STAGES[2]);
             x = layer.fwd(be, &x, &pos, &prompt, &mem, &mem_keys, &rpb)?;
             mark(DETECTOR_STAGES[3]);
@@ -431,9 +431,12 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
     }
 
     /// `TransformerDecoder._get_rpb_matrix` with `boxRPB="log"` for a grid x grid
-    /// map (72 at 1008), as `[HEADS, 1 + Q, grid^2]` with a zero row for the presence token.
-    fn rpb_bias(&self, refs: &[f32]) -> Vec<f32> {
-        let (feat, tokens) = (self.geo.grid, self.geo.tokens());
+    /// map (72 at 1008), as a device `[1, HEADS, 1 + Q, grid^2]` with a zero row for the presence
+    /// token. The per-axis MLPs run on the host; the `[.., grid, grid]` sum of the two axes is a
+    /// device broadcast add (one IEEE add per element, as the host loop it replaces did), so only
+    /// the two `[HEADS, Q, grid]` tables are uploaded instead of the whole bias.
+    fn rpb_bias(&self, refs: &[f32]) -> Result<Tensor, OjasError> {
+        let feat = self.geo.grid;
         let coords: Vec<f32> = (0..feat).map(|i| i as f32 / feat as f32).collect();
         let log8 = 8f32.log2();
         let enc = |d: f32| {
@@ -451,20 +454,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
         }
         let ex = self.rpb_x.host(&dx, QUERIES * feat); // [Q, grid(w), 8]
         let ey = self.rpb_y.host(&dy, QUERIES * feat); // [Q, grid(h), 8]
-        let rows = 1 + QUERIES;
-        let mut out = vec![0f32; HEADS * rows * tokens];
-        for h in 0..HEADS {
-            for q in 0..QUERIES {
-                let base = (h * rows + 1 + q) * tokens;
-                for i in 0..feat {
-                    let y = ey[(q * feat + i) * HEADS + h];
-                    for j in 0..feat {
-                        out[base + i * feat + j] = y + ex[(q * feat + j) * HEADS + h];
-                    }
-                }
-            }
-        }
-        out
+        rpb_from_axes(self.be, &ex, &ey, feat)
     }
 
     /// `F.interpolate(mode="nearest")` by exactly 2x: a broadcast into `[N, C, H, 2, W, 2]`.
@@ -480,5 +470,81 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
     /// `nn.GroupNorm(8, 256)` through Ojas's `group_norm_forward`.
     fn group_norm(&self, x: &Tensor, affine: &(Tensor, Tensor)) -> Result<Tensor, OjasError> {
         self.be.group_norm_forward(x, &affine.0, &affine.1, GN_GROUPS, GN_EPS)
+    }
+}
+
+/// The box-RPB bias from its per-axis tables `ex` / `ey`, each `[Q, grid, HEADS]` as the MLPs
+/// emit them: `bias[h, 1 + q, i * grid + j] = ey[q, i, h] + ex[q, j, h]`, row 0 (the presence
+/// token) zero, as a device `[1, HEADS, 1 + Q, grid^2]`.
+fn rpb_from_axes<B: Backend + ?Sized>(be: &B, ex: &[f32], ey: &[f32], feat: usize) -> Result<Tensor, OjasError> {
+    let q = ex.len() / (feat * HEADS);
+    // [Q, grid, HEADS] -> [HEADS, Q, grid] on the host (a copy).
+    let by_head = |e: &[f32]| -> Vec<f32> { (0..HEADS).flat_map(|h| e.iter().skip(h).step_by(HEADS).copied()).collect() };
+    let ey = up(be, &by_head(ey), &[HEADS, q, feat, 1])?;
+    let ex = up(be, &by_head(ex), &[HEADS, q, 1, feat])?;
+    let boxes = be.broadcast_add_forward(&ey, &ex)?.reshape(&[HEADS, q, feat * feat])?;
+    let presence = be.fill(&[HEADS, 1, feat * feat], DType::F32, 0.0)?;
+    be.concat(&[&presence, &boxes], 1)?.reshape(&[1, HEADS, 1 + q, feat * feat])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ojas_core::Budget;
+
+    /// The host loop `rpb_from_axes` replaced: the oracle it must match bit for bit.
+    fn rpb_host(ex: &[f32], ey: &[f32], q: usize, feat: usize) -> Vec<f32> {
+        let (rows, tokens) = (1 + q, feat * feat);
+        let mut out = vec![0f32; HEADS * rows * tokens];
+        for h in 0..HEADS {
+            for qi in 0..q {
+                let base = (h * rows + 1 + qi) * tokens;
+                for i in 0..feat {
+                    let y = ey[(qi * feat + i) * HEADS + h];
+                    for j in 0..feat {
+                        out[base + i * feat + j] = y + ex[(qi * feat + j) * HEADS + h];
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    fn table(len: usize, seed: u32) -> Vec<f32> {
+        let mut s = seed.wrapping_mul(2_654_435_761).wrapping_add(7);
+        (0..len)
+            .map(|_| {
+                s ^= s << 13;
+                s ^= s >> 17;
+                s ^= s << 5;
+                ((s >> 8) as f32 / (1u32 << 24) as f32 - 0.5) * [1e-4f32, 0.3, 9.0, 4e2][(s & 3) as usize]
+            })
+            .collect()
+    }
+
+    fn rpb_matches_the_host_loop_on<B: Backend + ?Sized>(be: &B) {
+        // The native shape (200 queries, a 72 grid) and a small odd one.
+        for (q, feat) in [(QUERIES, FEAT), (3, 5)] {
+            let (ex, ey) = (table(q * feat * HEADS, 1), table(q * feat * HEADS, 2));
+            let got = rpb_from_axes(be, &ex, &ey, feat).expect("rpb");
+            assert_eq!(got.shape(), [1, HEADS, 1 + q, feat * feat]);
+            let got = host_of(&got, be).expect("readback");
+            let want = rpb_host(&ex, &ey, q, feat);
+            assert_eq!(got.len(), want.len());
+            for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+                assert_eq!(g.to_bits(), w.to_bits(), "({q}, {feat}) element {i}: {g} vs {w}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_rpb_bias_matches_the_host_loop_bit_for_bit_on_cpu() {
+        rpb_matches_the_host_loop_on(&ojas_cpu::CpuBackend::with_threads(Budget::new(4 << 30), 2).expect("cpu"));
+    }
+
+    #[test]
+    #[ignore = "needs the Metal GPU: cargo test -p st-model --lib -- --ignored rpb"]
+    fn the_rpb_bias_matches_the_host_loop_bit_for_bit_on_metal() {
+        rpb_matches_the_host_loop_on(&ojas_metal::MetalBackend::new(Budget::new(4 << 30)).expect("metal"));
     }
 }
