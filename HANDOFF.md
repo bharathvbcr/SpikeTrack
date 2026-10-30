@@ -17,7 +17,11 @@ metal`, `track` runs the ViT trunk as a CoreML fp32 ML Program that we export fr
 (`tools/baselines/coreml_trunk.py`). The frame is 0.80x, with the same id sets on all 1,500 held-out
 frames and the same HOTA, 0.4922 at cap 64. With the default, the trunk is Apple's CoreML, not
 Ojas/tessl. The necks, text encoder, detector and tracker still run on Ojas. `--trunk-precision f32`
-is the all-Ojas path, and `--backend cpu` keeps it as the parity oracle. Say this plainly in every
+is the all-Ojas path, and `--backend cpu` keeps it as the parity oracle.
+**E12 (2026-10-30):** the detector's host DETR decoder is 337 -> 62 ms per frame, with predictions
+byte-identical, and the frame is 0.86x on VISEM 22 (`bench/results/e12-host-decoder`). Large host
+linears now use up to `host::MAX_THREADS` = 8 scoped threads each, so a run outside the mac_heavy
+lock competes for CPU and gains less. Say this plainly in every
 write-up that leads with Ojas/tessl.
 
 ## 2. Why it is new (keep this framing in every write-up)

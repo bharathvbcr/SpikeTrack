@@ -31,9 +31,18 @@ output; binary shas in `versions.txt`).
 
 Against the pre-stated readings:
 - **A: prep is 71.6 ms on 82, at or under the 130 threshold.** The scalar MLP arithmetic was the bulk.
+- **In B, the prep stage also holds the device broadcast and concat**, because `StageClock` syncs at
+  the next mark. So B's prep is not all host time. The label is kept so the tables compare across
+  binaries.
 - **B: prep is 52.8 ms on 82 and 48.5 on 22, above the 40 ms "no longer the gap" line.** B takes
   19 ms more out of prep on 82 (13 on 22). What remains is the host MLPs themselves:
   `ref_point_head` and the two box-RPB MLPs, now threaded, and the sine embedding.
+
+**HOTA.** The held-out 0.4922 is inherited, not re-run.
+- Verified: predictions are byte-identical on 32 frames.
+- Exact by construction: `host::linear` keeps the same operations in the same order, with no FMA.
+- Exact as tested: the Metal broadcast does one IEEE add per element. The bit-for-bit Metal test
+  passes. A fast-math denormal flush is the only theoretical gap, and the RPB values are O(1).
 
 ## Frame time, unprofiled, steady mean (frames 1-15), ms
 

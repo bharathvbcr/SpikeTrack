@@ -88,7 +88,9 @@ is where the adapter's learning shows.
 - **Speed.** About 2.7 s per frame on the M5 Pro with the CoreML fp32 trunk (3.4 s with the Ojas
   trunk), still several times slower than the CoreML port's 0.35 s, which runs only the tracker.
   - Since E12 (2026-10-30), the detector's host decoder runs blocked and threaded, with identical
-    output, and the frame is 0.86-0.88x of that (`bench/results/e12-host-decoder`).
+    output, and the frame is 0.86x of that on VISEM 22 (min of 2, interleaved, load ~5). It is
+    smaller on 82, but load fell during those runs. The gain comes partly from host threads, so it
+    shrinks on a contended machine (`bench/results/e12-host-decoder`).
   - The trunk's f32 matrix multiplies already run at the GPU's f32 peak.
   - The CoreML model load adds 3-12 s at startup.
   - An fp16 trunk gives 0.55x the frame but changes close detections. On video 21 that cost the
