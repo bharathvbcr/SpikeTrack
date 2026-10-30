@@ -441,6 +441,19 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     controls are equal.
   - Next, by the rule: E21. On E20's valid 82 table, mask channels (35.5 ms over two states) and the
     area rule (32.3 ms) both exceed 20 ms.
+- Zero-copy transfers: ojas-78's side.
+  - `read_with` / `upload_with` is filed as GitPulse card ft-f6dcf4c5 (P2, after wave 8). It
+    changes the public `Backend` API, so its merge needs the owner's yes.
+  - The `Wait::Upload` drain [V, ojas 12f3f60 `ojas-metal/src/device.rs`, the upload doc comment
+    and `fresh_from`]:
+    - It comes from tessl, which maps a buffer for the host only after a waited commit. It is not
+      there to protect recycled buffers.
+    - A U32 upload behind recorded work already skips it, using a fresh pool buffer.
+  - The f32 twin of that path is internal to `MetalBackend::upload`, and suggested to ojas-78 as a
+    first step. It would drop the upload waits on our mask uploads; that is up to 4 of the 23
+    waits per steady frame on 82 [I].
+  - True zero-copy (a mapping with no wait) would need tessl to map a buffer that was never
+    committed. That is a tessl API change, held for the owner.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 
