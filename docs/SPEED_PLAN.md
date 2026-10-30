@@ -222,6 +222,16 @@ upstream to cosine 0.99995 [V], so it is not exact either.
   - Footprint at frame 15 is ~760 MiB lower and flat; the control climbs to ~10.3 GB.
   - The multiplex decoder phase rose 8-18 ms on 82's stages run [unexplained, read as load]. E15
     does not touch it.
+- Closing job for E11b-E15 (pre-stated before the run, `bench/results/closing-e15`):
+  - Every st-model and spiketrack test target must compile.
+  - E11b (3ca1476) against E15 (66c3a58), interleaved, 3 rounds, on 82 and 22, with load recorded:
+    this is the one cumulative ratio the README and WRITEUP may carry, at its recorded load.
+  - The E15 code over the 5 held-out videos x 300 frames, then HOTA:
+    - Every video's predictions must `cmp` byte-identical to the committed
+      `held300-lora600-sperm-detector-coreml-fp32-max64`. If any differs, stop, and HOTA becomes
+      the gate instead of identity.
+    - A footprint that keeps climbing past frame 16 means the cache lifetime is wrong, not that E15
+      gains.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 
