@@ -1,0 +1,7 @@
+SpikeTrack e21-host-threads 869540f st-model: thread the memory update's sigmoid fill and area rule exactly (E21), dirty 0 (binary a931e9f727e6cf2c)
+control spiketrack-e20tc 2453a5ace01a7b24 from cd237ab st-model: drop the upsampled tensor before the in-pl
+old E20 4041d319fba9e891
+metal toolchain Build Version: 27B47
+tessl 574904b Stop Claude Code from adding commit and PR attribution.
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+18:35  up 4 days, 10:50, 1 user, load averages: 11.10 10.88 10.11

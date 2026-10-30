@@ -1,0 +1,88 @@
+   Compiling tessl v0.2.0 (/Users/bharath/Code/research/tessl)
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+error: failed to run custom build command for `tessl v0.2.0 (/Users/bharath/Code/research/tessl)`
+
+Caused by:
+  process didn't exit successfully: `/Users/bharath/Code/research/SpikeTrack/target/release/build/tessl-56bfd1e83c732529/build-script-build` (exit status: 101)
+  --- stdout
+  cargo::rustc-check-cfg=cfg(tessl_embedded_metallib)
+  cargo:rerun-if-env-changed=DEVELOPER_DIR
+  cargo:rerun-if-env-changed=SDKROOT
+  cargo:rerun-if-env-changed=TOOLCHAINS
+  cargo:rerun-if-env-changed=MACOSX_DEPLOYMENT_TARGET
+  cargo:rerun-if-env-changed=TESSL_METAL_WERROR
+  cargo:rerun-if-env-changed=DOCS_RS
+  cargo:rerun-if-env-changed=TESSL_SKIP_AOT
+  cargo:rerun-if-env-changed=METAL_RUNTIME_SKIP_AOT
+  cargo:rerun-if-env-changed=TESSL_PREBUILT_METALLIB
+  cargo:rerun-if-env-changed=TESSL_GEMM_TUNE
+  cargo:rerun-if-env-changed=METAL_NATIVE_GEMM_TUNE
+  cargo:rustc-link-lib=framework=CoreGraphics
+  cargo:rustc-link-lib=framework=Metal
+  cargo:rustc-link-lib=framework=Foundation
+  cargo:kernels=/Users/bharath/Code/research/tessl/kernels
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/qwen35_gdn.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/q4_mlx_dot.h
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/gdn_train.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/act.h
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/rms_qkv_rope.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/gemm_q4_mlx_tensorops.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/gemv_q4.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/qwen35_attn_bwd.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/qwen35_act.h
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/reduce.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/mtl_tensor.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/attn_tiled.h
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/flash_attn_swa_h128.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/gemv_q4_mlx_simd.h
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/qwen35_mlp.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/embed_pool.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/flash_attn_swa_h256.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/gemm_q4_mlx_simd.h
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/utils.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/encoder_attn_tiled.h
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/matmul_simdgroup.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/softcap.h
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/embedgemma2_vision.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/qwen35_score.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/gemm_q4_mlx.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/kv_store.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/softcap_sample.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/mlp_gelu_tanh.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/rms_norm.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/attn_rows.h
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/cross_entropy.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/flash_attn_decode.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/flash_attn_global_h512.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/gemv_q4_mlx.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/reduce_tree.h
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/qwen35_adamw.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/tune
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/tune/encoder_attn_tune.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/tune/matmul_tensorops_tune.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/attn_fa2.h
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/matmul_tensorops.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/bert.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/embed_lookup.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/flash_attn_rows.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/gemm_coop.h
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/qwen35_attn_tiled.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/qwen35_train_storage.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/gemv_q8.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/embedgemma2_text.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/embedgemma2_audio.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/qwen35_attn.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/qwen35_bwd.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/mlp_silu.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/encoder_attn.metal
+  cargo:rerun-if-changed=/Users/bharath/Code/research/tessl/kernels/qwen35_adamw_math.h
+
+  --- stderr
+
+  thread 'main' (130833424) panicked at /Users/bharath/Code/research/tessl/build.rs:647:9:
+  xcrun ["-f", "metallib"] failed: xcrun: error: sh -c '/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -sdk macosx -find metallib 2> /dev/null' failed with exit code 17664: (null) (errno=Undefined error: 0)
+  xcrun: error: unable to find utility "metallib", not a developer tool or in PATH
+
+  note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+warning: build failed, waiting for other jobs to finish...
