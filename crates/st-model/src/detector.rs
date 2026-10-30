@@ -27,6 +27,19 @@ pub const FEAT: usize = Geometry::SAM3.grid;
 pub const TOKENS: usize = Geometry::SAM3.tokens();
 pub const MASK: usize = Geometry::SAM3.low_res();
 /// Every detector LayerNorm is `nn.LayerNorm(256)` (torch default eps).
+/// The stage names [`Detector::forward_marked`] marks: the encoders on the device; per decoder
+/// layer the host work before it (box sine embedding, query-position MLP, the box relative-position
+/// bias) and its upload, the layer itself on the device, and the readback and host box update after
+/// it; the host dot-product scoring; the segmentation head on the device.
+pub const DETECTOR_STAGES: [&str; 6] = [
+    "detector: encoders",
+    "detector: decoder host prep (sine, query MLP, box RPB, upload)",
+    "detector: decoder layer (device)",
+    "detector: decoder readback + box update (host)",
+    "detector: scoring (host)",
+    "detector: segmentation head",
+];
+
 pub const LN_EPS: f32 = 1e-5;
 pub const GN_GROUPS: usize = 8;
 pub const GN_EPS: f32 = 1e-5;
@@ -295,6 +308,13 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
     /// (`Backbone::neck(Neck::Detector, ..)`). `text`: the prompt's valid
     /// (non-padding) resized text tokens, `[1, L, 256]`.
     pub fn forward(&self, fpn: &[Tensor; 3], text: &Tensor, taps: &mut DetectorTaps) -> Result<DetectorOut, ModelError> {
+        self.forward_marked(fpn, text, taps, &mut |_| {})
+    }
+
+    /// [`Self::forward`], calling `mark` with a [`DETECTOR_STAGES`] name as each phase begins (for
+    /// `track --profile`). The numerics are the same.
+    pub fn forward_marked(&self, fpn: &[Tensor; 3], text: &Tensor, taps: &mut DetectorTaps, mark: &mut dyn FnMut(&str)) -> Result<DetectorOut, ModelError> {
+        mark(DETECTOR_STAGES[0]);
         let be = self.be;
         let (feat, tokens, mask) = (self.geo.grid, self.geo.tokens(), self.geo.low_res());
         for (level, side) in [(0, mask), (1, self.geo.mid_res()), (2, feat)] {
@@ -339,6 +359,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
         let mut x = up(be, &x_host, &[1, 1 + QUERIES, D])?;
         let mut hs_last = Vec::new();
         for layer in &self.dec_layers {
+            mark(DETECTOR_STAGES[1]);
             taps.ref_boxes.push(refs.clone());
             let sine = host::sine_embed_boxes(&refs);
             let qpos = self.ref_point_head.host(&sine, QUERIES);
@@ -346,7 +367,9 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             pos.extend_from_slice(&qpos);
             let pos = up(be, &pos, &[1, 1 + QUERIES, D])?;
             let rpb = up(be, &self.rpb_bias(&refs), &[1, HEADS, 1 + QUERIES, tokens])?;
+            mark(DETECTOR_STAGES[2]);
             x = layer.fwd(be, &x, &pos, &prompt, &mem, &mem_keys, &rpb)?;
+            mark(DETECTOR_STAGES[3]);
             let xh = host_of(&x, be)?;
             let (presence, queries) = xh.split_at(D);
             let hs = self.dec_norm.host(queries);
@@ -360,6 +383,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
         }
 
         // Dot-product scoring on the last layer, then the joint presence score.
+        mark(DETECTOR_STAGES[4]);
         let pm = self.prompt_mlp.host(&prompt_host, plen);
         let mut pooled = vec![0f32; D];
         for row in pm.chunks_exact(D) {
@@ -383,6 +407,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             .collect();
 
         // Segmentation head.
+        mark(DETECTOR_STAGES[5]);
         let t = self.seg_cross_norm.fwd(be, &mem)?;
         let ca = self.seg_cross_attn.fwd(be, &t, &prompt, &prompt, None)?;
         taps.seg_cross_attn = Some(ca.clone());

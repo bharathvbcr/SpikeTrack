@@ -168,10 +168,26 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     (32.7% / 28.3%); tracker states 344 on 22, and 337 + 284 on 82 (21.4%); memory encode 158 / 258;
     propagation neck ~140.
   - Neither pre-stated reading holds: no stage reaches 40%.
-  - ~610 ms per frame on 82 is not backend op time [I]: host reads of large tensors and host loops.
-    These are the detector's 66 MB `pred_masks` readback, memory encode's 1152 x 1152 masks, and the
-    tracker states' outputs.
-  - Next: which experiment to take goes to Fable.
+  - ~610 ms per frame on 82 is not accounted for by backend ops, and readback sizes do not explain
+    it. At unified-memory copy rates the 66 MB `pred_masks` readback is ~5-10 ms, and memory encode's
+    transfers ~30 ms. The candidates are the `to_host` path itself, host dispatch encoding, and GPU
+    idle between dependent dispatches.
+  - Split pending (E11b). Pre-stated before the run: if `detector readback` is <= 30 ms and the
+    detector's device stage stays ~780 ms, the gap is dispatch or GPU-side, and ojas-78's. If the
+    readback is >= 200 ms, the gap is SpikeTrack's: on-device post-processing or a cheaper
+    `to_host`. The same split applies to memory encode.
+- E11b [V, `bench/results/profile-coreml/split`]: video 82 is valid (-4% against the controls), and
+  predictions are byte-identical. Video 22 failed the 10% rule at load 75-95 (+85%) and is not read.
+  - Neither branch of the rule fits, because the readback is small (`pred_masks` 7.7 ms) and the
+    device detector is 330 ms, not ~780.
+  - The detector's missing time is **host compute in SpikeTrack's DETR decoder**, 337 ms per frame
+    (13%), more than the device detector itself:
+    - decoder host prep: 264 ms. This is the box-RPB MLPs over 200 x 72 rows per axis,
+      `ref_point_head`, the 33 MB `[8, 201, 5184]` bias, and its upload, done 6 times.
+    - readback + box update: 48 ms.
+    - scoring: 25 ms.
+  - The six decoder layers take 23 ms on the GPU.
+  - Memory encode is mostly device: encode 179 ms, host part 42 ms.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

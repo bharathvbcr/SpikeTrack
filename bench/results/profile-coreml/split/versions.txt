@@ -1,0 +1,4 @@
+SpikeTrack 5156b76 E11: track --profile stages|ops breaks the production frame down by Session stage; with the CoreML trunk no stage reaches 40%, dirty 3 (binary 457ca88dd790b37e)
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+tessl c9adc87 qwen35_model: the prefill GDN defaults to the chunked rule again; the simd recurrence is opt-in
+19:19  up 3 days, 11:34, 1 user, load averages: 95.12 40.84 26.14

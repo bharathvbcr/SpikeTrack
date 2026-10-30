@@ -1,0 +1,22 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 4.2 s (compiled model reused)
+model loaded in 4.5 s on metal; tracking 16 frame(s) of "82"
+frame 0 (1/16): 3.55 s, 13 active track(s), 0 frame(s) released; waits +28 (upload 2, read 17, sync 9), dispatches +4060, metal allocated 5352 MiB (frame peak 7526 MiB), footprint 8777 MiB, pageouts +8, swapins +8
+frame 1 (2/16): 2.33 s, 15 active track(s), 0 frame(s) released; waits +30 (upload 2, read 19, sync 9), dispatches +3599, metal allocated 5388 MiB (frame peak 7419 MiB), footprint 9292 MiB, pageouts +0, swapins +0
+frame 2 (3/16): 2.36 s, 17 active track(s), 0 frame(s) released; waits +30 (upload 2, read 19, sync 9), dispatches +3601, metal allocated 5395 MiB (frame peak 7421 MiB), footprint 9254 MiB, pageouts +0, swapins +0
+frame 3 (4/16): 2.22 s, 17 active track(s), 0 frame(s) released; waits +24 (upload 3, read 13, sync 8), dispatches +3999, metal allocated 5375 MiB (frame peak 7421 MiB), footprint 9330 MiB, pageouts +0, swapins +0
+frame 4 (5/16): 2.60 s, 18 active track(s), 0 frame(s) released; waits +31 (upload 3, read 19, sync 9), dispatches +4636, metal allocated 5392 MiB (frame peak 7421 MiB), footprint 9446 MiB, pageouts +0, swapins +0
+frame 5 (6/16): 2.41 s, 18 active track(s), 0 frame(s) released; waits +24 (upload 3, read 13, sync 8), dispatches +3995, metal allocated 5370 MiB (frame peak 7420 MiB), footprint 9526 MiB, pageouts +0, swapins +0
+frame 6 (7/16): 2.50 s, 18 active track(s), 0 frame(s) released; waits +24 (upload 3, read 13, sync 8), dispatches +3999, metal allocated 5368 MiB (frame peak 7418 MiB), footprint 9893 MiB, pageouts +1, swapins +0
+frame 7 (8/16): 2.58 s, 18 active track(s), 0 frame(s) released; waits +24 (upload 3, read 13, sync 8), dispatches +4003, metal allocated 5373 MiB (frame peak 7528 MiB), footprint 9931 MiB, pageouts +0, swapins +0
+frame 8 (9/16): 2.54 s, 18 active track(s), 0 frame(s) released; waits +24 (upload 3, read 13, sync 8), dispatches +4005, metal allocated 5368 MiB (frame peak 7524 MiB), footprint 10057 MiB, pageouts +0, swapins +0
+frame 9 (10/16): 2.65 s, 18 active track(s), 0 frame(s) released; waits +24 (upload 3, read 13, sync 8), dispatches +4007, metal allocated 5368 MiB (frame peak 7525 MiB), footprint 10173 MiB, pageouts +0, swapins +0
+frame 10 (11/16): 2.64 s, 18 active track(s), 0 frame(s) released; waits +24 (upload 3, read 13, sync 8), dispatches +4007, metal allocated 5368 MiB (frame peak 7526 MiB), footprint 10233 MiB, pageouts +0, swapins +0
+frame 11 (12/16): 2.65 s, 18 active track(s), 0 frame(s) released; waits +24 (upload 3, read 13, sync 8), dispatches +4007, metal allocated 5368 MiB (frame peak 7526 MiB), footprint 10251 MiB, pageouts +0, swapins +0
+frame 12 (13/16): 2.64 s, 18 active track(s), 0 frame(s) released; waits +24 (upload 3, read 13, sync 8), dispatches +4007, metal allocated 5368 MiB (frame peak 7527 MiB), footprint 10317 MiB, pageouts +0, swapins +0
+frame 13 (14/16): 2.64 s, 18 active track(s), 0 frame(s) released; waits +24 (upload 3, read 13, sync 8), dispatches +4007, metal allocated 5368 MiB (frame peak 7528 MiB), footprint 10361 MiB, pageouts +0, swapins +0
+frame 14 (15/16): 2.74 s, 18 active track(s), 1 frame(s) released; waits +24 (upload 3, read 13, sync 8), dispatches +4007, metal allocated 5368 MiB (frame peak 7529 MiB), footprint 9461 MiB, pageouts +0, swapins +0
+frame 15 (16/16): 3.47 s, 19 active track(s), 15 frame(s) released; waits +31 (upload 3, read 19, sync 9), dispatches +4640, metal allocated 5396 MiB (frame peak 7529 MiB), footprint 9491 MiB, pageouts +0, swapins +0
+profile (stages) written to /Users/bharath/Code/research/SpikeTrack/bench/results/profile-coreml/split/v82-stages/82.profile-stages.md
+16 frame(s) of "82" tracked on metal: 18 track(s) born, 2.66 s/frame (model, mean), 47.3 s total
+  /Users/bharath/Code/research/SpikeTrack/bench/results/profile-coreml/split/v82-stages/82.json
+  /Users/bharath/Code/research/SpikeTrack/bench/results/profile-coreml/split/v82-stages/82.run.json

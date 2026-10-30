@@ -216,16 +216,19 @@ pub struct Session<'a, B: Backend + ?Sized> {
 pub type StageMarker<'a> = Box<dyn FnMut(&str) + 'a>;
 
 /// The stage names [`Session::push_frame`] marks, in the order a frame meets them. A state's
-/// propagation is marked once per tracker state, as `tracker propagate, state <i>`.
-pub const STAGES: [&str; 10] = [
+/// propagation is marked once per tracker state, as `tracker propagate, state <i>`; between the
+/// detector neck and its readback the detector marks its own (`detector::DETECTOR_STAGES`).
+pub const STAGES: [&str; 12] = [
     "trunk",
-    "detector neck + detector",
+    "detector neck",
+    "detector mask readback",
     "propagation neck",
     "tracker propagate",
     "detections + association (host)",
     "interactive neck",
     "recondition",
-    "memory encode",
+    "memory encode: upsample + readback + host area rule",
+    "memory encode: encode",
     "births",
     "outputs + release",
 ];
@@ -352,20 +355,17 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         self.next_frame
     }
 
-    /// The detector on a frame's trunk features.
-    pub fn detect(&self, trunk: &Tensor) -> Result<Detections, ModelError> {
-        let fpn = self.vos.backbone.neck(Neck::Detector, trunk)?;
-        let out = self.detector.forward(&fpn, &self.prompt, &mut DetectorTaps::default())?;
-        Ok(Detections { logits: out.pred_logits, boxes_cxcywh: out.pred_boxes, masks: host_of(&out.pred_masks, self.vos.be)? })
-    }
-
     /// Feed the next frame (`[1, 3, 1008, 1008]`, upstream's preprocessing) and return the frames
     /// the yield buffer releases.
     pub fn push_frame(&mut self, frame: &Tensor) -> Result<Vec<YieldedFrame>, ModelError> {
         mark(&mut self.marker, STAGES[0]);
         let trunk = self.vos.backbone.trunk(frame, &[], &mut Taps::default())?;
         mark(&mut self.marker, STAGES[1]);
-        let det = self.detect(&trunk)?;
+        let fpn = self.vos.backbone.neck(Neck::Detector, &trunk)?;
+        let marker = &mut self.marker;
+        let out = self.detector.forward_marked(&fpn, &self.prompt, &mut DetectorTaps::default(), &mut |s| mark(marker, s))?;
+        mark(&mut self.marker, STAGES[2]);
+        let det = Detections { logits: out.pred_logits, boxes_cxcywh: out.pred_boxes, masks: host_of(&out.pred_masks, self.vos.be)? };
         self.step_frame(&trunk, &det)
     }
 
@@ -391,7 +391,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         if det.logits.len() != QUERIES || det.boxes_cxcywh.len() != QUERIES * 4 || det.masks.len() != QUERIES * mask * mask {
             return Err(err(format!("detections do not hold {QUERIES} queries of {mask}x{mask} masks (the tracker's geometry is {} pixels; was the detector built for the same size?)", self.vos.geo.pixels())));
         }
-        mark(&mut self.marker, STAGES[2]);
+        mark(&mut self.marker, STAGES[3]);
         let prop = round_neck(self.vos.be, self.vos.backbone.neck(Neck::Propagation, trunk)?)?;
         let mut ctx = self.vos.frame_ctx(t, &prop)?;
         // The prompt frame: `add_prompt`'s visit, then `propagate_in_video`'s.
@@ -400,7 +400,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         for v in 0..visits {
             last = Some(self.visit(t, v, trunk, &mut ctx, det)?);
         }
-        mark(&mut self.marker, STAGES[9]);
+        mark(&mut self.marker, STAGES[11]);
         let out = last.expect("at least one visit");
         for st in self.states.iter_mut() {
             st.prune(t);
@@ -451,7 +451,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
     /// The frame's interactive neck, computed once (marked as its own stage), then `next` marked.
     fn ensure_inter_marked(&mut self, trunk: &Tensor, ctx: &mut FrameCtx, next: &str) -> Result<(), ModelError> {
         if ctx.inter.is_none() {
-            mark(&mut self.marker, STAGES[5]);
+            mark(&mut self.marker, STAGES[6]);
             let inter = round_neck(self.vos.be, self.vos.backbone.neck(Neck::Interactive, trunk)?)?;
             ctx.inter = Some(self.vos.interactive_pix(&inter)?);
         }
@@ -504,7 +504,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         let mut props = Vec::with_capacity(self.states.len());
         for (si, st) in self.states.iter_mut().enumerate() {
             if self.marker.is_some() {
-                mark(&mut self.marker, &format!("{}, state {si}", STAGES[3]));
+                mark(&mut self.marker, &format!("{}, state {si}", STAGES[4]));
             }
             let p = st.propagate_one_frame(vos, ctx, num_frames)?;
             for (k, &id) in st.obj_ids().iter().enumerate() {
@@ -525,7 +525,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         let prop_masks = if self.trace { trk.clone() } else { Vec::new() };
 
         // 2-3. Detections: NMS, keep, reorder.
-        mark(&mut self.marker, STAGES[4]);
+        mark(&mut self.marker, STAGES[5]);
         let ds = self.process_detections(det);
 
         // 4. Plan.
@@ -562,7 +562,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
             }
         }
         if !per_state.is_empty() {
-            self.ensure_inter_marked(trunk, ctx, STAGES[6])?;
+            self.ensure_inter_marked(trunk, ctx, STAGES[7])?;
             for (si, ids, ds_idx) in &per_state {
                 let dl: Vec<f32> = ds_idx.iter().flat_map(|&d| det_row(det, ds.order[d]).iter().copied()).collect();
                 let masks = self.binary_input_masks(&dl, ds_idx.len())?;
@@ -580,11 +580,12 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         }
 
         // 4c. Memory update for every existing track.
-        mark(&mut self.marker, STAGES[7]);
+        mark(&mut self.marker, STAGES[8]);
         let (mem_masks, mem_scores) = if n > 0 {
             let low = up(be, &trk, &[n, 1, low_res, low_res])?;
             let mut hr = host_of(&be.interpolate_bilinear_forward(&low, [input_mask, input_mask], false)?, be)?;
             let proxy = suppress_area_shrinkage(&mut hr, n, input_mask * input_mask);
+            mark(&mut self.marker, STAGES[9]);
             for st in self.states.iter_mut() {
                 if st.is_empty() {
                     continue;
@@ -605,7 +606,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         // 5a. Births.
         let k = plan.births.len();
         if k > 0 {
-            self.ensure_inter_marked(trunk, ctx, STAGES[8])?;
+            self.ensure_inter_marked(trunk, ctx, STAGES[10])?;
             let dl: Vec<f32> = plan.births.iter().flat_map(|b| det_row(det, ds.order[b.det]).iter().copied()).collect();
             let masks = self.binary_input_masks(&dl, k)?;
             let ids: Vec<i64> = plan.births.iter().map(|b| b.id).collect();
@@ -648,7 +649,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         }
 
         // 6. Outputs: previous ids from the final track masks, newborns from the detector masks.
-        mark(&mut self.marker, STAGES[9]);
+        mark(&mut self.marker, STAGES[11]);
         let total = n + k;
         let mut all = trk.clone();
         for b in &plan.births {
