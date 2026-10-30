@@ -438,7 +438,7 @@ upstream to cosine 0.99995 [V], so it is not exact either.
       by up to 9%.
   - On 82 under E20, mask upload follows n: 18.8 ms for state 0 and 9.4 ms for state 1.
   - Host footprint at frame 15 is down 330 MiB on 82 and 569 MiB on 22. E20 read that as
-    deterministic, since both controls were equal. E21's hold contradicts it: see the E21 result.
+    deterministic, since both controls were equal. E21's hold qualifies that: see the E21 result.
   - Next, by the rule: E21. On E20's valid 82 table, mask channels (35.5 ms over two states) and the
     area rule (32.3 ms) both exceed 20 ms.
 - Zero-copy transfers: ojas-78's side.
@@ -512,9 +512,12 @@ upstream to cosine 0.99995 [V], so it is not exact either.
   - **E21 holds.**
   - The frame time is not claimed. The expected 1.3-1.9% is below the 4.5-6.3% spread between
     the controls.
-  - Later evidence on E20's footprint: the host footprint is not deterministic run to run. E20 code
-    reads 8000-8391 MiB on 82 across four runs. So E20's -330 MiB on 82 is not established; its
-    -569 MiB on 22 is larger than the 190 MiB spread there.
+  - Later evidence on E20's footprint:
+    - On 82, five of six runs read 8386-8391 MiB, which reproduces E20's 8382. One outlier
+      read 8000.
+    - On 22, E20 code spreads over 7944-8134 MiB, so the footprint is not deterministic there.
+      E20's -569 MiB is larger than that spread.
+    - E19 was not rerun, so both of E20's falls are unrepeated.
   - Next, by the rule: the detector's decoder host prep (52.0 ms per frame on E21's 82 table).
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.

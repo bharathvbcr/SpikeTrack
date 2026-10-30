@@ -98,9 +98,13 @@ All three readings clear 20 ms.
 
 ## Memory, frame 15 [V for this hold: both controls equal]
 
-Later evidence (E21, `../e21-host-threads/README.md`): the host footprint is not deterministic
-run to run. The same E20 code read 8000-8391 MiB on 82 and 7944-8134 MiB on 22 there. The 82
-fall below is inside that spread, so it is not established. The 22 fall is larger than it.
+Later evidence (E21, `../e21-host-threads/README.md`):
+
+- On 82, five of six runs there read 8386-8391 MiB. That reproduces the 8382 below; one outlier
+  read 8000.
+- On 22, the same code read 7944-8134 MiB, so the footprint there is not deterministic. The 22
+  fall below is still larger than that spread.
+- E19 was not rerun, so both falls are unrepeated.
 
 | video | footprint, control | footprint, E20 | Metal allocated, control / E20 |
 |---|---|---|---|

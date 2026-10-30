@@ -101,21 +101,26 @@ All four tables are read.
   - On 82, E21 is under both controls. On 22, it ties control-2.
   - But the controls themselves differ by 4.5% on 82 and 6.3% on 22, as load fell from 11 to 4.5.
   - The expected 1.9% (82) and 1.3% (22) falls are below that spread.
-- **Footprint.** Metal allocated at frame 15 is equal in every run (5667 MiB on 82, 5557-5558 MiB on
-  22). Host footprint is not deterministic run to run:
-  - the two E20 controls read 8000 and 8390 MiB on 82;
-  - they read 8032 and 8134 MiB on 22.
-  - E21 sits inside that spread.
+- **Footprint.** Metal allocated at frame 15 is equal in every run: 5667 MiB on 82, and 5557-5558
+  MiB on 22. E21 does not change the host footprint either:
+  - on 82, E21's two runs read 8386 and 8387 MiB, inside the E20 code's cluster;
+  - on 22, they read 8042 and 8038 MiB, inside its 7944-8134 MiB range.
 
 ## Later evidence for E20's footprint claim [V]
 
-E20 reported its host footprint as deterministic, because its two controls were equal. This hold
-contradicts that: the same E20 code reads 8000-8391 MiB at frame 15 on 82 (four runs) and
-7944-8134 MiB on 22.
+E20 called its host footprint deterministic, because its two controls were equal. At frame 15 in
+this hold:
 
-- E20's fall on 82 (-330 MiB, to 8382) is inside that spread, so it is not established.
-- E20's fall on 22 (-569 MiB, to 7934) is larger than the spread here (190 MiB), so it stands
-  [I: the E19 binary was not rerun here].
+- **On 82,** five of six runs read 8386-8391 MiB: E20 code in three, E21 in two.
+  - With E20's own 8382, that is a 9 MiB cluster across two binaries and two holds.
+  - One run is an outlier: control-1 read 8000 MiB. It was the first run after the 18-minute CPU
+    parity test.
+  - So E20's reading reproduces. Its -330 MiB against E19 is unrepeated, not contradicted: E19
+    was not rerun here.
+- **On 22,** the same E20 code reads 7944-8134 MiB across four runs, with no cluster. So the
+  footprint is not deterministic there.
+  - E20's -569 MiB fall (to 7934) is larger than that 190 MiB spread, so it stands [I: E19 not
+    rerun].
 
 ## Next, by the plan
 
