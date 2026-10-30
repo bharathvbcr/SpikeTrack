@@ -21,7 +21,17 @@ is the all-Ojas path, and `--backend cpu` keeps it as the parity oracle.
 **E12 (2026-10-30):** the detector's host DETR decoder is 337 -> 62 ms per frame, with predictions
 byte-identical, and the frame is 0.86x on VISEM 22 (`bench/results/e12-host-decoder`). Large host
 linears now use up to `host::MAX_THREADS` = 8 scoped threads each, so a run outside the mac_heavy
-lock competes for CPU and gains less. Say this plainly in every
+lock competes for CPU and gains less.
+**E13 / E15 (2026-10-30):**
+- Memory attention is 74% of each tracker state's time. It does not shrink with objects, and its
+  cost is in Ojas kernels (`bench/results/profile-tracker`); the numbers went to ojas-78.
+- E15 keeps memory attention's inputs on the device. The tokens phase is 64 / 50 -> 14 / 6 ms per
+  state on 82, predictions are byte-identical, and the footprint is ~760 MiB lower
+  (`bench/results/e15-memory-tokens`).
+- API shape change: `st_model::tracker::MaskMem` (`nchw` on the host, the trace and parity surface;
+  `tokens` on the device) replaces `Stored.maskmem: Vec<f32>`, and `FrameFeats.tokens` is now a
+  device `Tensor`.
+- Both live as long as their `Stored` entry or frame, the same lifetime the host `Vec`s had. Say this plainly in every
 write-up that leads with Ojas/tessl.
 
 ## 2. Why it is new (keep this framing in every write-up)
