@@ -1,0 +1,5 @@
+SpikeTrack 443236b st-coreml: CoremlTrunk::load reports hash / compile / model-load seconds; pre-state E18, dirty 0
+/private/tmp/claude-501/-Users-bharath-Code-research-tessl/9d40c168-6abf-4804-ae5a-f4d6d42e9ece/scratchpad/spiketrack-e15 8567e60a1aa29570
+/private/tmp/claude-501/-Users-bharath-Code-research-tessl/9d40c168-6abf-4804-ae5a-f4d6d42e9ece/scratchpad/spiketrack-e18 d59faed4300d41e7
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+ 7:58  up 4 days, 13 mins, 1 user, load averages: 16.45 13.14 10.59

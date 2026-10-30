@@ -315,6 +315,33 @@ upstream to cosine 0.99995 [V], so it is not exact either.
       small spec files), with its own gate.
   - The package's page-cache state is not controlled (no purge). Round 1 versus rounds 2-3 is
     reported as is.
+- E18 result [V, `bench/results/e18-coreml-load`]: the hash is 3.68-7.61 s, 47-88% of the load.
+  Core ML's model load swings 0.48-14.97 s. 16-frame predictions are byte-identical. The rule says
+  to build the key.
+- E18b: record the content hash under a stat key (pre-stated before the run,
+  `bench/results/e18b-stat-key`).
+  - Change: `CoremlTrunk::load` takes a stat key first: paths, lengths, plus the bytes of files
+    <= 4 MiB, plus the inode and mtime of larger ones.
+    - `<package>.stat-<key16>.sha256` holds the full SHA-256. It is used only when well-formed and
+      its compiled model exists.
+    - Otherwise the load hashes in full as before, and records the hash only if the stat key is
+      unchanged afterwards.
+    - The compiled model's name and `describe()` still carry the content hash.
+    - The blind spot: an in-place rewrite of the weights that keeps length, inode and mtime.
+      `stat_key_follows_small_files_bytes_and_large_files_metadata` documents it.
+  - Gate:
+    - st-coreml unit tests (stat key, record use and refusal, mid-hash change).
+    - `load_cache`, ignored, on a `cp -c` clone of the real package: the first load compiles and
+      hashes in full, the second does neither, the SHA-256 is equal, and the predictions are
+      bit-identical.
+    - `track` on VISEM 22:
+      - the first new run hashes in full (no record yet), and the record is then written;
+      - 3 interleaved rounds against the E18 binary, 2 frames each, load recorded: every new
+        round must say `recorded`, with a hash phase <= 0.2 s (min of 3);
+      - the trunk load totals are reported min-of-3 for both, at their load.
+    - 16 frames of 82 and 22 `cmp` byte-identical to `closing-e15/speed/v*-new-1`.
+  - Refute: a new round after the first that says `full` means the record is not used. That is a
+    failure, not a slow pass.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

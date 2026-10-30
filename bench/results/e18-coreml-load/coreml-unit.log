@@ -1,0 +1,18 @@
+   Compiling libc v0.2.191
+   Compiling objc2-foundation v0.3.2
+   Compiling cpufeatures v0.2.17
+   Compiling sha2 v0.10.9
+   Compiling objc2-metal v0.3.2
+   Compiling objc2-core-ml v0.3.2
+   Compiling st-coreml v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-coreml)
+    Finished `release` profile [optimized] target(s) in 13.72s
+     Running unittests src/lib.rs (target/release/deps/st_coreml-441f4fb33dae1bf3)
+
+running 4 tests
+test tests::compiled_path_carries_the_hash_prefix ... ok
+test tests::load_refuses_a_missing_package ... ok
+test tests::contiguous_strides_are_row_major ... ok
+test tests::package_hash_changes_with_content_and_path ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
