@@ -454,6 +454,40 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     waits per steady frame on 82 [I].
   - True zero-copy (a mapping with no wait) would need tessl to map a buffer that was never
     committed. That is a tessl API change, held for the owner.
+  - ojas-78 agreed (2026-10-30): the f32 twin is "step 0" on ft-f6dcf4c5. It starts after wave 8
+    Lane 1 releases `ojas-metal/src/device.rs`. ojas-78 sends the branch and sha for an E20 rerun.
+- E21: exact host threading of the memory update's two host-compute sub-phases (pre-stated before
+  the code, branch `e21-host-threads`, `bench/results/e21-host-threads`).
+  - Why: on E20's valid 82 table, the area rule is 32.3 ms and mask channels 35.5 ms, summed over
+    states. All three 82 readings put both above 20 ms. While they run, the GPU is idle: they sit
+    between the readback and the encode.
+  - Change: `host::for_each_chunk_mut`, contiguous pieces of a slice on up to `MAX_THREADS` scoped
+    threads, in E12's shape.
+    - The sigmoid fill: each element is written once, as `host::sigmoid(x) * 2 - 1`, from the same
+      source element.
+    - The area rule:
+      - the per-pixel winner (a strict-greater argmax, so the first index wins ties) over pixel
+        chunks;
+      - the counts, clamp and score per object plane. The counts are `usize` and the clamp and
+        `any` are per element, so no float is summed.
+    - Every output bit is therefore independent of the split.
+  - Gates, all required:
+    - new unit tests: the threaded fill and area rule are bit-identical to the serial code (kept
+      as the oracle), with ties, n of 1, 2 and 18, and pixel counts that do not divide by the
+      thread count;
+    - st-model lib tests and tracker_parity;
+    - detect_track_parity on 22, Metal and CPU, with tables identical to E16's apart from frame
+      times;
+    - predictions byte-identical to control-1.
+  - Hold: per video (82, 22), 16 frames:
+    1. the E20 binary as control-1;
+    2. E21;
+    3. E21 with `--profile stages`;
+    4. E20 with `--profile stages`;
+    5. control-2.
+    - A table is read only if its stage sum is within 10% of both controls.
+  - Refute: on a valid same-hold pair, either sub-phase is not below 0.7x E20's.
+  - Next: the detector prep's sine and query-MLP split.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 
