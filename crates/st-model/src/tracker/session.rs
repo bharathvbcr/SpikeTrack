@@ -234,6 +234,13 @@ pub const STAGES: [&str; 12] = [
     "outputs + release",
 ];
 
+/// The memory update's host-facing parts, marked inside `STAGES[8]` as `<STAGES[8]>: <part>`:
+/// `STAGES[8]` itself carries the upload of the final low-res masks and the device upsample to
+/// the input-mask side, then the upsampled logits come back, then the host applies the area rule.
+/// The memory encoder that follows is marked per state as `<STAGES[9]>, state <i>: <phase>`
+/// (`state::ENCODE_STAGES`).
+pub const MEMORY_UPDATE_STAGES: [&str; 2] = ["upsampled readback", "area rule (host)"];
+
 fn mark(marker: &mut Option<StageMarker<'_>>, stage: &str) {
     if let Some(m) = marker.as_mut() {
         m(stage);
@@ -589,10 +596,17 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         mark(&mut self.marker, STAGES[8]);
         let (mem_masks, mem_scores) = if n > 0 {
             let low = up(be, &trk, &[n, 1, low_res, low_res])?;
-            let mut hr = host_of(&be.interpolate_bilinear_forward(&low, [input_mask, input_mask], false)?, be)?;
+            let upsampled = be.interpolate_bilinear_forward(&low, [input_mask, input_mask], false)?;
+            if self.marker.is_some() {
+                mark(&mut self.marker, &format!("{}: {}", STAGES[8], MEMORY_UPDATE_STAGES[0]));
+            }
+            let mut hr = host_of(&upsampled, be)?;
+            if self.marker.is_some() {
+                mark(&mut self.marker, &format!("{}: {}", STAGES[8], MEMORY_UPDATE_STAGES[1]));
+            }
             let proxy = suppress_area_shrinkage(&mut hr, n, input_mask * input_mask);
             mark(&mut self.marker, STAGES[9]);
-            for st in self.states.iter_mut() {
+            for (si, st) in self.states.iter_mut().enumerate() {
                 if st.is_empty() {
                     continue;
                 }
@@ -602,7 +616,12 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
                     local.extend_from_slice(&hr[row * input_mask * input_mask..(row + 1) * input_mask * input_mask]);
                     local_scores.push(proxy[row]);
                 }
-                st.encode_memory(vos, ctx, &local, &local_scores)?;
+                let marker = &mut self.marker;
+                st.encode_memory(vos, ctx, &local, &local_scores, &mut |s| {
+                    if marker.is_some() {
+                        mark(marker, &format!("{}, state {si}: {s}", STAGES[9]));
+                    }
+                })?;
             }
             (if self.trace { trk.clone() } else { Vec::new() }, proxy)
         } else {

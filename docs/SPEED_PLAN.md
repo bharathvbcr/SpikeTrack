@@ -348,6 +348,31 @@ upstream to cosine 0.99995 [V], so it is not exact either.
   - Trunk load, min of 3: 5.8 -> 0.7 s. `track`'s model load: 6.4 -> 1.5 s.
   - 16-frame predictions are byte-identical on 82 and 22.
   - The cold-start gap is answered. E19 (the memory-encode host split) is next.
+- E19: split the memory update and encode (pre-stated before the run,
+  `bench/results/e19-memory-encode-split`).
+  - What is known: on 82 (E15 stages), "memory encode: upsample + readback + host area rule" is
+    85 ms per frame and "memory encode: encode" 252 ms. Encode's device ops in the E13 ops run total
+    ~117 ms per frame, so ~135 ms of encode is host or transfer [I].
+  - The code: per frame, the n x 1152^2 upsampled logits come back to the host (~95 MB on 82), and
+    the area rule runs single-threaded. Then, per state, the host builds the 32 x 1152^2 mask
+    channels (`host::sigmoid` per pixel, a 170 MB zeroed buffer), uploads them, encodes on the
+    device, reads the features back, and adds, rounds and uploads the tokens.
+  - Change (markers only, no numerics): `session::MEMORY_UPDATE_STAGES` (upsampled readback; area
+    rule), and `state::ENCODE_STAGES` per state (mask channels; mask upload; encoder + feature
+    readback; no-object add + bf16 + token upload).
+  - Hold: E13's shape. Per video (82, 22), 16 frames: the E18b binary as the unprofiled control,
+    the E19 binary unprofiled, `--profile stages`, then the control again.
+    - The table is read only if its stage sum is within 10% of the controls and every E19 run's
+      predictions are byte-identical to control-1.
+  - Decision, per frame on 82, each sub-phase summed over states:
+    - A host compute sub-phase (area rule, mask channels, no-object add) >= 20 ms: E20 threads it
+      or drops redundant work, exactly (same f32 op per element, E12 shape).
+    - A transfer sub-phase (upsampled readback, mask upload, token upload) >= 20 ms: E20 keeps that
+      data on the device where the device op is a copy or the same single IEEE op.
+      - The sigmoid stays on the host unless a device sigmoid is shown bit-identical.
+    - The largest qualifying item is E20.
+    - None >= 20 ms: the memory encode is shelved, and the detector prep's sine and query-MLP split
+      is next.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

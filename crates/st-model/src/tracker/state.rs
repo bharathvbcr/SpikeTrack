@@ -70,6 +70,16 @@ pub const PROPAGATE_STAGES: [&str; 4] = [
     "multiplex decoder",
     "mask readback + per-object pick + pointers (host)",
 ];
+/// The phases [`TrackerState::encode_memory`] marks: the host builds the encoder's mask channels
+/// (sigmoid of each object's logits, the condition planes); they are uploaded; the memory encoder
+/// runs on the device and its features come back; the host adds `no_obj_embed_spatial`, rounds to
+/// bf16 and uploads the tokens.
+pub const ENCODE_STAGES: [&str; 4] = [
+    "mask channels (host sigmoid + fill)",
+    "mask upload",
+    "encoder (device) + feature readback",
+    "no-object add + bf16 + token upload (host)",
+];
 
 pub(crate) fn err(detail: impl Into<String>) -> ModelError {
     ModelError::Ojas(OjasError::OutOfRange { op: "st_model::tracker::state", detail: detail.into() })
@@ -400,7 +410,7 @@ impl TrackerState {
             let mut hr = host_of(&be.interpolate_bilinear_forward(&low, [image, image], false)?, be)?;
             crate::tracker::vos::non_overlap(&mut hr, n, image * image);
             let slot_of = self.slot_of();
-            merged.maskmem = Some(vos.encode_mask_memory(ctx, &hr, image, &merged.scores, &merged.cond_objs, &slot_of)?);
+            merged.maskmem = Some(vos.encode_mask_memory(ctx, &hr, image, &merged.scores, &merged.cond_objs, &slot_of, &mut |_| {})?);
             merged.feats = Some(ctx.feats.clone());
         }
         if p.is_cond {
@@ -421,11 +431,13 @@ impl TrackerState {
     /// 1152 (`hr`: `[n, 1152 * 1152]` logits, state object order) with the given object-score
     /// logits and store the result in the frame's output (both storages, as upstream loops over
     /// them). The conditioning set is the stored output's (`conditioning_objects=None` lookup).
-    pub fn encode_memory<B: Backend + ?Sized>(&mut self, vos: &Vos<'_, B>, ctx: &FrameCtx, hr: &[f32], scores: &[f32]) -> Result<(), ModelError> {
+    /// `mark` is called with each [`ENCODE_STAGES`] name as that phase begins (a profiler's marker;
+    /// `&mut |_| {}` otherwise).
+    pub fn encode_memory<B: Backend + ?Sized>(&mut self, vos: &Vos<'_, B>, ctx: &FrameCtx, hr: &[f32], scores: &[f32], mark: &mut dyn FnMut(&str)) -> Result<(), ModelError> {
         let frame = ctx.frame;
         let cond = self.stored(frame).map(|s| s.cond_objs.clone()).ok_or_else(|| err(format!("conditioning objects not found at frame {frame}")))?;
         let slot_of = self.slot_of();
-        let mm = vos.encode_mask_memory(ctx, hr, vos.geo.input_mask(), scores, &cond, &slot_of)?;
+        let mm = vos.encode_mask_memory(ctx, hr, vos.geo.input_mask(), scores, &cond, &slot_of, mark)?;
         for map in [&mut self.cond, &mut self.non_cond] {
             if let Some(st) = map.get_mut(&frame) {
                 st.maskmem = Some(mm.clone());
@@ -753,8 +765,20 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
     /// (`size` = the image side, 1008, for a consolidated frame, 1152 for the frame memory update;
     /// the encoder resizes to `16 * grid`). `scores`: the object-score logits that decide which slots get
     /// `no_obj_embed_spatial` (padding and removed slots count as score 0). `slot_of[o]`: slot of
-    /// object `o`. `cond`: objects whose condition channel is 1.0.
-    pub(crate) fn encode_mask_memory(&self, ctx: &FrameCtx, hr: &[f32], size: usize, scores: &[f32], cond: &BTreeSet<usize>, slot_of: &[usize]) -> Result<MaskMem, ModelError> {
+    /// object `o`. `cond`: objects whose condition channel is 1.0. `mark`: as in
+    /// [`TrackerState::encode_memory`].
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn encode_mask_memory(
+        &self,
+        ctx: &FrameCtx,
+        hr: &[f32],
+        size: usize,
+        scores: &[f32],
+        cond: &BTreeSet<usize>,
+        slot_of: &[usize],
+        mark: &mut dyn FnMut(&str),
+    ) -> Result<MaskMem, ModelError> {
+        mark(ENCODE_STAGES[0]);
         let be = self.be;
         let tokens = self.geo.tokens();
         let px = size * size;
@@ -772,9 +796,12 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
                 chans[(MUX + s) * px..(MUX + s + 1) * px].iter_mut().for_each(|v| *v = 1.0);
             }
         }
+        mark(ENCODE_STAGES[1]);
         let masks = up(be, &chans, &[1, 2 * MUX, size, size])?;
+        mark(ENCODE_STAGES[2]);
         let enc = self.mem_enc.fwd(be, &ctx.prop72, &masks)?;
         let mut feat = host_of(&enc.features, be)?;
+        mark(ENCODE_STAGES[3]);
         let mut score_of_slot = [0f32; MUX];
         for (o, &s) in slot_of.iter().enumerate() {
             score_of_slot[s] = scores[o];
