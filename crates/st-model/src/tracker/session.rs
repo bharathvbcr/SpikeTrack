@@ -216,8 +216,9 @@ pub struct Session<'a, B: Backend + ?Sized> {
 pub type StageMarker<'a> = Box<dyn FnMut(&str) + 'a>;
 
 /// The stage names [`Session::push_frame`] marks, in the order a frame meets them. A state's
-/// propagation is marked once per tracker state, as `tracker propagate, state <i>`; between the
-/// detector neck and its readback the detector marks its own (`detector::DETECTOR_STAGES`).
+/// propagation is marked once per tracker state, as `tracker propagate, state <i>`, then per phase
+/// as `tracker propagate, state <i>: <phase>` (`state::PROPAGATE_STAGES`); between the detector
+/// neck and its readback the detector marks its own (`detector::DETECTOR_STAGES`).
 pub const STAGES: [&str; 12] = [
     "trunk",
     "detector neck",
@@ -506,7 +507,12 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
             if self.marker.is_some() {
                 mark(&mut self.marker, &format!("{}, state {si}", STAGES[4]));
             }
-            let p = st.propagate_one_frame(vos, ctx, num_frames)?;
+            let marker = &mut self.marker;
+            let p = st.propagate_one_frame(vos, ctx, num_frames, &mut |s| {
+                if marker.is_some() {
+                    mark(marker, &format!("{}, state {si}: {s}", STAGES[4]));
+                }
+            })?;
             for (k, &id) in st.obj_ids().iter().enumerate() {
                 entries.push((id, si, k));
             }

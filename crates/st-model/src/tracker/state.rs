@@ -59,6 +59,17 @@ pub const PADDING: i32 = -1;
 pub const REMOVED: i32 = -1116;
 /// `max_cond_frames_in_attn`.
 const MAX_COND_IN_ATTN: usize = 4;
+/// The phases [`TrackerState::propagate_one_frame`] marks when it computes a frame: the host
+/// builds the memory and pointer tokens and uploads them; memory attention runs on the device;
+/// the multiplex decoder runs on the device with its small heads on the host; then the masks
+/// come back and the host picks each object's mask and pointer. A frame with no stored memory
+/// skips the attention mark.
+pub const PROPAGATE_STAGES: [&str; 4] = [
+    "memory + pointer tokens (host) + upload",
+    "memory attention (device)",
+    "multiplex decoder",
+    "mask readback + per-object pick + pointers (host)",
+];
 
 pub(crate) fn err(detail: impl Into<String>) -> ModelError {
     ModelError::Ojas(OjasError::OutOfRange { op: "st_model::tracker::state", detail: detail.into() })
@@ -420,7 +431,9 @@ impl TrackerState {
     /// frame runs memory attention over the stored memories and pointers, then the multiplex
     /// decoder, and stores the result as a non-conditioning output without memory.
     /// `num_frames` is upstream's video length (the object-pointer window is `min(num_frames, 16)`).
-    pub fn propagate_one_frame<B: Backend + ?Sized>(&mut self, vos: &Vos<'_, B>, ctx: &FrameCtx, num_frames: usize) -> Result<PropOut, ModelError> {
+    /// `mark` is called with each [`PROPAGATE_STAGES`] name as that phase begins (a profiler's
+    /// marker; `&mut |_| {}` otherwise).
+    pub fn propagate_one_frame<B: Backend + ?Sized>(&mut self, vos: &Vos<'_, B>, ctx: &FrameCtx, num_frames: usize, mark: &mut dyn FnMut(&str)) -> Result<PropOut, ModelError> {
         let frame = ctx.frame;
         if self.broken || self.cond.is_empty() {
             return Err(err("propagate: no conditioning frame in this state (upstream raises RuntimeError: No points are provided; please add points first)"));
@@ -441,7 +454,7 @@ impl TrackerState {
                 PropOut { low_res: st.pred_masks.clone(), scores: st.scores.clone() }
             }
             None => {
-                let st = self.compute_propagation(vos, ctx, num_frames)?;
+                let st = self.compute_propagation(vos, ctx, num_frames, mark)?;
                 let out = PropOut { low_res: st.pred_masks.clone(), scores: st.scores.clone() };
                 self.non_cond.insert(frame, st);
                 out
@@ -452,7 +465,8 @@ impl TrackerState {
     }
 
     /// Memory-conditioned features, multiplex decode and object pointers for the current frame.
-    fn compute_propagation<B: Backend + ?Sized>(&self, vos: &Vos<'_, B>, ctx: &FrameCtx, num_frames: usize) -> Result<Stored, ModelError> {
+    fn compute_propagation<B: Backend + ?Sized>(&self, vos: &Vos<'_, B>, ctx: &FrameCtx, num_frames: usize, mark: &mut dyn FnMut(&str)) -> Result<Stored, ModelError> {
+        mark(PROPAGATE_STAGES[0]);
         let be = vos.be;
         let frame = ctx.frame;
         if self.cond.len() > MAX_COND_IN_ATTN {
@@ -519,6 +533,7 @@ impl TrackerState {
             let src_pos = up(be, &pos_tokens, &[1, tokens, D])?;
             let (memory, memory_pos) = (up(be, &memory, &[1, mtok, D])?, up(be, &memory_pos, &[1, mtok, D])?);
             let (mimage, mimage_pos) = (up(be, &mimage, &[1, mitok, D])?, up(be, &mimage_pos, &[1, mitok, D])?);
+            mark(PROPAGATE_STAGES[1]);
             let fused = vos.mem_attn.fwd(
                 be,
                 &MemoryInputs { image: &image_dev, src: &image_dev, src_pos: &src_pos, memory_image: &mimage, memory_image_pos: &mimage_pos, memory: &memory, memory_pos: &memory_pos, num_obj_ptr_tokens: n_ptr },
@@ -527,10 +542,12 @@ impl TrackerState {
         };
 
         // Multiplex decode: slots with an object get the valid embedding, the rest the invalid one.
+        mark(PROPAGATE_STAGES[2]);
         let n = self.obj_ids.len();
         let slot_of = self.slot_of();
         let extra: Vec<f32> = (0..MUX).flat_map(|s| if self.slots[s] >= 0 { vos.output_valid[s * D..(s + 1) * D].to_vec() } else { vos.output_invalid[s * D..(s + 1) * D].to_vec() }).collect();
         let out = vos.mux_decoder.fwd(be, &pix, &vos.prop_pe, &ctx.ps0, &ctx.ps1, &extra)?;
+        mark(PROPAGATE_STAGES[3]);
         let masks = host_of(&out.masks, be)?; // [1, 16, 3, M, M]
         let px = vos.geo.low_res() * vos.geo.low_res();
         let mut low = vec![0f32; n * px];
