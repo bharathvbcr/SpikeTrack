@@ -93,6 +93,9 @@ is where the adapter's learning shows.
     shrinks on a contended machine (`bench/results/e12-host-decoder`).
   - E15 keeps memory attention's inputs on the device, with identical output. The frame is 0.97x on
     22 and the footprint ~760 MiB lower (`bench/results/e15-memory-tokens`).
+  - Together, E12 + E13 + E15 make the frame 0.843x on 82 and 0.825x on 22 of 3ca1476 (min of 3,
+    interleaved, load 10-23). The 1,500 held-out frames' predictions are byte-identical to the
+    CoreML fp32 run, so HOTA stays 0.4922 (`bench/results/closing-e15`).
   - What is left on the tracker is memory attention itself, 74% of each state, in Ojas kernels.
   - The trunk's f32 matrix multiplies already run at the GPU's f32 peak.
   - The CoreML model load adds 3-12 s at startup.

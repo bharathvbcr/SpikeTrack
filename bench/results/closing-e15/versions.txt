@@ -1,0 +1,6 @@
+SpikeTrack 0f56e10 SPEED_PLAN: pre-state the E11b-E15 closing job, dirty 0
+/private/tmp/claude-501/-Users-bharath-Code-research-tessl/9d40c168-6abf-4804-ae5a-f4d6d42e9ece/scratchpad/spiketrack-e11b 457ca88dd790b37e
+/private/tmp/claude-501/-Users-bharath-Code-research-tessl/9d40c168-6abf-4804-ae5a-f4d6d42e9ece/scratchpad/spiketrack-e15 8567e60a1aa29570
+target/release/spiketrack 8567e60a1aa29570
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+ 0:33  up 3 days, 16:48, 1 user, load averages: 18.98 17.09 19.15

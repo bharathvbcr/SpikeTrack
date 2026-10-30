@@ -22,6 +22,12 @@ is the all-Ojas path, and `--backend cpu` keeps it as the parity oracle.
 byte-identical, and the frame is 0.86x on VISEM 22 (`bench/results/e12-host-decoder`). Large host
 linears now use up to `host::MAX_THREADS` = 8 scoped threads each, so a run outside the mac_heavy
 lock competes for CPU and gains less.
+**Closing job (2026-10-30, `bench/results/closing-e15`):**
+- E12 + E13 + E15 together make the frame 0.843x on 82 and 0.825x on 22 of 3ca1476 (min of 3,
+  load 10-23).
+- The 1,500 held-out frames are byte-identical to the committed CoreML fp32 run, so HOTA stays
+  0.4922.
+- The footprint stays flat through frame 300.
 **E13 / E15 (2026-10-30):**
 - Memory attention is 74% of each tracker state's time. It does not shrink with objects, and its
   cost is in Ojas kernels (`bench/results/profile-tracker`); the numbers went to ojas-78.
