@@ -1,0 +1,22 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 6.7 s (compiled model reused)
+model loaded in 7.0 s on metal; tracking 16 frame(s) of "22"
+frame 0 (1/16): 2.40 s, 11 active track(s), 0 frame(s) released; waits +34 (upload 2, read 17, sync 15), dispatches +4084, metal allocated 5348 MiB (frame peak 7413 MiB), footprint 8979 MiB, pageouts +8, swapins +0
+frame 1 (2/16): 1.64 s, 11 active track(s), 0 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2990, metal allocated 5360 MiB (frame peak 7417 MiB), footprint 9178 MiB, pageouts +0, swapins +0
+frame 2 (3/16): 1.99 s, 12 active track(s), 0 frame(s) released; waits +32 (upload 2, read 15, sync 15), dispatches +3625, metal allocated 5384 MiB (frame peak 7419 MiB), footprint 9095 MiB, pageouts +0, swapins +0
+frame 3 (4/16): 1.74 s, 12 active track(s), 0 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2982, metal allocated 5363 MiB (frame peak 7419 MiB), footprint 9587 MiB, pageouts +0, swapins +0
+frame 4 (5/16): 1.77 s, 12 active track(s), 0 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2984, metal allocated 5360 MiB (frame peak 7419 MiB), footprint 9824 MiB, pageouts +0, swapins +0
+frame 5 (6/16): 1.81 s, 12 active track(s), 0 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2986, metal allocated 5363 MiB (frame peak 7421 MiB), footprint 9485 MiB, pageouts +0, swapins +0
+frame 6 (7/16): 1.84 s, 12 active track(s), 0 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2988, metal allocated 5362 MiB (frame peak 7419 MiB), footprint 9882 MiB, pageouts +0, swapins +0
+frame 7 (8/16): 1.86 s, 12 active track(s), 0 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2990, metal allocated 5362 MiB (frame peak 7529 MiB), footprint 10105 MiB, pageouts +0, swapins +0
+frame 8 (9/16): 1.88 s, 12 active track(s), 0 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2990, metal allocated 5362 MiB (frame peak 7525 MiB), footprint 10195 MiB, pageouts +0, swapins +0
+frame 9 (10/16): 1.93 s, 12 active track(s), 0 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2990, metal allocated 5362 MiB (frame peak 7526 MiB), footprint 9591 MiB, pageouts +0, swapins +0
+frame 10 (11/16): 1.91 s, 12 active track(s), 0 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2990, metal allocated 5362 MiB (frame peak 7526 MiB), footprint 10220 MiB, pageouts +0, swapins +0
+frame 11 (12/16): 1.90 s, 12 active track(s), 0 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2990, metal allocated 5362 MiB (frame peak 7527 MiB), footprint 10035 MiB, pageouts +0, swapins +0
+frame 12 (13/16): 1.98 s, 12 active track(s), 0 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2990, metal allocated 5362 MiB (frame peak 7528 MiB), footprint 9939 MiB, pageouts +0, swapins +0
+frame 13 (14/16): 2.16 s, 12 active track(s), 0 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2990, metal allocated 5362 MiB (frame peak 7529 MiB), footprint 10137 MiB, pageouts +0, swapins +0
+frame 14 (15/16): 2.17 s, 12 active track(s), 1 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2990, metal allocated 5362 MiB (frame peak 7529 MiB), footprint 9907 MiB, pageouts +0, swapins +0
+frame 15 (16/16): 2.27 s, 12 active track(s), 15 frame(s) released; waits +25 (upload 2, read 9, sync 14), dispatches +2990, metal allocated 5362 MiB (frame peak 7530 MiB), footprint 9228 MiB, pageouts +0, swapins +0
+profile (stages) written to /Users/bharath/Code/research/SpikeTrack/bench/results/e12-host-decoder/v22-b-stages/22.profile-stages.md
+16 frame(s) of "22" tracked on metal: 12 track(s) born, 1.95 s/frame (model, mean), 38.6 s total
+  /Users/bharath/Code/research/SpikeTrack/bench/results/e12-host-decoder/v22-b-stages/22.json
+  /Users/bharath/Code/research/SpikeTrack/bench/results/e12-host-decoder/v22-b-stages/22.run.json

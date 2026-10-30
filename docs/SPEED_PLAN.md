@@ -189,6 +189,17 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     - scoring: 25 ms.
   - The six decoder layers take 23 ms on the GPU.
   - Memory encode is mostly device: encode 179 ms, host part 42 ms.
+- E12 [V, `bench/results/e12-host-decoder`]: predictions are byte-identical to 3ca1476 on 22 and
+  82 for both binaries (14 of 14), so no HOTA rerun is needed.
+  - A (exact blocked, threaded `host::linear`): the host decoder goes 337 -> 81 ms per frame on 82.
+    Prep is 71.6 ms, at or under the 130 threshold, so the MLP arithmetic was the bulk.
+  - B (device box-RPB broadcast): prep falls a further 19 ms to 52.8, above the 40 ms "no longer
+    the gap" line. What is left is the threaded host MLPs and the sine embedding.
+  - Frame time, unprofiled, min of 2, interleaved:
+    - 22 (load ~5): A 0.860x, B 0.856x of the control.
+    - 82 (load falling 13.6 -> 4.6): A 0.884x, B 0.921x. On 82, read the size, not the ratio.
+    - B's frame-level gain over A is inside the n = 2 noise.
+  - The trunk is now 46% of the steady frame on 22 and 38% on 82.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

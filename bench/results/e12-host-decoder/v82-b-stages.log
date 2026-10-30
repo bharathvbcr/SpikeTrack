@@ -1,0 +1,22 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 5.2 s (compiled model reused)
+model loaded in 5.5 s on metal; tracking 16 frame(s) of "82"
+frame 0 (1/16): 2.59 s, 13 active track(s), 0 frame(s) released; waits +34 (upload 2, read 17, sync 15), dispatches +4084, metal allocated 5352 MiB (frame peak 7558 MiB), footprint 8986 MiB, pageouts +2, swapins +0
+frame 1 (2/16): 2.27 s, 15 active track(s), 0 frame(s) released; waits +36 (upload 2, read 19, sync 15), dispatches +3623, metal allocated 5388 MiB (frame peak 7419 MiB), footprint 9129 MiB, pageouts +0, swapins +0
+frame 2 (3/16): 2.18 s, 17 active track(s), 0 frame(s) released; waits +36 (upload 2, read 19, sync 15), dispatches +3625, metal allocated 5395 MiB (frame peak 7421 MiB), footprint 9009 MiB, pageouts +0, swapins +0
+frame 3 (4/16): 2.16 s, 17 active track(s), 0 frame(s) released; waits +30 (upload 3, read 13, sync 14), dispatches +4023, metal allocated 5375 MiB (frame peak 7421 MiB), footprint 9187 MiB, pageouts +0, swapins +0
+frame 4 (5/16): 2.61 s, 18 active track(s), 0 frame(s) released; waits +37 (upload 3, read 19, sync 15), dispatches +4660, metal allocated 5392 MiB (frame peak 7421 MiB), footprint 9469 MiB, pageouts +0, swapins +0
+frame 5 (6/16): 2.27 s, 18 active track(s), 0 frame(s) released; waits +30 (upload 3, read 13, sync 14), dispatches +4019, metal allocated 5370 MiB (frame peak 7420 MiB), footprint 9467 MiB, pageouts +0, swapins +0
+frame 6 (7/16): 2.38 s, 18 active track(s), 0 frame(s) released; waits +30 (upload 3, read 13, sync 14), dispatches +4023, metal allocated 5368 MiB (frame peak 7418 MiB), footprint 9633 MiB, pageouts +0, swapins +0
+frame 7 (8/16): 2.54 s, 18 active track(s), 0 frame(s) released; waits +30 (upload 3, read 13, sync 14), dispatches +4027, metal allocated 5373 MiB (frame peak 7528 MiB), footprint 9707 MiB, pageouts +0, swapins +0
+frame 8 (9/16): 2.53 s, 18 active track(s), 0 frame(s) released; waits +30 (upload 3, read 13, sync 14), dispatches +4029, metal allocated 5368 MiB (frame peak 7524 MiB), footprint 9396 MiB, pageouts +0, swapins +0
+frame 9 (10/16): 2.63 s, 18 active track(s), 0 frame(s) released; waits +30 (upload 3, read 13, sync 14), dispatches +4031, metal allocated 5368 MiB (frame peak 7525 MiB), footprint 9527 MiB, pageouts +0, swapins +0
+frame 10 (11/16): 2.59 s, 18 active track(s), 0 frame(s) released; waits +30 (upload 3, read 13, sync 14), dispatches +4031, metal allocated 5368 MiB (frame peak 7526 MiB), footprint 10117 MiB, pageouts +0, swapins +0
+frame 11 (12/16): 2.58 s, 18 active track(s), 0 frame(s) released; waits +30 (upload 3, read 13, sync 14), dispatches +4031, metal allocated 5368 MiB (frame peak 7526 MiB), footprint 10114 MiB, pageouts +0, swapins +0
+frame 12 (13/16): 2.62 s, 18 active track(s), 0 frame(s) released; waits +30 (upload 3, read 13, sync 14), dispatches +4031, metal allocated 5368 MiB (frame peak 7527 MiB), footprint 9719 MiB, pageouts +0, swapins +0
+frame 13 (14/16): 2.64 s, 18 active track(s), 0 frame(s) released; waits +30 (upload 3, read 13, sync 14), dispatches +4031, metal allocated 5368 MiB (frame peak 7528 MiB), footprint 10157 MiB, pageouts +0, swapins +0
+frame 14 (15/16): 2.67 s, 18 active track(s), 1 frame(s) released; waits +30 (upload 3, read 13, sync 14), dispatches +4031, metal allocated 5368 MiB (frame peak 7529 MiB), footprint 9632 MiB, pageouts +0, swapins +0
+frame 15 (16/16): 3.08 s, 19 active track(s), 15 frame(s) released; waits +37 (upload 3, read 19, sync 15), dispatches +4664, metal allocated 5396 MiB (frame peak 7529 MiB), footprint 9433 MiB, pageouts +0, swapins +0
+profile (stages) written to /Users/bharath/Code/research/SpikeTrack/bench/results/e12-host-decoder/v82-b-stages/82.profile-stages.md
+16 frame(s) of "82" tracked on metal: 18 track(s) born, 2.52 s/frame (model, mean), 46.2 s total
+  /Users/bharath/Code/research/SpikeTrack/bench/results/e12-host-decoder/v82-b-stages/82.json
+  /Users/bharath/Code/research/SpikeTrack/bench/results/e12-host-decoder/v82-b-stages/82.run.json
