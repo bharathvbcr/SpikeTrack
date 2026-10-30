@@ -420,6 +420,27 @@ upstream to cosine 0.99995 [V], so it is not exact either.
       - mask channels, summed over states;
       - the area rule, on 82.
     - Otherwise the detector prep's sine and query-MLP split is next.
+- E20 result [V, `bench/results/e20-copy-elim`, merged as 9b3a628]:
+  - Run 1 (957c66d) failed CPU detect_track_parity.
+    - On a host backend, `to_host` is a clone that shares storage, so `f32_slice_mut` refused.
+    - cd237ab fixes it. The gate script's table diff also had a flaw: it compared wall-clock
+      times; they are now masked.
+  - Run 2 (cd237ab) passes every gate:
+    - lib tests and tracker_parity 8 of 8;
+    - detect_track_parity, Metal and CPU, with 135-line tables identical to E16's;
+    - predictions byte-identical in 8 of 8 runs.
+  - Validity: E19's 82 table is invalid again (-15% against control-2). E20's 82 table and both 22
+    tables are valid.
+  - On 22, against the same-hold E19:
+    - mask channels 29.5 -> 19.3 ms, mask upload 17.1 -> 14.1 ms, upsampled readback 8.7 -> 7.6 ms;
+    - every pre-stated direction holds, and nothing E20 changed rose;
+    - that is about 14 ms per frame, under 1%. The frame time is not claimed: the controls differ
+      by up to 9%.
+  - On 82 under E20, mask upload follows n: 18.8 ms for state 0 and 9.4 ms for state 1.
+  - Host footprint at frame 15 is down 330 MiB on 82 and 569 MiB on 22. That is deterministic: both
+    controls are equal.
+  - Next, by the rule: E21. On E20's valid 82 table, mask channels (35.5 ms over two states) and the
+    area rule (32.3 ms) both exceed 20 ms.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

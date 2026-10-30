@@ -1,0 +1,13 @@
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e20/crates/st-model)
+   Compiling st-coreml v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e20/crates/st-coreml)
+   Compiling spiketrack v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e20/crates/spiketrack)
+warning: function `evaluate` is never used
+   --> crates/spiketrack/src/eval_visem.rs:220:8
+    |
+220 | pub fn evaluate(pred: &Path, ids: &[String], visem: &Path) -> Result<Evaluation, String> {
+    |        ^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `spiketrack` (bin "spiketrack") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 16.17s

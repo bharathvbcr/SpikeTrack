@@ -1,0 +1,22 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 2.2 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 2.17 s)
+model loaded in 2.6 s on metal; tracking 16 frame(s) of "82"
+frame 0 (1/16): 2.55 s, 13 active track(s), 0 frame(s) released; waits +34 (upload 2, read 15, sync 17), dispatches +4085, metal allocated 5397 MiB (frame peak 7604 MiB), footprint 8910 MiB, pageouts +0, swapins +0
+frame 1 (2/16): 2.09 s, 15 active track(s), 0 frame(s) released; waits +37 (upload 1, read 17, sync 19), dispatches +3628, metal allocated 5449 MiB (frame peak 7475 MiB), footprint 9221 MiB, pageouts +0, swapins +0
+frame 2 (3/16): 2.10 s, 17 active track(s), 0 frame(s) released; waits +37 (upload 1, read 17, sync 19), dispatches +3636, metal allocated 5466 MiB (frame peak 7483 MiB), footprint 8727 MiB, pageouts +0, swapins +0
+frame 3 (4/16): 2.09 s, 17 active track(s), 0 frame(s) released; waits +32 (upload 1, read 11, sync 20), dispatches +4042, metal allocated 5457 MiB (frame peak 7497 MiB), footprint 8549 MiB, pageouts +0, swapins +0
+frame 4 (5/16): 2.60 s, 18 active track(s), 0 frame(s) released; waits +39 (upload 1, read 17, sync 21), dispatches +4689, metal allocated 5489 MiB (frame peak 7521 MiB), footprint 9151 MiB, pageouts +0, swapins +0
+frame 5 (6/16): 2.46 s, 18 active track(s), 0 frame(s) released; waits +32 (upload 1, read 11, sync 20), dispatches +4056, metal allocated 5482 MiB (frame peak 7527 MiB), footprint 8726 MiB, pageouts +0, swapins +0
+frame 6 (7/16): 2.54 s, 18 active track(s), 0 frame(s) released; waits +32 (upload 1, read 11, sync 20), dispatches +4068, metal allocated 5496 MiB (frame peak 7540 MiB), footprint 8690 MiB, pageouts +0, swapins +0
+frame 7 (8/16): 2.51 s, 18 active track(s), 0 frame(s) released; waits +32 (upload 1, read 11, sync 20), dispatches +4080, metal allocated 5510 MiB (frame peak 7665 MiB), footprint 9280 MiB, pageouts +0, swapins +0
+frame 8 (9/16): 2.50 s, 18 active track(s), 0 frame(s) released; waits +32 (upload 1, read 11, sync 20), dispatches +4086, metal allocated 5520 MiB (frame peak 7676 MiB), footprint 9286 MiB, pageouts +0, swapins +0
+frame 9 (10/16): 2.63 s, 18 active track(s), 0 frame(s) released; waits +32 (upload 1, read 11, sync 20), dispatches +4092, metal allocated 5536 MiB (frame peak 7692 MiB), footprint 8827 MiB, pageouts +1, swapins +0
+frame 10 (11/16): 2.61 s, 18 active track(s), 0 frame(s) released; waits +32 (upload 1, read 11, sync 20), dispatches +4092, metal allocated 5551 MiB (frame peak 7708 MiB), footprint 9299 MiB, pageouts +0, swapins +0
+frame 11 (12/16): 2.56 s, 18 active track(s), 0 frame(s) released; waits +32 (upload 1, read 11, sync 20), dispatches +4092, metal allocated 5566 MiB (frame peak 7724 MiB), footprint 9088 MiB, pageouts +0, swapins +0
+frame 12 (13/16): 2.49 s, 18 active track(s), 0 frame(s) released; waits +32 (upload 1, read 11, sync 20), dispatches +4092, metal allocated 5581 MiB (frame peak 7740 MiB), footprint 9479 MiB, pageouts +0, swapins +0
+frame 13 (14/16): 2.56 s, 18 active track(s), 0 frame(s) released; waits +32 (upload 1, read 11, sync 20), dispatches +4092, metal allocated 5596 MiB (frame peak 7756 MiB), footprint 9033 MiB, pageouts +0, swapins +0
+frame 14 (15/16): 2.59 s, 18 active track(s), 1 frame(s) released; waits +32 (upload 1, read 11, sync 20), dispatches +4092, metal allocated 5612 MiB (frame peak 7772 MiB), footprint 8604 MiB, pageouts +0, swapins +0
+frame 15 (16/16): 2.98 s, 19 active track(s), 15 frame(s) released; waits +39 (upload 1, read 17, sync 21), dispatches +4725, metal allocated 5664 MiB (frame peak 7788 MiB), footprint 8709 MiB, pageouts +0, swapins +0
+profile (stages) written to /Users/bharath/Code/research/SpikeTrack/bench/results/e20-copy-elim/v82-e19-stages/82.profile-stages.md
+16 frame(s) of "82" tracked on metal: 18 track(s) born, 2.49 s/frame (model, mean), 42.7 s total
+  /Users/bharath/Code/research/SpikeTrack/bench/results/e20-copy-elim/v82-e19-stages/82.json
+  /Users/bharath/Code/research/SpikeTrack/bench/results/e20-copy-elim/v82-e19-stages/82.run.json

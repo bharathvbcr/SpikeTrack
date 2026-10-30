@@ -1,0 +1,4 @@
+SpikeTrack-e20 957c66d st-model: the memory encode uploads only the object planes; readback and rows without extra host copies (E20, not yet built), dirty 0 (binary 38a0ccfa338f21b2)
+control spiketrack-e19 6e86d6e4b658277b
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+10:37  up 4 days,  2:52, 1 user, load averages: 12.11 12.56 17.21

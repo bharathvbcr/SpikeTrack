@@ -1,0 +1,4 @@
+SpikeTrack-e20 cd237ab st-model: drop the upsampled tensor before the in-place area rule, so a host backend's shared to_host clone is uniquely owned (E20 CPU parity failure), dirty 0 (binary 4041d319fba9e891)
+control spiketrack-e19 6e86d6e4b658277b
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+11:38  up 4 days,  3:53, 1 user, load averages: 16.98 31.35 58.52

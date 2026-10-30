@@ -1,0 +1,24 @@
+    Finished `release` profile [optimized] target(s) in 1.19s
+     Running tests/detect_track_parity.rs (/Users/bharath/Code/research/SpikeTrack/target/release/deps/detect_track_parity-514bcebc41be98ee)
+
+running 1 test
+test session_matches_upstream_on_visem_11 ... [CPU]
+
+video 22, 32 frames, prompt "cell", 480x640 (HxW)
+
+| visit | states | kept diff | score dmax | box dmax | det IoU | prop cos | score cos | assoc ok | plan ok | mem-in cos | mem cos min | ptr cos min | out ids | out IoU |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+
+thread 'session_matches_upstream_on_visem_11' (128623158) panicked at crates/st-model/tests/detect_track_parity.rs:442:70:
+frame 0: Tensor::f32_slice_mut: shape: contiguous write requires a uniquely owned allocation
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    session_matches_upstream_on_visem_11
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 22.98s
+
+error: test failed, to rerun pass `-p st-model --test detect_track_parity`
