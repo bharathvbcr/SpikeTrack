@@ -214,6 +214,14 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     cache would be an exact copy.
   - Pipeline gate: wall minus ops over the non-trunk frame is ~254 ms on frames 1-7 of 82 [I],
     between the lines at the shelve edge.
+- E15 [V, `bench/results/e15-memory-tokens`]: predictions are byte-identical (8 of 8).
+  - The tokens phase is 63.6 / 50.1 -> 13.9 / 5.5 ms per state on 82, and 55.5 -> 9.9 on 22, which
+    passes <= 15.
+  - Frame, min of 2, interleaved: 82 0.890x, 22 0.972x. E15 is faster in all four pairs, but the
+    size is noisy, and per-run load was lost (the job's stdout was discarded).
+  - Footprint at frame 15 is ~760 MiB lower and flat; the control climbs to ~10.3 GB.
+  - The multiplex decoder phase rose 8-18 ms on 82's stages run [unexplained, read as load]. E15
+    does not touch it.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 
