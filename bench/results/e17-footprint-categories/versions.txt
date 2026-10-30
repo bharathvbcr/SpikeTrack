@@ -1,0 +1,8 @@
+SpikeTrack 201c77a e16: the same-hold builds are the machine control; quote E15's rate as a range, dirty 0
+e13 49a9257192ed2ddf
+e15 8567e60a1aa29570
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+ProductName:		macOS
+ProductVersion:		27.0.1
+BuildVersion:		26A434
+ 3:17  up 3 days, 19:33, 1 user, load averages: 3.07 3.04 3.88

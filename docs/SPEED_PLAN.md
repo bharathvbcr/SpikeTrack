@@ -289,6 +289,12 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     - In between is reported as unresolved.
   - The E13 300-frame predictions must `cmp` byte-identical to the committed 47.json. Frame times
     from these runs are not read.
+- E17 result [V, `bench/results/e17-footprint-categories`]: it settles, and it is not a leak.
+  - The slope over frames 700-1469 is -0.005 MiB/frame. E15 rises ~420 MiB over ~500 frames, then
+    holds at ~9.33 GB, below E13's ~9.9 GB.
+  - The 60% category rule picked a within-frame graphics transient (owned unmapped 628 -> 2053 -> 628).
+    The steady growth is Malloc Large, 4396 -> 4894 MiB, then flat [I: allocator retention].
+  - E13 predictions are byte-identical. No fix is due, and the gap is answered.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

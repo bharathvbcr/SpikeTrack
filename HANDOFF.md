@@ -30,7 +30,10 @@ lock competes for CPU and gains less.
 - Metal allocated is flat. The process footprint creeps 0.6-1.6 MiB per frame, where E10's was
   flat (GAP-E15-HOST-FOOTPRINT-CREEP, open).
 - E16 (`bench/results/e16-bisect-parity`) ties the creep to E15. E15 starts ~1.2 GB below E13 and
-  is still ~400 MiB below it at frame 299; past 300 frames is unmeasured.
+  is still ~400 MiB below it at frame 299.
+- E17 (`bench/results/e17-footprint-categories`): over all 1,470 frames of 47, E15 settles at
+  ~9.33 GB (slope -0.005 MiB/frame over frames 700-1469). The growth is host Malloc Large, and it
+  is not a leak. The gap is answered.
 - The tracker and detect-track parity suites pass on CPU and Metal through the E12-E15 changes.
 **E13 / E15 (2026-10-30):**
 - Memory attention is 74% of each tracker state's time. It does not shrink with objects, and its

@@ -1,0 +1,43 @@
+======================================================================
+spiketrack-e15 [15614]: 64-bit    Footprint: 9601426024 B (16384 bytes per page)
+======================================================================
+
+      Dirty         Clean   Reclaimable    Regions    Category
+        ---           ---           ---        ---    ---
+5131960320 B           0 B           0 B        367    Malloc Large
+3269099520 B           0 B      311296 B       2342    IOAccelerator (graphics)
+658505728 B           0 B           0 B         22    Owned physical footprint (unmapped) (graphics)
+490618880 B           0 B           0 B        128    Malloc Small
+ 33456128 B           0 B           0 B         43    IOSurface
+  8126464 B           0 B           0 B         23    Malloc Metadata
+  6038120 B           0 B           0 B          1    page table
+   802816 B           0 B           0 B         17    IOAccelerator
+   710435 B           0 B           0 B        362    __DATA_DIRTY
+   421477 B           0 B           0 B        421    __DATA
+   359112 B           0 B           0 B       1256    unused dyld shared cache area
+   327680 B           0 B      196608 B         20    Stack
+   294912 B           0 B           0 B          1    Malloc Tiny
+   212992 B           0 B           0 B         20    Untagged
+   132216 B           0 B           0 B        226    __AUTH
+    81920 B           0 B           0 B         10    IOKit
+    65536 B           0 B           0 B        414    __DATA_CONST
+    49152 B           0 B           0 B          2    Malloc Nano
+    49080 B           0 B           0 B          4    __TPRO_CONST
+    48000 B           0 B           0 B          1    __OBJC_RW
+    32768 B           0 B           0 B          1    Activity Tracing
+    16384 B           0 B           0 B          1    Deferred Reclaim
+    16384 B           0 B           0 B          1    OS Alloc Once
+        0 B  1837219840 B           0 B         39    mapped file
+        0 B     6668288 B           0 B        483    __TEXT
+        0 B       16384 B           0 B          2    __LINKEDIT
+        0 B           0 B           0 B          1    __CTF
+        0 B           0 B           0 B        414    __AUTH_CONST
+        0 B           0 B           0 B          1    __FONT_DATA
+        0 B           0 B           0 B          1    __OBJC_RO
+        ---           ---           ---        ---    ---
+9601426024 B  1843904512 B      507904 B       6626    TOTAL
+
+Auxiliary data:
+    phys_footprint: 9601426024 B
+    phys_footprint_peak: 12448621256 B
+
