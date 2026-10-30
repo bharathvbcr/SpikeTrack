@@ -1,0 +1,11 @@
+   Compiling st-coreml v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-coreml)
+    Finished `release` profile [optimized] target(s) in 0.78s
+     Running tests/load_cache.rs (target/release/deps/load_cache-124ed303bc26e777)
+
+running 1 test
+first: 11.13 s (hash 3.26, compile 0.17, model 7.70); compiled true, hashed true
+second: 0.00 s (hash 0.00, compile 0.00, model 0.00); compiled false, hashed false
+test a_fresh_package_compiles_and_hashes_once_then_reuses_both ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.82s
+

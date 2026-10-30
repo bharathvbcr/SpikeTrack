@@ -1,0 +1,6 @@
+total 8
+drwxr-xr-x@  5 bharath  staff  160 Oct 30 08:06 .
+drwxr-xr-x  18 bharath  staff  576 Oct 29 08:35 ..
+drwxr-xr-x@  4 bharath  staff  128 Oct 29 08:45 sam3.1_trunk_fp32.mlpackage
+drwxr-xr-x@  6 bharath  staff  192 Oct 29 08:57 sam3.1_trunk_fp32.mlpackage.826a25595acce9c8.mlmodelc
+-rw-r--r--@  1 bharath  staff   65 Oct 30 08:06 sam3.1_trunk_fp32.mlpackage.stat-fb8823d528c89ec8.sha256

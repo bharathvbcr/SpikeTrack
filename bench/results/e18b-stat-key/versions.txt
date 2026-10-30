@@ -1,0 +1,5 @@
+SpikeTrack a35e80a st-coreml: record the package's SHA-256 under a stat key; a load hashes in full once per package version, dirty 0
+/private/tmp/claude-501/-Users-bharath-Code-research-tessl/9d40c168-6abf-4804-ae5a-f4d6d42e9ece/scratchpad/spiketrack-e18 d59faed4300d41e7
+/private/tmp/claude-501/-Users-bharath-Code-research-tessl/9d40c168-6abf-4804-ae5a-f4d6d42e9ece/scratchpad/spiketrack-e18b 674d96b58ad1ce4f
+ojas-st ea3cf39 Merge gp/78-memcap: the plan sets aside the Metal memory caps; set_mem_cap is documented API (Lane M)
+ 8:06  up 4 days, 21 mins, 1 user, load averages: 10.92 14.15 12.70

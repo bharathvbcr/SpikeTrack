@@ -1,0 +1,15 @@
+   Compiling st-coreml v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-coreml)
+    Finished `release` profile [optimized] target(s) in 0.70s
+     Running unittests src/lib.rs (target/release/deps/st_coreml-441f4fb33dae1bf3)
+
+running 7 tests
+test tests::compiled_path_carries_the_hash_prefix ... ok
+test tests::load_refuses_a_missing_package ... ok
+test tests::contiguous_strides_are_row_major ... ok
+test tests::a_package_changed_during_the_full_hash_is_not_recorded ... ok
+test tests::stat_key_follows_small_files_bytes_and_large_files_metadata ... ok
+test tests::package_hash_changes_with_content_and_path ... ok
+test tests::a_recorded_hash_is_used_only_when_well_formed_and_its_compiled_model_exists ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

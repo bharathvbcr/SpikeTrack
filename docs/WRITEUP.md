@@ -98,7 +98,10 @@ is where the adapter's learning shows.
     CoreML fp32 run, so HOTA stays 0.4922 (`bench/results/closing-e15`).
   - What is left on the tracker is memory attention itself, 74% of each state, in Ojas kernels.
   - The trunk's f32 matrix multiplies already run at the GPU's f32 peak.
-  - The CoreML model load adds 3-12 s at startup.
+  - The CoreML model load added 3-12 s at startup, about half of it hashing the 1.7 GB package.
+    Since E18b (2026-10-30) the hash is recorded once per package version. The trunk load is then
+    0.7 s (min of 3) against 5.8 s, at load ~18, with predictions byte-identical
+    (`bench/results/e18b-stat-key`). Core ML's own model load, 0.4-3 s, remains.
   - An fp16 trunk gives 0.55x the frame but changes close detections. On video 21 that cost the
     cap-16 HOTA 0.024, so fp16 is not offered as a fast mode.
 - **Gating.** Pixel-event gating is exact when it skips nothing. On VISEM, moving sperm change

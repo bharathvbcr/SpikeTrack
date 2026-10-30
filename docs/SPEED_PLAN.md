@@ -342,6 +342,12 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     - 16 frames of 82 and 22 `cmp` byte-identical to `closing-e15/speed/v*-new-1`.
   - Refute: a new round after the first that says `full` means the record is not used. That is a
     failure, not a slow pass.
+- E18b result [V, `bench/results/e18b-stat-key`]: every gate passes.
+  - Unit tests 7 of 7, and `load_cache` passes.
+  - Every new round says `recorded`, with a 0.00 s hash phase.
+  - Trunk load, min of 3: 5.8 -> 0.7 s. `track`'s model load: 6.4 -> 1.5 s.
+  - 16-frame predictions are byte-identical on 82 and 22.
+  - The cold-start gap is answered. E19 (the memory-encode host split) is next.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 
