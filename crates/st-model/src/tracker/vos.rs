@@ -84,6 +84,11 @@ pub struct Vos<'b, B: Backend + ?Sized> {
     pub(crate) inter_pe: Tensor,
     /// Sine position map of the grid x grid level, `[256, G, G]`.
     pub(crate) sine_pos: Vec<f32>,
+    /// `sine_pos` token-major on the device, `[1, G * G, 256]`: memory attention's `src_pos`.
+    pub(crate) pos_tokens: Tensor,
+    /// Per `maskmem_tpos_enc` row `i`, `sine_pos` tokens + that row (one add per element) on the
+    /// device, `[1, G * G, 256]`: the position of a stored memory `NUM_MASKMEM - 1 - i` frames back.
+    pub(crate) memory_pos_tokens: Vec<Tensor>,
 }
 
 /// SAM's `PositionEmbeddingRandom` over an `h x w` grid: `[256, h, w]`.
@@ -160,6 +165,14 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
             Ok(Some((t(&format!("interactive_sam_prompt_encoder.mask_downscaling.{i}.weight"), &[c])?, t(&format!("interactive_sam_prompt_encoder.mask_downscaling.{i}.bias"), &[c])?)))
         };
         let prop_gauss = host_w("image_pe_layer.positional_encoding_gaussian_matrix", &[2, D / 2])?;
+        let sine_pos = host::sine_position_map(feat, feat);
+        let pos_host = nchw_to_tokens(&sine_pos, D, feat * feat);
+        let maskmem_tpos = host_w("maskmem_tpos_enc", &[NUM_MASKMEM, 1, 1, D])?;
+        let pos_tokens = up(be, &pos_host, &[1, feat * feat, D])?;
+        let memory_pos_tokens = maskmem_tpos
+            .chunks_exact(D)
+            .map(|te| up(be, &pos_host.chunks_exact(D).flat_map(|r| r.iter().zip(te).map(|(a, b)| a + b)).collect::<Vec<f32>>(), &[1, feat * feat, D]))
+            .collect::<Result<Vec<_>, _>>()?;
         let inter_gauss = host_w("interactive_sam_prompt_encoder.pe_layer.positional_encoding_gaussian_matrix", &[2, D / 2])?;
         Ok(Self {
             be,
@@ -183,13 +196,15 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
             interactive_obj_ptr_proj: Mlp::load(be, g, &format!("{p}.interactive_obj_ptr_proj"), &[D, D, D, D], false, false)?,
             no_obj_ptr_linear: Lin::load(be, g, &format!("{p}.no_obj_ptr_linear"), D, D)?,
             obj_ptr_tpos_proj: Lin::load(be, g, &format!("{p}.obj_ptr_tpos_proj"), D, D)?,
-            maskmem_tpos: host_w("maskmem_tpos_enc", &[NUM_MASKMEM, 1, 1, D])?,
+            maskmem_tpos,
             no_obj_embed_spatial: host_w("no_obj_embed_spatial", &[MUX, D])?,
             output_valid: host_w("output_valid_embed", &[MUX, D])?,
             output_invalid: host_w("output_invalid_embed", &[MUX, D])?,
             prop_pe: up(be, &random_fourier_pe(&prop_gauss, feat, feat), &[1, D, feat, feat])?,
             inter_pe: up(be, &random_fourier_pe(&inter_gauss, feat, feat), &[1, D, feat, feat])?,
-            sine_pos: host::sine_position_map(feat, feat),
+            sine_pos,
+            pos_tokens,
+            memory_pos_tokens,
         })
     }
 

@@ -711,7 +711,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
                         StateTrace {
                             obj_ids: st.obj_ids().to_vec(),
                             slots: st.slots().to_vec(),
-                            maskmem: stored.and_then(|s| s.maskmem.clone()),
+                            maskmem: stored.and_then(|s| s.maskmem.as_ref().map(|m| m.nchw.clone())),
                             obj_ptr: stored.map(|s| s.obj_ptr.clone()).unwrap_or_default(),
                             cond_objs: stored.map(|s| s.cond_objs.iter().copied().collect()).unwrap_or_default(),
                         }

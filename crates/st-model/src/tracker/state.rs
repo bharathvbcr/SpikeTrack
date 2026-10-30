@@ -75,10 +75,19 @@ pub(crate) fn err(detail: impl Into<String>) -> ModelError {
     ModelError::Ojas(OjasError::OutOfRange { op: "st_model::tracker::state", detail: detail.into() })
 }
 
-/// One frame's propagation-neck features as tokens `[G * G, 256]` (`G` = 72 at 1008); shared by every state that
-/// stores a memory for the frame (upstream stores the same tensor in each state's output).
+/// One frame's propagation-neck features as device tokens `[1, G * G, 256]` (`G` = 72 at 1008); shared by every
+/// state that stores a memory for the frame (upstream stores the same tensor in each state's output).
 pub struct FrameFeats {
-    pub tokens: Vec<f32>,
+    pub tokens: Tensor,
+}
+
+/// A stored frame's memory features (`maskmem_features`, rounded through bf16 as upstream stores
+/// them): `nchw` `[256 * G * G]` on the host for traces and parity, and the same values token-major
+/// on the device (`[1, G * G, 256]`), which memory attention concatenates every frame.
+#[derive(Clone)]
+pub struct MaskMem {
+    pub nchw: Vec<f32>,
+    pub tokens: Tensor,
 }
 
 /// Interactive-path inputs of the current frame (`_get_interactive_pix_mem` and the two
@@ -115,8 +124,8 @@ pub struct Stored {
     pub obj_ptr: Vec<f32>,
     /// State-local object indices that are conditioned on this frame.
     pub cond_objs: BTreeSet<usize>,
-    /// `[256, G, G]`, rounded through bf16 as upstream stores it. `None` until a memory is encoded.
-    pub maskmem: Option<Vec<f32>>,
+    /// `None` until a memory is encoded.
+    pub maskmem: Option<MaskMem>,
     pub feats: Option<Arc<FrameFeats>>,
 }
 
@@ -472,10 +481,7 @@ impl TrackerState {
         if self.cond.len() > MAX_COND_IN_ATTN {
             return Err(err(format!("{} conditioning frames; selecting the closest {MAX_COND_IN_ATTN} is not ported (a state has one)", self.cond.len())));
         }
-        let tpos = |t_pos: i64| -> &[f32] {
-            let idx = if t_pos <= 0 || t_pos >= NUM_MASKMEM as i64 { NUM_MASKMEM - 1 } else { NUM_MASKMEM - t_pos as usize - 1 };
-            &vos.maskmem_tpos[idx * D..(idx + 1) * D]
-        };
+        let tpos = |t_pos: i64| -> usize { if t_pos <= 0 || t_pos >= NUM_MASKMEM as i64 { NUM_MASKMEM - 1 } else { NUM_MASKMEM - t_pos as usize - 1 } };
         // Memory frames: the conditioning frames (t_pos = distance), then t_pos 1..6 -> frame - (7 - t_pos).
         let mut entries: Vec<(&Stored, i64)> = Vec::new();
         for (&c, st) in &self.cond {
@@ -492,22 +498,22 @@ impl TrackerState {
                 entries.push((st, t_pos as i64));
             }
         }
-        let (feat, tokens) = (vos.geo.grid, vos.geo.tokens());
-        let pos_tokens = nchw_to_tokens(&vos.sine_pos, D, tokens);
-        let image_dev = up(be, &ctx.feats.tokens, &[1, tokens, D])?;
+        let feat = vos.geo.grid;
+        let image_dev = &ctx.feats.tokens;
         let pix = if entries.is_empty() {
             // No memory to attend to: upstream falls back to the frame's own features.
             ctx.prop72.clone()
         } else {
+            // The stored memories, their image features and the position rows are device tensors
+            // already: the memory is their concatenation, with the pointer block uploaded after it.
             let (mut memory, mut memory_pos, mut mimage, mut mimage_pos) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
             for &(st, t_pos) in &entries {
-                let te = tpos(t_pos);
+                let shifted = &vos.memory_pos_tokens[tpos(t_pos)];
                 let feats = st.feats.as_ref().ok_or_else(|| err("a stored memory without its image features"))?;
-                let shifted: Vec<f32> = pos_tokens.chunks_exact(D).flat_map(|r| r.iter().zip(te).map(|(a, b)| a + b)).collect();
-                memory.extend(nchw_to_tokens(st.maskmem.as_ref().expect("filtered on maskmem"), D, tokens));
-                mimage.extend_from_slice(&feats.tokens);
-                memory_pos.extend_from_slice(&shifted);
-                mimage_pos.extend_from_slice(&shifted);
+                memory.push(&st.maskmem.as_ref().expect("filtered on maskmem").tokens);
+                mimage.push(&feats.tokens);
+                memory_pos.push(shifted);
+                mimage_pos.push(shifted);
             }
             // Object pointers: the conditioning frames at |distance|, then frames before the current one.
             let max_ptr = num_frames.min(MAX_PTRS);
@@ -521,22 +527,26 @@ impl TrackerState {
                 }
             }
             let t_diff_max = (max_ptr - 1).max(1) as f32;
+            let (mut ptrs, mut ptrs_pos) = (Vec::with_capacity(ptr_frames.len() * MUX * D), Vec::with_capacity(ptr_frames.len() * MUX * D));
             for &(st, pos) in &ptr_frames {
                 let pe = vos.obj_ptr_tpos_proj.host(&sine_1d(pos as f32 / t_diff_max, D), 1);
-                memory.extend_from_slice(&st.obj_ptr);
+                ptrs.extend_from_slice(&st.obj_ptr);
                 for _ in 0..MUX {
-                    memory_pos.extend_from_slice(&pe);
+                    ptrs_pos.extend_from_slice(&pe);
                 }
             }
             let n_ptr = ptr_frames.len() * MUX;
-            let (mtok, mitok) = (memory.len() / D, mimage.len() / D);
-            let src_pos = up(be, &pos_tokens, &[1, tokens, D])?;
-            let (memory, memory_pos) = (up(be, &memory, &[1, mtok, D])?, up(be, &memory_pos, &[1, mtok, D])?);
-            let (mimage, mimage_pos) = (up(be, &mimage, &[1, mitok, D])?, up(be, &mimage_pos, &[1, mitok, D])?);
+            let ptr_dev = if n_ptr > 0 { Some((up(be, &ptrs, &[1, n_ptr, D])?, up(be, &ptrs_pos, &[1, n_ptr, D])?)) } else { None };
+            if let Some((p, pp)) = &ptr_dev {
+                memory.push(p);
+                memory_pos.push(pp);
+            }
+            let cat = |parts: &[&Tensor]| -> Result<Tensor, OjasError> { if parts.len() == 1 { Ok(parts[0].clone()) } else { be.concat(parts, 1) } };
+            let (memory, memory_pos, mimage, mimage_pos) = (cat(&memory)?, cat(&memory_pos)?, cat(&mimage)?, cat(&mimage_pos)?);
             mark(PROPAGATE_STAGES[1]);
             let fused = vos.mem_attn.fwd(
                 be,
-                &MemoryInputs { image: &image_dev, src: &image_dev, src_pos: &src_pos, memory_image: &mimage, memory_image_pos: &mimage_pos, memory: &memory, memory_pos: &memory_pos, num_obj_ptr_tokens: n_ptr },
+                &MemoryInputs { image: image_dev, src: image_dev, src_pos: &vos.pos_tokens, memory_image: &mimage, memory_image_pos: &mimage_pos, memory: &memory, memory_pos: &memory_pos, num_obj_ptr_tokens: n_ptr },
             )?;
             be.permute(&fused, &[0, 2, 1])?.reshape(&[1, D, feat, feat])?
         };
@@ -677,7 +687,7 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
     /// The frame's propagation-side inputs.
     pub fn frame_ctx(&self, frame: usize, prop: &[Tensor; 3]) -> Result<FrameCtx, ModelError> {
         let (ps0, ps1) = high_res(self.be, &self.mux_decoder, &prop[0], &prop[1])?;
-        let tokens = nchw_to_tokens(&host_of(&prop[2], self.be)?, D, self.geo.tokens());
+        let tokens = self.be.permute(&prop[2].reshape(&[1, D, self.geo.tokens()])?, &[0, 2, 1])?;
         Ok(FrameCtx { frame, prop72: prop[2].clone(), ps0, ps1, feats: Arc::new(FrameFeats { tokens }), inter: None })
     }
 
@@ -743,8 +753,8 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
     /// (`size` = the image side, 1008, for a consolidated frame, 1152 for the frame memory update;
     /// the encoder resizes to `16 * grid`). `scores`: the object-score logits that decide which slots get
     /// `no_obj_embed_spatial` (padding and removed slots count as score 0). `slot_of[o]`: slot of
-    /// object `o`. `cond`: objects whose condition channel is 1.0. Returns `[256 * G * G]`.
-    pub(crate) fn encode_mask_memory(&self, ctx: &FrameCtx, hr: &[f32], size: usize, scores: &[f32], cond: &BTreeSet<usize>, slot_of: &[usize]) -> Result<Vec<f32>, ModelError> {
+    /// object `o`. `cond`: objects whose condition channel is 1.0.
+    pub(crate) fn encode_mask_memory(&self, ctx: &FrameCtx, hr: &[f32], size: usize, scores: &[f32], cond: &BTreeSet<usize>, slot_of: &[usize]) -> Result<MaskMem, ModelError> {
         let be = self.be;
         let tokens = self.geo.tokens();
         let px = size * size;
@@ -779,7 +789,8 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
             feat[c * tokens..(c + 1) * tokens].iter_mut().for_each(|v| *v += add[c]);
         }
         bf16_round(&mut feat);
-        Ok(feat)
+        let tokens = up(be, &nchw_to_tokens(&feat, D, tokens), &[1, tokens, D])?;
+        Ok(MaskMem { nchw: feat, tokens })
     }
 }
 

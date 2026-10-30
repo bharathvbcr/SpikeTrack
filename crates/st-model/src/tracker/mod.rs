@@ -16,5 +16,5 @@ pub use mask_decoder::{MuxDecoderOut, MuxMaskDecoder, TwoWay};
 pub use memory_attention::{MemoryAttention, MemoryInputs};
 pub use memory_encoder::{MemoryEncoder, MemoryOut};
 pub use session::{Detections, Session, SessionConfig, StateTrace, VisitTrace, YieldedFrame};
-pub use state::{FrameCtx, FrameFeats, InterPix, PropOut, Stored, TrackerState};
+pub use state::{FrameCtx, FrameFeats, InterPix, MaskMem, PropOut, Stored, TrackerState};
 pub use vos::{FrameOut, Vos};
