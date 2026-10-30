@@ -93,10 +93,11 @@ fn run(precision: &str, rel_l2_gate: Option<f64>) {
     let vision = VisionBackbone::load(&ck).expect("vision weights");
     let trunk = CoremlTrunk::load(&package(precision), Units::CpuAndGpu).expect("load CoreML trunk");
     println!(
-        "[{label}] loaded in {:.2} s (compiled this run: {}; hash {:.2} s, compile {:.2} s, model load {:.2} s), sha256 {}",
+        "[{label}] loaded in {:.2} s (compiled this run: {}; hash {:.2} s, hashed in full: {}, compile {:.2} s, model load {:.2} s), sha256 {}",
         trunk.load_seconds,
         trunk.compiled,
         trunk.hash_seconds,
+        trunk.hashed,
         trunk.compile_seconds,
         trunk.model_seconds,
         trunk.sha256()
