@@ -1,0 +1,14 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 7.4 s (compiled model reused)
+model loaded in 7.8 s on metal; tracking 8 frame(s) of "82"
+frame 0 (1/8): 2.42 s, 13 active track(s), 0 frame(s) released; waits +1171 (sync 1171), dispatches +4084, metal allocated 5338 MiB (frame peak 6044 MiB), footprint 8599 MiB, pageouts +0, swapins +0
+frame 1 (2/8): 2.07 s, 15 active track(s), 0 frame(s) released; waits +1050 (sync 1050), dispatches +3621, metal allocated 5342 MiB (frame peak 6363 MiB), footprint 8500 MiB, pageouts +0, swapins +0
+frame 2 (3/8): 1.99 s, 17 active track(s), 0 frame(s) released; waits +1050 (sync 1050), dispatches +3623, metal allocated 5343 MiB (frame peak 6363 MiB), footprint 8561 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 2.17 s, 17 active track(s), 0 frame(s) released; waits +1181 (sync 1181), dispatches +4021, metal allocated 5328 MiB (frame peak 6270 MiB), footprint 8296 MiB, pageouts +0, swapins +0
+frame 4 (5/8): 2.72 s, 18 active track(s), 0 frame(s) released; waits +1349 (sync 1349), dispatches +4657, metal allocated 5361 MiB (frame peak 6469 MiB), footprint 8513 MiB, pageouts +0, swapins +4
+frame 5 (6/8): 2.21 s, 18 active track(s), 0 frame(s) released; waits +1181 (sync 1181), dispatches +4017, metal allocated 5364 MiB (frame peak 6355 MiB), footprint 8690 MiB, pageouts +0, swapins +0
+frame 6 (7/8): 2.57 s, 18 active track(s), 0 frame(s) released; waits +1181 (sync 1181), dispatches +4021, metal allocated 5368 MiB (frame peak 6358 MiB), footprint 8943 MiB, pageouts +0, swapins +0
+frame 7 (8/8): 2.60 s, 18 active track(s), 8 frame(s) released; waits +1181 (sync 1181), dispatches +4025, metal allocated 5347 MiB (frame peak 6362 MiB), footprint 8940 MiB, pageouts +0, swapins +0
+profile (ops) written to /Users/bharath/Code/research/SpikeTrack/bench/results/profile-tracker/v82-ops/82.profile-ops.md
+8 frame(s) of "82" tracked on metal: 18 track(s) born, 2.34 s/frame (model, mean), 26.8 s total
+  /Users/bharath/Code/research/SpikeTrack/bench/results/profile-tracker/v82-ops/82.json
+  /Users/bharath/Code/research/SpikeTrack/bench/results/profile-tracker/v82-ops/82.run.json

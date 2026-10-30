@@ -201,6 +201,17 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     - 82 (load falling 13.6 -> 4.6): A 0.884x, B 0.921x. On 82, read the size, not the ratio.
     - B's frame-level gain over A is inside the n = 2 noise.
   - The trunk is now 46% of the steady frame on 22 and 38% on 82.
+- E13 [V, `bench/results/profile-tracker`]: valid (82 -6.4%, 22 -9.6% against the controls), and
+  predictions are byte-identical.
+  - Memory attention (device) is 74% of each state's time: 250 / 203 ms on 82's states (16 / 2
+    objects), 246 on 22. It does not shrink with objects; it follows the memory length. It is the
+    per-state fixed cost, and its ops are Ojas kernels: cross-attention at ~4.5 TFLOP/s, and
+    5184-row projections at 1.2-1.6.
+  - Host phases are 66 / 52 ms per state, under the 100 ms rule. That is still ~100 ms per frame
+    on 82, spent rebuilding token-major copies of stored memories that do not change [I]. A device
+    cache would be an exact copy.
+  - Pipeline gate: wall minus ops over the non-trunk frame is ~254 ms on frames 1-7 of 82 [I],
+    between the lines at the shelve edge.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

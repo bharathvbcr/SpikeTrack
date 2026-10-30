@@ -1,0 +1,21 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 6.4 s (compiled model reused)
+model loaded in 6.9 s on metal; tracking 16 frame(s) of "82"
+frame 0 (1/16): 2.69 s, 13 active track(s), 0 frame(s) released; waits +27 (upload 3, read 24), dispatches +4084, metal allocated 5352 MiB (frame peak 7559 MiB), footprint 9040 MiB, pageouts +11, swapins +0
+frame 1 (2/16): 2.04 s, 15 active track(s), 0 frame(s) released; waits +29 (upload 3, read 26), dispatches +3623, metal allocated 5388 MiB (frame peak 7419 MiB), footprint 9379 MiB, pageouts +0, swapins +0
+frame 2 (3/16): 2.12 s, 17 active track(s), 0 frame(s) released; waits +29 (upload 3, read 26), dispatches +3625, metal allocated 5395 MiB (frame peak 7421 MiB), footprint 9104 MiB, pageouts +0, swapins +0
+frame 3 (4/16): 2.14 s, 17 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +4023, metal allocated 5376 MiB (frame peak 7421 MiB), footprint 9115 MiB, pageouts +0, swapins +0
+frame 4 (5/16): 2.74 s, 18 active track(s), 0 frame(s) released; waits +30 (upload 4, read 26), dispatches +4660, metal allocated 5392 MiB (frame peak 7421 MiB), footprint 8947 MiB, pageouts +0, swapins +0
+frame 5 (6/16): 2.22 s, 18 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +4019, metal allocated 5370 MiB (frame peak 7421 MiB), footprint 9400 MiB, pageouts +0, swapins +0
+frame 6 (7/16): 2.30 s, 18 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +4023, metal allocated 5369 MiB (frame peak 7419 MiB), footprint 9857 MiB, pageouts +0, swapins +0
+frame 7 (8/16): 2.39 s, 18 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +4027, metal allocated 5373 MiB (frame peak 7529 MiB), footprint 9884 MiB, pageouts +0, swapins +0
+frame 8 (9/16): 2.46 s, 18 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +4029, metal allocated 5369 MiB (frame peak 7524 MiB), footprint 9877 MiB, pageouts +0, swapins +0
+frame 9 (10/16): 2.62 s, 18 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +4031, metal allocated 5369 MiB (frame peak 7525 MiB), footprint 9261 MiB, pageouts +0, swapins +0
+frame 10 (11/16): 2.74 s, 18 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +4031, metal allocated 5369 MiB (frame peak 7526 MiB), footprint 9323 MiB, pageouts +0, swapins +0
+frame 11 (12/16): 2.61 s, 18 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +4031, metal allocated 5369 MiB (frame peak 7527 MiB), footprint 10089 MiB, pageouts +0, swapins +0
+frame 12 (13/16): 2.54 s, 18 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +4031, metal allocated 5369 MiB (frame peak 7527 MiB), footprint 9734 MiB, pageouts +0, swapins +0
+frame 13 (14/16): 2.52 s, 18 active track(s), 0 frame(s) released; waits +23 (upload 3, read 20), dispatches +4031, metal allocated 5369 MiB (frame peak 7528 MiB), footprint 10232 MiB, pageouts +0, swapins +0
+frame 14 (15/16): 2.56 s, 18 active track(s), 1 frame(s) released; waits +23 (upload 3, read 20), dispatches +4031, metal allocated 5369 MiB (frame peak 7529 MiB), footprint 9809 MiB, pageouts +0, swapins +0
+frame 15 (16/16): 2.95 s, 19 active track(s), 15 frame(s) released; waits +30 (upload 4, read 26), dispatches +4664, metal allocated 5396 MiB (frame peak 7530 MiB), footprint 9468 MiB, pageouts +0, swapins +0
+16 frame(s) of "82" tracked on metal: 18 track(s) born, 2.48 s/frame (model, mean), 46.9 s total
+  /Users/bharath/Code/research/SpikeTrack/bench/results/profile-tracker/v82-control-2/82.json
+  /Users/bharath/Code/research/SpikeTrack/bench/results/profile-tracker/v82-control-2/82.run.json
