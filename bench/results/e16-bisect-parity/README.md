@@ -22,6 +22,9 @@ load 2.2-9.3. Code b0c5437; binary shas in `versions.txt`; the script is `job.sh
     (-0.03).
 - **By the pre-stated rule, E15 owns the creep [V, n = 1].** E13 is at -0.94 (<= 0.2) and E15 is at
   +2.46 (>= 0.5); the step is 3.4, over the 0.3 floor. E11b through E13 all drift slightly down.
+  - Losing E10 does not weaken this. E11b, E12 B and E13 ran in the same hold, on the same machine,
+    and are the machine control.
+  - E15's rate on 47 is +1.55 to +2.46 MiB per frame: the closing job and this hold, n = 1 each.
 - **The shape is not "E15 sits higher."** Mean footprint by window, MiB:
 
   | build | 16-49 | 50-99 | 100-149 | 150-199 | 200-249 | 250-299 |
