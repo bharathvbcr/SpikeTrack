@@ -251,31 +251,52 @@ fn mark(marker: &mut Option<StageMarker<'_>>, stage: &str) {
 /// with more than one object, an object whose area at pixels it wins (first index on ties)
 /// falls below 0.3 of its area is clamped to at most -10; each object's score is then `+10` if
 /// any pixel is positive, else `-10`. `hr`: `[n, px]` logits, edited in place.
+///
+/// Threaded with [`host::for_each_chunk_mut`]: the winners over pixel ranges, then the counts,
+/// clamp and score over object planes. The counts are integers and every other step is per
+/// element, so the result is the same bit for bit however the work is split.
 fn suppress_area_shrinkage(hr: &mut [f32], n: usize, px: usize) -> Vec<f32> {
-    if n > 1 {
+    if px == 0 {
+        return vec![-10.0; n];
+    }
+    let winner = (n > 1).then(|| {
+        let hr: &[f32] = hr;
         let mut winner = vec![0usize; px];
-        for (i, w) in winner.iter_mut().enumerate() {
-            let mut best = hr[i];
-            for o in 1..n {
-                let v = hr[o * px + i];
-                if v > best {
-                    best = v;
-                    *w = o;
+        host::for_each_chunk_mut(&mut winner, AREA_MIN_PIXELS_PER_THREAD, |start, piece| {
+            for (j, w) in piece.iter_mut().enumerate() {
+                let i = start + j;
+                let mut best = hr[i];
+                for o in 1..n {
+                    let v = hr[o * px + i];
+                    if v > best {
+                        best = v;
+                        *w = o;
+                    }
                 }
             }
-        }
-        for o in 0..n {
-            let plane = &mut hr[o * px..(o + 1) * px];
-            let before = plane.iter().filter(|&&v| v > 0.0).count();
-            let after = plane.iter().enumerate().filter(|&(i, &v)| winner[i] == o && v > 0.0).count();
-            let ratio = after as f32 / before.max(1) as f32;
-            if !(ratio >= 0.3) {
-                plane.iter_mut().for_each(|v| *v = v.min(-10.0));
+        });
+        winner
+    });
+    let mut planes: Vec<(&mut [f32], f32)> = hr.chunks_exact_mut(px).take(n).map(|p| (p, 0.0)).collect();
+    host::for_each_chunk_mut(&mut planes, 1, |start, piece| {
+        for (j, (plane, score)) in piece.iter_mut().enumerate() {
+            if let Some(winner) = &winner {
+                let o = start + j;
+                let before = plane.iter().filter(|&&v| v > 0.0).count();
+                let after = plane.iter().zip(winner).filter(|&(&v, &w)| w == o && v > 0.0).count();
+                let ratio = after as f32 / before.max(1) as f32;
+                if !(ratio >= 0.3) {
+                    plane.iter_mut().for_each(|v| *v = v.min(-10.0));
+                }
             }
+            *score = if plane.iter().any(|&v| v > 0.0) { 10.0 } else { -10.0 };
         }
-    }
-    (0..n).map(|o| if hr[o * px..(o + 1) * px].iter().any(|&v| v > 0.0) { 10.0 } else { -10.0 }).collect()
+    });
+    planes.into_iter().map(|(_, s)| s).collect()
 }
+
+/// The pixels per thread from which [`suppress_area_shrinkage`] splits its winner pass.
+const AREA_MIN_PIXELS_PER_THREAD: usize = 1 << 14;
 
 /// Round a tensor's values through bfloat16 and keep computing in f32. Upstream's video detector
 /// casts both tracker necks' FPN levels to bf16 before the tracker sees them
@@ -817,6 +838,77 @@ mod tests {
         assert_eq!(scores, vec![10.0, -10.0]);
         assert!(hr[px..].iter().all(|&v| v <= -10.0));
         assert!(hr[..px].iter().all(|&v| v == 5.0));
+    }
+
+    /// The serial area rule from before E21: the oracle the threaded one must match bit for bit.
+    fn suppress_area_shrinkage_serial(hr: &mut [f32], n: usize, px: usize) -> Vec<f32> {
+        if n > 1 {
+            let mut winner = vec![0usize; px];
+            for (i, w) in winner.iter_mut().enumerate() {
+                let mut best = hr[i];
+                for o in 1..n {
+                    let v = hr[o * px + i];
+                    if v > best {
+                        best = v;
+                        *w = o;
+                    }
+                }
+            }
+            for o in 0..n {
+                let plane = &mut hr[o * px..(o + 1) * px];
+                let before = plane.iter().filter(|&&v| v > 0.0).count();
+                let after = plane.iter().enumerate().filter(|&(i, &v)| winner[i] == o && v > 0.0).count();
+                let ratio = after as f32 / before.max(1) as f32;
+                if !(ratio >= 0.3) {
+                    plane.iter_mut().for_each(|v| *v = v.min(-10.0));
+                }
+            }
+        }
+        (0..n).map(|o| if hr[o * px..(o + 1) * px].iter().any(|&v| v > 0.0) { 10.0 } else { -10.0 }).collect()
+    }
+
+    #[test]
+    fn threaded_area_rule_is_bit_identical_to_the_serial_one() {
+        // Logits on a coarse grid (multiples of 0.5 in [-4, 4)) so that objects tie at many pixels
+        // and the first-index tie rule decides; -0.0 and +0.0 both occur. Pixel counts cross
+        // AREA_MIN_PIXELS_PER_THREAD and do not divide by the thread count; n covers 1, 2 and the
+        // 18 objects of VISEM 82. Both outcomes are forced: plane 0 is 4.0 (above every grid value)
+        // on half its pixels, so it keeps its whole area; every third plane from 1 copies the
+        // plane before it on a quarter of its pixels, so it ties there, loses each tie to the
+        // lower index, keeps none of its area and is clamped.
+        let mut s = 0x9e37_79b9u32;
+        let mut next = move || {
+            s ^= s << 13;
+            s ^= s >> 17;
+            s ^= s << 5;
+            s
+        };
+        for &(n, px) in &[(1usize, 70_001usize), (2, 70_001), (18, 1152 * 1152 / 16 + 3), (5, 13), (3, 1)] {
+            let mut hr: Vec<f32> = (0..n * px)
+                .map(|_| match next() % 17 {
+                    16 => -0.0,
+                    k => (k as f32 - 8.0) * 0.5,
+                })
+                .collect();
+            if n > 1 {
+                hr[..px].iter_mut().for_each(|v| *v = if next() % 2 == 0 { 4.0 } else { -1.0 });
+            }
+            for o in (1..n).step_by(3) {
+                for i in 0..px {
+                    hr[o * px + i] = if next() % 4 == 0 { hr[(o - 1) * px + i] } else { -1.0 };
+                }
+            }
+            let mut want_hr = hr.clone();
+            let want = suppress_area_shrinkage_serial(&mut want_hr, n, px);
+            let got = suppress_area_shrinkage(&mut hr, n, px);
+            assert_eq!(got, want, "scores, n {n} px {px}");
+            let differ = hr.iter().zip(&want_hr).position(|(a, b)| a.to_bits() != b.to_bits());
+            assert_eq!(differ, None, "logits, n {n} px {px}");
+            if n > 1 && px > 1000 {
+                assert!(want.contains(&-10.0) && want.contains(&10.0), "n {n} px {px}: both outcomes are exercised");
+            }
+        }
+        assert!(70_001 >= 2 * AREA_MIN_PIXELS_PER_THREAD, "the threaded winner pass is exercised");
     }
 
     #[test]

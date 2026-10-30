@@ -42,8 +42,31 @@ pub fn linear(x: &[f32], n: usize, w: &[f32], b: &[f32], out: usize) -> Vec<f32>
     y
 }
 
-/// The most threads one [`linear`] call uses.
+/// The most threads one [`linear`] or [`for_each_chunk_mut`] call uses.
 pub const MAX_THREADS: usize = 8;
+
+/// `f(start, piece)` over contiguous pieces of `dst`, `start` being the piece's first index, on up
+/// to [`MAX_THREADS`] scoped threads with at least `min_per_thread` elements each (one piece, on
+/// the calling thread, below that). Every element lies in exactly one piece, so an `f` that
+/// computes each element from its index alone gives the same result however `dst` is split.
+pub fn for_each_chunk_mut<T: Send>(dst: &mut [T], min_per_thread: usize, f: impl Fn(usize, &mut [T]) + Sync) {
+    let len = dst.len();
+    let threads = std::thread::available_parallelism()
+        .map_or(1, |p| p.get())
+        .min(MAX_THREADS)
+        .min(len / min_per_thread.max(1));
+    if threads <= 1 {
+        f(0, dst);
+        return;
+    }
+    let per = len.div_ceil(threads);
+    let f = &f;
+    std::thread::scope(|s| {
+        for (k, piece) in dst.chunks_mut(per).enumerate() {
+            s.spawn(move || f(k * per, piece));
+        }
+    });
+}
 /// The multiply-add count from which [`linear`] splits rows across threads.
 pub const THREAD_MIN_MACS: usize = 1 << 20;
 
@@ -214,6 +237,21 @@ mod tests {
     fn linear_edge_shapes() {
         assert!(linear(&[], 0, &[1.0, 2.0], &[0.5, 0.25], 2).is_empty());
         assert_eq!(linear(&[], 3, &[], &[0.5, -0.0], 2), vec![0.5, 0.0, 0.5, 0.0, 0.5, 0.0]);
+    }
+
+    #[test]
+    fn chunked_pieces_cover_every_index_once_at_their_start() {
+        // Lengths below, at and above the threading threshold, and not divisible by the thread count.
+        for &(len, min) in &[(0usize, 1usize), (1, 1), (7, 1), (1000, 64), (1001, 64), (100_003, 1 << 12), (5, 100)] {
+            let mut v = vec![usize::MAX; len];
+            for_each_chunk_mut(&mut v, min, |start, piece| {
+                for (j, x) in piece.iter_mut().enumerate() {
+                    assert_eq!(*x, usize::MAX, "index {} written twice", start + j);
+                    *x = start + j;
+                }
+            });
+            assert!(v.iter().enumerate().all(|(i, &x)| x == i), "len {len} min {min}");
+        }
     }
 
     #[test]

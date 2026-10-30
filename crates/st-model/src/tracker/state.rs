@@ -193,6 +193,29 @@ fn demux(slot_of: &[usize], x: &[f32], dim: usize) -> Vec<f32> {
     out
 }
 
+/// Plane `k` of `dst` is `sigmoid(x) * 2 - 1` of plane `src_rows[k]` of `hr`, `px` values per
+/// plane: the memory encoder's mask input. Threaded with [`host::for_each_chunk_mut`]; each
+/// element comes from its own source element alone, so the split does not change a bit.
+fn fill_sigmoid_planes(dst: &mut [f32], hr: &[f32], src_rows: &[usize], px: usize) {
+    assert_eq!(dst.len(), src_rows.len() * px, "fill_sigmoid_planes: destination size");
+    host::for_each_chunk_mut(dst, FILL_MIN_PER_THREAD, |start, piece| {
+        let (mut j, mut rest) = (start, piece);
+        while !rest.is_empty() {
+            let (k, i) = (j / px, j % px);
+            let len = (px - i).min(rest.len());
+            let (head, tail) = std::mem::take(&mut rest).split_at_mut(len);
+            let src = &hr[src_rows[k] * px + i..src_rows[k] * px + i + len];
+            for (d, &x) in head.iter_mut().zip(src) {
+                *d = host::sigmoid(x) * 2.0 - 1.0;
+            }
+            (j, rest) = (j + len, tail);
+        }
+    });
+}
+
+/// The elements per thread from which [`fill_sigmoid_planes`] splits its work.
+const FILL_MIN_PER_THREAD: usize = 1 << 14;
+
 impl TrackerState {
     pub fn new() -> Self {
         Self { slots: vec![PADDING; MUX], ..Self::default() }
@@ -815,13 +838,8 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         let by_slot: Vec<usize> = obj_of_slot.iter().flatten().copied().collect();
         let objs = if n > 0 {
             let mut t = Tensor::zeros(&[n, size, size], DType::F32, be.budget())?;
-            let dst = t.f32_slice_mut()?;
-            for (k, &o) in by_slot.iter().enumerate() {
-                let src = &hr[rows[o] * px..(rows[o] + 1) * px];
-                for (d, &x) in dst[k * px..(k + 1) * px].iter_mut().zip(src) {
-                    *d = host::sigmoid(x) * 2.0 - 1.0;
-                }
-            }
+            let src_rows: Vec<usize> = by_slot.iter().map(|&o| rows[o]).collect();
+            fill_sigmoid_planes(t.f32_slice_mut()?, hr, &src_rows, px);
             mark(ENCODE_STAGES[1]);
             Some(be.upload(&t)?)
         } else {
@@ -881,6 +899,35 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
 mod tests {
     use super::*;
     use crate::tracker::vos::LOW;
+
+    #[test]
+    fn threaded_sigmoid_fill_is_bit_identical_to_the_serial_one() {
+        // Plane sizes that do not divide by the thread count and cross FILL_MIN_PER_THREAD, rows
+        // out of order and repeated, a single plane, and values from -100 to 100 with the zeros,
+        // infinities and a subnormal.
+        let mut s = 0x2545_f491u32;
+        for &(px, ref rows) in &[(70_001usize, vec![2usize, 0, 1]), (1152 * 1152 / 9 + 1, vec![0]), (13, vec![1, 1, 0]), (1, vec![0])] {
+            let planes = rows.iter().max().map_or(0, |m| m + 1);
+            let mut hr: Vec<f32> = (0..planes * px)
+                .map(|_| {
+                    s ^= s << 13;
+                    s ^= s >> 17;
+                    s ^= s << 5;
+                    (s as f32 / u32::MAX as f32 - 0.5) * 200.0
+                })
+                .collect();
+            hr.iter_mut().zip([0.0, -0.0, f32::INFINITY, f32::NEG_INFINITY, 1e-40]).for_each(|(v, e)| *v = e);
+            let mut want = Vec::with_capacity(rows.len() * px);
+            for &r in rows {
+                want.extend(hr[r * px..(r + 1) * px].iter().map(|&x| host::sigmoid(x) * 2.0 - 1.0));
+            }
+            let mut got = vec![f32::NAN; rows.len() * px];
+            fill_sigmoid_planes(&mut got, &hr, rows, px);
+            let differ = got.iter().zip(&want).position(|(a, b)| a.to_bits() != b.to_bits());
+            assert_eq!(differ, None, "px {px} rows {rows:?}");
+        }
+        assert!(3 * 70_001 >= 2 * FILL_MIN_PER_THREAD, "the threaded path is exercised");
+    }
 
     #[test]
     fn mux_and_demux_are_inverse_on_valid_slots() {
