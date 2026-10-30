@@ -295,6 +295,26 @@ upstream to cosine 0.99995 [V], so it is not exact either.
   - The 60% category rule picked a within-frame graphics transient (owned unmapped 628 -> 2053 -> 628).
     The steady growth is Malloc Large, 4396 -> 4894 MiB, then flat [I: allocator retention].
   - E13 predictions are byte-identical. No fix is due, and the gap is answered.
+- E18: CoreML trunk cold start, by phase (GAP-COREML-TRUNK-COLD-START; pre-stated before the run,
+  `bench/results/e18-coreml-load`). The advisor ordered this ahead of the memory-encode host split,
+  which is now E19.
+  - What exists: `CoremlTrunk::load` SHA-256-hashes the whole 1.7 GB package for the compiled
+    model's cache key. A held-out log shows `loaded in 9.4 s (compiled model reused)`. The 4.3 s
+    hash figure was a shell `cat | shasum`, not measured in the Rust load.
+  - Change: instrumentation only. `load` now reports hash / compile / model-load seconds in the
+    `track` load line. Numerics do not change.
+  - Hold:
+    - build;
+    - the st-coreml unit tests;
+    - 3 interleaved rounds of the E15 binary and the new one, `track` on 2 frames of VISEM 22,
+      with each load line and the load recorded;
+    - one 16-frame run of 22, `cmp` against `closing-e15/speed/v22-new-1/22.json`.
+  - Refute: if hash is < 1 s of the load (min of 3), the key is not the lever. The rest is Core
+    ML's own load, which is reported, and E19 is next.
+    - If hash is >= 1 s, a cheaper key is built next (path + sizes + mtimes + a full hash of the
+      small spec files), with its own gate.
+  - The package's page-cache state is not controlled (no purge). Round 1 versus rounds 2-3 is
+    reported as is.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

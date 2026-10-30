@@ -98,6 +98,11 @@ pub struct CoremlTrunk {
     pub compiled: bool,
     /// Hashing, compiling (when needed) and loading, in seconds.
     pub load_seconds: f64,
+    /// The parts of `load_seconds`: hashing the package, compiling it (0 when reused), and Core
+    /// ML's model load.
+    pub hash_seconds: f64,
+    pub compile_seconds: f64,
+    pub model_seconds: f64,
 }
 
 impl CoremlTrunk {
@@ -107,11 +112,13 @@ impl CoremlTrunk {
             return Err(fail(format!("{} is not an .mlpackage directory", package.display())));
         }
         let sha256 = package_sha256(package)?;
+        let t_hash = t0.elapsed().as_secs_f64();
         let compiled_dir = compiled_path(package, &sha256);
         let compiled = !compiled_dir.is_dir();
         if compiled {
             compile(package, &compiled_dir)?;
         }
+        let t_compile = t0.elapsed().as_secs_f64();
         let url = NSURL::from_file_path(&compiled_dir).ok_or_else(|| fail(format!("{} is not a file URL", compiled_dir.display())))?;
         let model = autoreleasepool(|_| -> Result<Retained<MLModel>, CoremlError> {
             let cfg = unsafe { MLModelConfiguration::new() };
@@ -119,7 +126,18 @@ impl CoremlTrunk {
             unsafe { MLModel::modelWithContentsOfURL_configuration_error(&url, &cfg) }
                 .map_err(|e| ns_fail(&format!("loading {}", compiled_dir.display()), &e))
         })?;
-        Ok(Self { model, package: package.to_path_buf(), sha256, units, compiled, load_seconds: t0.elapsed().as_secs_f64() })
+        let load_seconds = t0.elapsed().as_secs_f64();
+        Ok(Self {
+            model,
+            package: package.to_path_buf(),
+            sha256,
+            units,
+            compiled,
+            load_seconds,
+            hash_seconds: t_hash,
+            compile_seconds: t_compile - t_hash,
+            model_seconds: load_seconds - t_compile,
+        })
     }
 
     pub fn package(&self) -> &Path {

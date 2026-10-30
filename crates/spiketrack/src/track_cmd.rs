@@ -968,7 +968,15 @@ fn track_on<B: Backend>(
                 )));
             }
             let trunk = CoremlTrunk::load(&package, Units::CpuAndGpu).map_err(CliError::from_err)?;
-            println!("CoreML trunk {} loaded in {:.1} s ({})", package.display(), trunk.load_seconds, if trunk.compiled { "compiled this run" } else { "compiled model reused" });
+            println!(
+                "CoreML trunk {} loaded in {:.1} s ({}; hash {:.2} s, compile {:.2} s, model load {:.2} s)",
+                package.display(),
+                trunk.load_seconds,
+                if trunk.compiled { "compiled this run" } else { "compiled model reused" },
+                trunk.hash_seconds,
+                trunk.compile_seconds,
+                trunk.model_seconds
+            );
             Backbone::with_external_trunk(be, &w.vision, Box::new(trunk)).map_err(CliError::from_err)?
         }
     };

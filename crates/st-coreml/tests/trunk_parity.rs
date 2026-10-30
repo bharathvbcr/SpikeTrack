@@ -92,7 +92,15 @@ fn run(precision: &str, rel_l2_gate: Option<f64>) {
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("open checkpoint");
     let vision = VisionBackbone::load(&ck).expect("vision weights");
     let trunk = CoremlTrunk::load(&package(precision), Units::CpuAndGpu).expect("load CoreML trunk");
-    println!("[{label}] loaded in {:.2} s (compiled this run: {}), sha256 {}", trunk.load_seconds, trunk.compiled, trunk.sha256());
+    println!(
+        "[{label}] loaded in {:.2} s (compiled this run: {}; hash {:.2} s, compile {:.2} s, model load {:.2} s), sha256 {}",
+        trunk.load_seconds,
+        trunk.compiled,
+        trunk.hash_seconds,
+        trunk.compile_seconds,
+        trunk.model_seconds,
+        trunk.sha256()
+    );
     let model = Backbone::with_external_trunk(&be, &vision, Box::new(trunk)).expect("backbone with external trunk");
     let described = model.external_trunk().expect("the backbone reports its external trunk");
     assert!(described.starts_with("coreml "), "{described}");
