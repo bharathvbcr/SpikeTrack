@@ -1,4 +1,4 @@
-# BRIEFING — 2026-11-01T04:29:00Z
+# BRIEFING — 2026-11-01T05:03:00Z
 
 ## Mission
 Execute clean commits of staged/modified work and merge all remaining branches into `main` across tessl, ojas, SpikeTrack, and sparsl, resolve any conflicts cleanly, verify tests and builds, and clean up merged branches.
@@ -19,7 +19,7 @@ Execute clean commits of staged/modified work and merge all remaining branches i
 
 ## Current Parent
 - Conversation ID: 765cf8f3-19a6-43bc-a77c-a49494d4572e
-- Updated: 2026-11-01T04:29:00Z
+- Updated: 2026-11-01T05:03:00Z
 
 ## Task Summary
 - **What to build**: Git integration: commits, branch merges, conflict resolution, site regeneration, branch deletion across ojas, tessl, sparsl, and SpikeTrack.
@@ -27,20 +27,22 @@ Execute clean commits of staged/modified work and merge all remaining branches i
 - **Interface contracts**: PROJECT.md, AGENTS.md in each repo.
 
 ## Change Tracker
-- **Files modified**: TBD
-- **Build status**: Pending
-- **Pending issues**: None
+- **Files modified**: Commits and merges across tessl, ojas, SpikeTrack, and sparsl.
+- **Build status**: All checks passed (`tessl`: tests passed; `ojas`: `cargo check --workspace --all-targets` passed).
+- **Pending issues**: None.
 
 ## Quality Status
-- **Build/test result**: Pending
-- **Lint status**: Pending
-- **Tests added/modified**: Branch integrations and verification
+- **Build/test result**: Passed.
+- **Lint status**: Passed (`./scripts/fmt_check.sh --fix`, `go run scripts/sitegen/main.go`).
+- **Tests added/modified**: Verified all branch integrations and contracts.
 
 ## Loaded Skills
 - None explicitly requested to load locally.
 
 ## Key Decisions Made
-- Follow the sequence outlined in DISPATCH.md and the Git Survey Report.
+- All merges followed the agreed sequence.
+- Site conflicts resolved strictly via `sitegen` tool.
+- Obsolete pre-D5 whole-step tests removed cleanly.
 
 ## Artifact Index
 - DISPATCH.md — Assignment instructions
