@@ -8,10 +8,10 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.97"
 publish = false
 
-# Pre-existing libraries. metal-smoke branch: path dependencies on the ojas-st
-# worktree (detached at ea3cf39, which is in ojas main), because ojas-metal
-# reaches tessl as a sibling path (../../tessl = ~/Code/research/tessl) and that
-# does not resolve from a git checkout of ojas.
+# Pre-existing libraries: path dependencies on the sibling ojas checkout
+# (../ojas; the ojas-st worktree they once pointed at no longer exists), because
+# ojas-metal reaches tessl as a sibling path (../../tessl = ~/Code/research/tessl)
+# and that does not resolve from a git checkout of ojas.
 [workspace.dependencies]
 ojas-core = { path = "../ojas/ojas-core" }
 ojas-cpu = { path = "../ojas/ojas-cpu" }

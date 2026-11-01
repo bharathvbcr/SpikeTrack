@@ -65,6 +65,6 @@ Rules. It is listed here, with commits, before submission either way.
 | `d2922fb..4710bb2` | Metal `conv2d_forward` (im2col + GEMM) and `conv_transpose2d_forward` (kernel == stride) for the SAM backbone; a ViT attention bench; README acknowledgements | 2026-10-26 | pending the Official Rules |
 
 Reproducibility: `ea3cf39` is on Ojas's local main only; Ojas's public `origin/main` is `170b22d` (pushed on Bharath's
-instruction 2026-10-27; it contains `cbd5565`, the previous pin). The owner chose to keep main local for now (2026-10-28). Cargo.toml still uses path dependencies on local worktrees (ojas-st, and tessl as
+instruction 2026-10-27; it contains `cbd5565`, the previous pin). The owner chose to keep main local for now (2026-10-28). Cargo.toml still uses path dependencies on local checkouts (`../ojas`, and tessl as
 ojas-metal's sibling path), so the workspace builds on this machine only. Before submission, Cargo.toml must point at
 the public repositories (Ojas by rev; tessl likewise once its commit is public).

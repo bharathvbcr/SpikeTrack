@@ -2,7 +2,7 @@
 # Does SAM 3.1 run on tessl? Ojas's Metal backend (ojas-metal on tessl) against the same
 # upstream fixtures and gates as the CPU runs: text encoder, detector, then the backbone
 # (expected to stop at rope_interleaved_forward until the Metal rope commit lands on ojas main).
-# metal-smoke worktree only (path dependencies on ../ojas-st). Under the lock:
+# metal-smoke worktree only (path dependencies on ../ojas; the ../ojas-st it once used is gone). Under the lock:
 #   tools/locked.sh metal-smoke bash tools/jobs/metal_smoke.sh
 set -uo pipefail
 cd "$(dirname "$0")/../.."
