@@ -55,11 +55,11 @@
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | GitPulse Tasks & Accelerated Workflows | Features 1, 2, 3, 4, 5, 6 | none | IN_PROGRESS |
-| M2 | Unified Architecture & Shared Memory Pools | Features 7, 8, 9, 10, 11, 12 | M1 | PLANNED |
-| M3 | SAM 3.1 & Vision Kernels with PyTorch Parity | Features 13, 14, 15, 16, 17, 18, 19, 20 | M2 | PLANNED |
-| M4 | Gemma Embedding Kernels with PyTorch Parity | Features 21, 22, 23, 24, 25, 26 | M2 | PLANNED |
-| M5 | E2E Parity Verification & Coverage Hardening | Features 27, 28 (Pass 100% tests & adversarial hardening) | M3, M4 | PLANNED |
+| M1 | GitPulse Tasks & Accelerated Workflows | Features 1, 2, 3, 4, 5, 6 | none | DONE |
+| M2 | Unified Architecture & Shared Memory Pools | Features 7, 8, 9, 10, 11, 12 | M1 | DONE |
+| M3 | SAM 3.1 & Vision Kernels with PyTorch Parity | Features 13, 14, 15, 16, 17, 18, 19, 20 | M2 | DONE |
+| M4 | Gemma Embedding Kernels with PyTorch Parity | Features 21, 22, 23, 24, 25, 26 | M2 | DONE |
+| M5 | E2E Parity Verification & Coverage Hardening | Features 27, 28 (Pass 100% tests & adversarial hardening) | M3, M4 | IN_PROGRESS |
 
 ## Interface Contracts
 

@@ -36,3 +36,16 @@ Review GitPulse tasks for priority, missing items, and bugs. Develop multiple wo
 ### GitPulse Task Tracking and Workflows
 - [ ] GitPulse tasks are reviewed and updated with priority classifications, missing items, and bug status.
 - [ ] Workflows for accelerated development and testing are documented and executable.
+
+
+## Follow-up — 2026-10-31T18:49:06Z
+
+User instruction: "Check other branches and continue their work" — please ensure the team checks any other branches / worktrees across the repositories and integrates/continues any in-flight or prior branch work as part of the milestones.
+
+## Follow-up — 2026-10-31T19:48:42Z
+
+Server restarted — please resume your orchestration from where you left off (Milestone 2 remediation of clippy/deny lints and proceeding through Milestone 3 SAM & Gemma kernels and final verification). Check the current state of your subagents and restart/revive any that were stopped by the server restart.
+
+## Follow-up — 2026-11-01T04:17:15Z
+
+Follow-up user request: "Commit and merge all branches and update docs" — please ensure all uncommitted changes, remaining unmerged branches/worktrees across `ojas`, `tessl`, `SpikeTrack` (and `sparsl` if applicable) are cleanly committed and merged into `main`, and update all documentation (including crate READMEs, `docs/*.md`, `docs/data/test-runs.json`, and `go run scripts/sitegen/main.go` where applicable).
