@@ -30,10 +30,11 @@ Manage project lifecycle, monitor orchestrator progress via crons, coordinate be
 ## User Context
 - **Last user request**: "Commit and merge all branches and update docs" — ensure all uncommitted changes and unmerged branches/worktrees across `ojas`, `tessl`, `SpikeTrack` (and `sparsl` if applicable) are cleanly committed and merged into `main`, and update all documentation (including crate READMEs, `docs/*.md`, `docs/data/test-runs.json`, and `go run scripts/sitegen/main.go`).
 - **Pending clarifications**: None
-- **Delivered results**: Milestones 1–5 certified & victory confirmed; follow-up request active.
+- **Delivered results**: Milestones 1–5 certified & victory confirmed; Steps 1-4 of follow-up (Git survey, commit & merge across 4 repos, docs update & sitegen, full verification suite / ci_local.sh exit 0) completed.
+- **Current focus**: Step 5 (Forensic audit underway by orchestrator team; Sentinel standing by for independent victory audit).
 
 ## Project Status
-- **Phase**: in progress (Follow-up: Commit & merge all branches and update docs across repositories)
+- **Phase**: in progress (Follow-up: Step 5 Forensic Audit)
 
 ## Victory Audit Status
 - **Triggered**: no

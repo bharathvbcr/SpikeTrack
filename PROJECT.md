@@ -59,7 +59,7 @@
 | M2 | Unified Architecture & Shared Memory Pools | Features 7, 8, 9, 10, 11, 12 | M1 | DONE |
 | M3 | SAM 3.1 & Vision Kernels with PyTorch Parity | Features 13, 14, 15, 16, 17, 18, 19, 20 | M2 | DONE |
 | M4 | Gemma Embedding Kernels with PyTorch Parity | Features 21, 22, 23, 24, 25, 26 | M2 | DONE |
-| M5 | E2E Parity Verification & Coverage Hardening | Features 27, 28 (Pass 100% tests & adversarial hardening) | M3, M4 | IN_PROGRESS |
+| M5 | E2E Parity Verification & Coverage Hardening | Features 27, 28 (Pass 100% tests & adversarial hardening) | M3, M4 | DONE |
 
 ## Interface Contracts
 
