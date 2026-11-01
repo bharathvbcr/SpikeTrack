@@ -1,10 +1,14 @@
 # SpikeTrack
 
 SAM 3.1, Meta's Segment Anything with its Object Multiplex video tracker, built as one Rust binary
-with no Python at runtime. It runs on Apple Silicon through Ojas's Metal backend on tessl, or on
-Ojas's CPU backend. On Metal, `track` runs the ViT trunk by default as a CoreML ML Program that we
+with no Python at runtime. It executes within a **3-tier modular compute ecosystem**:
+- **[Ojas](https://github.com/bharathvbcr/ojas)**: Central universal deep learning framework providing tensor representations, autograd Tape, memory budgeting, and the CPU reference backend.
+- **[tessl](https://github.com/bharathvbcr/tessl)**: Dedicated Apple Silicon / Metal 4 acceleration extension and Mac inference engine powering Ojas's Metal backend (`ojas-metal`).
+- **[sparsl](https://github.com/bharathvbcr/sparsl)**: Dedicated Sparse Computing extension providing deterministic SpMV, CSR/CSC indexing, and sparse change maps for event gating (`crates/st-gate`).
+
+On Apple Silicon Metal, `track` runs the ViT trunk by default as a CoreML ML Program that we
 export from the checkpoint (`--trunk-precision coreml-fp32`). That makes the frame 0.80x and leaves
-the tracks unchanged. `--trunk-precision f32` keeps the whole model on Ojas/tessl. The evaluation is many-sperm tracking in VISEM-Tracking. Built for the Meta
+the tracks unchanged. `--trunk-precision f32` keeps the whole model on Ojas/tessl, while `--backend cpu` runs on Ojas's CPU backend. The evaluation is many-sperm tracking in VISEM-Tracking. Built for the Meta
 hackathon, Oct 26 to Nov 4, 2026.
 
 ![VISEM-Tracking video 22, frame 30: every sperm head tracked with its id](docs/figures/visem22-frame30-sperm-lora.png)

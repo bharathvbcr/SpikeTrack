@@ -121,7 +121,7 @@ impl<'b, B: Backend + ?Sized> Text<'b, B> {
             }
         }
         let mut x = up(be, &x, &[n, TEXT_CONTEXT, TEXT_DIM])?;
-        let opts = AttentionOpts { causal: true, window: None, bias: None, key_lens: None };
+        let opts = AttentionOpts { causal: true, window: None, bias: None, key_lens: None, ..Default::default() };
         for b in &self.blocks {
             let h = be.layer_norm_forward(&x, &b.ln1.0, &b.ln1.1, LN_EPS)?;
             let heads = |l: &Lin| -> Result<Tensor, OjasError> {

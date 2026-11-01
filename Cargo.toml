@@ -13,10 +13,10 @@ publish = false
 # reaches tessl as a sibling path (../../tessl = ~/Code/research/tessl) and that
 # does not resolve from a git checkout of ojas.
 [workspace.dependencies]
-ojas-core = { path = "../ojas-st/ojas-core" }
-ojas-cpu = { path = "../ojas-st/ojas-cpu" }
-ojas-io = { path = "../ojas-st/ojas-io" }
-ojas-metal = { path = "../ojas-st/ojas-metal" }
+ojas-core = { path = "../ojas/ojas-core" }
+ojas-cpu = { path = "../ojas/ojas-cpu" }
+ojas-io = { path = "../ojas/ojas-io" }
+ojas-metal = { path = "../ojas/ojas-metal" }
 st-weights = { path = "crates/st-weights" }
 st-eval = { path = "crates/st-eval" }
 st-video = { path = "crates/st-video" }

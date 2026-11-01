@@ -1,24 +1,39 @@
 # Project: Ojas & Tessl Unified Architecture, Shared Memory Pools, and SAM/Gemma Kernel Parity
 
 ## Architecture
-- **Dependency Flow**: `ojas-metal -> tessl -> ojas-core`.
+
+### 3-Tier Modular Compute Ecosystem
+- **`ojas` (Central Universal Framework)**:
   - `ojas-core`: Pure Rust, `#![forbid(unsafe_code)]`, zero-dependency. Houses `Tensor`, `DType`, `OjasError`, `Budget` (root ledger), `Backend` trait, and abstract HAL traits (`MappedBuffer`, `HostLease`, `Timeline`, `AllocError`).
-  - `tessl`: Metal 4 GPU runtime, `BufferPool` with `StorageModeShared` unified memory, Apple Silicon Mac inference optimizations (ICB, quantization, KV caches, EmbeddingGemma 2 multimodal towers), and canonical Metal kernel sources (`DEP_TESSL_KERNELS`).
   - `ojas-cpu`: CPU reference backend with bit-identical `Numerics::Exact` contract.
   - `ojas-autograd`: Reverse-mode `Tape`, gradcheck helpers, and autograd records.
   - `ojas-model` / `ojas-train`: High-level model towers, optimizers (AdamW, Muon), and `TapeStepProvider`.
   - `ojas-metal`: Implements `Backend` for `MetalBackend`, routing ops to Tessl runtime and Metal compute kernels.
-- **Shared Memory Pools (Zero-Copy UMA)**:
-  - `ojas_core::Budget` serves as the sole authoritative ledger for host allocations and Tessl buffer pool cache (`pool.cache` child with automatic pressure trim).
-  - `ojas_core::Tensor` gains `Payload::Mapped(Arc<dyn MappedBuffer>)`.
-  - On Apple Silicon, `to_host()` returns timeline-fenced `HostLease` over the same `StorageModeShared` buffer without memcpy.
-  - `upload()` verifies the buffer is in unified memory, waits on timeline, and wraps into device tensor without memcpy.
-  - **No Silent Fallback**: Placement remains strictly explicit (`BackendId::Cpu` vs `BackendId::Metal`). CPU methods refuse device tensors with `OjasError::Placement`.
-- **Code Duplication Elimination**:
-  - SafeTensors / JSON / NPY readers in `tessl` deleted in favor of `ojas-io`.
-  - Tessl's whole-step training layers (`qwen35_train.rs`, `qwen35_adamw.rs`, `qwen35_bwd.rs`) and legacy `ojas-metal/src/gpu.rs` retired in favor of `ojas-model::TapeStepProvider`.
-  - AdamW scalar generation consolidated into `ojas-core`.
-  - String-scraping memory allocation classifier replaced by typed `AllocError`.
+  - `ojas-wgpu` / `ojas-cuda` / `ojas-hip`: Portable cross-platform compute and accelerator probes.
+- **`tessl` (Dedicated Apple Silicon / Metal 4 Extension & Mac Inference)**:
+  - Metal 4 GPU runtime, `BufferPool` with `StorageModeShared` unified memory, Apple Silicon Mac inference optimizations (ICB, quantization, KV caches, EmbeddingGemma 2 multimodal towers), and canonical Metal kernel sources (`DEP_TESSL_KERNELS`).
+- **`sparsl` (Dedicated Sparse Computing Extension)**:
+  - Deterministic sparse matrix representations (CSR, CSC), sparse linear algebra (SpMV), chunked prefix scans over affine maps, and event-driven simulation.
+  - Supplies sparse gradient masking, dynamic sparse recompute maps, and event gating (`st-gate`) for `SpikeTrack`.
+
+### Modularity Rationale Across Checkouts
+1. **Decoupled Compile Cycles:** Xcode 26 Metal toolchain compilation (`xcrun metal`, `metallib`) and intensive sparse property testing (`proptest`, mutation suites) remain isolated from universal training CI and cross-platform builds.
+2. **Isolated Hardware Requirements:** Apple Silicon M-series specifics live in `tessl`; generic CPU and optional Metal sparse kernels live in `sparsl`; portable multi-platform training lives in `ojas`.
+3. **Independent Profiling & Micro-Benchmarking:** GEMM tile sweeps and register tuning (tessl) vs sparse crossover thresholds (sparsl) vs end-to-end training step throughput (ojas) iterate on distinct benchmark suites.
+4. **Independent Release Cadence & Separate Checkouts:** Downstream consumers take only what they need without code or runtime bloat.
+
+### Shared Memory Pools (Zero-Copy UMA)
+- `ojas_core::Budget` serves as the sole authoritative ledger for host allocations and Tessl buffer pool cache (`pool.cache` child with automatic pressure trim).
+- `ojas_core::Tensor` gains `Payload::Mapped(Arc<dyn MappedBuffer>)`.
+- On Apple Silicon, `to_host()` returns timeline-fenced `HostLease` over the same `StorageModeShared` buffer without memcpy.
+- `upload()` verifies the buffer is in unified memory, waits on timeline, and wraps into device tensor without memcpy.
+- **No Silent Fallback**: Placement remains strictly explicit (`BackendId::Cpu` vs `BackendId::Metal`). CPU methods refuse device tensors with `OjasError::Placement`.
+
+### Code Duplication Elimination
+- SafeTensors / JSON / NPY readers in `tessl` deleted in favor of `ojas-io`.
+- Tessl's whole-step training layers (`qwen35_train.rs`, `qwen35_adamw.rs`, `qwen35_bwd.rs`) and legacy `ojas-metal/src/gpu.rs` retired in favor of `ojas-model::TapeStepProvider`.
+- AdamW scalar generation consolidated into `ojas-core`.
+- String-scraping memory allocation classifier replaced by typed `AllocError`.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |

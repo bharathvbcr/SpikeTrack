@@ -784,7 +784,7 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         let k = be.rope_interleaved_forward(&heads(&blk.k)?, &blk.rope_cos, &blk.rope_sin)?;
         let v = heads(&blk.v)?;
         let (q, k, v) = (be.permute(&q, &[0, 2, 1, 3])?, be.permute(&k, &[0, 2, 1, 3])?, be.permute(&v, &[0, 2, 1, 3])?);
-        let opts = AttentionOpts { causal: false, window: None, bias: None, key_lens: None };
+        let opts = AttentionOpts { causal: false, window: None, bias: None, key_lens: None, ..Default::default() };
         let a = be.attention_forward(&q, &k, &v, opts)?; // [B, H, T, D]
         let a = be.permute(&a, &[0, 2, 1, 3])?.reshape(&[seqs, tokens, VIT_DIM])?;
         let a = self.trunk_linear(&a, &blk.proj)?;
