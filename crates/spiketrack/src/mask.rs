@@ -23,7 +23,11 @@ struct Axis {
 impl Axis {
     fn new(input: usize, output: usize) -> Axis {
         let scale = input as f32 / output as f32;
-        let mut axis = Axis { i0: Vec::with_capacity(output), i1: Vec::with_capacity(output), frac: Vec::with_capacity(output) };
+        let mut axis = Axis {
+            i0: Vec::with_capacity(output),
+            i1: Vec::with_capacity(output),
+            frac: Vec::with_capacity(output),
+        };
         for d in 0..output {
             let src = ((d as f32 + 0.5) * scale - 0.5).max(0.0);
             let i0 = (src as usize).min(input - 1);
@@ -49,10 +53,26 @@ pub struct ResizedMask<'a> {
 
 impl<'a> ResizedMask<'a> {
     /// `logits` is `in_h x in_w` row-major. All sizes must be non-zero.
-    pub fn new(logits: &'a [f32], in_h: usize, in_w: usize, height: usize, width: usize) -> ResizedMask<'a> {
-        assert!(in_h > 0 && in_w > 0 && height > 0 && width > 0, "empty mask size");
+    pub fn new(
+        logits: &'a [f32],
+        in_h: usize,
+        in_w: usize,
+        height: usize,
+        width: usize,
+    ) -> ResizedMask<'a> {
+        assert!(
+            in_h > 0 && in_w > 0 && height > 0 && width > 0,
+            "empty mask size"
+        );
         assert_eq!(logits.len(), in_h * in_w, "logits are not {in_h} x {in_w}");
-        ResizedMask { logits, in_w, rows: Axis::new(in_h, height), cols: Axis::new(in_w, width), height, width }
+        ResizedMask {
+            logits,
+            in_w,
+            rows: Axis::new(in_h, height),
+            cols: Axis::new(in_w, width),
+            height,
+            width,
+        }
     }
 
     /// The interpolated logit at row `y`, column `x`. Rows are interpolated
@@ -108,12 +128,21 @@ impl Rle {
             }
         }
         counts.push(run);
-        Rle { height, width, counts, area }
+        Rle {
+            height,
+            width,
+            counts,
+            area,
+        }
     }
 
     /// `counts` as the text of a JSON array.
     pub fn counts_json(&self) -> String {
-        self.counts.iter().map(u64::to_string).collect::<Vec<_>>().join(", ")
+        self.counts
+            .iter()
+            .map(u64::to_string)
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 
     /// Expand to row-major booleans (for tests and overlays).

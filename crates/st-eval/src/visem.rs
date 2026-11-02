@@ -39,9 +39,19 @@ pub struct VisemBox {
 
 #[derive(Debug)]
 pub enum VisemError {
-    Io { path: PathBuf, err: std::io::Error },
-    Parse { path: PathBuf, line: usize, detail: String },
-    Layout { path: PathBuf, detail: String },
+    Io {
+        path: PathBuf,
+        err: std::io::Error,
+    },
+    Parse {
+        path: PathBuf,
+        line: usize,
+        detail: String,
+    },
+    Layout {
+        path: PathBuf,
+        detail: String,
+    },
 }
 
 impl fmt::Display for VisemError {
@@ -69,7 +79,9 @@ impl VisemVideo {
     /// empty tracker lists. Frames between the first and last labelled frame
     /// that have no label file are an error, not silently skipped.
     pub fn hota_frames(&self, classes: &[VisemClass]) -> Result<Vec<Frame<String>>, VisemError> {
-        let (Some(&first), Some(&last)) = (self.frames.keys().next(), self.frames.keys().next_back()) else {
+        let (Some(&first), Some(&last)) =
+            (self.frames.keys().next(), self.frames.keys().next_back())
+        else {
             return Ok(Vec::new());
         };
         (first..=last)
@@ -78,15 +90,25 @@ impl VisemVideo {
                     path: PathBuf::from(&self.id),
                     detail: format!("frame {t} has no label file"),
                 })?;
-                let gt = boxes.iter().filter(|b| classes.contains(&b.class)).map(|b| (b.track.clone(), b.bbox)).collect();
-                Ok(Frame { gt, pred: Vec::new() })
+                let gt = boxes
+                    .iter()
+                    .filter(|b| classes.contains(&b.class))
+                    .map(|b| (b.track.clone(), b.bbox))
+                    .collect();
+                Ok(Frame {
+                    gt,
+                    pred: Vec::new(),
+                })
             })
             .collect()
     }
 }
 
 fn frame_index(name: &str, video: &str) -> Option<u32> {
-    name.strip_prefix(&format!("{video}_frame_"))?.strip_suffix("_with_ftid.txt")?.parse().ok()
+    name.strip_prefix(&format!("{video}_frame_"))?
+        .strip_suffix("_with_ftid.txt")?
+        .parse()
+        .ok()
 }
 
 pub fn parse_labels(path: &Path, text: &str) -> Result<Vec<VisemBox>, VisemError> {
@@ -96,7 +118,11 @@ pub fn parse_labels(path: &Path, text: &str) -> Result<Vec<VisemBox>, VisemError
         if line.is_empty() {
             continue;
         }
-        let err = |detail: String| VisemError::Parse { path: path.to_path_buf(), line: n + 1, detail };
+        let err = |detail: String| VisemError::Parse {
+            path: path.to_path_buf(),
+            line: n + 1,
+            detail,
+        };
         let f: Vec<&str> = line.split_whitespace().collect();
         let [track, class, cx, cy, w, h] = f.as_slice() else {
             return Err(err(format!("{} fields, expected 6", f.len())));
@@ -114,7 +140,12 @@ pub fn parse_labels(path: &Path, text: &str) -> Result<Vec<VisemBox>, VisemError
         out.push(VisemBox {
             track: (*track).to_string(),
             class,
-            bbox: Xywh { x: cx - w / 2.0, y: cy - h / 2.0, w, h },
+            bbox: Xywh {
+                x: cx - w / 2.0,
+                y: cy - h / 2.0,
+                w,
+                h,
+            },
         });
     }
     Ok(out)
@@ -125,14 +156,22 @@ pub fn load_video(dir: &Path) -> Result<VisemVideo, VisemError> {
     let id = dir
         .file_name()
         .and_then(|s| s.to_str())
-        .ok_or_else(|| VisemError::Layout { path: dir.to_path_buf(), detail: "no directory name".into() })?
+        .ok_or_else(|| VisemError::Layout {
+            path: dir.to_path_buf(),
+            detail: "no directory name".into(),
+        })?
         .to_string();
     let labels = dir.join("labels_ftid");
-    let io = |path: &Path, err| VisemError::Io { path: path.to_path_buf(), err };
+    let io = |path: &Path, err| VisemError::Io {
+        path: path.to_path_buf(),
+        err,
+    };
     let mut frames = BTreeMap::new();
     for entry in std::fs::read_dir(&labels).map_err(|e| io(&labels, e))? {
         let path = entry.map_err(|e| io(&labels, e))?.path();
-        let Some(name) = path.file_name().and_then(|s| s.to_str()) else { continue };
+        let Some(name) = path.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
         let t = frame_index(name, &id).ok_or_else(|| VisemError::Layout {
             path: path.clone(),
             detail: format!("not a {id}_frame_<n>_with_ftid.txt file"),
@@ -141,7 +180,10 @@ pub fn load_video(dir: &Path) -> Result<VisemVideo, VisemError> {
         frames.insert(t, parse_labels(&path, &text)?);
     }
     if frames.is_empty() {
-        return Err(VisemError::Layout { path: labels, detail: "no label files".into() });
+        return Err(VisemError::Layout {
+            path: labels,
+            detail: "no label files".into(),
+        });
     }
     Ok(VisemVideo { id, frames })
 }
@@ -149,7 +191,10 @@ pub fn load_video(dir: &Path) -> Result<VisemVideo, VisemError> {
 /// Every video under `Train/`, sorted by id.
 pub fn load_split(train: &Path) -> Result<Vec<VisemVideo>, VisemError> {
     let mut dirs: Vec<PathBuf> = std::fs::read_dir(train)
-        .map_err(|e| VisemError::Io { path: train.to_path_buf(), err: e })?
+        .map_err(|e| VisemError::Io {
+            path: train.to_path_buf(),
+            err: e,
+        })?
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| p.join("labels_ftid").is_dir())
         .collect();
@@ -168,7 +213,9 @@ mod tests {
         assert_eq!(b.len(), 1);
         assert_eq!(b[0].class, VisemClass::Sperm);
         let r = b[0].bbox;
-        assert!((r.x - 0.45).abs() < 1e-12 && (r.y - 0.15).abs() < 1e-12 && (r.w - 0.1).abs() < 1e-12);
+        assert!(
+            (r.x - 0.45).abs() < 1e-12 && (r.y - 0.15).abs() < 1e-12 && (r.w - 0.1).abs() < 1e-12
+        );
     }
 
     #[test]

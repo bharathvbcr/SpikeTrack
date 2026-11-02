@@ -11,3 +11,6 @@ description = "Training-free event gating: change maps from consecutive frames a
 # tensors or backends, and the bitset type is one module (bits.rs) so the
 # owner's sparsl can replace it later without touching the callers.
 [dependencies]
+
+[lints]
+workspace = true

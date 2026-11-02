@@ -1,13 +1,18 @@
-28 detection(s) for "cell" above 0.5 in data/visem/VISEM_Tracking_Train_v4/Train/22/images/22_frame_0.jpg (640x480), 2.0 s on metal
-  bench/results/cli/no_python_run/detections.json
-  bench/results/cli/no_python_run/overlay.png
-        3.00 real         0.70 user         0.94 sys
-          7464222720  maximum resident set size
+spiketrack <command> [options]
+
+commands:
+  image        detect and segment a text-prompted concept in one image
+  track        track a text-prompted concept through a video or a folder of frames
+  eval-visem   HOTA of predicted tracks against VISEM-Tracking ground truth
+
+`spiketrack <command> --help` shows a command's options.
+        0.08 real         0.00 user         0.00 sys
+             7438336  maximum resident set size
                    0  average shared memory size
                    0  average unshared data size
                    0  average unshared stack size
-              468362  page reclaims
-                   2  page faults
+                 655  page reclaims
+                  30  page faults
                    0  swaps
                    0  block input operations
                    0  block output operations
@@ -15,7 +20,7 @@
                    0  messages received
                    0  signals received
                    0  voluntary context switches
-                8638  involuntary context switches
-         17132343332  instructions retired
-          7012153683  cycles elapsed
-          9970145280  peak memory footprint
+                  66  involuntary context switches
+            44416930  instructions retired
+            33997732  cycles elapsed
+             2130448  peak memory footprint

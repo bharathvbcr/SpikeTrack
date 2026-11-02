@@ -40,22 +40,60 @@ pub struct InteractiveDecoder {
 
 impl InteractiveDecoder {
     pub fn load<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str) -> Result<Self, ModelError> {
-        let t = |name: &str, shape: &[usize]| -> Result<Tensor, ModelError> { Ok(up(be, &get(g, &format!("{p}.{name}"), shape)?.data, shape)?) };
+        let t = |name: &str, shape: &[usize]| -> Result<Tensor, ModelError> {
+            Ok(up(be, &get(g, &format!("{p}.{name}"), shape)?.data, shape)?)
+        };
         // [obj_score; iou; mask x4], the order predict_masks concatenates them in.
-        let mut out_tokens = get(g, &format!("{p}.obj_score_token.weight"), &[1, D])?.data.clone();
+        let mut out_tokens = get(g, &format!("{p}.obj_score_token.weight"), &[1, D])?
+            .data
+            .clone();
         out_tokens.extend_from_slice(&get(g, &format!("{p}.iou_token.weight"), &[1, D])?.data);
-        out_tokens.extend_from_slice(&get(g, &format!("{p}.mask_tokens.weight"), &[MASK_TOKENS, D])?.data);
+        out_tokens.extend_from_slice(
+            &get(g, &format!("{p}.mask_tokens.weight"), &[MASK_TOKENS, D])?.data,
+        );
         Ok(Self {
             transformer: TwoWay::load(be, g, &format!("{p}.transformer"))?,
             out_tokens,
-            dc1: (t("output_upscaling.0.weight", &[D, D / 4, 2, 2])?, t("output_upscaling.0.bias", &[D / 4])?),
-            ln1: (t("output_upscaling.1.weight", &[D / 4])?, t("output_upscaling.1.bias", &[D / 4])?),
-            dc2: (t("output_upscaling.3.weight", &[D / 4, D / 8, 2, 2])?, t("output_upscaling.3.bias", &[D / 8])?),
+            dc1: (
+                t("output_upscaling.0.weight", &[D, D / 4, 2, 2])?,
+                t("output_upscaling.0.bias", &[D / 4])?,
+            ),
+            ln1: (
+                t("output_upscaling.1.weight", &[D / 4])?,
+                t("output_upscaling.1.bias", &[D / 4])?,
+            ),
+            dc2: (
+                t("output_upscaling.3.weight", &[D / 4, D / 8, 2, 2])?,
+                t("output_upscaling.3.bias", &[D / 8])?,
+            ),
             hyper: (0..MASK_TOKENS)
-                .map(|i| Mlp::load(be, g, &format!("{p}.output_hypernetworks_mlps.{i}"), &[D, D, D, D / 8], false, false))
+                .map(|i| {
+                    Mlp::load(
+                        be,
+                        g,
+                        &format!("{p}.output_hypernetworks_mlps.{i}"),
+                        &[D, D, D, D / 8],
+                        false,
+                        false,
+                    )
+                })
                 .collect::<Result<_, _>>()?,
-            iou_head: Mlp::load(be, g, &format!("{p}.iou_prediction_head"), &[D, D, D, MASK_TOKENS], false, false)?,
-            obj_score_head: Mlp::load(be, g, &format!("{p}.pred_obj_score_head"), &[D, D, D, 1], false, false)?,
+            iou_head: Mlp::load(
+                be,
+                g,
+                &format!("{p}.iou_prediction_head"),
+                &[D, D, D, MASK_TOKENS],
+                false,
+                false,
+            )?,
+            obj_score_head: Mlp::load(
+                be,
+                g,
+                &format!("{p}.pred_obj_score_head"),
+                &[D, D, D, 1],
+                false,
+                false,
+            )?,
         })
     }
 
@@ -63,11 +101,24 @@ impl InteractiveDecoder {
     /// `sparse` `[N, S, D]` host, `dense` `[N, D, G, G]`, high-res skips
     /// `[1, 32, 4G, 4G]` and `[1, 64, 2G, 2G]` (repeated per object). `G` is the token grid
     /// (72 at 1008), read from `image`.
-    pub fn fwd<B: Backend + ?Sized>(&self, be: &B, image: &Tensor, image_pe: &Tensor, sparse: &[f32], n_sparse: usize, dense: &Tensor, s0: &Tensor, s1: &Tensor) -> Result<InteractiveOut, OjasError> {
+    pub fn fwd<B: Backend + ?Sized>(
+        &self,
+        be: &B,
+        image: &Tensor,
+        image_pe: &Tensor,
+        sparse: &[f32],
+        n_sparse: usize,
+        dense: &Tensor,
+        s0: &Tensor,
+        s1: &Tensor,
+    ) -> Result<InteractiveOut, OjasError> {
         let n = dense.shape()[0];
         let feat = checked_feat("st_model::InteractiveDecoder::fwd", image, image_pe, s0, s1)?;
         if dense.shape()[1..] != [D, feat, feat] {
-            return Err(OjasError::OutOfRange { op: "st_model::InteractiveDecoder::fwd", detail: format!("dense {:?} is not [N, {D}, {feat}, {feat}]", dense.shape()) });
+            return Err(OjasError::OutOfRange {
+                op: "st_model::InteractiveDecoder::fwd",
+                detail: format!("dense {:?} is not [N, {D}, {feat}, {feat}]", dense.shape()),
+            });
         }
         let hw = feat * feat;
         let ntok = 2 + MASK_TOKENS + n_sparse;
@@ -81,10 +132,10 @@ impl InteractiveDecoder {
             if n == 1 {
                 return Ok(x.clone());
             }
-            let h = x.to_host(be.budget())?.to_f32_vec()?;
-            let mut s = x.shape().to_vec();
+            let mut s = vec![1; x.shape().len()];
             s[0] = n;
-            up(be, &h.repeat(n), &s)
+            let zeros = be.fill(&s, ojas_core::DType::F32, 0.0)?;
+            be.broadcast_add_forward(x, &zeros)
         };
         let src = be.residual_add_forward(&rep(image)?, dense)?;
         let src_tok = be.permute(&src.reshape(&[n, D, hw])?, &[0, 2, 1])?;
@@ -92,19 +143,36 @@ impl InteractiveDecoder {
         let (hs, keys) = self.transformer.fwd(be, &src_tok, &pe, &tokens)?;
         let hs = hs.to_host(be.budget())?.to_f32_vec()?;
 
-        let src = be.permute(&keys, &[0, 2, 1])?.reshape(&[n, D, feat, feat])?;
+        let src = be
+            .permute(&keys, &[0, 2, 1])?
+            .reshape(&[n, D, feat, feat])?;
         let mut up2 = ConvTranspose2dParams::new();
         up2.stride = [2, 2];
-        let x = be.residual_add_forward(&be.conv_transpose2d_forward(&src, &self.dc1.0, Some(&self.dc1.1), up2)?, &rep(s1)?)?;
-        let x = be.gelu_erf_forward(&be.channel_layer_norm_forward(&x, &self.ln1.0, &self.ln1.1, LN2D_EPS)?)?;
-        let x = be.residual_add_forward(&be.conv_transpose2d_forward(&x, &self.dc2.0, Some(&self.dc2.1), up2)?, &rep(s0)?)?;
-        let upscaled = be.gelu_erf_forward(&x)?.to_host(be.budget())?.to_f32_vec()?; // [N, 32, 4G, 4G]
+        let x = be.residual_add_forward(
+            &be.conv_transpose2d_forward(&src, &self.dc1.0, Some(&self.dc1.1), up2)?,
+            &rep(s1)?,
+        )?;
+        let x = be.gelu_erf_forward(&be.channel_layer_norm_forward(
+            &x,
+            &self.ln1.0,
+            &self.ln1.1,
+            LN2D_EPS,
+        )?)?;
+        let x = be.residual_add_forward(
+            &be.conv_transpose2d_forward(&x, &self.dc2.0, Some(&self.dc2.1), up2)?,
+            &rep(s0)?,
+        )?;
+        let upscaled = be
+            .gelu_erf_forward(&x)?
+            .to_host(be.budget())?
+            .to_f32_vec()?; // [N, 32, 4G, 4G]
 
         let row = |i: usize, t: usize| &hs[(i * ntok + t) * D..(i * ntok + t + 1) * D];
         let low_res = 4 * feat;
         let px = low_res * low_res;
         let mut masks = Vec::with_capacity(n * MASK_TOKENS * px);
-        let (mut iou_pred, mut mask_tokens, mut object_score_logits) = (Vec::new(), Vec::new(), Vec::new());
+        let (mut iou_pred, mut mask_tokens, mut object_score_logits) =
+            (Vec::new(), Vec::new(), Vec::new());
         for i in 0..n {
             let emb = &upscaled[i * (D / 8) * px..(i + 1) * (D / 8) * px];
             for m in 0..MASK_TOKENS {
@@ -121,6 +189,11 @@ impl InteractiveDecoder {
             iou_pred.extend(self.iou_head.host(row(i, 1), 1));
             object_score_logits.extend(self.obj_score_head.host(row(i, 0), 1));
         }
-        Ok(InteractiveOut { masks: up(be, &masks, &[n, MASK_TOKENS, low_res, low_res])?, iou_pred, mask_tokens, object_score_logits })
+        Ok(InteractiveOut {
+            masks: up(be, &masks, &[n, MASK_TOKENS, low_res, low_res])?,
+            iou_pred,
+            mask_tokens,
+            object_score_logits,
+        })
     }
 }

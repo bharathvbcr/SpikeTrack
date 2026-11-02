@@ -71,11 +71,21 @@ impl Args {
                     None => (body, None),
                 };
                 if !allowed.contains(&name) {
-                    return Err(CliError::usage(format!("unknown option --{name} (this command takes: {})", allowed.iter().map(|o| format!("--{o}")).collect::<Vec<_>>().join(", "))));
+                    return Err(CliError::usage(format!(
+                        "unknown option --{name} (this command takes: {})",
+                        allowed
+                            .iter()
+                            .map(|o| format!("--{o}"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )));
                 }
                 let value = match inline {
                     Some(v) => v,
-                    None => it.next().cloned().ok_or_else(|| CliError::usage(format!("--{name} needs a value")))?,
+                    None => it
+                        .next()
+                        .cloned()
+                        .ok_or_else(|| CliError::usage(format!("--{name} needs a value")))?,
                 };
                 if value.is_empty() {
                     return Err(CliError::usage(format!("--{name} is empty")));
@@ -90,7 +100,10 @@ impl Args {
             }
         }
         if !args.help && args.positional.len() != positionals {
-            return Err(CliError::usage(format!("expected {positionals} positional argument(s), got {}", args.positional.len())));
+            return Err(CliError::usage(format!(
+                "expected {positionals} positional argument(s), got {}",
+                args.positional.len()
+            )));
         }
         Ok(args)
     }
@@ -100,31 +113,46 @@ impl Args {
     }
 
     pub fn require(&self, name: &str) -> Result<&str, CliError> {
-        self.get(name).ok_or_else(|| CliError::usage(format!("--{name} is required")))
+        self.get(name)
+            .ok_or_else(|| CliError::usage(format!("--{name} is required")))
     }
 
     /// A parsed option, or `default` when absent; the error names the option and the text.
     pub fn parsed<T: std::str::FromStr>(&self, name: &str, default: T) -> Result<T, CliError> {
         match self.get(name) {
             None => Ok(default),
-            Some(s) => s.parse().map_err(|_| CliError::usage(format!("--{name}: cannot read {s:?}"))),
+            Some(s) => s
+                .parse()
+                .map_err(|_| CliError::usage(format!("--{name}: cannot read {s:?}"))),
         }
     }
 }
 
 /// A path from `--name`, else from the environment variable `env`, with a leading
 /// `~/` expanded; it must exist.
-pub fn existing_path(arg: Option<&str>, env: &str, what: &str, flag: &str) -> Result<PathBuf, CliError> {
+pub fn existing_path(
+    arg: Option<&str>,
+    env: &str,
+    what: &str,
+    flag: &str,
+) -> Result<PathBuf, CliError> {
     let raw = match arg {
         Some(a) => a.to_string(),
-        None => std::env::var(env).map_err(|_| CliError::usage(format!("{what}: pass --{flag} or set {env}")))?,
+        None => std::env::var(env)
+            .map_err(|_| CliError::usage(format!("{what}: pass --{flag} or set {env}")))?,
     };
     let path = match raw.strip_prefix("~/") {
-        Some(rest) => PathBuf::from(std::env::var("HOME").map_err(|_| CliError::failed(format!("{what}: {raw:?} needs HOME, which is not set")))?).join(rest),
+        Some(rest) => PathBuf::from(std::env::var("HOME").map_err(|_| {
+            CliError::failed(format!("{what}: {raw:?} needs HOME, which is not set"))
+        })?)
+        .join(rest),
         None => PathBuf::from(&raw),
     };
     if !Path::new(&path).exists() {
-        return Err(CliError::failed(format!("{what}: {} does not exist", path.display())));
+        return Err(CliError::failed(format!(
+            "{what}: {} does not exist",
+            path.display()
+        )));
     }
     Ok(path)
 }
@@ -139,7 +167,12 @@ mod tests {
 
     #[test]
     fn options_in_both_spellings_and_positionals() {
-        let a = Args::parse(&v(&["img.jpg", "--prompt", "cell", "--threshold=0.3"]), &["prompt", "threshold", "out"], 1).unwrap();
+        let a = Args::parse(
+            &v(&["img.jpg", "--prompt", "cell", "--threshold=0.3"]),
+            &["prompt", "threshold", "out"],
+            1,
+        )
+        .unwrap();
         assert_eq!(a.positional, ["img.jpg"]);
         assert_eq!(a.get("prompt"), Some("cell"));
         assert_eq!(a.parsed("threshold", 0.5f32).unwrap(), 0.3);
@@ -164,7 +197,11 @@ mod tests {
     #[test]
     fn a_bad_number_names_the_option() {
         let a = Args::parse(&v(&["--threshold", "high"]), &["threshold"], 0).unwrap();
-        assert!(a.parsed("threshold", 0.5f32).unwrap_err().to_string().contains("--threshold"));
+        assert!(a
+            .parsed("threshold", 0.5f32)
+            .unwrap_err()
+            .to_string()
+            .contains("--threshold"));
     }
 
     #[test]

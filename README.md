@@ -38,6 +38,7 @@ fp32 on CPU (tools/reference).
 | Tracking, first 300 frames of the 5 held-out VISEM videos (1,500 frames, 32,949 GT boxes) | HOTA 0.1549 zero-shot (prompt "cell", upstream boxes) -> **0.4695** with the adapter, prompt "sperm" and `--boxes detector` (DetA 0.051 -> 0.320, AssA 0.594 -> 0.725) | [zero-shot](bench/results/track/held300-zeroshot-cell-mask/eval.txt), [adapter](bench/results/track/held300-lora600-sperm-detector/eval.txt), [box-convention](bench/results/track/box-convention) |
 | ViT trunk as CoreML fp32 (the Metal default since 2026-10-29) against the Ojas trunk, 49 frames of VISEM 22 interleaved over 3 rounds, and the 1,500 held-out frames | trunk rel L2 vs upstream <= 2.7e-5; frame 0.80x (2.70 against 3.40 s, contended machine); same id sets on all 1,500 held-out frames and the same HOTA, 0.4922 at cap 64; model load +3-12 s, 0.7 s (min of 3) since the package hash is recorded once per version ([e18b](bench/results/e18b-stat-key)) | [coreml-trunk](bench/results/coreml-trunk) |
 | Host and tracker work after the trunk (E12 + E13 + E15, 2026-10-30) against 3ca1476, VISEM 82 and 22, 16 frames, interleaved over 3 rounds, and the 1,500 held-out frames | frame 0.843x on 82 and 0.825x on 22 (min of 3, load 10-23, faster in 6 of 6 pairs); predictions byte-identical on all 1,500 held-out frames, so HOTA stays 0.4922; the footprint rises ~420 MiB over ~500 frames, then holds at ~9.3 GB on a 1,470-frame video, below the build before it ([e17](bench/results/e17-footprint-categories)) | [closing-e15](bench/results/closing-e15) |
+| Unified UMA memory & M4 TensorOps flash cross-attention + `boxRPB` (2026-11-02) | Removed >1.2 GB of duplicate `hw`/`hb` host weight vectors in `st-model` (`Lin`, `Norm`) and eliminated host-device round-trips in `mask_decoder`, `interactive`, `vos`, and `detector`; native decoupled $T_q \times T_k$ TensorOps flash cross-attention (`ojas_attn_fwd_d32`/`d64`) runs memory cross-attention (`5184 x 5200`) in **6.06 ms vs 209.28 ms scalar (34.5x speedup, 100% flash dispatch)**, and tile-register `boxRPB` biased flash attention runs DETR cross-attention in **0.85 ms vs 11.98 ms scalar (14.1x speedup)**; CPU and Metal backbone/tracker parity **1.0000000** cosine | `ojas-metal/examples/attention_flash_bench.rs`, [`PROJECT.md`](PROJECT.md) |
 | CoreML port on the same M5 Pro (the speed reference) | 0.272 s backbone + 0.0775 s track step per frame | [baselines](bench/results/baselines) |
 
 Not yet: the speed target (restated to parity-or-better with the CoreML port; we are ~6-8x behind
@@ -113,6 +114,16 @@ target/release/spiketrack eval-visem --pred out/track --split tools/reference/vi
 On a shared machine, heavy jobs run under its lock: `tools/locked.sh <label> <command>`; the parity
 gates are `tools/jobs/module_gates.sh`, `tools/jobs/vos_gate.sh` and
 `tools/jobs/detect_track_parity.sh`.
+
+### Developer Workflows
+
+See [`docs/WORKFLOWS.md`](docs/WORKFLOWS.md) for the full 4-workflow developer guide:
+
+```sh
+./scripts/dev_fast_check.sh                      # WF1: <15s fast inner loop (check + unit tests; --check-only or --clippy)
+./scripts/ci_local.sh                            # WF2: Local pre-push CI (sibling check, fmt, no-Python otool -L, clippy -D warnings, release lib tests)
+./scripts/parity_check.sh --component all        # WF3/WF4: Fail-closed PyTorch oracle parity runner (CPU and mac_heavy.sh-locked Metal)
+```
 
 Preprocessing: JPEG folders follow upstream's image-folder path. JPEGs are decoded by our own decoder
 (`crates/st-video/src/jpeg.rs`, a port of libjpeg-turbo 3.2.0's default path), byte-identical to

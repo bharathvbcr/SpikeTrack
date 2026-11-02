@@ -20,8 +20,16 @@ pub struct Rgb8 {
 
 impl Rgb8 {
     pub fn new(width: usize, height: usize, data: Vec<u8>) -> Self {
-        assert_eq!(data.len(), width * height * 3, "RGB data is not {width} x {height} x 3");
-        Self { width, height, data }
+        assert_eq!(
+            data.len(),
+            width * height * 3,
+            "RGB data is not {width} x {height} x 3"
+        );
+        Self {
+            width,
+            height,
+            data,
+        }
     }
 }
 
@@ -68,7 +76,16 @@ fn coeffs(in_size: usize, out_size: usize) -> Coeffs {
         bounds.push((xmin, xmax));
     }
     let one = f64::from(1u32 << PRECISION_BITS);
-    let k = pre.iter().map(|&w| if w < 0.0 { (-0.5 + w * one) as i32 } else { (0.5 + w * one) as i32 }).collect();
+    let k = pre
+        .iter()
+        .map(|&w| {
+            if w < 0.0 {
+                (-0.5 + w * one) as i32
+            } else {
+                (0.5 + w * one) as i32
+            }
+        })
+        .collect();
     Coeffs { ksize, bounds, k }
 }
 
@@ -96,7 +113,8 @@ pub fn resize_bilinear_pil(src: &Rgb8, out_w: usize, out_h: usize) -> Rgb8 {
         let rows = ybox_last - ybox_first;
         let mut out = vec![0u8; out_w * rows * 3];
         for y in 0..rows {
-            let srow = &src.data[(y + ybox_first) * src.width * 3..(y + ybox_first + 1) * src.width * 3];
+            let srow =
+                &src.data[(y + ybox_first) * src.width * 3..(y + ybox_first + 1) * src.width * 3];
             for xx in 0..out_w {
                 let (xmin, xmax) = ch.bounds[xx];
                 let k = &ch.k[xx * ch.ksize..];
@@ -111,7 +129,11 @@ pub fn resize_bilinear_pil(src: &Rgb8, out_w: usize, out_h: usize) -> Rgb8 {
         }
         Rgb8::new(out_w, rows, out)
     } else {
-        Rgb8::new(src.width, ybox_last - ybox_first, src.data[ybox_first * src.width * 3..ybox_last * src.width * 3].to_vec())
+        Rgb8::new(
+            src.width,
+            ybox_last - ybox_first,
+            src.data[ybox_first * src.width * 3..ybox_last * src.width * 3].to_vec(),
+        )
     };
     if !need_v {
         return tmp;
@@ -146,7 +168,9 @@ fn aa_weights(in_size: usize, out_size: usize) -> Vec<(usize, Vec<f64>)> {
             let center = scale * (i as f64 + 0.5);
             let xmin = ((center - support + 0.5) as i64).max(0) as usize;
             let xmax = ((center + support + 0.5) as i64).min(in_size as i64) as usize;
-            let mut w: Vec<f64> = (xmin..xmax).map(|j| bilinear((j as f64 - center + 0.5) * inv)).collect();
+            let mut w: Vec<f64> = (xmin..xmax)
+                .map(|j| bilinear((j as f64 - center + 0.5) * inv))
+                .collect();
             let total: f64 = w.iter().sum();
             if total != 0.0 {
                 w.iter_mut().for_each(|v| *v /= total);
@@ -159,8 +183,19 @@ fn aa_weights(in_size: usize, out_size: usize) -> Vec<(usize, Vec<f64>)> {
 /// `F.interpolate(x, size, mode="bilinear", align_corners=False, antialias=True)`
 /// for `planes` channel planes of `h x w` f32 (row-major, plane after plane).
 /// Width first, then height, accumulating in f64 and rounding to f32 once per pass.
-pub fn resize_bilinear_aa_f32(src: &[f32], planes: usize, h: usize, w: usize, oh: usize, ow: usize) -> Vec<f32> {
-    assert_eq!(src.len(), planes * h * w, "source is not {planes} x {h} x {w}");
+pub fn resize_bilinear_aa_f32(
+    src: &[f32],
+    planes: usize,
+    h: usize,
+    w: usize,
+    oh: usize,
+    ow: usize,
+) -> Vec<f32> {
+    assert_eq!(
+        src.len(),
+        planes * h * w,
+        "source is not {planes} x {h} x {w}"
+    );
     let wx = aa_weights(w, ow);
     let wy = aa_weights(h, oh);
     let mut out = vec![0f32; planes * oh * ow];
@@ -170,13 +205,21 @@ pub fn resize_bilinear_aa_f32(src: &[f32], planes: usize, h: usize, w: usize, oh
         for y in 0..h {
             for (x, (x0, ws)) in wx.iter().enumerate() {
                 let row = &s[y * w + x0..y * w + x0 + ws.len()];
-                tmp[y * ow + x] = row.iter().zip(ws).map(|(&v, &k)| f64::from(v) * k).sum::<f64>() as f32;
+                tmp[y * ow + x] = row
+                    .iter()
+                    .zip(ws)
+                    .map(|(&v, &k)| f64::from(v) * k)
+                    .sum::<f64>() as f32;
             }
         }
         let o = &mut out[p * oh * ow..(p + 1) * oh * ow];
         for (y, (y0, ws)) in wy.iter().enumerate() {
             for x in 0..ow {
-                o[y * ow + x] = ws.iter().enumerate().map(|(k, &kw)| f64::from(tmp[(y0 + k) * ow + x]) * kw).sum::<f64>() as f32;
+                o[y * ow + x] = ws
+                    .iter()
+                    .enumerate()
+                    .map(|(k, &kw)| f64::from(tmp[(y0 + k) * ow + x]) * kw)
+                    .sum::<f64>() as f32;
             }
         }
     }
@@ -211,7 +254,13 @@ mod tests {
     fn constant_image_stays_constant() {
         let src = Rgb8::new(17, 9, vec![77; 17 * 9 * 3]);
         for (w, h) in [(40, 30), (5, 3), (17, 30), (100, 1)] {
-            assert!(resize_bilinear_pil(&src, w, h).data.iter().all(|&v| v == 77), "{w}x{h}");
+            assert!(
+                resize_bilinear_pil(&src, w, h)
+                    .data
+                    .iter()
+                    .all(|&v| v == 77),
+                "{w}x{h}"
+            );
         }
     }
 }

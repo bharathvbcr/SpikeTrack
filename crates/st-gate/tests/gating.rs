@@ -7,7 +7,10 @@
 
 use std::time::Instant;
 
-use st_gate::{ChangeMap, ChangeMapper, Decision, FullReason, Frame, Gate, GateConfig, GatePolicy, Geometry, WindowSet};
+use st_gate::{
+    ChangeMap, ChangeMapper, Decision, Frame, FullReason, Gate, GateConfig, GatePolicy, Geometry,
+    WindowSet,
+};
 
 const GEO: Geometry = Geometry::SAM3;
 const SIDE: usize = 1008;
@@ -24,7 +27,9 @@ const BUDGET_SECS: f64 = 0.05 * FRAME_FLOOR_SECS;
 const REPS: usize = 40;
 
 fn lcg(s: &mut u64) -> u64 {
-    *s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    *s = s
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(1442695040888963407);
     *s >> 33
 }
 
@@ -35,7 +40,8 @@ fn texture(seed: u64) -> Vec<u8> {
     for y in 0..SIDE {
         for x in 0..SIDE {
             for c in 0..CH {
-                d[(y * SIDE + x) * CH + c] = ((x / 5 + y / 7 + c * 30) as u64 % 200 + lcg(&mut s) % 40) as u8;
+                d[(y * SIDE + x) * CH + c] =
+                    ((x / 5 + y / 7 + c * 30) as u64 % 200 + lcg(&mut s) % 40) as u8;
             }
         }
     }
@@ -78,7 +84,11 @@ fn change_map_cost_is_under_five_percent_of_the_fastest_possible_frame() {
     let (fa, fb) = (frame(&a), frame(&b));
 
     let map_s = min_secs(|| mapper.compute(&fa, &fb, 8, &mut map).unwrap());
-    assert_eq!(map.windows_changed(), 9, "the measured case must be the all-changed one");
+    assert_eq!(
+        map.windows_changed(),
+        9,
+        "the measured case must be the all-changed one"
+    );
 
     // `decide` = map + reference update. Three streams: windows path (4 of 9
     // changed, copies 4 windows), full path (everything changed, copies the frame), reuse.
@@ -99,24 +109,54 @@ fn change_map_cost_is_under_five_percent_of_the_fastest_possible_frame() {
         }
         (best, last.unwrap())
     };
-    let win = GateConfig::new(GatePolicy::Windows { approximate_after_global: true }, 8);
+    let win = GateConfig::new(
+        GatePolicy::Windows {
+            approximate_after_global: true,
+        },
+        8,
+    );
     let (windows_s, d) = decide(win, &some);
-    assert_eq!(d, Decision::Windows(WindowSet::from_indices(3, &[1, 3, 4, 8])));
+    assert_eq!(
+        d,
+        Decision::Windows(WindowSet::from_indices(3, &[1, 3, 4, 8]))
+    );
     let (full_s, d) = decide(win, &all);
     assert_eq!(d, Decision::Full(FullReason::AllChanged));
     let (reuse_s, d) = decide(win, &a);
     assert_eq!(d, Decision::Reuse);
 
     println!("\nchange-map cost, 1008x1008 RGB, tau 8, CPU single thread, min of {REPS}");
-    println!("| step | ms | % of the {:.0} ms frame floor |\n|---|---|---|", FRAME_FLOOR_SECS * 1e3);
-    for (name, s) in [("change map only", map_s), ("decide: reuse (map)", reuse_s), ("decide: windows (map + copy 4 windows)", windows_s), ("decide: full (map + copy frame)", full_s)] {
-        println!("| {name} | {:.3} | {:.2} |", s * 1e3, 100.0 * s / FRAME_FLOOR_SECS);
+    println!(
+        "| step | ms | % of the {:.0} ms frame floor |\n|---|---|---|",
+        FRAME_FLOOR_SECS * 1e3
+    );
+    for (name, s) in [
+        ("change map only", map_s),
+        ("decide: reuse (map)", reuse_s),
+        ("decide: windows (map + copy 4 windows)", windows_s),
+        ("decide: full (map + copy frame)", full_s),
+    ] {
+        println!(
+            "| {name} | {:.3} | {:.2} |",
+            s * 1e3,
+            100.0 * s / FRAME_FLOOR_SECS
+        );
     }
     println!("budget: 5% of the floor = {:.2} ms (a real frame is 6-9 s on CPU, so the true share is ~1000x smaller)", BUDGET_SECS * 1e3);
 
     if !cfg!(debug_assertions) {
-        for (name, s) in [("map", map_s), ("reuse", reuse_s), ("windows", windows_s), ("full", full_s)] {
-            assert!(s < BUDGET_SECS, "{name}: {:.2} ms is over the 5% budget of {:.2} ms", s * 1e3, BUDGET_SECS * 1e3);
+        for (name, s) in [
+            ("map", map_s),
+            ("reuse", reuse_s),
+            ("windows", windows_s),
+            ("full", full_s),
+        ] {
+            assert!(
+                s < BUDGET_SECS,
+                "{name}: {:.2} ms is over the 5% budget of {:.2} ms",
+                s * 1e3,
+                BUDGET_SECS * 1e3
+            );
         }
     }
 }
@@ -164,7 +204,16 @@ fn two_runs_over_the_same_stream_give_identical_decisions_and_map_hashes() {
     for cfg in [
         GateConfig::exact(false),
         GateConfig::exact(true),
-        GateConfig { refresh_every: 6, full_above_percent: 50, ..GateConfig::new(GatePolicy::Windows { approximate_after_global: true }, 8) },
+        GateConfig {
+            refresh_every: 6,
+            full_above_percent: 50,
+            ..GateConfig::new(
+                GatePolicy::Windows {
+                    approximate_after_global: true,
+                },
+                8,
+            )
+        },
     ] {
         let (d1, h1) = run(cfg, &frames);
         let (d2, h2) = run(cfg, &frames);
@@ -177,14 +226,26 @@ fn exact_window_policy_walks_the_stream_as_designed() {
     let frames = stream();
     let (ds, _) = run(GateConfig::exact(true), &frames);
     assert_eq!(ds[0], Decision::Full(FullReason::First));
-    assert!(ds[1..4].iter().all(|d| *d == Decision::Reuse), "static frames are reused");
+    assert!(
+        ds[1..4].iter().all(|d| *d == Decision::Reuse),
+        "static frames are reused"
+    );
     for (t, d) in ds.iter().enumerate().take(12).skip(4) {
         let want = WindowSet::from_indices(3, &[t % 9, (t * 4) % 9]);
         assert_eq!(*d, Decision::Windows(want), "frame {t}");
     }
-    assert!(ds[12..16].iter().all(|d| *d == Decision::Full(FullReason::AllChanged)), "uniform shift moves every window");
+    assert!(
+        ds[12..16]
+            .iter()
+            .all(|d| *d == Decision::Full(FullReason::AllChanged)),
+        "uniform shift moves every window"
+    );
     assert!(ds[16..20].iter().all(|d| *d == Decision::Reuse));
-    assert_eq!(ds[20], Decision::Full(FullReason::AllChanged), "a cut changes everything");
+    assert_eq!(
+        ds[20],
+        Decision::Full(FullReason::AllChanged),
+        "a cut changes everything"
+    );
     assert!(ds[21..].iter().all(|d| *d == Decision::Reuse));
 }
 
@@ -192,7 +253,12 @@ fn exact_window_policy_walks_the_stream_as_designed() {
 fn frame_policy_reuses_only_when_nothing_changed() {
     let frames = stream();
     let (ds, _) = run(GateConfig::exact(false), &frames);
-    let reused: Vec<usize> = ds.iter().enumerate().filter(|(_, d)| **d == Decision::Reuse).map(|(t, _)| t).collect();
+    let reused: Vec<usize> = ds
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| **d == Decision::Reuse)
+        .map(|(t, _)| t)
+        .collect();
     assert_eq!(reused, vec![1, 2, 3, 16, 17, 18, 19, 21, 22, 23]);
     assert!(ds.iter().all(|d| !matches!(d, Decision::Windows(_))));
 }

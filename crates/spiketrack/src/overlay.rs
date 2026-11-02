@@ -5,7 +5,16 @@
 
 use st_video::Rgb8;
 
-const PALETTE: [[u8; 3]; 8] = [[230, 25, 75], [60, 180, 75], [255, 225, 25], [0, 130, 200], [245, 130, 48], [145, 30, 180], [70, 240, 240], [240, 50, 230]];
+const PALETTE: [[u8; 3]; 8] = [
+    [230, 25, 75],
+    [60, 180, 75],
+    [255, 225, 25],
+    [0, 130, 200],
+    [245, 130, 48],
+    [145, 30, 180],
+    [70, 240, 240],
+    [240, 50, 230],
+];
 /// Weight of the mask colour over the pixel underneath, in 1/256ths.
 const MASK_ALPHA: u32 = 100;
 /// Box outline thickness in pixels.
@@ -55,7 +64,8 @@ pub fn render(image: &Rgb8, detections: &[Drawn<'_>]) -> Rgb8 {
         for (px, &set) in out.chunks_exact_mut(3).zip(d.mask) {
             if set {
                 for k in 0..3 {
-                    px[k] = ((u32::from(px[k]) * (256 - MASK_ALPHA) + u32::from(c[k]) * MASK_ALPHA) / 256) as u8;
+                    px[k] = ((u32::from(px[k]) * (256 - MASK_ALPHA) + u32::from(c[k]) * MASK_ALPHA)
+                        / 256) as u8;
                 }
             }
         }
@@ -78,7 +88,11 @@ fn label(out: &mut [u8], w: usize, h: usize, b: [f64; 4], n: u64, c: [u8; 3]) {
     if b[2] < 0.0 || b[3] < 0.0 || b[0] > w as f64 - 1.0 || b[1] > h as f64 - 1.0 {
         return;
     }
-    let digits: Vec<usize> = n.to_string().bytes().map(|d| usize::from(d - b'0')).collect();
+    let digits: Vec<usize> = n
+        .to_string()
+        .bytes()
+        .map(|d| usize::from(d - b'0'))
+        .collect();
     let (cell_w, cell_h) = (3 * SCALE, 5 * SCALE);
     let (label_w, label_h) = (digits.len() * (cell_w + SCALE) + SCALE, cell_h + 2 * SCALE);
     let x0 = b[0].round().max(0.0) as usize;
@@ -143,20 +157,43 @@ mod tests {
         let img = grey(4, 2);
         let mut mask = vec![false; 8];
         mask[1] = true;
-        let out = render(&img, &[Drawn { mask: &mask, box_px: [-10.0, -10.0, -5.0, -5.0], colour: 0, label: Some(7) }]);
+        let out = render(
+            &img,
+            &[Drawn {
+                mask: &mask,
+                box_px: [-10.0, -10.0, -5.0, -5.0],
+                colour: 0,
+                label: Some(7),
+            }],
+        );
         let c = colour(0);
         for k in 0..3 {
-            assert_eq!(u32::from(out.data[3 + k]), (100 * 156 + u32::from(c[k]) * 100) / 256);
+            assert_eq!(
+                u32::from(out.data[3 + k]),
+                (100 * 156 + u32::from(c[k]) * 100) / 256
+            );
         }
         assert_eq!(&out.data[..3], &[100, 100, 100]);
-        assert_eq!(&out.data[6..], &img.data[6..], "a box entirely outside the image draws nothing");
+        assert_eq!(
+            &out.data[6..],
+            &img.data[6..],
+            "a box entirely outside the image draws nothing"
+        );
     }
 
     #[test]
     fn a_box_is_outlined_inside_the_image_and_clipped() {
         let img = grey(10, 10);
         let mask = vec![false; 100];
-        let out = render(&img, &[Drawn { mask: &mask, box_px: [2.0, 3.0, 20.0, 7.0], colour: 0, label: None }]);
+        let out = render(
+            &img,
+            &[Drawn {
+                mask: &mask,
+                box_px: [2.0, 3.0, 20.0, 7.0],
+                colour: 0,
+                label: None,
+            }],
+        );
         let c = colour(0);
         let at = |x: usize, y: usize| out.data[(y * 10 + x) * 3..][..3].to_vec();
         assert_eq!(at(2, 3), c);
@@ -172,7 +209,15 @@ mod tests {
         let img = grey(40, 40);
         let mask = vec![false; 1600];
         // Box top at y = 20: the 14-pixel-high label sits at y 6..20, x 5..; "10" is 2 digits.
-        let out = render(&img, &[Drawn { mask: &mask, box_px: [5.0, 20.0, 30.0, 35.0], colour: 1, label: Some(10) }]);
+        let out = render(
+            &img,
+            &[Drawn {
+                mask: &mask,
+                box_px: [5.0, 20.0, 30.0, 35.0],
+                colour: 1,
+                label: Some(10),
+            }],
+        );
         let c = colour(1).to_vec();
         let at = |x: usize, y: usize| out.data[(y * 40 + x) * 3..][..3].to_vec();
         // Backing: the margin corner is black; past the label width (2 * 8 + 2 = 18) it is untouched.
@@ -194,7 +239,15 @@ mod tests {
     fn a_label_with_no_room_above_goes_inside_the_box_and_is_clipped_at_the_edge() {
         let img = grey(20, 20);
         let mask = vec![false; 400];
-        let out = render(&img, &[Drawn { mask: &mask, box_px: [15.0, 2.0, 19.0, 19.0], colour: 0, label: Some(123) }]);
+        let out = render(
+            &img,
+            &[Drawn {
+                mask: &mask,
+                box_px: [15.0, 2.0, 19.0, 19.0],
+                colour: 0,
+                label: Some(123),
+            }],
+        );
         // Top at y = 2 < 14: drawn from y = 2; x from 15, three digits run past x = 19 and clip.
         assert_eq!(&out.data[(2 * 20 + 15) * 3..][..3], &[0, 0, 0]);
         assert_eq!(out.data.len(), 20 * 20 * 3);

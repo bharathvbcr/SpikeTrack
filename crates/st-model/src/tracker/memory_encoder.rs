@@ -56,15 +56,36 @@ impl MemoryEncoder {
     /// reduce the resized mask 16x, so it must be resized to `16 * grid`
     /// ([`Geometry::input_mask`]: upstream's `interpol_size=[1152, 1152]` at 1008) to land on the
     /// feature map it is added to; no weight depends on it.
-    pub fn load_at<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str, geo: Geometry) -> Result<Self, ModelError> {
-        let vec = |name: &str, n: usize| -> Result<Tensor, ModelError> { Ok(up(be, &get(g, &format!("{p}.{name}"), &[n])?.data, &[n])?) };
+    pub fn load_at<B: Backend + ?Sized>(
+        be: &B,
+        g: &TensorGroup,
+        p: &str,
+        geo: Geometry,
+    ) -> Result<Self, ModelError> {
+        let vec = |name: &str, n: usize| -> Result<Tensor, ModelError> {
+            Ok(up(be, &get(g, &format!("{p}.{name}"), &[n])?.data, &[n])?)
+        };
         let chans = [(32usize, 16usize), (16, 64), (64, 256), (256, 1024)];
         let down = chans
             .iter()
             .enumerate()
             .map(|(i, &(cin, cout))| -> Result<_, ModelError> {
-                let conv = Conv::load(be, g, &format!("{p}.mask_downsampler.encoder.{}", 3 * i), [cout, cin, 3, 3])?;
-                let ln = (vec(&format!("mask_downsampler.encoder.{}.weight", 3 * i + 1), cout)?, vec(&format!("mask_downsampler.encoder.{}.bias", 3 * i + 1), cout)?);
+                let conv = Conv::load(
+                    be,
+                    g,
+                    &format!("{p}.mask_downsampler.encoder.{}", 3 * i),
+                    [cout, cin, 3, 3],
+                )?;
+                let ln = (
+                    vec(
+                        &format!("mask_downsampler.encoder.{}.weight", 3 * i + 1),
+                        cout,
+                    )?,
+                    vec(
+                        &format!("mask_downsampler.encoder.{}.bias", 3 * i + 1),
+                        cout,
+                    )?,
+                );
                 Ok((conv, ln))
             })
             .collect::<Result<_, _>>()?;
@@ -74,7 +95,10 @@ impl MemoryEncoder {
                 let gamma = get(g, &format!("{f}.gamma"), &[D])?;
                 Ok(CxBlock {
                     dwconv: Conv::load(be, g, &format!("{f}.dwconv"), [D, 1, 7, 7])?,
-                    norm: (vec(&format!("fuser.layers.{i}.norm.weight"), D)?, vec(&format!("fuser.layers.{i}.norm.bias"), D)?),
+                    norm: (
+                        vec(&format!("fuser.layers.{i}.norm.weight"), D)?,
+                        vec(&format!("fuser.layers.{i}.norm.bias"), D)?,
+                    ),
                     pw1: Lin::load(be, g, &format!("{f}.pwconv1"), 4 * D, D)?,
                     pw2: Lin::load(be, g, &format!("{f}.pwconv2"), D, 4 * D)?,
                     gamma: up(be, &gamma.data, &[D])?,
@@ -83,18 +107,32 @@ impl MemoryEncoder {
             .collect::<Result<_, _>>()?;
         Ok(Self {
             down,
-            down_out: Conv::load(be, g, &format!("{p}.mask_downsampler.encoder.12"), [D, 1024, 1, 1])?,
+            down_out: Conv::load(
+                be,
+                g,
+                &format!("{p}.mask_downsampler.encoder.12"),
+                [D, 1024, 1, 1],
+            )?,
             pix_feat_proj: Conv::load(be, g, &format!("{p}.pix_feat_proj"), [D, D, 1, 1])?,
             fuser,
             interp: geo.input_mask(),
-            pos: up(be, &host::sine_position_map(geo.grid, geo.grid), &[1, D, geo.grid, geo.grid])?,
+            pos: up(
+                be,
+                &host::sine_position_map(geo.grid, geo.grid),
+                &[1, D, geo.grid, geo.grid],
+            )?,
         })
     }
 
     /// `pix_feat` `[B, 256, grid, grid]`, `masks` `[B, 32, H, W]` (already sigmoid-
     /// scaled and muxed, with the conditioning channels; upstream passes
     /// `skip_mask_sigmoid=True`).
-    pub fn fwd<B: Backend + ?Sized>(&self, be: &B, pix_feat: &Tensor, masks: &Tensor) -> Result<MemoryOut, OjasError> {
+    pub fn fwd<B: Backend + ?Sized>(
+        &self,
+        be: &B,
+        pix_feat: &Tensor,
+        masks: &Tensor,
+    ) -> Result<MemoryOut, OjasError> {
         let interp = self.interp;
         let mut x = if masks.shape()[2..] == [interp, interp] {
             masks.clone()
@@ -117,11 +155,16 @@ impl MemoryEncoder {
             let y = be.conv2d_forward(&x, &blk.dwconv.w, Some(&blk.dwconv.b), dw)?;
             let y = be.channel_layer_norm_forward(&y, &blk.norm.0, &blk.norm.1, LN2D_EPS)?;
             let y = be.permute(&y, &[0, 2, 3, 1])?; // NHWC
-            let y = blk.pw2.fwd(be, &be.gelu_erf_forward(&blk.pw1.fwd(be, &y)?)?)?;
+            let y = blk
+                .pw2
+                .fwd(be, &be.gelu_erf_forward(&blk.pw1.fwd(be, &y)?)?)?;
             let y = be.broadcast_mul_forward(&y, &blk.gamma)?;
             let y = be.permute(&y, &[0, 3, 1, 2])?;
             x = be.residual_add_forward(&x, &y)?;
         }
-        Ok(MemoryOut { features: x, pos: self.pos.clone() })
+        Ok(MemoryOut {
+            features: x,
+            pos: self.pos.clone(),
+        })
     }
 }

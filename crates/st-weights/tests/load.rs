@@ -10,29 +10,43 @@ use std::time::Instant;
 use ojas_io::{parse_json, JsonValue};
 use st_weights::{schema, Checkpoint, Expected, Source, WeightsError};
 
-const MANIFEST: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tools/reference/weights_manifest.json");
+const MANIFEST: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tools/reference/weights_manifest.json"
+);
 
 fn field<'a>(obj: &'a [(String, JsonValue)], key: &str) -> &'a JsonValue {
-    &obj.iter().find(|(k, _)| k == key).unwrap_or_else(|| panic!("manifest entry has no {key:?}")).1
+    &obj.iter()
+        .find(|(k, _)| k == key)
+        .unwrap_or_else(|| panic!("manifest entry has no {key:?}"))
+        .1
 }
 
 /// name -> (shape as stored, source dtype), from tools/reference/weights_manifest.json.
 fn manifest() -> BTreeMap<String, (Vec<usize>, String)> {
     let text = std::fs::read_to_string(MANIFEST).expect("tools/reference/weights_manifest.json");
     let top = parse_json(&text).expect("manifest JSON");
-    let entries = field(top.as_object().expect("object"), "entries").as_array().expect("entries array");
+    let entries = field(top.as_object().expect("object"), "entries")
+        .as_array()
+        .expect("entries array");
     let mut out = BTreeMap::new();
     for e in entries {
         let e = e.as_object().expect("entry object");
         let name = field(e, "name").as_str().expect("name").to_string();
-        let src = field(e, "source_dtype").as_str().expect("source_dtype").to_string();
+        let src = field(e, "source_dtype")
+            .as_str()
+            .expect("source_dtype")
+            .to_string();
         let shape = field(e, "shape")
             .as_array()
             .expect("shape array")
             .iter()
             .map(|d| usize::try_from(d.as_u64().expect("integer dim")).expect("dim fits usize"))
             .collect();
-        assert!(out.insert(name.clone(), (shape, src)).is_none(), "{name} listed twice");
+        assert!(
+            out.insert(name.clone(), (shape, src)).is_none(),
+            "{name} listed twice"
+        );
     }
     out
 }
@@ -46,17 +60,27 @@ fn schema_claims_every_manifest_tensor_exactly_once() {
     for e in schema() {
         match e {
             Expected::Tensor { name, shape } => {
-                let (found, src) = man.get(&name).unwrap_or_else(|| panic!("schema asks for {name}, not in the manifest"));
+                let (found, src) = man
+                    .get(&name)
+                    .unwrap_or_else(|| panic!("schema asks for {name}, not in the manifest"));
                 assert_eq!(found, &shape, "{name}");
                 assert_eq!(src, "float32", "{name}");
-                assert!(claimed.insert(name.clone(), "typed").is_none(), "{name} claimed twice");
+                assert!(
+                    claimed.insert(name.clone(), "typed").is_none(),
+                    "{name} claimed twice"
+                );
             }
             Expected::ComplexPairs { name, mut shape } => {
-                let (found, src) = man.get(&name).unwrap_or_else(|| panic!("schema asks for {name}, not in the manifest"));
+                let (found, src) = man
+                    .get(&name)
+                    .unwrap_or_else(|| panic!("schema asks for {name}, not in the manifest"));
                 shape.push(2);
                 assert_eq!(found, &shape, "{name}");
                 assert_eq!(src, "complex64", "{name}");
-                assert!(claimed.insert(name.clone(), "typed").is_none(), "{name} claimed twice");
+                assert!(
+                    claimed.insert(name.clone(), "typed").is_none(),
+                    "{name} claimed twice"
+                );
             }
             Expected::Group { prefix } => groups.push(prefix),
         }
@@ -66,18 +90,37 @@ fn schema_claims_every_manifest_tensor_exactly_once() {
         if claimed.contains_key(name) {
             continue;
         }
-        let owners: Vec<&String> = groups.iter().filter(|p| name.starts_with(p.as_str())).collect();
-        assert_eq!(owners.len(), 1, "{name} is claimed by {} groups and no typed field", owners.len());
-        assert_eq!(src, "float32", "{name}: only the typed RoPE tables may be complex");
+        let owners: Vec<&String> = groups
+            .iter()
+            .filter(|p| name.starts_with(p.as_str()))
+            .collect();
+        assert_eq!(
+            owners.len(),
+            1,
+            "{name} is claimed by {} groups and no typed field",
+            owners.len()
+        );
+        assert_eq!(
+            src, "float32",
+            "{name}: only the typed RoPE tables may be complex"
+        );
         claimed.insert(name.clone(), "group");
     }
     for g in &groups {
-        assert!(man.keys().any(|n| n.starts_with(g.as_str()) && claimed[n] == "group"), "group {g} claims nothing");
+        assert!(
+            man.keys()
+                .any(|n| n.starts_with(g.as_str()) && claimed[n] == "group"),
+            "group {g} claims nothing"
+        );
     }
     let typed = claimed.values().filter(|v| **v == "typed").count();
     assert_eq!(claimed.len(), man.len());
     // Vision trunk + 3 necks + text encoder are typed; the rest waits for its port.
-    assert_eq!(typed, 4 + 32 * 13 + 3 * 18 + 7 + 24 * 12, "typed tensor count");
+    assert_eq!(
+        typed,
+        4 + 32 * 13 + 3 * 18 + 7 + 24 * 12,
+        "typed tensor count"
+    );
 }
 
 fn weights_path() -> PathBuf {
@@ -136,12 +179,21 @@ fn loads_full_checkpoint_and_claims_everything() {
     // RoPE row 0 is position (0, 0): every pair is the identity rotation (1, 0).
     let f = &w.vision.trunk.blocks[0].freqs_cis.data;
     assert!(f[..64].chunks(2).all(|c| c[0] == 1.0 && c[1] == 0.0));
-    let n: usize = [&w.detector_transformer, &w.geometry_encoder, &w.segmentation_head, &w.dot_prod_scoring, &w.tracker]
-        .iter()
-        .map(|g| g.tensors.len())
-        .sum();
+    let n: usize = [
+        &w.detector_transformer,
+        &w.geometry_encoder,
+        &w.segmentation_head,
+        &w.dot_prod_scoring,
+        &w.tracker,
+    ]
+    .iter()
+    .map(|g| g.tensors.len())
+    .sum();
     assert_eq!(n + 4 + 32 * 13 + 3 * 18 + 7 + 24 * 12, 1623);
-    println!("full load: {secs:.2} s, peak RSS {:.2} GiB", rss as f64 / (1u64 << 30) as f64);
+    println!(
+        "full load: {secs:.2} s, peak RSS {:.2} GiB",
+        rss as f64 / (1u64 << 30) as f64
+    );
 }
 
 #[test]
@@ -154,10 +206,19 @@ fn refuses_wrong_shape_and_double_claim_and_leftovers() {
         other => panic!("wrong shape accepted: {other:?}"),
     }
     ck.tensor(name, &[1024]).expect("right shape");
-    assert!(matches!(ck.tensor(name, &[1024]), Err(WeightsError::ClaimedTwice { .. })));
-    assert!(matches!(ck.tensor("no.such.tensor", &[1]), Err(WeightsError::Missing { .. })));
+    assert!(matches!(
+        ck.tensor(name, &[1024]),
+        Err(WeightsError::ClaimedTwice { .. })
+    ));
+    assert!(matches!(
+        ck.tensor("no.such.tensor", &[1]),
+        Err(WeightsError::Missing { .. })
+    ));
     let rope = "detector.backbone.vision_backbone.trunk.blocks.0.attn.freqs_cis";
-    assert!(matches!(ck.tensor(rope, &[576, 32, 2]), Err(WeightsError::ComplexPair { .. })));
+    assert!(matches!(
+        ck.tensor(rope, &[576, 32, 2]),
+        Err(WeightsError::ComplexPair { .. })
+    ));
     match ck.finish() {
         Err(WeightsError::Unclaimed { names }) => assert_eq!(names.len(), 1622),
         other => panic!("leftovers accepted: {other:?}"),

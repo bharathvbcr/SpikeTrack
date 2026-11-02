@@ -140,9 +140,17 @@ impl fmt::Display for DecodeError {
         match self {
             Self::Io { path, err } => write!(f, "{}: {err}", path.display()),
             Self::Empty { path } => write!(f, "{}: the file is empty", path.display()),
-            Self::Unrecognized { path, detail } => write!(f, "{}: not a recognised image or video: {detail}", path.display()),
-            Self::Damaged { path, detail } => write!(f, "{}: damaged or truncated: {detail}", path.display()),
-            Self::Unsupported { path, detail } => write!(f, "{}: unsupported: {detail}", path.display()),
+            Self::Unrecognized { path, detail } => write!(
+                f,
+                "{}: not a recognised image or video: {detail}",
+                path.display()
+            ),
+            Self::Damaged { path, detail } => {
+                write!(f, "{}: damaged or truncated: {detail}", path.display())
+            }
+            Self::Unsupported { path, detail } => {
+                write!(f, "{}: unsupported: {detail}", path.display())
+            }
             Self::TooLarge { path, detail } => write!(f, "{}: too large: {detail}", path.display()),
             Self::Framework { api, detail } => write!(f, "{api}: {detail}"),
         }
@@ -152,7 +160,10 @@ impl fmt::Display for DecodeError {
 impl std::error::Error for DecodeError {}
 
 fn io_err(path: &Path, err: std::io::Error) -> DecodeError {
-    DecodeError::Io { path: path.to_path_buf(), err }
+    DecodeError::Io {
+        path: path.to_path_buf(),
+        err,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -241,7 +252,12 @@ extern "C" {
 extern "C" {
     fn CFRelease(cf: CfTypeRef);
     fn CFDataCreate(allocator: CfTypeRef, bytes: *const u8, length: CfIndex) -> CfTypeRef;
-    fn CFURLCreateFromFileSystemRepresentation(allocator: CfTypeRef, buffer: *const u8, buf_len: CfIndex, is_directory: u8) -> CfTypeRef;
+    fn CFURLCreateFromFileSystemRepresentation(
+        allocator: CfTypeRef,
+        buffer: *const u8,
+        buf_len: CfIndex,
+        is_directory: u8,
+    ) -> CfTypeRef;
     fn CFDictionaryGetValue(dict: CfTypeRef, key: *const c_void) -> *const c_void;
     fn CFGetTypeID(cf: CfTypeRef) -> usize;
     fn CFNumberGetTypeID() -> usize;
@@ -259,8 +275,16 @@ extern "C" {
     fn CGImageSourceCreateWithData(data: CfTypeRef, options: CfTypeRef) -> CfTypeRef;
     fn CGImageSourceGetCount(isrc: CfTypeRef) -> usize;
     fn CGImageSourceGetStatusAtIndex(isrc: CfTypeRef, index: usize) -> i32;
-    fn CGImageSourceCopyPropertiesAtIndex(isrc: CfTypeRef, index: usize, options: CfTypeRef) -> CfTypeRef;
-    fn CGImageSourceCreateImageAtIndex(isrc: CfTypeRef, index: usize, options: CfTypeRef) -> CfTypeRef;
+    fn CGImageSourceCopyPropertiesAtIndex(
+        isrc: CfTypeRef,
+        index: usize,
+        options: CfTypeRef,
+    ) -> CfTypeRef;
+    fn CGImageSourceCreateImageAtIndex(
+        isrc: CfTypeRef,
+        index: usize,
+        options: CfTypeRef,
+    ) -> CfTypeRef;
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
@@ -391,7 +415,10 @@ impl Pool {
         unsafe {
             let class = objc_getClass(c"NSAutoreleasePool".as_ptr());
             if class.is_null() {
-                return Err(framework("objc_getClass", "NSAutoreleasePool is not loaded"));
+                return Err(framework(
+                    "objc_getClass",
+                    "NSAutoreleasePool is not loaded",
+                ));
             }
             let raw: Id = msg!(class, "alloc"; -> Id);
             let pool: Id = msg!(raw, "init"; -> Id);
@@ -421,7 +448,10 @@ impl PixelLock {
     unsafe fn new(pb: CfTypeRef) -> Result<PixelLock, DecodeError> {
         let r = CVPixelBufferLockBaseAddress(pb, PIXEL_BUFFER_LOCK_READ_ONLY);
         if r != CV_RETURN_SUCCESS {
-            return Err(framework("CVPixelBufferLockBaseAddress", format!("CVReturn {r}")));
+            return Err(framework(
+                "CVPixelBufferLockBaseAddress",
+                format!("CVReturn {r}"),
+            ));
         }
         Ok(PixelLock(pb))
     }
@@ -437,14 +467,20 @@ impl Drop for PixelLock {
 }
 
 pub(crate) fn framework(api: &'static str, detail: impl Into<String>) -> DecodeError {
-    DecodeError::Framework { api, detail: detail.into() }
+    DecodeError::Framework {
+        api,
+        detail: detail.into(),
+    }
 }
 
 pub(crate) fn class(name: &'static CStr) -> Result<Id, DecodeError> {
     // SAFETY: `name` is NUL-terminated.
     let c = unsafe { objc_getClass(name.as_ptr()) };
     if c.is_null() {
-        Err(framework("objc_getClass", format!("{} is not loaded", name.to_string_lossy())))
+        Err(framework(
+            "objc_getClass",
+            format!("{} is not loaded", name.to_string_lossy()),
+        ))
     } else {
         Ok(c)
     }
@@ -473,20 +509,38 @@ pub(crate) unsafe fn ns_error_text(err: Id) -> String {
 pub(crate) fn file_url(path: &Path) -> Result<CfRef, DecodeError> {
     use std::os::unix::ffi::OsStrExt;
     let bytes = path.as_os_str().as_bytes();
-    let len = CfIndex::try_from(bytes.len()).map_err(|_| framework("CFURLCreateFromFileSystemRepresentation", "path too long"))?;
+    let len = CfIndex::try_from(bytes.len())
+        .map_err(|_| framework("CFURLCreateFromFileSystemRepresentation", "path too long"))?;
     // SAFETY: pointer and length describe `bytes`; the result is +1 or NULL.
-    unsafe { CfRef::take(CFURLCreateFromFileSystemRepresentation(std::ptr::null(), bytes.as_ptr(), len, 0)) }
-        .ok_or_else(|| framework("CFURLCreateFromFileSystemRepresentation", format!("no URL for {}", path.display())))
+    unsafe {
+        CfRef::take(CFURLCreateFromFileSystemRepresentation(
+            std::ptr::null(),
+            bytes.as_ptr(),
+            len,
+            0,
+        ))
+    }
+    .ok_or_else(|| {
+        framework(
+            "CFURLCreateFromFileSystemRepresentation",
+            format!("no URL for {}", path.display()),
+        )
+    })
 }
 
 /// Size and kind checks shared by images and videos; returns the file size.
 fn stat_file(path: &Path) -> Result<u64, DecodeError> {
     let meta = std::fs::metadata(path).map_err(|e| io_err(path, e))?;
     if !meta.is_file() {
-        return Err(DecodeError::Unrecognized { path: path.to_path_buf(), detail: "not a regular file".into() });
+        return Err(DecodeError::Unrecognized {
+            path: path.to_path_buf(),
+            detail: "not a regular file".into(),
+        });
     }
     if meta.len() == 0 {
-        return Err(DecodeError::Empty { path: path.to_path_buf() });
+        return Err(DecodeError::Empty {
+            path: path.to_path_buf(),
+        });
     }
     Ok(meta.len())
 }
@@ -520,9 +574,16 @@ pub fn check_png(b: &[u8]) -> Result<(), String> {
         }
         let len = u32::from_be_bytes([b[at], b[at + 1], b[at + 2], b[at + 3]]) as usize;
         let tag = &b[at + 4..at + 8];
-        let end = at.checked_add(12).and_then(|v| v.checked_add(len)).ok_or("PNG chunk length overflows")?;
+        let end = at
+            .checked_add(12)
+            .and_then(|v| v.checked_add(len))
+            .ok_or("PNG chunk length overflows")?;
         if end > b.len() {
-            return Err(format!("PNG chunk {:?} at byte {at} declares {len} bytes but the file ends {} bytes short", String::from_utf8_lossy(tag), end - b.len()));
+            return Err(format!(
+                "PNG chunk {:?} at byte {at} declares {len} bytes but the file ends {} bytes short",
+                String::from_utf8_lossy(tag),
+                end - b.len()
+            ));
         }
         saw_idat |= tag == b"IDAT";
         if tag == b"IEND" {
@@ -557,9 +618,18 @@ pub fn check_jpeg(b: &[u8]) -> Result<(), String> {
         match marker {
             0xff => i += 1, // fill byte
             0x01 | 0xd0..=0xd8 => i += 2,
-            0xd9 => return if saw_scan { Ok(()) } else { Err("JPEG ends before any scan".to_string()) },
+            0xd9 => {
+                return if saw_scan {
+                    Ok(())
+                } else {
+                    Err("JPEG ends before any scan".to_string())
+                }
+            }
             _ => {
-                let Some(len) = b.get(i + 2..i + 4).map(|l| usize::from(u16::from_be_bytes([l[0], l[1]]))) else {
+                let Some(len) = b
+                    .get(i + 2..i + 4)
+                    .map(|l| usize::from(u16::from_be_bytes([l[0], l[1]])))
+                else {
                     return Err(format!("JPEG cut inside the segment header at byte {i}"));
                 };
                 if len < 2 || i + 2 + len > b.len() {
@@ -569,7 +639,12 @@ pub fn check_jpeg(b: &[u8]) -> Result<(), String> {
                 if marker == 0xda {
                     saw_scan = true;
                     // Entropy-coded data up to the next real marker.
-                    while i + 1 < b.len() && !(b[i] == 0xff && b[i + 1] != 0x00 && b[i + 1] != 0xff && !(0xd0..=0xd7).contains(&b[i + 1])) {
+                    while i + 1 < b.len()
+                        && !(b[i] == 0xff
+                            && b[i + 1] != 0x00
+                            && b[i + 1] != 0xff
+                            && !(0xd0..=0xd7).contains(&b[i + 1]))
+                    {
                         i += 1;
                     }
                 }
@@ -629,9 +704,17 @@ pub fn decode_image_with_source(path: impl AsRef<Path>) -> Result<(Rgb8, Decoder
             Ok(img) => return Ok((img, Decoder::PillowExactJpeg)),
             Err(crate::jpeg::JpegError::Unsupported(_)) => {}
             Err(crate::jpeg::JpegError::TooLarge { width, height }) => {
-                return Err(DecodeError::TooLarge { path: path.to_path_buf(), detail: format!("{width}x{height} exceeds {MAX_FRAME_PIXELS} pixels") });
+                return Err(DecodeError::TooLarge {
+                    path: path.to_path_buf(),
+                    detail: format!("{width}x{height} exceeds {MAX_FRAME_PIXELS} pixels"),
+                });
             }
-            Err(e) => return Err(DecodeError::Damaged { path: path.to_path_buf(), detail: e.to_string() }),
+            Err(e) => {
+                return Err(DecodeError::Damaged {
+                    path: path.to_path_buf(),
+                    detail: e.to_string(),
+                })
+            }
         }
     }
     decode_image_bytes(path, &bytes).map(|img| (img, Decoder::ImageIo))
@@ -649,25 +732,37 @@ pub fn decode_image_imageio(path: impl AsRef<Path>) -> Result<Rgb8, DecodeError>
 fn read_image_file(path: &Path) -> Result<Vec<u8>, DecodeError> {
     let size = stat_file(path)?;
     if size > MAX_IMAGE_FILE_BYTES {
-        return Err(DecodeError::TooLarge { path: path.to_path_buf(), detail: format!("{size} bytes exceeds {MAX_IMAGE_FILE_BYTES}") });
+        return Err(DecodeError::TooLarge {
+            path: path.to_path_buf(),
+            detail: format!("{size} bytes exceeds {MAX_IMAGE_FILE_BYTES}"),
+        });
     }
     std::fs::read(path).map_err(|e| io_err(path, e))
 }
 
 fn decode_image_bytes(path: &Path, bytes: &[u8]) -> Result<Rgb8, DecodeError> {
-    let damaged = |detail: String| DecodeError::Damaged { path: path.to_path_buf(), detail };
-    let unrecognized = |detail: &str| DecodeError::Unrecognized { path: path.to_path_buf(), detail: detail.to_string() };
+    let damaged = |detail: String| DecodeError::Damaged {
+        path: path.to_path_buf(),
+        detail,
+    };
+    let unrecognized = |detail: &str| DecodeError::Unrecognized {
+        path: path.to_path_buf(),
+        detail: detail.to_string(),
+    };
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         check_png(bytes).map_err(damaged)?;
     } else if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
         check_jpeg(bytes).map_err(damaged)?;
     }
-    let len = CfIndex::try_from(bytes.len()).map_err(|_| framework("CFDataCreate", "file too large"))?;
+    let len =
+        CfIndex::try_from(bytes.len()).map_err(|_| framework("CFDataCreate", "file too large"))?;
     // SAFETY: pointer and length describe `bytes`; CFDataCreate copies; +1 or NULL.
-    let data = unsafe { CfRef::take(CFDataCreate(std::ptr::null(), bytes.as_ptr(), len)) }.ok_or_else(|| framework("CFDataCreate", "no memory"))?;
+    let data = unsafe { CfRef::take(CFDataCreate(std::ptr::null(), bytes.as_ptr(), len)) }
+        .ok_or_else(|| framework("CFDataCreate", "no memory"))?;
     // SAFETY: `data` is a live CFData; NULL options are allowed; +1 or NULL.
-    let source = unsafe { CfRef::take(CGImageSourceCreateWithData(data.as_ptr(), std::ptr::null())) }
-        .ok_or_else(|| unrecognized("ImageIO makes no image source from these bytes"))?;
+    let source =
+        unsafe { CfRef::take(CGImageSourceCreateWithData(data.as_ptr(), std::ptr::null())) }
+            .ok_or_else(|| unrecognized("ImageIO makes no image source from these bytes"))?;
     // SAFETY: `source` is a live CGImageSource.
     if unsafe { CGImageSourceGetCount(source.as_ptr()) } == 0 {
         return Err(unrecognized("the source holds no images"));
@@ -675,28 +770,64 @@ fn decode_image_bytes(path: &Path, bytes: &[u8]) -> Result<Rgb8, DecodeError> {
     // The header's size is read before any pixels are decoded, so the bound is
     // enforced before ImageIO allocates.
     // SAFETY: `source` is live; the copy is +1 or NULL.
-    let props = unsafe { CfRef::take(CGImageSourceCopyPropertiesAtIndex(source.as_ptr(), 0, std::ptr::null())) }
-        .ok_or_else(|| damaged(status_text(&source, "no properties for the first image")))?;
+    let props = unsafe {
+        CfRef::take(CGImageSourceCopyPropertiesAtIndex(
+            source.as_ptr(),
+            0,
+            std::ptr::null(),
+        ))
+    }
+    .ok_or_else(|| damaged(status_text(&source, "no properties for the first image")))?;
     // SAFETY: `props` is a live CFDictionary; the keys are SDK constants.
-    let (pw, ph) = unsafe { (dict_i64(props.as_ptr(), kCGImagePropertyPixelWidth), dict_i64(props.as_ptr(), kCGImagePropertyPixelHeight)) };
-    let (Some(pw), Some(ph)) = (pw, ph) else {
-        return Err(damaged(status_text(&source, "the header has no pixel size")));
+    let (pw, ph) = unsafe {
+        (
+            dict_i64(props.as_ptr(), kCGImagePropertyPixelWidth),
+            dict_i64(props.as_ptr(), kCGImagePropertyPixelHeight),
+        )
     };
-    let (pw, ph) = (usize::try_from(pw).unwrap_or(0), usize::try_from(ph).unwrap_or(0));
+    let (Some(pw), Some(ph)) = (pw, ph) else {
+        return Err(damaged(status_text(
+            &source,
+            "the header has no pixel size",
+        )));
+    };
+    let (pw, ph) = (
+        usize::try_from(pw).unwrap_or(0),
+        usize::try_from(ph).unwrap_or(0),
+    );
     if pw == 0 || ph == 0 {
         return Err(damaged(status_text(&source, "the image has no pixels")));
     }
     match pw.checked_mul(ph) {
         Some(p) if p <= MAX_FRAME_PIXELS => {}
-        _ => return Err(DecodeError::TooLarge { path: path.to_path_buf(), detail: format!("{pw}x{ph} exceeds {MAX_FRAME_PIXELS} pixels") }),
+        _ => {
+            return Err(DecodeError::TooLarge {
+                path: path.to_path_buf(),
+                detail: format!("{pw}x{ph} exceeds {MAX_FRAME_PIXELS} pixels"),
+            })
+        }
     }
     // SAFETY: `source` is live; the image is +1 or NULL.
-    let image = unsafe { CfRef::take(CGImageSourceCreateImageAtIndex(source.as_ptr(), 0, std::ptr::null())) }
-        .ok_or_else(|| damaged(status_text(&source, "ImageIO returned no image")))?;
+    let image = unsafe {
+        CfRef::take(CGImageSourceCreateImageAtIndex(
+            source.as_ptr(),
+            0,
+            std::ptr::null(),
+        ))
+    }
+    .ok_or_else(|| damaged(status_text(&source, "ImageIO returned no image")))?;
     // SAFETY: `image` is a live CGImage.
-    let (w, h) = unsafe { (CGImageGetWidth(image.as_ptr()), CGImageGetHeight(image.as_ptr())) };
+    let (w, h) = unsafe {
+        (
+            CGImageGetWidth(image.as_ptr()),
+            CGImageGetHeight(image.as_ptr()),
+        )
+    };
     if (w, h) != (pw, ph) {
-        return Err(damaged(status_text(&source, &format!("the header says {pw}x{ph} but the image is {w}x{h}"))));
+        return Err(damaged(status_text(
+            &source,
+            &format!("the header says {pw}x{ph} but the image is {w}x{h}"),
+        )));
     }
     let rgbx = draw_srgb_rgbx(&image, w, h)?;
     // A truncated or damaged file decodes as far as it goes; ImageIO says so only
@@ -704,7 +835,10 @@ fn decode_image_bytes(path: &Path, bytes: &[u8]) -> Result<Rgb8, DecodeError> {
     // SAFETY: `source` is live.
     let status = unsafe { CGImageSourceGetStatusAtIndex(source.as_ptr(), 0) };
     if status != STATUS_COMPLETE {
-        return Err(damaged(format!("ImageIO status {status} ({})", status_name(status))));
+        return Err(damaged(format!(
+            "ImageIO status {status} ({})",
+            status_name(status)
+        )));
     }
     let mut rgb = Vec::with_capacity(w * h * 3);
     for px in rgbx.chunks_exact(4) {
@@ -741,14 +875,30 @@ unsafe fn dict_i64(dict: CfTypeRef, key: CfTypeRef) -> Option<i64> {
 fn draw_srgb_rgbx(image: &CfRef, w: usize, h: usize) -> Result<Vec<u8>, DecodeError> {
     let mut buf = vec![0u8; w * h * 4];
     // SAFETY: the name is an SDK constant; +1 or NULL.
-    let space = unsafe { CfRef::take(CGColorSpaceCreateWithName(kCGColorSpaceSRGB)) }.ok_or_else(|| framework("CGColorSpaceCreateWithName", "no sRGB colour space"))?;
+    let space = unsafe { CfRef::take(CGColorSpaceCreateWithName(kCGColorSpaceSRGB)) }
+        .ok_or_else(|| framework("CGColorSpaceCreateWithName", "no sRGB colour space"))?;
     {
         // SAFETY: `buf` holds `h` rows of `w * 4` bytes and outlives `ctx`, which is
         // dropped (released) before `buf` is read; 8 bits per component, 4 bytes
         // per pixel and kCGImageAlphaNoneSkipLast is a supported RGB format; +1 or NULL.
-        let ctx = unsafe { CfRef::take(CGBitmapContextCreate(buf.as_mut_ptr().cast(), w, h, 8, w * 4, space.as_ptr(), ALPHA_NONE_SKIP_LAST)) }
-            .ok_or_else(|| framework("CGBitmapContextCreate", format!("no {w}x{h} RGBX context")))?;
-        let rect = CgRect { x: 0.0, y: 0.0, width: w as f64, height: h as f64 };
+        let ctx = unsafe {
+            CfRef::take(CGBitmapContextCreate(
+                buf.as_mut_ptr().cast(),
+                w,
+                h,
+                8,
+                w * 4,
+                space.as_ptr(),
+                ALPHA_NONE_SKIP_LAST,
+            ))
+        }
+        .ok_or_else(|| framework("CGBitmapContextCreate", format!("no {w}x{h} RGBX context")))?;
+        let rect = CgRect {
+            x: 0.0,
+            y: 0.0,
+            width: w as f64,
+            height: h as f64,
+        };
         // SAFETY: `ctx` and `image` are live; the rect is the whole bitmap.
         unsafe { CGContextDrawImage(ctx.as_ptr(), rect, image.as_ptr()) };
     }
@@ -798,7 +948,9 @@ pub struct VideoReader {
 /// The integer `[a, b, c, d]` of a pure right-angle rotation or flip, or `None`.
 fn right_angle_transform(t: [f64; 4]) -> Option<[i32; 4]> {
     let snap = |v: f64| -> Option<i32> {
-        [-1, 0, 1].into_iter().find(|&n| (v - f64::from(n)).abs() < 1e-3)
+        [-1, 0, 1]
+            .into_iter()
+            .find(|&n| (v - f64::from(n)).abs() < 1e-3)
     };
     let [a, b, c, d] = [snap(t[0])?, snap(t[1])?, snap(t[2])?, snap(t[3])?];
     let axis_aligned = a != 0 && d != 0 && b == 0 && c == 0;
@@ -815,7 +967,11 @@ fn apply_transform(src: Rgb8, m: [i32; 4]) -> Rgb8 {
     let [a, b, c, d] = m;
     let (w, h) = (src.width as i64, src.height as i64);
     let swapped = a == 0;
-    let (ow, oh) = if swapped { (src.height, src.width) } else { (src.width, src.height) };
+    let (ow, oh) = if swapped {
+        (src.height, src.width)
+    } else {
+        (src.width, src.height)
+    };
     let ox = if a < 0 { w - 1 } else { 0 } + if c < 0 { h - 1 } else { 0 };
     let oy = if b < 0 { w - 1 } else { 0 } + if d < 0 { h - 1 } else { 0 };
     let mut out = vec![0u8; ow * oh * 3];
@@ -839,7 +995,10 @@ impl VideoReader {
         let path = std::fs::canonicalize(path).map_err(|e| io_err(path, e))?;
         let _pool = Pool::new()?;
         let url = file_url(&path)?;
-        let err = |detail: String| DecodeError::Unrecognized { path: path.clone(), detail };
+        let err = |detail: String| DecodeError::Unrecognized {
+            path: path.clone(),
+            detail,
+        };
         // SAFETY: `url` is a CFURL, toll-free bridged to NSURL; the class method
         // takes (NSURL *, NSDictionary * _Nullable) and returns an autoreleased
         // AVURLAsset, retained here.
@@ -856,7 +1015,8 @@ impl VideoReader {
         // SAFETY: `asset` is a live AVAsset; `AVMediaTypeVideo` is an SDK constant;
         // the NSArray is autoreleased, and `track` is retained before the pool drains.
         let track = unsafe {
-            let tracks: Id = msg!(asset.id(), "tracksWithMediaType:", AVMediaTypeVideo => Id; -> Id);
+            let tracks: Id =
+                msg!(asset.id(), "tracksWithMediaType:", AVMediaTypeVideo => Id; -> Id);
             if tracks.is_null() {
                 return Err(err("AVFoundation returned no track list".into()));
             }
@@ -865,7 +1025,8 @@ impl VideoReader {
                 return Err(err("AVFoundation found no video track (not a video file, or its container is damaged)".into()));
             }
             let first: Id = msg!(tracks, "objectAtIndex:", 0usize => usize; -> Id);
-            Obj::retain(first).ok_or_else(|| framework("NSArray", "objectAtIndex:0 returned nil"))?
+            Obj::retain(first)
+                .ok_or_else(|| framework("NSArray", "objectAtIndex:0 returned nil"))?
         };
         // SAFETY: `track` is a live AVAssetTrack; these are plain property reads
         // (deprecated for Swift only, per the header) returning float, CGSize and
@@ -877,16 +1038,28 @@ impl VideoReader {
                 msg!(track.id(), "preferredTransform"; -> CgAffineTransform),
             )
         };
-        let unsupported = |detail: String| DecodeError::Unsupported { path: path.clone(), detail };
+        let unsupported = |detail: String| DecodeError::Unsupported {
+            path: path.clone(),
+            detail,
+        };
         let m = right_angle_transform([transform.a, transform.b, transform.c, transform.d]).ok_or_else(|| {
             unsupported(format!("the track's preferredTransform [{} {} {} {}] is not a right-angle rotation or a flip", transform.a, transform.b, transform.c, transform.d))
         })?;
         let (sw, sh) = (natural.width.round(), natural.height.round());
-        if !(sw >= 1.0 && sh >= 1.0 && sw.is_finite() && sh.is_finite()) || (sw * sh) > MAX_FRAME_PIXELS as f64 {
-            return Err(unsupported(format!("track size {}x{} is outside 1..={MAX_FRAME_PIXELS} pixels", natural.width, natural.height)));
+        if !(sw >= 1.0 && sh >= 1.0 && sw.is_finite() && sh.is_finite())
+            || (sw * sh) > MAX_FRAME_PIXELS as f64
+        {
+            return Err(unsupported(format!(
+                "track size {}x{} is outside 1..={MAX_FRAME_PIXELS} pixels",
+                natural.width, natural.height
+            )));
         }
         let (stored_width, stored_height) = (sw as usize, sh as usize);
-        let (width, height) = if m[0] == 0 { (stored_height, stored_width) } else { (stored_width, stored_height) };
+        let (width, height) = if m[0] == 0 {
+            (stored_height, stored_width)
+        } else {
+            (stored_width, stored_height)
+        };
 
         let (frame_count, duration) = count_samples(&path, &asset, &track)?;
         let fps = frame_count as f64 / duration;
@@ -899,7 +1072,10 @@ impl VideoReader {
             msg!(class(c"NSDictionary")?, "dictionaryWithObject:forKey:", number => Id, kCVPixelBufferPixelFormatTypeKey as Id => Id; -> Id)
         };
         if settings.is_null() {
-            return Err(framework("NSDictionary", "dictionaryWithObject:forKey: returned nil"));
+            return Err(framework(
+                "NSDictionary",
+                "dictionaryWithObject:forKey: returned nil",
+            ));
         }
         let (reader, output) = new_reader(&path, &asset, &track, settings)?;
         start_reading(&path, &reader)?;
@@ -909,7 +1085,17 @@ impl VideoReader {
             reader,
             _track: track,
             _asset: asset,
-            info: VideoInfo { width, height, stored_width, stored_height, frame_count, fps, nominal_fps: f64::from(nominal), duration, transform: m },
+            info: VideoInfo {
+                width,
+                height,
+                stored_width,
+                stored_height,
+                frame_count,
+                fps,
+                nominal_fps: f64::from(nominal),
+                duration,
+                transform: m,
+            },
             next_index: 0,
             done: false,
         })
@@ -939,7 +1125,9 @@ impl VideoReader {
         loop {
             // SAFETY: `output` is a live AVAssetReaderTrackOutput on a started reader;
             // copyNextSampleBuffer is CF_RETURNS_RETAINED, so a non-NULL result is ours.
-            let sample = unsafe { CfRef::take(msg!(self.output.id(), "copyNextSampleBuffer"; -> CfTypeRef)) };
+            let sample = unsafe {
+                CfRef::take(msg!(self.output.id(), "copyNextSampleBuffer"; -> CfTypeRef))
+            };
             let Some(sample) = sample else {
                 return self.finish();
             };
@@ -947,23 +1135,40 @@ impl VideoReader {
             if unsafe { CMSampleBufferGetNumSamples(sample.as_ptr()) } == 0 {
                 continue; // a marker-only buffer
             }
-            let damaged = |detail: String| DecodeError::Damaged { path: self.path.clone(), detail };
+            let damaged = |detail: String| DecodeError::Damaged {
+                path: self.path.clone(),
+                detail,
+            };
             if self.next_index >= self.info.frame_count {
-                return Err(damaged(format!("more frames than the {} the sample table lists", self.info.frame_count)));
+                return Err(damaged(format!(
+                    "more frames than the {} the sample table lists",
+                    self.info.frame_count
+                )));
             }
             // SAFETY: as above; the time is returned by value.
             let pts = unsafe { CMSampleBufferGetPresentationTimeStamp(sample.as_ptr()) };
             if pts.flags & CMTIME_VALID == 0 {
-                return Err(damaged(format!("frame {} has no valid presentation time", self.next_index)));
+                return Err(damaged(format!(
+                    "frame {} has no valid presentation time",
+                    self.next_index
+                )));
             }
             // SAFETY: as above.
             let seconds = unsafe { CMTimeGetSeconds(pts) };
             // SAFETY: `sample` is live; the image buffer is borrowed from it (a Get).
             let pb = unsafe { CMSampleBufferGetImageBuffer(sample.as_ptr()) };
             if pb.is_null() {
-                return Err(damaged(format!("frame {} has no image buffer", self.next_index)));
+                return Err(damaged(format!(
+                    "frame {} has no image buffer",
+                    self.next_index
+                )));
             }
-            let rgb = bgra_to_rgb(&self.path, pb, self.info.stored_width, self.info.stored_height)?;
+            let rgb = bgra_to_rgb(
+                &self.path,
+                pb,
+                self.info.stored_width,
+                self.info.stored_height,
+            )?;
             let rgb = apply_transform(rgb, self.info.transform);
             let index = self.next_index;
             self.next_index += 1;
@@ -980,12 +1185,24 @@ impl VideoReader {
             let err: Id = msg!(self.reader.id(), "error"; -> Id);
             (status, ns_error_text(err))
         };
-        let damaged = |detail: String| DecodeError::Damaged { path: self.path.clone(), detail };
+        let damaged = |detail: String| DecodeError::Damaged {
+            path: self.path.clone(),
+            detail,
+        };
         match status {
             READER_STATUS_COMPLETED if self.next_index == self.info.frame_count => Ok(None),
-            READER_STATUS_COMPLETED => Err(damaged(format!("decoded {} frames but the sample table lists {}", self.next_index, self.info.frame_count))),
-            READER_STATUS_FAILED => Err(damaged(format!("AVAssetReader failed after {} frames: {text}", self.next_index))),
-            s => Err(damaged(format!("AVAssetReader stopped with status {s} after {} frames", self.next_index))),
+            READER_STATUS_COMPLETED => Err(damaged(format!(
+                "decoded {} frames but the sample table lists {}",
+                self.next_index, self.info.frame_count
+            ))),
+            READER_STATUS_FAILED => Err(damaged(format!(
+                "AVAssetReader failed after {} frames: {text}",
+                self.next_index
+            ))),
+            s => Err(damaged(format!(
+                "AVAssetReader stopped with status {s} after {} frames",
+                self.next_index
+            ))),
         }
     }
 }
@@ -1016,14 +1233,26 @@ impl Drop for VideoReader {
 
 impl fmt::Debug for VideoReader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("VideoReader").field("path", &self.path).field("info", &self.info).field("next_index", &self.next_index).finish()
+        f.debug_struct("VideoReader")
+            .field("path", &self.path)
+            .field("info", &self.info)
+            .field("next_index", &self.next_index)
+            .finish()
     }
 }
 
 /// An `AVAssetReader` over `track` with one `AVAssetReaderTrackOutput`
 /// (`settings` NULL: compressed samples), not yet started.
-fn new_reader(path: &Path, asset: &Obj, track: &Obj, settings: Id) -> Result<(Obj, Obj), DecodeError> {
-    let failed = |detail: String| DecodeError::Damaged { path: path.to_path_buf(), detail };
+fn new_reader(
+    path: &Path,
+    asset: &Obj,
+    track: &Obj,
+    settings: Id,
+) -> Result<(Obj, Obj), DecodeError> {
+    let failed = |detail: String| DecodeError::Damaged {
+        path: path.to_path_buf(),
+        detail,
+    };
     // SAFETY: `+assetReaderWithAsset:error:` takes an AVAsset and an NSError**, and
     // returns an autoreleased reader or nil with the error set.
     let (reader, error_text) = unsafe {
@@ -1043,7 +1272,9 @@ fn new_reader(path: &Path, asset: &Obj, track: &Obj, settings: Id) -> Result<(Ob
     unsafe {
         let can: bool = msg!(reader.id(), "canAddOutput:", output.id() => Id; -> bool);
         if !can {
-            return Err(failed("AVAssetReader cannot read this track with these settings".into()));
+            return Err(failed(
+                "AVAssetReader cannot read this track with these settings".into(),
+            ));
         }
         let _: () = msg!(reader.id(), "addOutput:", output.id() => Id; -> ());
     }
@@ -1058,7 +1289,10 @@ fn start_reading(path: &Path, reader: &Obj) -> Result<(), DecodeError> {
             return Ok(());
         }
         let err: Id = msg!(reader.id(), "error"; -> Id);
-        Err(DecodeError::Damaged { path: path.to_path_buf(), detail: format!("AVAssetReader would not start: {}", ns_error_text(err)) })
+        Err(DecodeError::Damaged {
+            path: path.to_path_buf(),
+            detail: format!("AVAssetReader would not start: {}", ns_error_text(err)),
+        })
     }
 }
 
@@ -1067,26 +1301,44 @@ fn start_reading(path: &Path, reader: &Obj) -> Result<(), DecodeError> {
 /// end, in seconds). Errors when the reader fails, the video has no frames or no
 /// positive duration, or it exceeds [`MAX_VIDEO_FRAMES`].
 fn count_samples(path: &Path, asset: &Obj, track: &Obj) -> Result<(usize, f64), DecodeError> {
-    let damaged = |detail: String| DecodeError::Damaged { path: path.to_path_buf(), detail };
+    let damaged = |detail: String| DecodeError::Damaged {
+        path: path.to_path_buf(),
+        detail,
+    };
     let (reader, output) = new_reader(path, asset, track, std::ptr::null_mut())?;
     start_reading(path, &reader)?;
     let (mut frames, mut begin, mut end) = (0usize, f64::INFINITY, f64::NEG_INFINITY);
     loop {
         let _pool = Pool::new()?;
         // SAFETY: as in `read_next`.
-        let Some(sample) = (unsafe { CfRef::take(msg!(output.id(), "copyNextSampleBuffer"; -> CfTypeRef)) }) else {
+        let Some(sample) =
+            (unsafe { CfRef::take(msg!(output.id(), "copyNextSampleBuffer"; -> CfTypeRef)) })
+        else {
             break;
         };
         // SAFETY: `sample` is a live CMSampleBuffer; times are returned by value.
-        let (n, pts, dur) = unsafe { (CMSampleBufferGetNumSamples(sample.as_ptr()), CMSampleBufferGetPresentationTimeStamp(sample.as_ptr()), CMSampleBufferGetDuration(sample.as_ptr())) };
+        let (n, pts, dur) = unsafe {
+            (
+                CMSampleBufferGetNumSamples(sample.as_ptr()),
+                CMSampleBufferGetPresentationTimeStamp(sample.as_ptr()),
+                CMSampleBufferGetDuration(sample.as_ptr()),
+            )
+        };
         if n == 0 {
             continue; // a marker-only buffer
         }
         if n != 1 {
-            return Err(DecodeError::Unsupported { path: path.to_path_buf(), detail: format!("a sample buffer holds {n} samples; one frame per sample is expected") });
+            return Err(DecodeError::Unsupported {
+                path: path.to_path_buf(),
+                detail: format!(
+                    "a sample buffer holds {n} samples; one frame per sample is expected"
+                ),
+            });
         }
         if pts.flags & CMTIME_VALID == 0 || dur.flags & CMTIME_VALID == 0 {
-            return Err(damaged(format!("frame {frames} has no valid presentation time or duration")));
+            return Err(damaged(format!(
+                "frame {frames} has no valid presentation time or duration"
+            )));
         }
         // SAFETY: plain value conversions.
         let (start, length) = unsafe { (CMTimeGetSeconds(pts), CMTimeGetSeconds(dur)) };
@@ -1097,7 +1349,10 @@ fn count_samples(path: &Path, asset: &Obj, track: &Obj) -> Result<(usize, f64), 
         end = end.max(start + length);
         frames += 1;
         if frames > MAX_VIDEO_FRAMES {
-            return Err(DecodeError::TooLarge { path: path.to_path_buf(), detail: format!("more than {MAX_VIDEO_FRAMES} frames") });
+            return Err(DecodeError::TooLarge {
+                path: path.to_path_buf(),
+                detail: format!("more than {MAX_VIDEO_FRAMES} frames"),
+            });
         }
     }
     // SAFETY: `reader` is live; status and error are thread-safe reads.
@@ -1106,36 +1361,64 @@ fn count_samples(path: &Path, asset: &Obj, track: &Obj) -> Result<(usize, f64), 
         (status, ns_error_text(msg!(reader.id(), "error"; -> Id)))
     };
     if status != READER_STATUS_COMPLETED {
-        return Err(damaged(format!("reading the sample table stopped with status {status} after {frames} frames: {text}")));
+        return Err(damaged(format!(
+            "reading the sample table stopped with status {status} after {frames} frames: {text}"
+        )));
     }
     let duration = end - begin;
     if frames == 0 || !(duration > 0.0) {
-        return Err(damaged(format!("{frames} frames spanning {duration} s: the video has no frame rate")));
+        return Err(damaged(format!(
+            "{frames} frames spanning {duration} s: the video has no frame rate"
+        )));
     }
     Ok((frames, duration))
 }
 
 /// A locked 32BGRA `CVPixelBuffer` as tightly packed RGB. The buffer must be
 /// the stored size and format; its row stride is honoured.
-fn bgra_to_rgb(path: &Path, pb: CfTypeRef, width: usize, height: usize) -> Result<Rgb8, DecodeError> {
+fn bgra_to_rgb(
+    path: &Path,
+    pb: CfTypeRef,
+    width: usize,
+    height: usize,
+) -> Result<Rgb8, DecodeError> {
     // SAFETY: `pb` is a live CVPixelBuffer borrowed from a live sample buffer; the
     // getters read plain properties.
-    let (format, w, h, stride) = unsafe { (CVPixelBufferGetPixelFormatType(pb), CVPixelBufferGetWidth(pb), CVPixelBufferGetHeight(pb), CVPixelBufferGetBytesPerRow(pb)) };
+    let (format, w, h, stride) = unsafe {
+        (
+            CVPixelBufferGetPixelFormatType(pb),
+            CVPixelBufferGetWidth(pb),
+            CVPixelBufferGetHeight(pb),
+            CVPixelBufferGetBytesPerRow(pb),
+        )
+    };
     if format != PIXEL_FORMAT_32BGRA {
-        return Err(DecodeError::Unsupported { path: path.to_path_buf(), detail: format!("pixel format {format:#x}, expected 32BGRA") });
+        return Err(DecodeError::Unsupported {
+            path: path.to_path_buf(),
+            detail: format!("pixel format {format:#x}, expected 32BGRA"),
+        });
     }
     if (w, h) != (width, height) {
-        return Err(DecodeError::Unsupported { path: path.to_path_buf(), detail: format!("a decoded frame is {w}x{h} but the track is {width}x{height}") });
+        return Err(DecodeError::Unsupported {
+            path: path.to_path_buf(),
+            detail: format!("a decoded frame is {w}x{h} but the track is {width}x{height}"),
+        });
     }
     if stride < w * 4 {
-        return Err(DecodeError::Damaged { path: path.to_path_buf(), detail: format!("row stride {stride} is under {} bytes", w * 4) });
+        return Err(DecodeError::Damaged {
+            path: path.to_path_buf(),
+            detail: format!("row stride {stride} is under {} bytes", w * 4),
+        });
     }
     // SAFETY: `pb` outlives the lock (see PixelLock::new).
     let _lock = unsafe { PixelLock::new(pb)? };
     // SAFETY: the buffer is locked.
     let base = unsafe { CVPixelBufferGetBaseAddress(pb) };
     if base.is_null() {
-        return Err(framework("CVPixelBufferGetBaseAddress", "NULL for a locked buffer"));
+        return Err(framework(
+            "CVPixelBufferGetBaseAddress",
+            "NULL for a locked buffer",
+        ));
     }
     // SAFETY: while locked, `base` addresses `h` rows of `stride` bytes (CVPixelBuffer
     // contract: `stride = CVPixelBufferGetBytesPerRow`, rows = height for a chunky format).
@@ -1167,16 +1450,33 @@ mod tests {
     }
 
     fn grid(img: &Rgb8) -> Vec<Vec<u8>> {
-        (0..img.height).map(|y| (0..img.width).map(|x| at(img, x, y)).collect()).collect()
+        (0..img.height)
+            .map(|y| (0..img.width).map(|x| at(img, x, y)).collect())
+            .collect()
     }
 
     #[test]
     fn right_angle_transforms_are_recognised() {
-        assert_eq!(right_angle_transform([1.0, 0.0, 0.0, 1.0]), Some([1, 0, 0, 1]));
-        assert_eq!(right_angle_transform([0.0, 1.0, -1.0, 0.0]), Some([0, 1, -1, 0]));
-        assert_eq!(right_angle_transform([6.1e-17, 1.0, -1.0, 6.1e-17]), Some([0, 1, -1, 0]));
-        assert_eq!(right_angle_transform([-1.0, 0.0, 0.0, 1.0]), Some([-1, 0, 0, 1]));
-        assert_eq!(right_angle_transform([0.7071, 0.7071, -0.7071, 0.7071]), None);
+        assert_eq!(
+            right_angle_transform([1.0, 0.0, 0.0, 1.0]),
+            Some([1, 0, 0, 1])
+        );
+        assert_eq!(
+            right_angle_transform([0.0, 1.0, -1.0, 0.0]),
+            Some([0, 1, -1, 0])
+        );
+        assert_eq!(
+            right_angle_transform([6.1e-17, 1.0, -1.0, 6.1e-17]),
+            Some([0, 1, -1, 0])
+        );
+        assert_eq!(
+            right_angle_transform([-1.0, 0.0, 0.0, 1.0]),
+            Some([-1, 0, 0, 1])
+        );
+        assert_eq!(
+            right_angle_transform([0.7071, 0.7071, -0.7071, 0.7071]),
+            None
+        );
         assert_eq!(right_angle_transform([2.0, 0.0, 0.0, 2.0]), None);
         assert_eq!(right_angle_transform([1.0, 1.0, 0.0, 1.0]), None);
     }
@@ -1203,9 +1503,18 @@ mod tests {
 
     #[test]
     fn rotate_180_and_flips() {
-        assert_eq!(grid(&apply_transform(sample(), [-1, 0, 0, -1])), vec![vec![5, 4, 3], vec![2, 1, 0]]);
-        assert_eq!(grid(&apply_transform(sample(), [-1, 0, 0, 1])), vec![vec![2, 1, 0], vec![5, 4, 3]]);
-        assert_eq!(grid(&apply_transform(sample(), [1, 0, 0, -1])), vec![vec![3, 4, 5], vec![0, 1, 2]]);
+        assert_eq!(
+            grid(&apply_transform(sample(), [-1, 0, 0, -1])),
+            vec![vec![5, 4, 3], vec![2, 1, 0]]
+        );
+        assert_eq!(
+            grid(&apply_transform(sample(), [-1, 0, 0, 1])),
+            vec![vec![2, 1, 0], vec![5, 4, 3]]
+        );
+        assert_eq!(
+            grid(&apply_transform(sample(), [1, 0, 0, -1])),
+            vec![vec![3, 4, 5], vec![0, 1, 2]]
+        );
     }
 
     #[test]
@@ -1245,7 +1554,10 @@ mod tests {
         assert_eq!(png.len(), 60);
         assert!(check_png(&png).is_ok());
         assert!(check_png(&png[..59]).is_err(), "cut inside IEND");
-        assert!(check_png(&png[..48]).is_ok(), "whole chunks and image data, no IEND (PIL reads these)");
+        assert!(
+            check_png(&png[..48]).is_ok(),
+            "whole chunks and image data, no IEND (PIL reads these)"
+        );
         assert!(check_png(&png[..47]).is_err(), "cut inside IDAT");
         assert!(check_png(&png[..33]).is_err(), "no image data");
     }

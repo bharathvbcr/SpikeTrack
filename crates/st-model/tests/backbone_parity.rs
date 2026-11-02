@@ -11,12 +11,18 @@ use std::time::Instant;
 
 use ojas_core::{Autocast, AutocastMode, Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
-use ojas_metal::MetalBackend;
 use ojas_io::SafeTensors;
+use ojas_metal::MetalBackend;
 use st_model::{Backbone, Neck, Taps};
 use st_weights::{Checkpoint, VisionBackbone};
 
-const IMAGES: [&str; 5] = ["visem_22_f0", "visem_47_f300", "visem_82_f600", "sam3_truck", "sam3_groceries"];
+const IMAGES: [&str; 5] = [
+    "visem_22_f0",
+    "visem_47_f300",
+    "visem_82_f600",
+    "sam3_truck",
+    "sam3_groceries",
+];
 const COS_GATE: f64 = 0.999;
 
 fn env_path(var: &str) -> PathBuf {
@@ -47,15 +53,24 @@ fn compare(got: &[f32], want: &[f32]) -> Stat {
         max_abs = max_abs.max((g - w).abs());
         ref_max = ref_max.max(w.abs());
     }
-    Stat { cos: dot / (gg.sqrt() * ww.sqrt()), max_abs, ref_max }
+    Stat {
+        cos: dot / (gg.sqrt() * ww.sqrt()),
+        max_abs,
+        ref_max,
+    }
 }
 
 fn host(t: &Tensor, budget: &Budget) -> Vec<f32> {
-    t.to_host(budget).expect("to host").to_f32_vec().expect("f32")
+    t.to_host(budget)
+        .expect("to host")
+        .to_f32_vec()
+        .expect("f32")
 }
 
 fn fixture(st: &SafeTensors<'_>, name: &str) -> (Vec<usize>, Vec<f32>) {
-    let (shape, data) = st.read_f32(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
+    let (shape, data) = st
+        .read_f32(name)
+        .unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
     (shape.into_iter().map(|d| d as usize).collect(), data)
 }
 
@@ -96,24 +111,67 @@ fn vit_layer_norm_eps_matches_upstream() {
     const OLD_EPS: f32 = 1e-6;
     let be = CpuBackend::with_threads(Budget::new(8 << 30), 8).expect("cpu backend");
     let ck = SafeTensors::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
-    let st = SafeTensors::open(&Path::new(&env_path("SPIKETRACK_FIXTURES")).join(format!("{}.safetensors", IMAGES[0]))).expect("fixture");
-    let up = |shape: &[usize], data: &[f32]| be.upload(&Tensor::from_f32(data, shape, be.budget()).expect("t")).expect("up");
+    let st = SafeTensors::open(
+        &Path::new(&env_path("SPIKETRACK_FIXTURES")).join(format!("{}.safetensors", IMAGES[0])),
+    )
+    .expect("fixture");
+    let up = |shape: &[usize], data: &[f32]| {
+        be.upload(&Tensor::from_f32(data, shape, be.budget()).expect("t"))
+            .expect("up")
+    };
     // (input, output, weights, whether the old epsilon was used here): ln_pre always had 1e-5.
-    let norms: Vec<(String, String, String, bool)> = std::iter::once(("trunk.ln_pre.out.in".to_string(), "trunk.ln_pre.out".to_string(), "trunk.ln_pre".to_string(), false))
-        .chain([0usize, 7].into_iter().flat_map(|b| {
-            ["norm1", "norm2"].map(move |n| (format!("trunk.blocks.{b}.{n}.in"), format!("trunk.blocks.{b}.{n}"), format!("trunk.blocks.{b}.{n}"), true))
-        }))
-        .collect();
+    let norms: Vec<(String, String, String, bool)> = std::iter::once((
+        "trunk.ln_pre.out.in".to_string(),
+        "trunk.ln_pre.out".to_string(),
+        "trunk.ln_pre".to_string(),
+        false,
+    ))
+    .chain([0usize, 7].into_iter().flat_map(|b| {
+        ["norm1", "norm2"].map(move |n| {
+            (
+                format!("trunk.blocks.{b}.{n}.in"),
+                format!("trunk.blocks.{b}.{n}"),
+                format!("trunk.blocks.{b}.{n}"),
+                true,
+            )
+        })
+    }))
+    .collect();
     for (input, output, weights, had_old_eps) in &norms {
         let (shape, x) = fixture(&st, input);
         let (_, want) = fixture(&st, output);
-        let w = ck.read_f32(&format!("detector.backbone.vision_backbone.{weights}.weight")).expect("weight").1;
-        let b = ck.read_f32(&format!("detector.backbone.vision_backbone.{weights}.bias")).expect("bias").1;
+        let w = ck
+            .read_f32(&format!(
+                "detector.backbone.vision_backbone.{weights}.weight"
+            ))
+            .expect("weight")
+            .1;
+        let b = ck
+            .read_f32(&format!("detector.backbone.vision_backbone.{weights}.bias"))
+            .expect("bias")
+            .1;
         let (xt, wt, bt) = (up(&shape, &x), up(&[w.len()], &w), up(&[b.len()], &b));
-        let run = |eps: f32| compare(&host(&be.layer_norm_forward(&xt, &wt, &bt, eps).expect("layer_norm"), be.budget()), &want).max_abs;
+        let run = |eps: f32| {
+            compare(
+                &host(
+                    &be.layer_norm_forward(&xt, &wt, &bt, eps)
+                        .expect("layer_norm"),
+                    be.budget(),
+                ),
+                &want,
+            )
+            .max_abs
+        };
         let (ours, old) = (run(st_model::backbone::VIT_LN_EPS), run(OLD_EPS));
-        println!("{weights}: max abs {ours:.3e} at eps {} (old eps {OLD_EPS}: {old:.3e})", st_model::backbone::VIT_LN_EPS);
-        assert!(ours < BOUND, "{weights}: max abs {ours:.3e} >= {BOUND:.0e} at eps {}", st_model::backbone::VIT_LN_EPS);
+        println!(
+            "{weights}: max abs {ours:.3e} at eps {} (old eps {OLD_EPS}: {old:.3e})",
+            st_model::backbone::VIT_LN_EPS
+        );
+        assert!(
+            ours < BOUND,
+            "{weights}: max abs {ours:.3e} >= {BOUND:.0e} at eps {}",
+            st_model::backbone::VIT_LN_EPS
+        );
         if *had_old_eps {
             assert!(old >= BOUND, "{weights}: the old eps {OLD_EPS} also passes ({old:.3e}): the bound no longer discriminates");
         }
@@ -129,15 +187,25 @@ fn run_parity<B: Backend>(be: &B, label: &str) {
     let vision = VisionBackbone::load(&ck).expect("vision weights");
     let model = Backbone::new(be, &vision).expect("upload backbone");
     drop(vision);
-    println!("[{label}] weights loaded and uploaded in {:.1} s", t0.elapsed().as_secs_f64());
+    println!(
+        "[{label}] weights loaded and uploaded in {:.1} s",
+        t0.elapsed().as_secs_f64()
+    );
 
     let mut rows = Vec::new();
     let mut worst = f64::INFINITY;
     for (i, name) in IMAGES.iter().enumerate() {
-        let st = SafeTensors::open(&Path::new(&fixtures).join(format!("{name}.safetensors"))).expect("fixture file");
+        let st = SafeTensors::open(&Path::new(&fixtures).join(format!("{name}.safetensors")))
+            .expect("fixture file");
         let (shape, img) = fixture(&st, "input.image");
-        let image = be.upload(&Tensor::from_f32(&img, &shape, be.budget()).expect("image")).expect("upload image");
-        let keep: Vec<usize> = if i == 0 { (0..32).collect() } else { vec![7, 15, 23, 31] };
+        let image = be
+            .upload(&Tensor::from_f32(&img, &shape, be.budget()).expect("image"))
+            .expect("upload image");
+        let keep: Vec<usize> = if i == 0 {
+            (0..32).collect()
+        } else {
+            vec![7, 15, 23, 31]
+        };
         let mut taps = Taps::default();
         let t = Instant::now();
         let trunk = match model.trunk(&image, &keep, &mut taps) {
@@ -145,7 +213,10 @@ fn run_parity<B: Backend>(be: &B, label: &str) {
             Err(e) => {
                 // A backend that refuses an op mid-trunk (Metal before rope lands): report the
                 // stages that ran before the refusal, then fail with it.
-                for (stage, tap, key) in [("patch_embed", &taps.patch_embed, "trunk.patch_embed.out"), ("ln_pre", &taps.ln_pre, "trunk.ln_pre.out")] {
+                for (stage, tap, key) in [
+                    ("patch_embed", &taps.patch_embed, "trunk.patch_embed.out"),
+                    ("ln_pre", &taps.ln_pre, "trunk.ln_pre.out"),
+                ] {
                     if let Some(got) = tap {
                         let s = compare(&host(got, be.budget()), &fixture(&st, key).1);
                         println!("[{label}] {name} {stage}: cosine {:.7}, max abs {:.3e}, max abs / max ref {:.3e}", s.cos, s.max_abs, s.max_abs / s.ref_max.max(1e-30));
@@ -172,13 +243,28 @@ fn run_parity<B: Backend>(be: &B, label: &str) {
             ));
         };
         if i == 0 {
-            check("patch_embed".into(), taps.patch_embed.as_ref().expect("tap"), "trunk.patch_embed.out");
-            check("ln_pre".into(), taps.ln_pre.as_ref().expect("tap"), "trunk.ln_pre.out");
+            check(
+                "patch_embed".into(),
+                taps.patch_embed.as_ref().expect("tap"),
+                "trunk.patch_embed.out",
+            );
+            check(
+                "ln_pre".into(),
+                taps.ln_pre.as_ref().expect("tap"),
+                "trunk.ln_pre.out",
+            );
         }
         for &b in &keep {
-            check(format!("block {b}"), taps.blocks[b].as_ref().expect("tap"), &format!("trunk.blocks.{b}.out"));
+            check(
+                format!("block {b}"),
+                taps.blocks[b].as_ref().expect("tap"),
+                &format!("trunk.blocks.{b}.out"),
+            );
         }
-        for (neck, tag) in necks.iter().zip(["convs", "interactive_convs", "propagation_convs"]) {
+        for (neck, tag) in necks
+            .iter()
+            .zip(["convs", "interactive_convs", "propagation_convs"])
+        {
             for (lvl, t) in neck.iter().enumerate() {
                 check(format!("{tag}[{lvl}]"), t, &format!("neck.{tag}.{lvl}.out"));
             }
@@ -189,7 +275,10 @@ fn run_parity<B: Backend>(be: &B, label: &str) {
     for r in &rows {
         println!("{r}");
     }
-    println!("\n[{label}] worst cosine {worst:.7} over {} stages (gate > {COS_GATE})", rows.len());
+    println!(
+        "\n[{label}] worst cosine {worst:.7} over {} stages (gate > {COS_GATE})",
+        rows.len()
+    );
     assert!(worst > COS_GATE, "worst cosine {worst} <= {COS_GATE}");
 }
 
@@ -216,7 +305,11 @@ fn generated_rope_tables_equal_the_checkpoints() {
     for (i, blk) in vision.trunk.blocks.iter().enumerate() {
         let grid = if blk.global { 72 } else { 24 };
         let (cos, sin) = &tables[&grid];
-        assert_eq!(blk.freqs_cis.shape, vec![grid * grid, 32, 2], "block {i} shape");
+        assert_eq!(
+            blk.freqs_cis.shape,
+            vec![grid * grid, 32, 2],
+            "block {i} shape"
+        );
         let (mut block_worst, mut block_identical) = (0f64, 0usize);
         for (k, pair) in blk.freqs_cis.data.chunks_exact(2).enumerate() {
             for (got, want) in [(cos[k], pair[0]), (sin[k], pair[1])] {
@@ -226,8 +319,15 @@ fn generated_rope_tables_equal_the_checkpoints() {
         }
         let entries = blk.freqs_cis.data.len();
         println!("block {i:2} ({}, grid {grid}): max abs diff {block_worst:.3e}, {block_identical}/{entries} bit-identical", if blk.global { "global  " } else { "windowed" });
-        assert!(block_worst <= BOUND, "block {i}: max abs diff {block_worst:e} > {BOUND:e}");
-        (total, identical, worst) = (total + entries, identical + block_identical, worst.max(block_worst));
+        assert!(
+            block_worst <= BOUND,
+            "block {i}: max abs diff {block_worst:e} > {BOUND:e}"
+        );
+        (total, identical, worst) = (
+            total + entries,
+            identical + block_identical,
+            worst.max(block_worst),
+        );
     }
     println!("all 32 blocks: max abs diff {worst:.3e}, {identical}/{total} entries bit-identical ({:.4}%)", 100.0 * identical as f64 / total as f64);
 }
@@ -246,17 +346,26 @@ fn run_parity_672<B: Backend>(be: &B, label: &str) {
     let vision = VisionBackbone::load(&ck).expect("vision weights");
     let model = Backbone::new_at(be, &vision, geo).expect("upload backbone at 672");
     drop(vision);
-    let st = SafeTensors::open(&Path::new(&fixtures).join(format!("{IMAGE_672}.safetensors"))).expect("fixture file");
+    let st = SafeTensors::open(&Path::new(&fixtures).join(format!("{IMAGE_672}.safetensors")))
+        .expect("fixture file");
     let (shape, img) = fixture(&st, "input.image");
     assert_eq!(shape, vec![1, 3, 672, 672], "the fixture is a 672 input");
-    let image = be.upload(&Tensor::from_f32(&img, &shape, be.budget()).expect("image")).expect("upload image");
+    let image = be
+        .upload(&Tensor::from_f32(&img, &shape, be.budget()).expect("image"))
+        .expect("upload image");
     let mut taps = Taps::default();
     let t = Instant::now();
-    let trunk = model.trunk(&image, &[7, 15, 23, 31], &mut taps).expect("trunk");
+    let trunk = model
+        .trunk(&image, &[7, 15, 23, 31], &mut taps)
+        .expect("trunk");
     assert_eq!(trunk.shape(), &[1, 48, 48, 1024], "trunk output shape");
-    let necks = [Neck::Detector, Neck::Interactive, Neck::Propagation].map(|n| model.neck(n, &trunk).expect("neck"));
+    let necks = [Neck::Detector, Neck::Interactive, Neck::Propagation]
+        .map(|n| model.neck(n, &trunk).expect("neck"));
     be.sync().expect("sync");
-    println!("[{label}] 672 trunk + 3 necks {:.1} s (one run, not a benchmark)", t.elapsed().as_secs_f64());
+    println!(
+        "[{label}] 672 trunk + 3 necks {:.1} s (one run, not a benchmark)",
+        t.elapsed().as_secs_f64()
+    );
 
     let mut rows = Vec::new();
     let mut worst = f64::INFINITY;
@@ -265,13 +374,30 @@ fn run_parity_672<B: Backend>(be: &B, label: &str) {
         assert_eq!(got.shape(), want_shape.as_slice(), "{stage} shape");
         let s = compare(&host(got, be.budget()), &want);
         worst = worst.min(s.cos);
-        rows.push(format!("| {stage} | {:.7} | {:.3e} | {:.3e} | {} |", s.cos, s.max_abs, s.max_abs / s.ref_max.max(1e-30), if s.cos > COS_GATE { "pass" } else { "FAIL" }));
+        rows.push(format!(
+            "| {stage} | {:.7} | {:.3e} | {:.3e} | {} |",
+            s.cos,
+            s.max_abs,
+            s.max_abs / s.ref_max.max(1e-30),
+            if s.cos > COS_GATE { "pass" } else { "FAIL" }
+        ));
     };
-    check("ln_pre".into(), taps.ln_pre.as_ref().expect("tap"), "trunk.ln_pre.out");
+    check(
+        "ln_pre".into(),
+        taps.ln_pre.as_ref().expect("tap"),
+        "trunk.ln_pre.out",
+    );
     for b in [7usize, 15, 23, 31] {
-        check(format!("block {b}"), taps.blocks[b].as_ref().expect("tap"), &format!("trunk.blocks.{b}.out"));
+        check(
+            format!("block {b}"),
+            taps.blocks[b].as_ref().expect("tap"),
+            &format!("trunk.blocks.{b}.out"),
+        );
     }
-    for (neck, tag) in necks.iter().zip(["convs", "interactive_convs", "propagation_convs"]) {
+    for (neck, tag) in necks
+        .iter()
+        .zip(["convs", "interactive_convs", "propagation_convs"])
+    {
         for (lvl, t) in neck.iter().enumerate() {
             check(format!("{tag}[{lvl}]"), t, &format!("neck.{tag}.{lvl}.out"));
         }
@@ -283,13 +409,24 @@ fn run_parity_672<B: Backend>(be: &B, label: &str) {
         assert_eq!(want_shape, vec![1, 256, side, side], "pos_enc {lvl} shape");
         let s = compare(&st_model::host::sine_position_map(side, side), &want);
         worst = worst.min(s.cos);
-        rows.push(format!("| sine_position_map({side}) vs pos_enc[{lvl}] | {:.7} | {:.3e} | {:.3e} | {} |", s.cos, s.max_abs, s.max_abs / s.ref_max.max(1e-30), if s.cos > COS_GATE { "pass" } else { "FAIL" }));
+        rows.push(format!(
+            "| sine_position_map({side}) vs pos_enc[{lvl}] | {:.7} | {:.3e} | {:.3e} | {} |",
+            s.cos,
+            s.max_abs,
+            s.max_abs / s.ref_max.max(1e-30),
+            if s.cos > COS_GATE { "pass" } else { "FAIL" }
+        ));
     }
-    println!("\n| stage (672) | cosine | max abs | max abs / max ref | gate |\n|---|---|---|---|---|");
+    println!(
+        "\n| stage (672) | cosine | max abs | max abs / max ref | gate |\n|---|---|---|---|---|"
+    );
     for r in &rows {
         println!("{r}");
     }
-    println!("\n[{label}] 672: worst cosine {worst:.7} over {} stages (gate > {COS_GATE})", rows.len());
+    println!(
+        "\n[{label}] 672: worst cosine {worst:.7} over {} stages (gate > {COS_GATE})",
+        rows.len()
+    );
     assert!(worst > COS_GATE, "worst cosine {worst} <= {COS_GATE}");
 }
 

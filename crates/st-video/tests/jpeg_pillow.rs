@@ -25,14 +25,23 @@ fn cases_dir() -> PathBuf {
 /// (name, size, JPEG bytes, Pillow's RGB bytes) for every case.
 fn cases() -> Vec<(String, (usize, usize), Vec<u8>, Vec<u8>)> {
     let mut out = Vec::new();
-    let mut names: Vec<PathBuf> = std::fs::read_dir(cases_dir()).expect("tests/jpeg_cases/cases").map(|e| e.expect("entry").path()).filter(|p| p.extension().is_some_and(|x| x == "jpg")).collect();
+    let mut names: Vec<PathBuf> = std::fs::read_dir(cases_dir())
+        .expect("tests/jpeg_cases/cases")
+        .map(|e| e.expect("entry").path())
+        .filter(|p| p.extension().is_some_and(|x| x == "jpg"))
+        .collect();
     names.sort();
     for jpg in names {
-        let stem = jpg.file_stem().and_then(|s| s.to_str()).expect("utf-8 name").to_string();
+        let stem = jpg
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .expect("utf-8 name")
+            .to_string();
         let dims = stem.rsplit('_').next().expect("name_WxH");
         let (w, h) = dims.split_once('x').expect("WxH");
         let (w, h): (usize, usize) = (w.parse().expect("width"), h.parse().expect("height"));
-        let rgb = std::fs::read(jpg.with_extension("rgb")).unwrap_or_else(|e| panic!("{stem}.rgb: {e}"));
+        let rgb =
+            std::fs::read(jpg.with_extension("rgb")).unwrap_or_else(|e| panic!("{stem}.rgb: {e}"));
         assert_eq!(rgb.len(), w * h * 3, "{stem}: the .rgb is not {w}x{h}x3");
         out.push((stem, (w, h), std::fs::read(&jpg).expect("jpeg"), rgb));
     }
@@ -50,21 +59,34 @@ fn every_case_is_byte_identical_to_pillow() {
                 assert_eq!((img.width, img.height), (*w, *h), "{name}: size");
                 let bad = img.data.iter().zip(want).filter(|(a, b)| a != b).count();
                 if bad != 0 {
-                    let first = img.data.iter().zip(want).position(|(a, b)| a != b).expect("a difference");
+                    let first = img
+                        .data
+                        .iter()
+                        .zip(want)
+                        .position(|(a, b)| a != b)
+                        .expect("a difference");
                     failures.push(format!("{name}: {bad} of {} bytes differ (first at byte {first}: ours {} vs Pillow {})", want.len(), img.data[first], want[first]));
                 }
             }
             Err(e) => failures.push(format!("{name}: {e}")),
         }
     }
-    assert!(failures.is_empty(), "not byte-identical to Pillow:\n{}", failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "not byte-identical to Pillow:\n{}",
+        failures.join("\n")
+    );
 }
 
 #[test]
 fn every_proper_prefix_of_every_case_is_an_error() {
     for (name, _, jpeg, _) in cases() {
         for cut in 0..jpeg.len() {
-            assert!(decode_jpeg(&jpeg[..cut]).is_err(), "{name}: the first {cut} of {} bytes decoded", jpeg.len());
+            assert!(
+                decode_jpeg(&jpeg[..cut]).is_err(),
+                "{name}: the first {cut} of {} bytes decoded",
+                jpeg.len()
+            );
         }
     }
 }
@@ -78,13 +100,23 @@ fn single_byte_corruption_never_panics() {
     let mut refused = 0usize;
     for (name, (w, h), jpeg, _) in cases().into_iter().filter(|c| c.2.len() < 1500) {
         for at in 0..jpeg.len() {
-            for v in [0x00u8, 0xff, 0x80, jpeg[at] ^ 0x01, jpeg[at].wrapping_add(0x40)] {
+            for v in [
+                0x00u8,
+                0xff,
+                0x80,
+                jpeg[at] ^ 0x01,
+                jpeg[at].wrapping_add(0x40),
+            ] {
                 let mut bad = jpeg.clone();
                 bad[at] = v;
                 match decode_jpeg(&bad) {
                     Ok(img) => {
                         decoded += 1;
-                        assert_eq!(img.data.len(), img.width * img.height * 3, "{name} byte {at}={v:#x}");
+                        assert_eq!(
+                            img.data.len(),
+                            img.width * img.height * 3,
+                            "{name} byte {at}={v:#x}"
+                        );
                         let _ = (w, h);
                     }
                     Err(_) => refused += 1,

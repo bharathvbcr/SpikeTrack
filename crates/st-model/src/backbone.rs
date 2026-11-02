@@ -7,8 +7,8 @@
 //! fp32 fixtures (`tools/reference/check_fixtures.py`).
 
 use ojas_core::{
-    axial_rope_2d_tables, window_merge, window_partition, AttentionOpts, AutocastMode, Backend, Budget, Conv2dParams,
-    ConvTranspose2dParams, OjasError, Tensor,
+    axial_rope_2d_tables, window_merge, window_partition, AttentionOpts, AutocastMode, Backend,
+    Budget, Conv2dParams, ConvTranspose2dParams, OjasError, Tensor,
 };
 use st_gate::{GatePolicy, Geometry, WindowSet};
 use st_weights::names::{VIT_DIM, VIT_GRID, VIT_PATCH, VIT_ROPE_PAIRS, VIT_WINDOW};
@@ -119,8 +119,14 @@ impl GatedStats {
         let (tw, tg) = ((geo.window * geo.window) as f64, geo.tokens() as f64);
         let window_block = tw * (24.0 * c * c + 4.0 * tw * c);
         let global_block = tg * (24.0 * c * c + 4.0 * tg * c);
-        let embed = if self.mode == GatedMode::Reused { 0.0 } else { 2.0 * tg * (3 * geo.patch * geo.patch) as f64 * c };
-        self.window_blocks_run as f64 * window_block + self.global_blocks_run as f64 * global_block + embed
+        let embed = if self.mode == GatedMode::Reused {
+            0.0
+        } else {
+            2.0 * tg * (3 * geo.patch * geo.patch) as f64 * c
+        };
+        self.window_blocks_run as f64 * window_block
+            + self.global_blocks_run as f64 * global_block
+            + embed
     }
 
     /// [`Self::flop_fraction_at`] for the native grid.
@@ -130,7 +136,12 @@ impl GatedStats {
 
     /// [`Self::flops_at`] over the ungated trunk's.
     pub fn flop_fraction_at(&self, geo: Geometry) -> f64 {
-        let full = Self { mode: GatedMode::Full, window_blocks_run: self.window_blocks_total, global_blocks_run: self.global_blocks_total, ..*self };
+        let full = Self {
+            mode: GatedMode::Full,
+            window_blocks_run: self.window_blocks_total,
+            global_blocks_run: self.global_blocks_total,
+            ..*self
+        };
         self.flops_at(geo) / full.flops_at(geo)
     }
 
@@ -179,7 +190,10 @@ fn stages_of(is_global: &[bool]) -> Vec<Stage> {
             i += 1;
         }
         let global = (i < is_global.len()).then_some(i);
-        stages.push(Stage { windowed: start..i, global });
+        stages.push(Stage {
+            windowed: start..i,
+            global,
+        });
         i += usize::from(global.is_some());
     }
     stages
@@ -193,7 +207,11 @@ enum Plan<'a> {
     Capture(&'a mut TrunkCache),
     /// Recompute `set` in the first windowed run, and in the later ones when
     /// `approximate`; carry the cache for the other windows.
-    Partial { cache: &'a mut TrunkCache, set: &'a WindowSet, approximate: bool },
+    Partial {
+        cache: &'a mut TrunkCache,
+        set: &'a WindowSet,
+        approximate: bool,
+    },
 }
 
 fn out_of_range(op: &'static str, detail: String) -> OjasError {
@@ -217,10 +235,19 @@ fn window_row_offset(grid: usize, w: usize, y: usize) -> usize {
 /// and `set` is a grid of them.
 fn checked_grid(op: &'static str, t: &Tensor, set: &WindowSet) -> Result<usize, OjasError> {
     let grid = t.shape().get(1).copied().unwrap_or(0);
-    if t.shape() != [1, grid, grid, VIT_DIM] || grid == 0 || grid % VIT_WINDOW != 0 || grid / VIT_WINDOW != set.side() {
+    if t.shape() != [1, grid, grid, VIT_DIM]
+        || grid == 0
+        || grid % VIT_WINDOW != 0
+        || grid / VIT_WINDOW != set.side()
+    {
         return Err(out_of_range(
             op,
-            format!("expected [1, {0}, {0}, {VIT_DIM}] for a {1} x {1} window set, got {2:?}", set.side() * VIT_WINDOW, set.side(), t.shape()),
+            format!(
+                "expected [1, {0}, {0}, {VIT_DIM}] for a {1} x {1} window set, got {2:?}",
+                set.side() * VIT_WINDOW,
+                set.side(),
+                t.shape()
+            ),
         ));
     }
     Ok(grid)
@@ -230,7 +257,11 @@ fn checked_grid(op: &'static str, t: &Tensor, set: &WindowSet) -> Result<usize, 
 /// `[1, grid, grid, C]` tensor, as `[k, 24, 24, C]`. Host-side: the Backend has no
 /// gather over a window subset, so this reads the tensor back and uploads the
 /// copy (free on the CPU backend; a round trip on a device backend).
-fn gather_windows<B: Backend + ?Sized>(be: &B, x: &Tensor, set: &WindowSet) -> Result<Tensor, OjasError> {
+fn gather_windows<B: Backend + ?Sized>(
+    be: &B,
+    x: &Tensor,
+    set: &WindowSet,
+) -> Result<Tensor, OjasError> {
     let grid = checked_grid("st_model::backbone::gather_windows", x, set)?;
     let data = host_f32(be, x)?;
     let run = VIT_WINDOW * VIT_DIM;
@@ -246,11 +277,23 @@ fn gather_windows<B: Backend + ?Sized>(be: &B, x: &Tensor, set: &WindowSet) -> R
 
 /// `base` `[1, grid, grid, C]` with the windows of `set` replaced by the rows of
 /// `sub` `[k, 24, 24, C]` (the inverse of [`gather_windows`]); `base` is not modified.
-fn scatter_windows<B: Backend + ?Sized>(be: &B, base: &Tensor, sub: &Tensor, set: &WindowSet) -> Result<Tensor, OjasError> {
+fn scatter_windows<B: Backend + ?Sized>(
+    be: &B,
+    base: &Tensor,
+    sub: &Tensor,
+    set: &WindowSet,
+) -> Result<Tensor, OjasError> {
     const OP: &str = "st_model::backbone::scatter_windows";
     let grid = checked_grid(OP, base, set)?;
     if sub.shape() != [set.count(), VIT_WINDOW, VIT_WINDOW, VIT_DIM] {
-        return Err(out_of_range(OP, format!("{} windows selected, tensor is {:?}", set.count(), sub.shape())));
+        return Err(out_of_range(
+            OP,
+            format!(
+                "{} windows selected, tensor is {:?}",
+                set.count(),
+                sub.shape()
+            ),
+        ));
     }
     let mut data = host_f32(be, base)?;
     let rows = host_f32(be, sub)?;
@@ -294,9 +337,21 @@ struct DevConv {
 }
 
 enum DevLevel {
-    Up4 { dconv0: DevConv, dconv1: DevConv, c1: DevConv, c3: DevConv },
-    Up2 { dconv: DevConv, c1: DevConv, c3: DevConv },
-    Same { c1: DevConv, c3: DevConv },
+    Up4 {
+        dconv0: DevConv,
+        dconv1: DevConv,
+        c1: DevConv,
+        c3: DevConv,
+    },
+    Up2 {
+        dconv: DevConv,
+        c1: DevConv,
+        c3: DevConv,
+    },
+    Same {
+        c1: DevConv,
+        c3: DevConv,
+    },
 }
 
 /// A ViT trunk computed outside the Ojas backend, in place of [`Backbone::trunk`]'s own blocks.
@@ -338,34 +393,56 @@ fn weight<B: Backend + ?Sized>(be: &B, w: &Weight) -> Result<Tensor, OjasError> 
 }
 
 fn norm<B: Backend + ?Sized>(be: &B, n: &LayerNorm) -> Result<DevNorm, OjasError> {
-    Ok(DevNorm { w: weight(be, &n.weight)?, b: weight(be, &n.bias)? })
+    Ok(DevNorm {
+        w: weight(be, &n.weight)?,
+        b: weight(be, &n.bias)?,
+    })
 }
 
 fn linear<B: Backend + ?Sized>(be: &B, l: &Linear) -> Result<DevLinear, OjasError> {
-    Ok(DevLinear { w: weight(be, &l.weight)?, b: weight(be, &l.bias)? })
+    Ok(DevLinear {
+        w: weight(be, &l.weight)?,
+        b: weight(be, &l.bias)?,
+    })
 }
 
 fn conv<B: Backend + ?Sized>(be: &B, c: &Conv) -> Result<DevConv, OjasError> {
-    Ok(DevConv { w: weight(be, &c.weight)?, b: weight(be, &c.bias)? })
+    Ok(DevConv {
+        w: weight(be, &c.weight)?,
+        b: weight(be, &c.bias)?,
+    })
 }
 
 /// Rows `[part * dim, (part + 1) * dim)` of the fused qkv projection.
-fn qkv_part<B: Backend + ?Sized>(be: &B, qkv: &Linear, part: usize) -> Result<DevLinear, OjasError> {
+fn qkv_part<B: Backend + ?Sized>(
+    be: &B,
+    qkv: &Linear,
+    part: usize,
+) -> Result<DevLinear, OjasError> {
     let rows = part * VIT_DIM..(part + 1) * VIT_DIM;
     let w = &qkv.weight.data[rows.start * VIT_DIM..rows.end * VIT_DIM];
     let b = &qkv.bias.data[rows];
-    Ok(DevLinear { w: upload(be, w, &[VIT_DIM, VIT_DIM])?, b: upload(be, b, &[VIT_DIM])? })
+    Ok(DevLinear {
+        w: upload(be, w, &[VIT_DIM, VIT_DIM])?,
+        b: upload(be, b, &[VIT_DIM])?,
+    })
 }
 
 /// The checkpoint's complex RoPE table `[T, 32, 2]` (re, im) as cos and sin `[T, 32]`.
 fn rope_tables<B: Backend + ?Sized>(be: &B, f: &Weight) -> Result<(Tensor, Tensor), OjasError> {
     let t = f.shape[0];
-    let (mut cos, mut sin) = (Vec::with_capacity(t * VIT_ROPE_PAIRS), Vec::with_capacity(t * VIT_ROPE_PAIRS));
+    let (mut cos, mut sin) = (
+        Vec::with_capacity(t * VIT_ROPE_PAIRS),
+        Vec::with_capacity(t * VIT_ROPE_PAIRS),
+    );
     for pair in f.data.chunks_exact(2) {
         cos.push(pair[0]);
         sin.push(pair[1]);
     }
-    Ok((upload(be, &cos, &[t, VIT_ROPE_PAIRS])?, upload(be, &sin, &[t, VIT_ROPE_PAIRS])?))
+    Ok((
+        upload(be, &cos, &[t, VIT_ROPE_PAIRS])?,
+        upload(be, &sin, &[t, VIT_ROPE_PAIRS])?,
+    ))
 }
 
 /// The trunk's `freqs_cis` for a `grid x grid` token map, as cos and sin `[grid^2, 32]` on the
@@ -377,7 +454,10 @@ fn rope_tables<B: Backend + ?Sized>(be: &B, f: &Weight) -> Result<(Tensor, Tenso
 /// the 72-grid table in the checkpoint; any other grid needs this.
 pub fn vit_rope_tables(grid: usize, budget: &Budget) -> Result<(Tensor, Tensor), OjasError> {
     if grid == 0 {
-        return Err(out_of_range("st_model::backbone::vit_rope_tables", "an empty grid".to_string()));
+        return Err(out_of_range(
+            "st_model::backbone::vit_rope_tables",
+            "an empty grid".to_string(),
+        ));
     }
     // Python's `rope_pt_size[0] / input_size[0]` is an f64 quotient that torch rounds to f32.
     let scale_pos = (VIT_WINDOW as f64 / grid as f64) as f32;
@@ -417,7 +497,11 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
     /// uploaded. [`Self::trunk`] hands `trunk` the image on the host and uploads what it returns.
     /// The gated trunk, block taps and [`Self::with_trunk_linears_bf16`] need the Ojas blocks and
     /// refuse this backbone. The geometry is the native 1008 x 1008, the size the trunk is exported at.
-    pub fn with_external_trunk(be: &'b B, w: &VisionBackbone, trunk: Box<dyn ExternalTrunk + 'b>) -> Result<Self, OjasError> {
+    pub fn with_external_trunk(
+        be: &'b B,
+        w: &VisionBackbone,
+        trunk: Box<dyn ExternalTrunk + 'b>,
+    ) -> Result<Self, OjasError> {
         Self::load(be, w, Geometry::SAM3, Some(trunk))
     }
 
@@ -426,9 +510,23 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         self.external.as_ref().map(|e| e.describe())
     }
 
-    fn load(be: &'b B, w: &VisionBackbone, geo: Geometry, external: Option<Box<dyn ExternalTrunk + 'b>>) -> Result<Self, OjasError> {
-        if geo.patch != VIT_PATCH || geo.window != VIT_WINDOW || geo.grid == 0 || geo.grid % geo.window != 0 {
-            return Err(out_of_range("st_model::Backbone::new_at", format!("{geo:?} is not a {VIT_PATCH}-pixel patch, {VIT_WINDOW}-token window ViT grid")));
+    fn load(
+        be: &'b B,
+        w: &VisionBackbone,
+        geo: Geometry,
+        external: Option<Box<dyn ExternalTrunk + 'b>>,
+    ) -> Result<Self, OjasError> {
+        if geo.patch != VIT_PATCH
+            || geo.window != VIT_WINDOW
+            || geo.grid == 0
+            || geo.grid % geo.window != 0
+        {
+            return Err(out_of_range(
+                "st_model::Backbone::new_at",
+                format!(
+                    "{geo:?} is not a {VIT_PATCH}-pixel patch, {VIT_WINDOW}-token window ViT grid"
+                ),
+            ));
         }
         let t = &w.trunk;
         let mut blocks = Vec::with_capacity(t.blocks.len());
@@ -442,20 +540,30 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
                 .iter()
                 .map(|lvl| {
                     Ok(match lvl {
-                        FpnLevel::Up4 { dconv0, dconv1, conv_1x1, conv_3x3 } => DevLevel::Up4 {
+                        FpnLevel::Up4 {
+                            dconv0,
+                            dconv1,
+                            conv_1x1,
+                            conv_3x3,
+                        } => DevLevel::Up4 {
                             dconv0: conv(be, dconv0)?,
                             dconv1: conv(be, dconv1)?,
                             c1: conv(be, conv_1x1)?,
                             c3: conv(be, conv_3x3)?,
                         },
-                        FpnLevel::Up2 { dconv, conv_1x1, conv_3x3 } => DevLevel::Up2 {
+                        FpnLevel::Up2 {
+                            dconv,
+                            conv_1x1,
+                            conv_3x3,
+                        } => DevLevel::Up2 {
                             dconv: conv(be, dconv)?,
                             c1: conv(be, conv_1x1)?,
                             c3: conv(be, conv_3x3)?,
                         },
-                        FpnLevel::Same { conv_1x1, conv_3x3 } => {
-                            DevLevel::Same { c1: conv(be, conv_1x1)?, c3: conv(be, conv_3x3)? }
-                        }
+                        FpnLevel::Same { conv_1x1, conv_3x3 } => DevLevel::Same {
+                            c1: conv(be, conv_1x1)?,
+                            c3: conv(be, conv_3x3)?,
+                        },
                     })
                 })
                 .collect()
@@ -464,10 +572,18 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
             be,
             geo,
             patch_embed: weight(be, &t.patch_embed)?,
-            pos_tiled: upload(be, &tiled_pos(&t.pos_embed, geo.grid), &[1, geo.grid, geo.grid, VIT_DIM])?,
+            pos_tiled: upload(
+                be,
+                &tiled_pos(&t.pos_embed, geo.grid),
+                &[1, geo.grid, geo.grid, VIT_DIM],
+            )?,
             ln_pre: norm(be, &t.ln_pre)?,
             blocks,
-            necks: [neck(&w.convs)?, neck(&w.interactive_convs)?, neck(&w.propagation_convs)?],
+            necks: [
+                neck(&w.convs)?,
+                neck(&w.interactive_convs)?,
+                neck(&w.propagation_convs)?,
+            ],
             trunk_linears_bf16: false,
             external,
         })
@@ -475,25 +591,53 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
 
     fn refuse_external(&self, op: &'static str) -> Result<(), OjasError> {
         match &self.external {
-            Some(e) => Err(OjasError::Unsupported { op, detail: format!("needs the Ojas trunk blocks; this backbone's trunk is {}", e.describe()) }),
+            Some(e) => Err(OjasError::Unsupported {
+                op,
+                detail: format!(
+                    "needs the Ojas trunk blocks; this backbone's trunk is {}",
+                    e.describe()
+                ),
+            }),
             None => Ok(()),
         }
     }
 
     /// The external trunk on `image`: download, run, upload. Block taps do not exist there.
-    fn run_external(&self, ext: &dyn ExternalTrunk, image: &Tensor, keep_blocks: &[usize], taps: &mut Taps) -> Result<Tensor, OjasError> {
+    fn run_external(
+        &self,
+        ext: &dyn ExternalTrunk,
+        image: &Tensor,
+        keep_blocks: &[usize],
+        taps: &mut Taps,
+    ) -> Result<Tensor, OjasError> {
         const OP: &str = "st_model::Backbone::trunk";
         if !keep_blocks.is_empty() {
-            return Err(OjasError::Unsupported { op: OP, detail: format!("block taps {keep_blocks:?} do not exist in {}", ext.describe()) });
+            return Err(OjasError::Unsupported {
+                op: OP,
+                detail: format!(
+                    "block taps {keep_blocks:?} do not exist in {}",
+                    ext.describe()
+                ),
+            });
         }
         let (side, grid) = (self.geo.pixels(), self.geo.grid);
         if image.shape() != [1, 3, side, side] {
-            return Err(OjasError::Shape { op: OP, detail: format!("image is {:?}, want [1, 3, {side}, {side}]", image.shape()) });
+            return Err(OjasError::Shape {
+                op: OP,
+                detail: format!("image is {:?}, want [1, 3, {side}, {side}]", image.shape()),
+            });
         }
         let out = ext.run(&host_f32(self.be, image)?)?;
         let want = grid * grid * VIT_DIM;
         if out.len() != want {
-            return Err(OjasError::Shape { op: OP, detail: format!("{} returned {} values, want {want}", ext.describe(), out.len()) });
+            return Err(OjasError::Shape {
+                op: OP,
+                detail: format!(
+                    "{} returned {} values, want {want}",
+                    ext.describe(),
+                    out.len()
+                ),
+            });
         }
         *taps = Taps::default();
         upload(self.be, &out, &[1, grid, grid, VIT_DIM])
@@ -512,7 +656,14 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         let be = self.be;
         drop(be.autocast_region(AutocastMode::Bf16)?);
         for blk in &mut self.blocks {
-            for lin in [&mut blk.q, &mut blk.k, &mut blk.v, &mut blk.proj, &mut blk.fc1, &mut blk.fc2] {
+            for lin in [
+                &mut blk.q,
+                &mut blk.k,
+                &mut blk.v,
+                &mut blk.proj,
+                &mut blk.fc1,
+                &mut blk.fc2,
+            ] {
                 lin.w = be.cast_bf16(&lin.w)?;
             }
         }
@@ -522,7 +673,11 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
 
     /// `x @ lin.w^T + lin.b`, inside a bf16 Autocast region when the trunk linears are bf16.
     fn trunk_linear(&self, x: &Tensor, lin: &DevLinear) -> Result<Tensor, OjasError> {
-        let _region = if self.trunk_linears_bf16 { Some(self.be.autocast_region(AutocastMode::Bf16)?) } else { None };
+        let _region = if self.trunk_linears_bf16 {
+            Some(self.be.autocast_region(AutocastMode::Bf16)?)
+        } else {
+            None
+        };
         self.be.linear_bias_forward(x, &lin.w, &lin.b)
     }
 
@@ -534,14 +689,24 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
     fn block(be: &B, blk: &VitBlock, geo: Geometry) -> Result<DevBlock, OjasError> {
         // A windowed block's table is the 24 x 24 grid at any input size; a global block's is the
         // stored one only on the grid it was stored for.
-        let tokens = if blk.global { geo.tokens() } else { VIT_WINDOW * VIT_WINDOW };
+        let tokens = if blk.global {
+            geo.tokens()
+        } else {
+            VIT_WINDOW * VIT_WINDOW
+        };
         let (rope_cos, rope_sin) = if blk.freqs_cis.shape[0] == tokens {
             rope_tables(be, &blk.freqs_cis)?
         } else if blk.global {
             let (cos, sin) = vit_rope_tables(geo.grid, be.budget())?;
             (be.upload(&cos)?, be.upload(&sin)?)
         } else {
-            return Err(out_of_range("st_model::Backbone::new_at", format!("a windowed block's RoPE table has {} rows, not {tokens}", blk.freqs_cis.shape[0])));
+            return Err(out_of_range(
+                "st_model::Backbone::new_at",
+                format!(
+                    "a windowed block's RoPE table has {} rows, not {tokens}",
+                    blk.freqs_cis.shape[0]
+                ),
+            ));
         };
         Ok(DevBlock {
             global: blk.global,
@@ -563,11 +728,17 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
     /// `keep_blocks` lists the block outputs to return in `taps`.
     /// With an external trunk ([`Self::with_external_trunk`]) the trunk runs there, `keep_blocks`
     /// must be empty and `taps` is cleared.
-    pub fn trunk(&self, image: &Tensor, keep_blocks: &[usize], taps: &mut Taps) -> Result<Tensor, OjasError> {
+    pub fn trunk(
+        &self,
+        image: &Tensor,
+        keep_blocks: &[usize],
+        taps: &mut Taps,
+    ) -> Result<Tensor, OjasError> {
         if let Some(ext) = &self.external {
             return self.run_external(ext.as_ref(), image, keep_blocks, taps);
         }
-        self.run_trunk(image, keep_blocks, taps, Plan::Ungated).map(|(x, _)| x)
+        self.run_trunk(image, keep_blocks, taps, Plan::Ungated)
+            .map(|(x, _)| x)
     }
 
     /// The trunk with event gating: recompute only the windows in `recompute`
@@ -627,7 +798,13 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         self.refuse_external("st_model::Backbone::trunk_gated")?;
         let side = self.geo.side();
         if recompute.side() != side {
-            return Err(out_of_range("st_model::Backbone::trunk_gated", format!("window set is {0} x {0}, the trunk has {side} x {side}", recompute.side())));
+            return Err(out_of_range(
+                "st_model::Backbone::trunk_gated",
+                format!(
+                    "window set is {0} x {0}, the trunk has {side} x {side}",
+                    recompute.side()
+                ),
+            ));
         }
         let reuse = cache.valid && recompute.is_empty() && policy != GatePolicy::Off;
         if reuse {
@@ -636,7 +813,13 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
                 taps.ln_pre = None;
                 taps.blocks = vec![None; self.blocks.len()];
                 let (windowed, global) = self.block_counts();
-                let stats = GatedStats { mode: GatedMode::Reused, window_blocks_run: 0, window_blocks_total: windowed * side * side, global_blocks_run: 0, global_blocks_total: global };
+                let stats = GatedStats {
+                    mode: GatedMode::Reused,
+                    window_blocks_run: 0,
+                    window_blocks_total: windowed * side * side,
+                    global_blocks_run: 0,
+                    global_blocks_total: global,
+                };
                 return Ok((out, stats));
             }
         }
@@ -646,9 +829,20 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
                 self.run_trunk(image, keep_blocks, taps, Plan::Ungated)
             }
             GatePolicy::Frame => self.run_trunk(image, keep_blocks, taps, Plan::Capture(cache)),
-            GatePolicy::Windows { approximate_after_global } => {
+            GatePolicy::Windows {
+                approximate_after_global,
+            } => {
                 if cache.valid && !recompute.is_full() {
-                    self.run_trunk(image, keep_blocks, taps, Plan::Partial { cache, set: recompute, approximate: approximate_after_global })
+                    self.run_trunk(
+                        image,
+                        keep_blocks,
+                        taps,
+                        Plan::Partial {
+                            cache,
+                            set: recompute,
+                            approximate: approximate_after_global,
+                        },
+                    )
                 } else {
                     self.run_trunk(image, keep_blocks, taps, Plan::Capture(cache))
                 }
@@ -667,12 +861,24 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
 
     /// The one trunk loop: `trunk` is `Plan::Ungated`; the gated paths differ
     /// only in which windows a windowed run is applied to and what is cached.
-    fn run_trunk(&self, image: &Tensor, keep_blocks: &[usize], taps: &mut Taps, mut plan: Plan<'_>) -> Result<(Tensor, GatedStats), OjasError> {
+    fn run_trunk(
+        &self,
+        image: &Tensor,
+        keep_blocks: &[usize],
+        taps: &mut Taps,
+        mut plan: Plan<'_>,
+    ) -> Result<(Tensor, GatedStats), OjasError> {
         let be = self.be;
         let side = self.geo.side();
         let px = self.geo.pixels();
         if image.shape() != [1, 3, px, px] {
-            return Err(out_of_range("st_model::Backbone::trunk", format!("expected a [1, 3, {px}, {px}] image for this backbone, got {:?}", image.shape())));
+            return Err(out_of_range(
+                "st_model::Backbone::trunk",
+                format!(
+                    "expected a [1, 3, {px}, {px}] image for this backbone, got {:?}",
+                    image.shape()
+                ),
+            ));
         }
         let mut p = Conv2dParams::new();
         p.stride = [VIT_PATCH, VIT_PATCH];
@@ -710,12 +916,19 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
                 // Only the first run's input is a per-window function of the frame; later
                 // runs follow a global block, so carrying them is the approximation.
                 let partial = match &plan {
-                    Plan::Partial { set, approximate, .. } => (s == 0 || *approximate) && !set.is_full(),
+                    Plan::Partial {
+                        set, approximate, ..
+                    } => (s == 0 || *approximate) && !set.is_full(),
                     _ => false,
                 };
                 if let (true, Plan::Partial { cache, set, .. }) = (partial, &mut plan) {
                     let set: &WindowSet = set;
-                    let base = cache.run_out[s].clone().ok_or_else(|| out_of_range("st_model::Backbone::trunk_gated", format!("no cached output for windowed run {s}")))?;
+                    let base = cache.run_out[s].clone().ok_or_else(|| {
+                        out_of_range(
+                            "st_model::Backbone::trunk_gated",
+                            format!("no cached output for windowed run {s}"),
+                        )
+                    })?;
                     let k = set.count();
                     let mut sub = gather_windows(be, &x, set)?;
                     for i in stage.windowed.clone() {
@@ -737,7 +950,9 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
                     }
                 }
                 match &mut plan {
-                    Plan::Capture(cache) | Plan::Partial { cache, .. } => cache.run_out[s] = Some(x.clone()),
+                    Plan::Capture(cache) | Plan::Partial { cache, .. } => {
+                        cache.run_out[s] = Some(x.clone())
+                    }
                     Plan::Ungated => {}
                 }
             }
@@ -765,7 +980,11 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
     /// `Global` and `Grid` the sequence of backend calls, and their shapes, is
     /// the ungated trunk's block exactly.
     fn block_apply(&self, blk: &DevBlock, x: &Tensor, mix: Mix) -> Result<Tensor, OjasError> {
-        debug_assert_eq!(blk.global, matches!(mix, Mix::Global), "a block is global exactly when it mixes globally");
+        debug_assert_eq!(
+            blk.global,
+            matches!(mix, Mix::Global),
+            "a block is global exactly when it mixes globally"
+        );
         let be = self.be;
         let h = be.layer_norm_forward(x, &blk.norm1.w, &blk.norm1.b, VIT_LN_EPS)?;
         // Windowed blocks attend within each 24x24 window: a batch of 9 x 576 (or k x 576).
@@ -774,23 +993,45 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
             Mix::Grid => (self.geo.side().pow(2), VIT_WINDOW * VIT_WINDOW),
             Mix::Gathered(k) => (k, VIT_WINDOW * VIT_WINDOW),
         };
-        let h = if matches!(mix, Mix::Grid) { window_partition(be, &h, VIT_WINDOW)? } else { h };
+        let h = if matches!(mix, Mix::Grid) {
+            window_partition(be, &h, VIT_WINDOW)?
+        } else {
+            h
+        };
         let h = h.reshape(&[seqs, tokens, VIT_DIM])?;
         let heads = |lin: &DevLinear| -> Result<Tensor, OjasError> {
-            self.trunk_linear(&h, lin)?.reshape(&[seqs, tokens, HEADS, HEAD_DIM])
+            self.trunk_linear(&h, lin)?
+                .reshape(&[seqs, tokens, HEADS, HEAD_DIM])
         };
         // RoPE on [B, T, H, D]; attention wants [B, H, T, D].
         let q = be.rope_interleaved_forward(&heads(&blk.q)?, &blk.rope_cos, &blk.rope_sin)?;
         let k = be.rope_interleaved_forward(&heads(&blk.k)?, &blk.rope_cos, &blk.rope_sin)?;
         let v = heads(&blk.v)?;
-        let (q, k, v) = (be.permute(&q, &[0, 2, 1, 3])?, be.permute(&k, &[0, 2, 1, 3])?, be.permute(&v, &[0, 2, 1, 3])?);
-        let opts = AttentionOpts { causal: false, window: None, bias: None, key_lens: None, ..Default::default() };
+        let (q, k, v) = (
+            be.permute(&q, &[0, 2, 1, 3])?,
+            be.permute(&k, &[0, 2, 1, 3])?,
+            be.permute(&v, &[0, 2, 1, 3])?,
+        );
+        let opts = AttentionOpts {
+            causal: false,
+            window: None,
+            bias: None,
+            key_lens: None,
+            ..Default::default()
+        };
         let a = be.attention_forward(&q, &k, &v, opts)?; // [B, H, T, D]
-        let a = be.permute(&a, &[0, 2, 1, 3])?.reshape(&[seqs, tokens, VIT_DIM])?;
+        let a = be
+            .permute(&a, &[0, 2, 1, 3])?
+            .reshape(&[seqs, tokens, VIT_DIM])?;
         let a = self.trunk_linear(&a, &blk.proj)?;
         let a = match mix {
             Mix::Global => a.reshape(&[1, self.geo.grid, self.geo.grid, VIT_DIM])?,
-            Mix::Grid => window_merge(be, &a.reshape(&[seqs, VIT_WINDOW, VIT_WINDOW, VIT_DIM])?, self.geo.grid, self.geo.grid)?,
+            Mix::Grid => window_merge(
+                be,
+                &a.reshape(&[seqs, VIT_WINDOW, VIT_WINDOW, VIT_DIM])?,
+                self.geo.grid,
+                self.geo.grid,
+            )?,
             Mix::Gathered(_) => a.reshape(&[seqs, VIT_WINDOW, VIT_WINDOW, VIT_DIM])?,
         };
         let x = be.residual_add_forward(x, &a)?;
@@ -819,7 +1060,12 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         let mut out = Vec::with_capacity(3);
         for lvl in levels {
             out.push(match lvl {
-                DevLevel::Up4 { dconv0, dconv1, c1, c3 } => {
+                DevLevel::Up4 {
+                    dconv0,
+                    dconv1,
+                    c1,
+                    c3,
+                } => {
                     let y = be.conv_transpose2d_forward(&x, &dconv0.w, Some(&dconv0.b), up)?;
                     let y = be.gelu_erf_forward(&y)?;
                     let y = be.conv_transpose2d_forward(&y, &dconv1.w, Some(&dconv1.b), up)?;
@@ -852,17 +1098,35 @@ mod tests {
         let st = stages_of(&sam);
         assert_eq!(st.len(), 4);
         for (s, stage) in st.iter().enumerate() {
-            assert_eq!(*stage, Stage { windowed: s * 8..s * 8 + 7, global: Some(s * 8 + 7) });
+            assert_eq!(
+                *stage,
+                Stage {
+                    windowed: s * 8..s * 8 + 7,
+                    global: Some(s * 8 + 7)
+                }
+            );
         }
         // Odd shapes keep every block exactly once.
         let odd = [false, false, true, true, false, true, false];
         assert_eq!(
             stages_of(&odd),
             vec![
-                Stage { windowed: 0..2, global: Some(2) },
-                Stage { windowed: 3..3, global: Some(3) },
-                Stage { windowed: 4..5, global: Some(5) },
-                Stage { windowed: 6..7, global: None },
+                Stage {
+                    windowed: 0..2,
+                    global: Some(2)
+                },
+                Stage {
+                    windowed: 3..3,
+                    global: Some(3)
+                },
+                Stage {
+                    windowed: 4..5,
+                    global: Some(5)
+                },
+                Stage {
+                    windowed: 6..7,
+                    global: None
+                },
             ]
         );
         assert!(stages_of(&[]).is_empty());
@@ -870,7 +1134,9 @@ mod tests {
 
     /// `[1, 72, 72, C]` whose element is a function of its position, so a misplaced window shows.
     fn ramp() -> Vec<f32> {
-        (0..VIT_GRID * VIT_GRID * VIT_DIM).map(|i| (i % 4093) as f32 + (i / 4093) as f32 * 0.25).collect()
+        (0..VIT_GRID * VIT_GRID * VIT_DIM)
+            .map(|i| (i % 4093) as f32 + (i / 4093) as f32 * 0.25)
+            .collect()
     }
 
     #[test]
@@ -887,7 +1153,11 @@ mod tests {
         assert_eq!(sub.shape(), &[3, VIT_WINDOW, VIT_WINDOW, VIT_DIM]);
         let sub_host = host_f32(&be, &sub).unwrap();
         for (j, w) in [0usize, 4, 7].into_iter().enumerate() {
-            assert_eq!(sub_host[j * per..(j + 1) * per], all[w * per..(w + 1) * per], "window {w}");
+            assert_eq!(
+                sub_host[j * per..(j + 1) * per],
+                all[w * per..(w + 1) * per],
+                "window {w}"
+            );
         }
 
         // Scatter the gathered windows, negated, over the original: only those windows change.
@@ -897,9 +1167,15 @@ mod tests {
         let merged_parts = window_partition(&be, &merged, VIT_WINDOW).unwrap();
         let merged_parts = host_f32(&be, &merged_parts).unwrap();
         for w in 0..9 {
-            let (got, want) = (&merged_parts[w * per..(w + 1) * per], &all[w * per..(w + 1) * per]);
+            let (got, want) = (
+                &merged_parts[w * per..(w + 1) * per],
+                &all[w * per..(w + 1) * per],
+            );
             if set.contains(w) {
-                assert!(got.iter().zip(want).all(|(g, v)| *g == -*v), "window {w} replaced");
+                assert!(
+                    got.iter().zip(want).all(|(g, v)| *g == -*v),
+                    "window {w} replaced"
+                );
             } else {
                 assert_eq!(got, want, "window {w} untouched");
             }
@@ -909,7 +1185,11 @@ mod tests {
         // The identity: gather everything, scatter it back.
         let full = WindowSet::full(3);
         let g = gather_windows(&be, &x, &full).unwrap();
-        assert_eq!(host_f32(&be, &g).unwrap(), all, "a full gather is window_partition");
+        assert_eq!(
+            host_f32(&be, &g).unwrap(),
+            all,
+            "a full gather is window_partition"
+        );
         let back = scatter_windows(&be, &merged, &g, &full).unwrap();
         assert_eq!(host_f32(&be, &back).unwrap(), data);
     }
@@ -930,12 +1210,17 @@ mod tests {
         for (grid, scale) in [(24usize, 1.0f64), (72, 1.0 / 3.0), (48, 0.5), (96, 0.25)] {
             let (cos, sin) = vit_rope_tables(grid, &budget).unwrap();
             assert_eq!(cos.shape(), &[grid * grid, VIT_ROPE_PAIRS], "grid {grid}");
-            let (c, s) = (cos.to_host(&budget).unwrap().to_f32_vec().unwrap(), sin.to_host(&budget).unwrap().to_f32_vec().unwrap());
+            let (c, s) = (
+                cos.to_host(&budget).unwrap().to_f32_vec().unwrap(),
+                sin.to_host(&budget).unwrap().to_f32_vec().unwrap(),
+            );
             let mut worst = 0f64;
             for t in (0..grid * grid).step_by(7).chain([grid * grid - 1]) {
                 for p in 0..VIT_ROPE_PAIRS {
                     let a = expected_angle(grid, t, p, scale);
-                    worst = worst.max((f64::from(c[t * VIT_ROPE_PAIRS + p]) - a.cos()).abs()).max((f64::from(s[t * VIT_ROPE_PAIRS + p]) - a.sin()).abs());
+                    worst = worst
+                        .max((f64::from(c[t * VIT_ROPE_PAIRS + p]) - a.cos()).abs())
+                        .max((f64::from(s[t * VIT_ROPE_PAIRS + p]) - a.sin()).abs());
                 }
             }
             // f32 angles (as torch forms them) against the f64 formula: a few 1e-6 at the largest angles.
@@ -952,20 +1237,33 @@ mod tests {
         let budget = Budget::new(1 << 30);
         let at = |grid: usize| {
             let (c, s) = vit_rope_tables(grid, &budget).unwrap();
-            (c.to_host(&budget).unwrap().to_f32_vec().unwrap(), s.to_host(&budget).unwrap().to_f32_vec().unwrap())
+            (
+                c.to_host(&budget).unwrap().to_f32_vec().unwrap(),
+                s.to_host(&budget).unwrap().to_f32_vec().unwrap(),
+            )
         };
         let (c72, s72) = at(72);
         let (c48, s48) = at(48);
         // Column 3 of row 0 at grid 72 sits at 1.0 (3 * 24 / 72); column 2 at grid 48 sits at 1.0 too.
         for p in 0..VIT_ROPE_PAIRS {
-            assert!((c72[3 * VIT_ROPE_PAIRS + p] - c48[2 * VIT_ROPE_PAIRS + p]).abs() < 1e-6, "cos pair {p}");
-            assert!((s72[3 * VIT_ROPE_PAIRS + p] - s48[2 * VIT_ROPE_PAIRS + p]).abs() < 1e-6, "sin pair {p}");
+            assert!(
+                (c72[3 * VIT_ROPE_PAIRS + p] - c48[2 * VIT_ROPE_PAIRS + p]).abs() < 1e-6,
+                "cos pair {p}"
+            );
+            assert!(
+                (s72[3 * VIT_ROPE_PAIRS + p] - s48[2 * VIT_ROPE_PAIRS + p]).abs() < 1e-6,
+                "sin pair {p}"
+            );
         }
     }
 
     #[test]
     fn the_position_embedding_tiles_at_any_whole_number_of_windows() {
-        let pos = Weight { name: "pos_embed".into(), shape: vec![1, 577, VIT_DIM], data: (0..577 * VIT_DIM).map(|i| (i % 8191) as f32).collect() };
+        let pos = Weight {
+            name: "pos_embed".into(),
+            shape: vec![1, 577, VIT_DIM],
+            data: (0..577 * VIT_DIM).map(|i| (i % 8191) as f32).collect(),
+        };
         let native = tiled_pos(&pos, 72);
         assert_eq!(native.len(), 72 * 72 * VIT_DIM);
         for grid in [24usize, 48] {
@@ -974,7 +1272,11 @@ mod tests {
             // Each row of the smaller grid is the same row of the native one: the tile is
             // anchored at the origin and the grid is cropped, never resampled.
             for y in 0..grid {
-                assert_eq!(t[y * grid * VIT_DIM..(y + 1) * grid * VIT_DIM], native[y * 72 * VIT_DIM..y * 72 * VIT_DIM + grid * VIT_DIM], "grid {grid} row {y}");
+                assert_eq!(
+                    t[y * grid * VIT_DIM..(y + 1) * grid * VIT_DIM],
+                    native[y * 72 * VIT_DIM..y * 72 * VIT_DIM + grid * VIT_DIM],
+                    "grid {grid} row {y}"
+                );
             }
         }
         // 336 is the pretrain grid: the stored embedding without its cls row.
@@ -984,16 +1286,33 @@ mod tests {
     #[test]
     fn stats_follow_the_grid_they_are_asked_about() {
         let g48 = Geometry::from_image_side(672).unwrap();
-        let full = GatedStats { mode: GatedMode::Full, window_blocks_run: 112, window_blocks_total: 112, global_blocks_run: 4, global_blocks_total: 4 };
-        assert_eq!((full.flop_fraction_at(g48), full.block_fraction_at(g48)), (1.0, 1.0));
+        let full = GatedStats {
+            mode: GatedMode::Full,
+            window_blocks_run: 112,
+            window_blocks_total: 112,
+            global_blocks_run: 4,
+            global_blocks_total: 4,
+        };
+        assert_eq!(
+            (full.flop_fraction_at(g48), full.block_fraction_at(g48)),
+            (1.0, 1.0)
+        );
         // Half the windows of a 2 x 2 grid: 2 of 4 window-blocks per windowed block.
-        let half = GatedStats { window_blocks_run: 56, global_blocks_run: 4, ..full };
+        let half = GatedStats {
+            window_blocks_run: 56,
+            global_blocks_run: 4,
+            ..full
+        };
         let want = (56 + 4 * 4) as f64 / (112 + 4 * 4) as f64;
         assert!((half.block_fraction_at(g48) - want).abs() < 1e-12);
         // The 1008 default is not the 672 answer.
         assert!((half.block_fraction() - half.block_fraction_at(g48)).abs() > 1e-3);
         // A global block is 2304 tokens at 672, 5184 at 1008: the attention term shrinks quadratically.
-        let one_global = GatedStats { window_blocks_run: 0, global_blocks_run: 1, ..full };
+        let one_global = GatedStats {
+            window_blocks_run: 0,
+            global_blocks_run: 1,
+            ..full
+        };
         assert!(one_global.flops_at(g48) < one_global.flops() / 2.0);
     }
 
@@ -1001,7 +1320,9 @@ mod tests {
     fn gather_and_scatter_follow_the_grid_of_the_tensor() {
         let be = CpuBackend::new(Budget::new(2 << 30));
         let grid = 48;
-        let data: Vec<f32> = (0..grid * grid * VIT_DIM).map(|i| (i % 4093) as f32).collect();
+        let data: Vec<f32> = (0..grid * grid * VIT_DIM)
+            .map(|i| (i % 4093) as f32)
+            .collect();
         let x = upload(&be, &data, &[1, grid, grid, VIT_DIM]).unwrap();
         let all = host_f32(&be, &window_partition(&be, &x, VIT_WINDOW).unwrap()).unwrap();
         let per = VIT_WINDOW * VIT_WINDOW * VIT_DIM;
@@ -1009,9 +1330,16 @@ mod tests {
         let sub = gather_windows(&be, &x, &set).unwrap();
         let sub_host = host_f32(&be, &sub).unwrap();
         for (j, w) in [1usize, 3].into_iter().enumerate() {
-            assert_eq!(sub_host[j * per..(j + 1) * per], all[w * per..(w + 1) * per], "window {w}");
+            assert_eq!(
+                sub_host[j * per..(j + 1) * per],
+                all[w * per..(w + 1) * per],
+                "window {w}"
+            );
         }
-        assert_eq!(host_f32(&be, &scatter_windows(&be, &x, &sub, &set).unwrap()).unwrap(), data);
+        assert_eq!(
+            host_f32(&be, &scatter_windows(&be, &x, &sub, &set).unwrap()).unwrap(),
+            data
+        );
         // A 3 x 3 window set does not describe a 2 x 2 window grid.
         assert!(gather_windows(&be, &x, &WindowSet::from_indices(3, &[0])).is_err());
     }
@@ -1023,20 +1351,48 @@ mod tests {
         let set = WindowSet::from_indices(3, &[1]);
         assert!(gather_windows(&be, &small, &set).is_err());
         let x = upload(&be, &ramp(), &[1, VIT_GRID, VIT_GRID, VIT_DIM]).unwrap();
-        let wrong_count = upload(&be, &vec![0.0; 2 * VIT_WINDOW * VIT_WINDOW * VIT_DIM], &[2, VIT_WINDOW, VIT_WINDOW, VIT_DIM]).unwrap();
+        let wrong_count = upload(
+            &be,
+            &vec![0.0; 2 * VIT_WINDOW * VIT_WINDOW * VIT_DIM],
+            &[2, VIT_WINDOW, VIT_WINDOW, VIT_DIM],
+        )
+        .unwrap();
         assert!(scatter_windows(&be, &x, &wrong_count, &set).is_err());
     }
 
     #[test]
     fn stats_count_work_and_a_full_run_is_one() {
-        let full = GatedStats { mode: GatedMode::Full, window_blocks_run: 252, window_blocks_total: 252, global_blocks_run: 4, global_blocks_total: 4 };
+        let full = GatedStats {
+            mode: GatedMode::Full,
+            window_blocks_run: 252,
+            window_blocks_total: 252,
+            global_blocks_run: 4,
+            global_blocks_total: 4,
+        };
         assert_eq!(full.flop_fraction(), 1.0);
         assert_eq!(full.block_fraction(), 1.0);
-        let reuse = GatedStats { mode: GatedMode::Reused, window_blocks_run: 0, global_blocks_run: 0, ..full };
-        assert_eq!((reuse.flops(), reuse.flop_fraction(), reuse.block_fraction()), (0.0, 0.0, 0.0));
+        let reuse = GatedStats {
+            mode: GatedMode::Reused,
+            window_blocks_run: 0,
+            global_blocks_run: 0,
+            ..full
+        };
+        assert_eq!(
+            (reuse.flops(), reuse.flop_fraction(), reuse.block_fraction()),
+            (0.0, 0.0, 0.0)
+        );
         // Exact policy, 4 of 9 windows changed: 7 blocks on 4 windows, the other 21 on all 9, all globals.
-        let exact = GatedStats { mode: GatedMode::Windows, window_blocks_run: 7 * 4 + 21 * 9, global_blocks_run: 4, ..full };
-        assert!(exact.flop_fraction() < 0.9 && exact.flop_fraction() > 0.85, "{}", exact.flop_fraction());
+        let exact = GatedStats {
+            mode: GatedMode::Windows,
+            window_blocks_run: 7 * 4 + 21 * 9,
+            global_blocks_run: 4,
+            ..full
+        };
+        assert!(
+            exact.flop_fraction() < 0.9 && exact.flop_fraction() > 0.85,
+            "{}",
+            exact.flop_fraction()
+        );
         // The ViT's global blocks cost a large share, so the saving is small even for 7 of 32 blocks.
     }
 }

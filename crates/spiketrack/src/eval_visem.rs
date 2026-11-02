@@ -89,8 +89,14 @@ pub fn parse_split(text: &str, set: Option<&str>) -> Result<Vec<String>, String>
     if text.trim_start().starts_with('{') {
         let name = set.ok_or("a JSON split needs --set (train or held_out)")?;
         let top = parse_json(text).map_err(|e| format!("not valid JSON: {}", e.detail()))?;
-        let list = top.get_array(name).map_err(|_| format!("the JSON split has no list named {name:?}"))?;
-        let ids: Vec<String> = list.iter().map(id_text).collect::<Result<_, _>>().map_err(|e| format!("list {name:?}: {e}"))?;
+        let list = top
+            .get_array(name)
+            .map_err(|_| format!("the JSON split has no list named {name:?}"))?;
+        let ids: Vec<String> = list
+            .iter()
+            .map(id_text)
+            .collect::<Result<_, _>>()
+            .map_err(|e| format!("list {name:?}: {e}"))?;
         return check_ids(ids);
     }
     if set.is_some() {
@@ -103,7 +109,11 @@ pub fn parse_split(text: &str, set: Option<&str>) -> Result<Vec<String>, String>
         if line.is_empty() {
             continue;
         }
-        if line.split_whitespace().count() != 1 || line.contains(['/', '\\']) || line == "." || line == ".." {
+        if line.split_whitespace().count() != 1
+            || line.contains(['/', '\\'])
+            || line == "."
+            || line == ".."
+        {
             return Err(format!("line {}: {line:?} is not a single video id", n + 1));
         }
         if !seen.insert(line.to_string()) {
@@ -121,7 +131,8 @@ fn check_ids(ids: Vec<String>) -> Result<Vec<String>, String> {
     }
     let mut seen = BTreeSet::new();
     for id in &ids {
-        if id.contains(['/', '\\']) || id == "." || id == ".." || id.split_whitespace().count() != 1 {
+        if id.contains(['/', '\\']) || id == "." || id == ".." || id.split_whitespace().count() != 1
+        {
             return Err(format!("{id:?} is not a single video id"));
         }
         if !seen.insert(id) {
@@ -144,46 +155,81 @@ fn id_text(v: &JsonValue) -> Result<String, String> {
         }
         return Ok(s.to_string());
     }
-    v.as_i64().map(|i| i.to_string()).map_err(|_| format!("a track id must be an integer or a string, not {}", v.kind()))
+    v.as_i64().map(|i| i.to_string()).map_err(|_| {
+        format!(
+            "a track id must be an integer or a string, not {}",
+            v.kind()
+        )
+    })
 }
 
 /// Parse one prediction file's text; `expect_video` is the id from the file name.
 pub fn parse_predictions(text: &str, expect_video: &str) -> Result<Predictions, String> {
     let top = parse_json(text).map_err(|e| format!("not valid JSON: {}", e.detail()))?;
-    top.deny_unknown_keys_at("prediction file", &["video", "width", "height", "frames"]).map_err(|e| e.detail().to_string())?;
+    top.deny_unknown_keys_at("prediction file", &["video", "width", "height", "frames"])
+        .map_err(|e| e.detail().to_string())?;
     if let Some(v) = top.field_opt("video").map_err(|e| e.detail().to_string())? {
         let named = match v.as_str() {
             Ok(s) => s.to_string(),
-            Err(_) => v.as_i64().map_err(|_| "\"video\" must be a string or an integer".to_string())?.to_string(),
+            Err(_) => v
+                .as_i64()
+                .map_err(|_| "\"video\" must be a string or an integer".to_string())?
+                .to_string(),
         };
         if named != expect_video {
-            return Err(format!("\"video\" is {named:?} but the file is for video {expect_video:?}"));
+            return Err(format!(
+                "\"video\" is {named:?} but the file is for video {expect_video:?}"
+            ));
         }
     }
-    let frames = top.get_array("frames").map_err(|e| e.detail().to_string())?;
+    let frames = top
+        .get_array("frames")
+        .map_err(|e| e.detail().to_string())?;
     let mut out = Predictions::default();
     for (fi, f) in frames.iter().enumerate() {
         let at = |what: &str| format!("frames[{fi}]: {what}");
-        f.deny_unknown_keys_at(&format!("frames[{fi}]"), &["frame", "objects"]).map_err(|e| e.detail().to_string())?;
+        f.deny_unknown_keys_at(&format!("frames[{fi}]"), &["frame", "objects"])
+            .map_err(|e| e.detail().to_string())?;
         let n = f.get_u64("frame").map_err(|e| at(e.detail()))?;
         let n = u32::try_from(n).map_err(|_| at(&format!("frame {n} is too large")))?;
         let mut ids = BTreeSet::new();
         let mut boxes = Vec::new();
-        for (oi, o) in f.get_array("objects").map_err(|e| at(e.detail()))?.iter().enumerate() {
+        for (oi, o) in f
+            .get_array("objects")
+            .map_err(|e| at(e.detail()))?
+            .iter()
+            .enumerate()
+        {
             let at = |what: &str| format!("frames[{fi}].objects[{oi}]: {what}");
-            o.deny_unknown_keys_at("object", &["id", "box_xyxy_norm", "score"]).map_err(|e| at(e.detail()))?;
+            o.deny_unknown_keys_at("object", &["id", "box_xyxy_norm", "score"])
+                .map_err(|e| at(e.detail()))?;
             let id = id_text(o.field("id").map_err(|e| at(e.detail()))?).map_err(|e| at(&e))?;
             if !ids.insert(id.clone()) {
                 return Err(at(&format!("track id {id:?} appears twice in frame {n}")));
             }
             let b = o.get_array("box_xyxy_norm").map_err(|e| at(e.detail()))?;
-            let [x0, y0, x1, y1] = b.iter().map(|v| v.as_f64().map_err(|e| at(e.detail()))).collect::<Result<Vec<f64>, String>>()?[..] else {
-                return Err(at(&format!("box_xyxy_norm has {} numbers, expected 4", b.len())));
+            let [x0, y0, x1, y1] = b
+                .iter()
+                .map(|v| v.as_f64().map_err(|e| at(e.detail())))
+                .collect::<Result<Vec<f64>, String>>()?[..]
+            else {
+                return Err(at(&format!(
+                    "box_xyxy_norm has {} numbers, expected 4",
+                    b.len()
+                )));
             };
             if ![x0, y0, x1, y1].iter().all(|v| v.is_finite()) || x1 <= x0 || y1 <= y0 {
                 return Err(at(&format!("box [{x0}, {y0}, {x1}, {y1}] is not a finite box with positive width and height")));
             }
-            boxes.push((id, Xywh { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }));
+            boxes.push((
+                id,
+                Xywh {
+                    x: x0,
+                    y: y0,
+                    w: x1 - x0,
+                    h: y1 - y0,
+                },
+            ));
         }
         if out.frames.insert(n, boxes).is_some() {
             return Err(at(&format!("frame {n} is listed twice")));
@@ -217,21 +263,37 @@ pub struct Window {
 }
 
 /// Score every video in `ids` over all its labelled frames.
+#[allow(dead_code)]
 pub fn evaluate(pred: &Path, ids: &[String], visem: &Path) -> Result<Evaluation, String> {
     evaluate_window(pred, ids, visem, Window::default())
 }
 
 /// Score every video in `ids`: ground truth under `visem`, predictions under `pred`,
 /// over `window` of each video's labelled frames (which it must lie inside).
-pub fn evaluate_window(pred: &Path, ids: &[String], visem: &Path, window: Window) -> Result<Evaluation, String> {
+pub fn evaluate_window(
+    pred: &Path,
+    ids: &[String],
+    visem: &Path,
+    window: Window,
+) -> Result<Evaluation, String> {
     let mut videos = Vec::new();
     for id in ids {
         let gt_dir = visem.join(id);
         let gt = load_video(&gt_dir).map_err(|e| format!("video {id}: ground truth: {e}"))?;
-        let mut frames: Vec<Frame<String>> = gt.hota_frames(&[VisemClass::Sperm]).map_err(|e| format!("video {id}: ground truth: {e}"))?;
-        let labelled_first = *gt.frames.keys().next().ok_or_else(|| format!("video {id}: no ground-truth frames"))?;
+        let mut frames: Vec<Frame<String>> = gt
+            .hota_frames(&[VisemClass::Sperm])
+            .map_err(|e| format!("video {id}: ground truth: {e}"))?;
+        let labelled_first = *gt
+            .frames
+            .keys()
+            .next()
+            .ok_or_else(|| format!("video {id}: no ground-truth frames"))?;
         let first = window.start.unwrap_or(labelled_first);
-        let skip = first.checked_sub(labelled_first).ok_or_else(|| format!("video {id}: --start {first} is before the first labelled frame {labelled_first}"))? as usize;
+        let skip = first.checked_sub(labelled_first).ok_or_else(|| {
+            format!(
+                "video {id}: --start {first} is before the first labelled frame {labelled_first}"
+            )
+        })? as usize;
         let available = frames.len().saturating_sub(skip);
         let wanted = window.max_frames.unwrap_or(available);
         if skip >= frames.len() || wanted == 0 || wanted > available {
@@ -239,11 +301,17 @@ pub fn evaluate_window(pred: &Path, ids: &[String], visem: &Path, window: Window
         }
         frames = frames[skip..skip + wanted].to_vec();
         let pred_path = pred.join(format!("{id}.json"));
-        let text = std::fs::read_to_string(&pred_path).map_err(|e| format!("video {id}: {}: {e}", pred_path.display()))?;
-        let preds = parse_predictions(&text, id).map_err(|e| format!("video {id}: {}: {e}", pred_path.display()))?;
+        let text = std::fs::read_to_string(&pred_path)
+            .map_err(|e| format!("video {id}: {}: {e}", pred_path.display()))?;
+        let preds = parse_predictions(&text, id)
+            .map_err(|e| format!("video {id}: {}: {e}", pred_path.display()))?;
         let (mut outside, mut pred_boxes) = (0usize, 0usize);
         for (&n, boxes) in &preds.frames {
-            match n.checked_sub(first).map(|k| k as usize).filter(|&k| k < frames.len()) {
+            match n
+                .checked_sub(first)
+                .map(|k| k as usize)
+                .filter(|&k| k < frames.len())
+            {
                 Some(k) => {
                     pred_boxes += boxes.len();
                     frames[k].pred = boxes.clone();
@@ -288,25 +356,59 @@ pub fn results_json(e: &Evaluation) -> Result<String, String> {
             summary_json(&v.hota.summary())?
         ));
     }
-    out.push_str(&format!("\n  ],\n  \"combined\": {{{}}}\n}}\n", summary_json(&e.combined.summary())?));
+    out.push_str(&format!(
+        "\n  ],\n  \"combined\": {{{}}}\n}}\n",
+        summary_json(&e.combined.summary())?
+    ));
     Ok(out)
 }
 
 pub fn table(e: &Evaluation) -> String {
-    let mut out = String::from("video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA\n");
-    let row = |name: &str, frames: String, gt: String, pr: String, outside: String, s: HotaSummary| {
-        format!("{name:<7} {frames:>6}  {gt:>8}  {pr:>10}  {outside:>7}  {:.4} {:.4} {:.4} {:.4}\n", s.hota, s.det_a, s.ass_a, s.loc_a)
-    };
+    let mut out =
+        String::from("video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA\n");
+    let row =
+        |name: &str, frames: String, gt: String, pr: String, outside: String, s: HotaSummary| {
+            format!(
+                "{name:<7} {frames:>6}  {gt:>8}  {pr:>10}  {outside:>7}  {:.4} {:.4} {:.4} {:.4}\n",
+                s.hota, s.det_a, s.ass_a, s.loc_a
+            )
+        };
     for v in &e.videos {
-        out.push_str(&row(&v.id, v.frames.to_string(), v.gt_boxes.to_string(), v.pred_boxes.to_string(), v.pred_frames_outside_gt.to_string(), v.hota.summary()));
+        out.push_str(&row(
+            &v.id,
+            v.frames.to_string(),
+            v.gt_boxes.to_string(),
+            v.pred_boxes.to_string(),
+            v.pred_frames_outside_gt.to_string(),
+            v.hota.summary(),
+        ));
     }
     let sum = |f: fn(&VideoResult) -> usize| e.videos.iter().map(f).sum::<usize>().to_string();
-    out.push_str(&row("all", sum(|v| v.frames), sum(|v| v.gt_boxes), sum(|v| v.pred_boxes), sum(|v| v.pred_frames_outside_gt), e.combined.summary()));
+    out.push_str(&row(
+        "all",
+        sum(|v| v.frames),
+        sum(|v| v.gt_boxes),
+        sum(|v| v.pred_boxes),
+        sum(|v| v.pred_frames_outside_gt),
+        e.combined.summary(),
+    ));
     out
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
-    let args = Args::parse(raw, &["pred", "split", "set", "start", "max-frames", "visem", "out"], 0)?;
+    let args = Args::parse(
+        raw,
+        &[
+            "pred",
+            "split",
+            "set",
+            "start",
+            "max-frames",
+            "visem",
+            "out",
+        ],
+        0,
+    )?;
     if args.help {
         println!("{USAGE}");
         return Ok(());
@@ -315,19 +417,35 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     let split = PathBuf::from(args.require("split")?);
     let visem = match args.get("visem") {
         Some(v) => PathBuf::from(v),
-        None => PathBuf::from(std::env::var("SPIKETRACK_VISEM").unwrap_or_else(|_| DEFAULT_VISEM.to_string())),
+        None => PathBuf::from(
+            std::env::var("SPIKETRACK_VISEM").unwrap_or_else(|_| DEFAULT_VISEM.to_string()),
+        ),
     };
     if !pred.is_dir() {
-        return Err(CliError::failed(format!("--pred {} is not a folder", pred.display())));
+        return Err(CliError::failed(format!(
+            "--pred {} is not a folder",
+            pred.display()
+        )));
     }
     if !visem.is_dir() {
-        return Err(CliError::failed(format!("the VISEM folder {} does not exist (pass --visem or set SPIKETRACK_VISEM)", visem.display())));
+        return Err(CliError::failed(format!(
+            "the VISEM folder {} does not exist (pass --visem or set SPIKETRACK_VISEM)",
+            visem.display()
+        )));
     }
-    let text = std::fs::read_to_string(&split).map_err(|e| CliError::failed(format!("{}: {e}", split.display())))?;
-    let ids = parse_split(&text, args.get("set")).map_err(|e| CliError::failed(format!("{}: {e}", split.display())))?;
+    let text = std::fs::read_to_string(&split)
+        .map_err(|e| CliError::failed(format!("{}: {e}", split.display())))?;
+    let ids = parse_split(&text, args.get("set"))
+        .map_err(|e| CliError::failed(format!("{}: {e}", split.display())))?;
     let window = Window {
-        start: args.get("start").map(|_| args.parsed("start", 0u32)).transpose()?,
-        max_frames: args.get("max-frames").map(|_| args.parsed("max-frames", 0usize)).transpose()?,
+        start: args
+            .get("start")
+            .map(|_| args.parsed("start", 0u32))
+            .transpose()?,
+        max_frames: args
+            .get("max-frames")
+            .map(|_| args.parsed("max-frames", 0usize))
+            .transpose()?,
     };
     if window.max_frames == Some(0) {
         return Err(CliError::usage("--max-frames must be at least 1"));
@@ -352,7 +470,8 @@ mod tests {
 
     impl Dirs {
         fn new(name: &str) -> Dirs {
-            let root = std::env::temp_dir().join(format!("spiketrack-eval-{name}-{}", std::process::id()));
+            let root =
+                std::env::temp_dir().join(format!("spiketrack-eval-{name}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&root);
             std::fs::create_dir_all(root.join("gt")).unwrap();
             std::fs::create_dir_all(root.join("pred")).unwrap();
@@ -365,7 +484,8 @@ mod tests {
             std::fs::create_dir_all(&labels).unwrap();
             for t in 0..frames {
                 let x = 0.1 + 0.02 * f64::from(t);
-                let text = format!("a 0 {x} 0.2 0.1 0.1\nb 0 {x} 0.6 0.1 0.1\nc 1 0.9 0.9 0.05 0.05\n");
+                let text =
+                    format!("a 0 {x} 0.2 0.1 0.1\nb 0 {x} 0.6 0.1 0.1\nc 1 0.9 0.9 0.05 0.05\n");
                 std::fs::write(labels.join(format!("{id}_frame_{t}_with_ftid.txt")), text).unwrap();
             }
         }
@@ -377,10 +497,14 @@ mod tests {
                 let x = 0.1 + 0.02 * f64::from(t);
                 let swapped = swap_from.is_some_and(|s| t >= s);
                 let (ida, idb) = if swapped { (2, 1) } else { (1, 2) };
-                let b = |y: f64| format!("[{}, {}, {}, {}]", x - 0.05, y - 0.05, x + 0.05, y + 0.05);
+                let b =
+                    |y: f64| format!("[{}, {}, {}, {}]", x - 0.05, y - 0.05, x + 0.05, y + 0.05);
                 fr.push(format!("{{\"frame\": {t}, \"objects\": [{{\"id\": {ida}, \"box_xyxy_norm\": {}}}, {{\"id\": \"{idb}\", \"box_xyxy_norm\": {}, \"score\": 0.9}}]}}", b(0.2), b(0.6)));
             }
-            self.write_pred(id, &format!("{{\"video\": \"{id}\", \"frames\": [{}]}}", fr.join(", ")));
+            self.write_pred(
+                id,
+                &format!("{{\"video\": \"{id}\", \"frames\": [{}]}}", fr.join(", ")),
+            );
         }
 
         fn write_pred(&self, id: &str, text: &str) {
@@ -406,9 +530,21 @@ mod tests {
         d.pred("7", 12, None);
         let e = d.eval(&["7"]).unwrap();
         let s = e.videos[0].hota.summary();
-        assert!((s.hota - 1.0).abs() < 1e-9 && (s.det_a - 1.0).abs() < 1e-9 && (s.ass_a - 1.0).abs() < 1e-9, "{s:?}");
+        assert!(
+            (s.hota - 1.0).abs() < 1e-9
+                && (s.det_a - 1.0).abs() < 1e-9
+                && (s.ass_a - 1.0).abs() < 1e-9,
+            "{s:?}"
+        );
         // Class 1 (cluster) ground truth is not scored: 12 frames x 2 sperm tracks.
-        assert_eq!((e.videos[0].frames, e.videos[0].gt_boxes, e.videos[0].pred_boxes), (12, 24, 24));
+        assert_eq!(
+            (
+                e.videos[0].frames,
+                e.videos[0].gt_boxes,
+                e.videos[0].pred_boxes
+            ),
+            (12, 24, 24)
+        );
         assert!((e.combined.summary().hota - 1.0).abs() < 1e-9);
     }
 
@@ -440,7 +576,11 @@ mod tests {
         d.pred("7", 6, None);
         d.pred("8", 6, Some(3));
         let e = d.eval(&["7", "8"]).unwrap();
-        let (a, b, all) = (e.videos[0].hota.summary().hota, e.videos[1].hota.summary().hota, e.combined.summary().hota);
+        let (a, b, all) = (
+            e.videos[0].hota.summary().hota,
+            e.videos[1].hota.summary().hota,
+            e.combined.summary().hota,
+        );
         assert!(all < a && all > b - 1e-9, "{a} {b} {all}");
         let t = table(&e);
         assert!(t.contains("all") && t.lines().count() == 4, "{t}");
@@ -471,7 +611,8 @@ mod tests {
     #[test]
     fn malformed_predictions_are_errors_with_a_location() {
         let ok = |s: &str| parse_predictions(s, "7");
-        let obj = |extra: &str| format!("{{\"frames\": [{{\"frame\": 0, \"objects\": [{extra}]}}]}}");
+        let obj =
+            |extra: &str| format!("{{\"frames\": [{{\"frame\": 0, \"objects\": [{extra}]}}]}}");
         assert!(ok(&obj("{\"id\": 1, \"box_xyxy_norm\": [0.1, 0.1, 0.2, 0.2]}")).is_ok());
         for (bad, needle) in [
             ("not json", "not valid JSON"),
@@ -495,24 +636,37 @@ mod tests {
 
     #[test]
     fn splits_are_parsed_strictly() {
-        assert_eq!(parse_split("11\n# comment\n\n22 # trailing\n", None).unwrap(), ["11", "22"]);
+        assert_eq!(
+            parse_split("11\n# comment\n\n22 # trailing\n", None).unwrap(),
+            ["11", "22"]
+        );
         assert!(parse_split("", None).is_err());
         assert!(parse_split("# only a comment\n", None).is_err());
         assert!(parse_split("11\n11\n", None).unwrap_err().contains("twice"));
         assert!(parse_split("11 22\n", None).is_err());
         assert!(parse_split("../etc\n", None).is_err());
         assert!(parse_split("a/b\n", None).is_err());
-        assert!(parse_split("11\n", Some("held_out")).unwrap_err().contains("plain id list"));
+        assert!(parse_split("11\n", Some("held_out"))
+            .unwrap_err()
+            .contains("plain id list"));
     }
 
     #[test]
     fn a_json_split_needs_a_named_list() {
         let json = "{\"rule\": \"x\", \"train\": [\"11\", 12], \"held_out\": [\"21\", \"22\"], \"dup\": [\"1\", \"1\"]}";
         assert_eq!(parse_split(json, Some("held_out")).unwrap(), ["21", "22"]);
-        assert_eq!(parse_split(json, Some("train")).unwrap(), ["11", "12"], "integer ids are accepted");
+        assert_eq!(
+            parse_split(json, Some("train")).unwrap(),
+            ["11", "12"],
+            "integer ids are accepted"
+        );
         assert!(parse_split(json, None).unwrap_err().contains("--set"));
-        assert!(parse_split(json, Some("val")).unwrap_err().contains("no list named"));
-        assert!(parse_split(json, Some("dup")).unwrap_err().contains("twice"));
+        assert!(parse_split(json, Some("val"))
+            .unwrap_err()
+            .contains("no list named"));
+        assert!(parse_split(json, Some("dup"))
+            .unwrap_err()
+            .contains("twice"));
         assert!(parse_split("{\"held_out\": []}", Some("held_out")).is_err());
     }
 
@@ -524,16 +678,48 @@ mod tests {
         let ids = vec!["7".to_string()];
         let run = |w: Window| evaluate_window(&d.root.join("pred"), &ids, &d.root.join("gt"), w);
         let whole = run(Window::default()).unwrap();
-        let early = run(Window { start: Some(0), max_frames: Some(8) }).unwrap();
+        let early = run(Window {
+            start: Some(0),
+            max_frames: Some(8),
+        })
+        .unwrap();
         assert_eq!(early.videos[0].frames, 8);
-        assert_eq!(early.videos[0].pred_frames_outside_gt, 4, "frames 8..11 are predicted but outside the window");
-        assert!((early.videos[0].hota.summary().hota - 1.0).abs() < 1e-9, "no swap inside the window");
+        assert_eq!(
+            early.videos[0].pred_frames_outside_gt, 4,
+            "frames 8..11 are predicted but outside the window"
+        );
+        assert!(
+            (early.videos[0].hota.summary().hota - 1.0).abs() < 1e-9,
+            "no swap inside the window"
+        );
         assert!(whole.videos[0].hota.summary().hota < 1.0);
-        let late = run(Window { start: Some(4), max_frames: None }).unwrap();
-        assert_eq!((late.videos[0].frames, late.videos[0].pred_frames_outside_gt), (8, 4));
-        assert!(run(Window { start: Some(0), max_frames: Some(13) }).unwrap_err().contains("does not fit"));
-        assert!(run(Window { start: Some(12), max_frames: None }).unwrap_err().contains("does not fit"));
-        assert!(run(Window { start: Some(0), max_frames: Some(0) }).unwrap_err().contains("does not fit"));
+        let late = run(Window {
+            start: Some(4),
+            max_frames: None,
+        })
+        .unwrap();
+        assert_eq!(
+            (late.videos[0].frames, late.videos[0].pred_frames_outside_gt),
+            (8, 4)
+        );
+        assert!(run(Window {
+            start: Some(0),
+            max_frames: Some(13)
+        })
+        .unwrap_err()
+        .contains("does not fit"));
+        assert!(run(Window {
+            start: Some(12),
+            max_frames: None
+        })
+        .unwrap_err()
+        .contains("does not fit"));
+        assert!(run(Window {
+            start: Some(0),
+            max_frames: Some(0)
+        })
+        .unwrap_err()
+        .contains("does not fit"));
     }
 
     /// The real ground truth of video 11, written in the prediction schema and
@@ -541,24 +727,45 @@ mod tests {
     #[test]
     #[ignore = "needs data/visem (VISEM-Tracking)"]
     fn real_ground_truth_as_predictions_scores_one() {
-        let visem = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(DEFAULT_VISEM);
+        let visem = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(DEFAULT_VISEM);
         let gt = load_video(&visem.join("11")).expect("video 11");
         let mut frames = Vec::new();
         for (n, boxes) in &gt.frames {
             let objs: Vec<String> = boxes
                 .iter()
                 .filter(|b| b.class == VisemClass::Sperm)
-                .map(|b| format!("{{\"id\": {}, \"box_xyxy_norm\": [{}, {}, {}, {}]}}", json::string(&b.track), b.bbox.x, b.bbox.y, b.bbox.x + b.bbox.w, b.bbox.y + b.bbox.h))
+                .map(|b| {
+                    format!(
+                        "{{\"id\": {}, \"box_xyxy_norm\": [{}, {}, {}, {}]}}",
+                        json::string(&b.track),
+                        b.bbox.x,
+                        b.bbox.y,
+                        b.bbox.x + b.bbox.w,
+                        b.bbox.y + b.bbox.h
+                    )
+                })
                 .collect();
-            frames.push(format!("{{\"frame\": {n}, \"objects\": [{}]}}", objs.join(", ")));
+            frames.push(format!(
+                "{{\"frame\": {n}, \"objects\": [{}]}}",
+                objs.join(", ")
+            ));
         }
         let dir = std::env::temp_dir().join(format!("spiketrack-eval-real-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("11.json"), format!("{{\"video\": \"11\", \"frames\": [{}]}}", frames.join(", "))).unwrap();
+        std::fs::write(
+            dir.join("11.json"),
+            format!("{{\"video\": \"11\", \"frames\": [{}]}}", frames.join(", ")),
+        )
+        .unwrap();
         let e = evaluate(&dir, &["11".to_string()], &visem).expect("evaluate");
         let _ = std::fs::remove_dir_all(&dir);
         let s = e.videos[0].hota.summary();
-        println!("video 11: {} frames, {} gt boxes, HOTA {:.6}", e.videos[0].frames, e.videos[0].gt_boxes, s.hota);
+        println!(
+            "video 11: {} frames, {} gt boxes, HOTA {:.6}",
+            e.videos[0].frames, e.videos[0].gt_boxes, s.hota
+        );
         assert!((s.hota - 1.0).abs() < 1e-9, "{s:?}");
     }
 }

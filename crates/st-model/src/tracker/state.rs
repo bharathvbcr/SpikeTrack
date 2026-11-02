@@ -50,7 +50,9 @@ use crate::host;
 use crate::layers::{host_of, up};
 use crate::tracker::mask_decoder::{high_res, MASKS_PER_OBJ, MUX};
 use crate::tracker::memory_attention::MemoryInputs;
-use crate::tracker::vos::{bf16_round, nchw_to_tokens, sine_1d, Vos, D, LN2D_EPS, MAX_PTRS, NO_OBJ_SCORE, NUM_MASKMEM};
+use crate::tracker::vos::{
+    bf16_round, nchw_to_tokens, sine_1d, Vos, D, LN2D_EPS, MAX_PTRS, NO_OBJ_SCORE, NUM_MASKMEM,
+};
 use crate::ModelError;
 
 /// An empty slot of a bucket (`_PADDING_NUM`).
@@ -82,7 +84,10 @@ pub const ENCODE_STAGES: [&str; 4] = [
 ];
 
 pub(crate) fn err(detail: impl Into<String>) -> ModelError {
-    ModelError::Ojas(OjasError::OutOfRange { op: "st_model::tracker::state", detail: detail.into() })
+    ModelError::Ojas(OjasError::OutOfRange {
+        op: "st_model::tracker::state",
+        detail: detail.into(),
+    })
 }
 
 /// One frame's propagation-neck features as device tokens `[1, G * G, 256]` (`G` = 72 at 1008); shared by every
@@ -197,7 +202,11 @@ fn demux(slot_of: &[usize], x: &[f32], dim: usize) -> Vec<f32> {
 /// plane: the memory encoder's mask input. Threaded with [`host::for_each_chunk_mut`]; each
 /// element comes from its own source element alone, so the split does not change a bit.
 fn fill_sigmoid_planes(dst: &mut [f32], hr: &[f32], src_rows: &[usize], px: usize) {
-    assert_eq!(dst.len(), src_rows.len() * px, "fill_sigmoid_planes: destination size");
+    assert_eq!(
+        dst.len(),
+        src_rows.len() * px,
+        "fill_sigmoid_planes: destination size"
+    );
     host::for_each_chunk_mut(dst, FILL_MIN_PER_THREAD, |start, piece| {
         let (mut j, mut rest) = (start, piece);
         while !rest.is_empty() {
@@ -218,7 +227,10 @@ const FILL_MIN_PER_THREAD: usize = 1 << 14;
 
 impl TrackerState {
     pub fn new() -> Self {
-        Self { slots: vec![PADDING; MUX], ..Self::default() }
+        Self {
+            slots: vec![PADDING; MUX],
+            ..Self::default()
+        }
     }
 
     /// Object ids in state order (ascending).
@@ -276,20 +288,35 @@ impl TrackerState {
     /// interactive decoder turns the 1152 mask into the object pointer (double no-object gating:
     /// the decoder's own score, then the mask's emptiness); the stored low-res mask is the
     /// antialiased 288 resize of `mask * 20 - 10`.
-    pub fn add_new_masks<B: Backend + ?Sized>(&mut self, vos: &Vos<'_, B>, ctx: &FrameCtx, ids: &[i64], masks: &[f32], video: (usize, usize), reconditioning: bool) -> Result<(), ModelError> {
+    pub fn add_new_masks<B: Backend + ?Sized>(
+        &mut self,
+        vos: &Vos<'_, B>,
+        ctx: &FrameCtx,
+        ids: &[i64],
+        masks: &[f32],
+        video: (usize, usize),
+        reconditioning: bool,
+    ) -> Result<(), ModelError> {
         let n = ids.len();
         if n == 0 {
             return Ok(());
         }
         let frame = ctx.frame;
-        let ip = ctx.inter.as_ref().ok_or_else(|| err("add_new_masks: the frame's interactive features are not computed"))?;
+        let ip = ctx.inter.as_ref().ok_or_else(|| {
+            err("add_new_masks: the frame's interactive features are not computed")
+        })?;
         let (h, w) = video;
         let mx = vos.geo.input_mask();
         if masks.len() != n * mx * mx {
-            return Err(err(format!("add_new_masks: {} values for {n} masks of {mx}x{mx}", masks.len())));
+            return Err(err(format!(
+                "add_new_masks: {} values for {n} masks of {mx}x{mx}",
+                masks.len()
+            )));
         }
         if self.pending.is_some() {
-            return Err(err("add_new_masks: the previous call was not consolidated by preflight"));
+            return Err(err(
+                "add_new_masks: the previous call was not consolidated by preflight",
+            ));
         }
         if self.slots.is_empty() {
             self.slots = vec![PADDING; MUX];
@@ -297,7 +324,13 @@ impl TrackerState {
         let is_new_state = self.obj_ids.is_empty();
         let idxs: Vec<usize> = if reconditioning {
             ids.iter()
-                .map(|id| self.obj_ids.iter().position(|x| x == id).ok_or_else(|| err(format!("recondition of object id {id}, which is not in this state"))))
+                .map(|id| {
+                    self.obj_ids.iter().position(|x| x == id).ok_or_else(|| {
+                        err(format!(
+                            "recondition of object id {id}, which is not in this state"
+                        ))
+                    })
+                })
                 .collect::<Result<_, _>>()?
         } else {
             (self.obj_ids.len()..self.obj_ids.len() + n).collect()
@@ -307,10 +340,15 @@ impl TrackerState {
         }
 
         let (ptrs, appearing, low) = vos.pointers_from_masks(ip, masks, n)?;
-        let scores: Vec<f32> = appearing.iter().map(|&a| if a { 10.0 } else { -10.0 }).collect();
+        let scores: Vec<f32> = appearing
+            .iter()
+            .map(|&a| if a { 10.0 } else { -10.0 })
+            .collect();
         let vid = st_video::resize_bilinear_aa_f32(masks, n, mx, mx, h, w);
         let hw = h * w;
-        let bin: Vec<Vec<bool>> = (0..n).map(|o| vid[o * hw..(o + 1) * hw].iter().map(|&v| v > 0.5).collect()).collect();
+        let bin: Vec<Vec<bool>> = (0..n)
+            .map(|o| vid[o * hw..(o + 1) * hw].iter().map(|&v| v > 0.5).collect())
+            .collect();
 
         let is_cond = !self.tracked.contains(&frame);
         let low_res = vos.geo.low_res();
@@ -321,7 +359,15 @@ impl TrackerState {
             }
             self.obj_ids = ids.to_vec();
             let slot_of = self.slot_of();
-            let out = Stored { row_ids: ids.to_vec(), pred_masks: low, scores, obj_ptr: mux(&slot_of, &ptrs, D), cond_objs: (0..n).collect(), maskmem: None, feats: None };
+            let out = Stored {
+                row_ids: ids.to_vec(),
+                pred_masks: low,
+                scores,
+                obj_ptr: mux(&slot_of, &ptrs, D),
+                cond_objs: (0..n).collect(),
+                maskmem: None,
+                feats: None,
+            };
             self.inputs = vec![BTreeSet::new(); n];
             if is_cond {
                 if self.non_cond.remove(&frame).is_some() {
@@ -335,18 +381,32 @@ impl TrackerState {
             let old_slot_of = self.slot_of();
             if !reconditioning {
                 for &idx in &idxs {
-                    let s = self.slots.iter().position(|&v| v == PADDING).ok_or_else(|| err("no empty slot"))?;
+                    let s = self
+                        .slots
+                        .iter()
+                        .position(|&v| v == PADDING)
+                        .ok_or_else(|| err("no empty slot"))?;
                     self.slots[s] = idx as i32;
                 }
                 self.obj_ids.extend_from_slice(ids);
             }
             let new_slot_of = self.slot_of();
             let in_cond = self.cond.contains_key(&frame);
-            let existing = (if in_cond { self.cond.get_mut(&frame) } else { self.non_cond.get_mut(&frame) }).ok_or_else(|| err(format!("no stored output on frame {frame} to modify in place")))?;
+            let existing = (if in_cond {
+                self.cond.get_mut(&frame)
+            } else {
+                self.non_cond.get_mut(&frame)
+            })
+            .ok_or_else(|| {
+                err(format!(
+                    "no stored output on frame {frame} to modify in place"
+                ))
+            })?;
             let mut pointers = demux(&old_slot_of, &existing.obj_ptr, D);
             if reconditioning {
                 for (k, &idx) in idxs.iter().enumerate() {
-                    existing.pred_masks[idx * px..(idx + 1) * px].copy_from_slice(&low[k * px..(k + 1) * px]);
+                    existing.pred_masks[idx * px..(idx + 1) * px]
+                        .copy_from_slice(&low[k * px..(k + 1) * px]);
                     existing.scores[idx] = scores[k];
                     pointers[idx * D..(idx + 1) * D].copy_from_slice(&ptrs[k * D..(k + 1) * D]);
                 }
@@ -389,9 +449,21 @@ impl TrackerState {
         let masks_pending = idxs
             .iter()
             .enumerate()
-            .map(|(k, &idx)| (idx, (0..hw).map(|p| bin[k][p] && cover[p] - u16::from(bin[k][p]) == 0).collect::<Vec<bool>>()))
+            .map(|(k, &idx)| {
+                (
+                    idx,
+                    (0..hw)
+                        .map(|p| bin[k][p] && cover[p] - u16::from(bin[k][p]) == 0)
+                        .collect::<Vec<bool>>(),
+                )
+            })
             .collect();
-        self.pending = Some(Pending { frame, is_cond, masks: masks_pending, video });
+        self.pending = Some(Pending {
+            frame,
+            is_cond,
+            masks: masks_pending,
+            video,
+        });
         Ok(())
     }
 
@@ -408,7 +480,12 @@ impl TrackerState {
     ///
     /// `run_mem_encoder = false` is for the recondition: the memory it would encode is always
     /// overwritten by the frame's memory update before anything reads it.
-    pub fn preflight<B: Backend + ?Sized>(&mut self, vos: &Vos<'_, B>, ctx: &FrameCtx, run_mem_encoder: bool) -> Result<(), ModelError> {
+    pub fn preflight<B: Backend + ?Sized>(
+        &mut self,
+        vos: &Vos<'_, B>,
+        ctx: &FrameCtx,
+        run_mem_encoder: bool,
+    ) -> Result<(), ModelError> {
         let Some(p) = self.pending.take() else {
             return Ok(());
         };
@@ -417,24 +494,46 @@ impl TrackerState {
         let (low_res, image) = (vos.geo.low_res(), vos.geo.pixels());
         let px = low_res * low_res;
         let n = self.obj_ids.len();
-        let all_out = self.cond.get(&frame).or_else(|| self.non_cond.get(&frame)).ok_or_else(|| err(format!("preflight: no stored output on frame {frame}")))?;
+        let all_out = self
+            .cond
+            .get(&frame)
+            .or_else(|| self.non_cond.get(&frame))
+            .ok_or_else(|| err(format!("preflight: no stored output on frame {frame}")))?;
         if all_out.row_ids.len() != n {
-            return Err(err(format!("preflight: stored output has {} rows for {n} objects", all_out.row_ids.len())));
+            return Err(err(format!(
+                "preflight: stored output has {} rows for {n} objects",
+                all_out.row_ids.len()
+            )));
         }
         let mut merged = all_out.clone();
         let (h, w) = p.video;
         for (idx, fg) in &p.masks {
-            let plane: Vec<f32> = fg.iter().map(|&b| if b { -NO_OBJ_SCORE } else { NO_OBJ_SCORE }).collect();
+            let plane: Vec<f32> = fg
+                .iter()
+                .map(|&b| if b { -NO_OBJ_SCORE } else { NO_OBJ_SCORE })
+                .collect();
             let row = st_video::resize_bilinear_aa_f32(&plane, 1, h, w, low_res, low_res);
             merged.pred_masks[idx * px..(idx + 1) * px].copy_from_slice(&row);
         }
         if run_mem_encoder {
             let low = up(be, &merged.pred_masks, &[n, 1, low_res, low_res])?;
-            let mut hr = host_of(&be.interpolate_bilinear_forward(&low, [image, image], false)?, be)?;
+            let mut hr = host_of(
+                &be.interpolate_bilinear_forward(&low, [image, image], false)?,
+                be,
+            )?;
             crate::tracker::vos::non_overlap(&mut hr, n, image * image);
             let slot_of = self.slot_of();
             let rows: Vec<usize> = (0..n).collect();
-            merged.maskmem = Some(vos.encode_mask_memory(ctx, &hr, &rows, image, &merged.scores, &merged.cond_objs, &slot_of, &mut |_| {})?);
+            merged.maskmem = Some(vos.encode_mask_memory(
+                ctx,
+                &hr,
+                &rows,
+                image,
+                &merged.scores,
+                &merged.cond_objs,
+                &slot_of,
+                &mut |_| {},
+            )?);
             merged.feats = Some(ctx.feats.clone());
         }
         if p.is_cond {
@@ -468,9 +567,21 @@ impl TrackerState {
         mark: &mut dyn FnMut(&str),
     ) -> Result<(), ModelError> {
         let frame = ctx.frame;
-        let cond = self.stored(frame).map(|s| s.cond_objs.clone()).ok_or_else(|| err(format!("conditioning objects not found at frame {frame}")))?;
+        let cond = self
+            .stored(frame)
+            .map(|s| s.cond_objs.clone())
+            .ok_or_else(|| err(format!("conditioning objects not found at frame {frame}")))?;
         let slot_of = self.slot_of();
-        let mm = vos.encode_mask_memory(ctx, hr, rows, vos.geo.input_mask(), scores, &cond, &slot_of, mark)?;
+        let mm = vos.encode_mask_memory(
+            ctx,
+            hr,
+            rows,
+            vos.geo.input_mask(),
+            scores,
+            &cond,
+            &slot_of,
+            mark,
+        )?;
         for map in [&mut self.cond, &mut self.non_cond] {
             if let Some(st) = map.get_mut(&frame) {
                 st.maskmem = Some(mm.clone());
@@ -487,29 +598,54 @@ impl TrackerState {
     /// `num_frames` is upstream's video length (the object-pointer window is `min(num_frames, 16)`).
     /// `mark` is called with each [`PROPAGATE_STAGES`] name as that phase begins (a profiler's
     /// marker; `&mut |_| {}` otherwise).
-    pub fn propagate_one_frame<B: Backend + ?Sized>(&mut self, vos: &Vos<'_, B>, ctx: &FrameCtx, num_frames: usize, mark: &mut dyn FnMut(&str)) -> Result<PropOut, ModelError> {
+    pub fn propagate_one_frame<B: Backend + ?Sized>(
+        &mut self,
+        vos: &Vos<'_, B>,
+        ctx: &FrameCtx,
+        num_frames: usize,
+        mark: &mut dyn FnMut(&str),
+    ) -> Result<PropOut, ModelError> {
         let frame = ctx.frame;
         if self.broken || self.cond.is_empty() {
             return Err(err("propagate: no conditioning frame in this state (upstream raises RuntimeError: No points are provided; please add points first)"));
         }
         let n = self.obj_ids.len();
         let reuse = if self.consolidated_cond.contains(&frame) {
-            Some(self.cond.get(&frame).ok_or_else(|| err(format!("frame {frame} is consolidated but has no conditioning output")))?)
+            Some(self.cond.get(&frame).ok_or_else(|| {
+                err(format!(
+                    "frame {frame} is consolidated but has no conditioning output"
+                ))
+            })?)
         } else if self.consolidated_non_cond.contains(&frame) {
-            Some(self.non_cond.get(&frame).ok_or_else(|| err(format!("frame {frame} is consolidated but has no non-conditioning output")))?)
+            Some(self.non_cond.get(&frame).ok_or_else(|| {
+                err(format!(
+                    "frame {frame} is consolidated but has no non-conditioning output"
+                ))
+            })?)
         } else {
             None
         };
         let out = match reuse {
             Some(st) => {
-                if st.row_ids.len() != n || st.pred_masks.len() != n * vos.geo.low_res() * vos.geo.low_res() {
-                    return Err(err(format!("stored output of frame {frame} has {} rows for {n} objects", st.row_ids.len())));
+                if st.row_ids.len() != n
+                    || st.pred_masks.len() != n * vos.geo.low_res() * vos.geo.low_res()
+                {
+                    return Err(err(format!(
+                        "stored output of frame {frame} has {} rows for {n} objects",
+                        st.row_ids.len()
+                    )));
                 }
-                PropOut { low_res: st.pred_masks.clone(), scores: st.scores.clone() }
+                PropOut {
+                    low_res: st.pred_masks.clone(),
+                    scores: st.scores.clone(),
+                }
             }
             None => {
                 let st = self.compute_propagation(vos, ctx, num_frames, mark)?;
-                let out = PropOut { low_res: st.pred_masks.clone(), scores: st.scores.clone() };
+                let out = PropOut {
+                    low_res: st.pred_masks.clone(),
+                    scores: st.scores.clone(),
+                };
                 self.non_cond.insert(frame, st);
                 out
             }
@@ -519,14 +655,26 @@ impl TrackerState {
     }
 
     /// Memory-conditioned features, multiplex decode and object pointers for the current frame.
-    fn compute_propagation<B: Backend + ?Sized>(&self, vos: &Vos<'_, B>, ctx: &FrameCtx, num_frames: usize, mark: &mut dyn FnMut(&str)) -> Result<Stored, ModelError> {
+    fn compute_propagation<B: Backend + ?Sized>(
+        &self,
+        vos: &Vos<'_, B>,
+        ctx: &FrameCtx,
+        num_frames: usize,
+        mark: &mut dyn FnMut(&str),
+    ) -> Result<Stored, ModelError> {
         mark(PROPAGATE_STAGES[0]);
         let be = vos.be;
         let frame = ctx.frame;
         if self.cond.len() > MAX_COND_IN_ATTN {
             return Err(err(format!("{} conditioning frames; selecting the closest {MAX_COND_IN_ATTN} is not ported (a state has one)", self.cond.len())));
         }
-        let tpos = |t_pos: i64| -> usize { if t_pos <= 0 || t_pos >= NUM_MASKMEM as i64 { NUM_MASKMEM - 1 } else { NUM_MASKMEM - t_pos as usize - 1 } };
+        let tpos = |t_pos: i64| -> usize {
+            if t_pos <= 0 || t_pos >= NUM_MASKMEM as i64 {
+                NUM_MASKMEM - 1
+            } else {
+                NUM_MASKMEM - t_pos as usize - 1
+            }
+        };
         // Memory frames: the conditioning frames (t_pos = distance), then t_pos 1..6 -> frame - (7 - t_pos).
         let mut entries: Vec<(&Stored, i64)> = Vec::new();
         for (&c, st) in &self.cond {
@@ -539,7 +687,11 @@ impl TrackerState {
             if prev < 0 {
                 continue;
             }
-            if let Some(st) = self.non_cond.get(&(prev as usize)).filter(|s| s.maskmem.is_some()) {
+            if let Some(st) = self
+                .non_cond
+                .get(&(prev as usize))
+                .filter(|s| s.maskmem.is_some())
+            {
                 entries.push((st, t_pos as i64));
             }
         }
@@ -551,10 +703,14 @@ impl TrackerState {
         } else {
             // The stored memories, their image features and the position rows are device tensors
             // already: the memory is their concatenation, with the pointer block uploaded after it.
-            let (mut memory, mut memory_pos, mut mimage, mut mimage_pos) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+            let (mut memory, mut memory_pos, mut mimage, mut mimage_pos) =
+                (Vec::new(), Vec::new(), Vec::new(), Vec::new());
             for &(st, t_pos) in &entries {
                 let shifted = &vos.memory_pos_tokens[tpos(t_pos)];
-                let feats = st.feats.as_ref().ok_or_else(|| err("a stored memory without its image features"))?;
+                let feats = st
+                    .feats
+                    .as_ref()
+                    .ok_or_else(|| err("a stored memory without its image features"))?;
                 memory.push(&st.maskmem.as_ref().expect("filtered on maskmem").tokens);
                 mimage.push(&feats.tokens);
                 memory_pos.push(shifted);
@@ -562,7 +718,11 @@ impl TrackerState {
             }
             // Object pointers: the conditioning frames at |distance|, then frames before the current one.
             let max_ptr = num_frames.min(MAX_PTRS);
-            let mut ptr_frames: Vec<(&Stored, usize)> = self.cond.iter().map(|(&c, st)| (st, frame.abs_diff(c))).collect();
+            let mut ptr_frames: Vec<(&Stored, usize)> = self
+                .cond
+                .iter()
+                .map(|(&c, st)| (st, frame.abs_diff(c)))
+                .collect();
             for t_diff in 1..max_ptr {
                 if t_diff > frame {
                     break;
@@ -572,36 +732,79 @@ impl TrackerState {
                 }
             }
             let t_diff_max = (max_ptr - 1).max(1) as f32;
-            let (mut ptrs, mut ptrs_pos) = (Vec::with_capacity(ptr_frames.len() * MUX * D), Vec::with_capacity(ptr_frames.len() * MUX * D));
+            let (mut ptrs, mut ptrs_pos) = (
+                Vec::with_capacity(ptr_frames.len() * MUX * D),
+                Vec::with_capacity(ptr_frames.len() * MUX * D),
+            );
             for &(st, pos) in &ptr_frames {
-                let pe = vos.obj_ptr_tpos_proj.host(&sine_1d(pos as f32 / t_diff_max, D), 1);
+                let pe = vos
+                    .obj_ptr_tpos_proj
+                    .host(&sine_1d(pos as f32 / t_diff_max, D), 1);
                 ptrs.extend_from_slice(&st.obj_ptr);
                 for _ in 0..MUX {
                     ptrs_pos.extend_from_slice(&pe);
                 }
             }
             let n_ptr = ptr_frames.len() * MUX;
-            let ptr_dev = if n_ptr > 0 { Some((up(be, &ptrs, &[1, n_ptr, D])?, up(be, &ptrs_pos, &[1, n_ptr, D])?)) } else { None };
+            let ptr_dev = if n_ptr > 0 {
+                Some((
+                    up(be, &ptrs, &[1, n_ptr, D])?,
+                    up(be, &ptrs_pos, &[1, n_ptr, D])?,
+                ))
+            } else {
+                None
+            };
             if let Some((p, pp)) = &ptr_dev {
                 memory.push(p);
                 memory_pos.push(pp);
             }
-            let cat = |parts: &[&Tensor]| -> Result<Tensor, OjasError> { if parts.len() == 1 { Ok(parts[0].clone()) } else { be.concat(parts, 1) } };
-            let (memory, memory_pos, mimage, mimage_pos) = (cat(&memory)?, cat(&memory_pos)?, cat(&mimage)?, cat(&mimage_pos)?);
+            let cat = |parts: &[&Tensor]| -> Result<Tensor, OjasError> {
+                if parts.len() == 1 {
+                    Ok(parts[0].clone())
+                } else {
+                    be.concat(parts, 1)
+                }
+            };
+            let (memory, memory_pos, mimage, mimage_pos) = (
+                cat(&memory)?,
+                cat(&memory_pos)?,
+                cat(&mimage)?,
+                cat(&mimage_pos)?,
+            );
             mark(PROPAGATE_STAGES[1]);
             let fused = vos.mem_attn.fwd(
                 be,
-                &MemoryInputs { image: image_dev, src: image_dev, src_pos: &vos.pos_tokens, memory_image: &mimage, memory_image_pos: &mimage_pos, memory: &memory, memory_pos: &memory_pos, num_obj_ptr_tokens: n_ptr },
+                &MemoryInputs {
+                    image: image_dev,
+                    src: image_dev,
+                    src_pos: &vos.pos_tokens,
+                    memory_image: &mimage,
+                    memory_image_pos: &mimage_pos,
+                    memory: &memory,
+                    memory_pos: &memory_pos,
+                    num_obj_ptr_tokens: n_ptr,
+                },
             )?;
-            be.permute(&fused, &[0, 2, 1])?.reshape(&[1, D, feat, feat])?
+            be.permute(&fused, &[0, 2, 1])?
+                .reshape(&[1, D, feat, feat])?
         };
 
         // Multiplex decode: slots with an object get the valid embedding, the rest the invalid one.
         mark(PROPAGATE_STAGES[2]);
         let n = self.obj_ids.len();
         let slot_of = self.slot_of();
-        let extra: Vec<f32> = (0..MUX).flat_map(|s| if self.slots[s] >= 0 { vos.output_valid[s * D..(s + 1) * D].to_vec() } else { vos.output_invalid[s * D..(s + 1) * D].to_vec() }).collect();
-        let out = vos.mux_decoder.fwd(be, &pix, &vos.prop_pe, &ctx.ps0, &ctx.ps1, &extra)?;
+        let extra: Vec<f32> = (0..MUX)
+            .flat_map(|s| {
+                if self.slots[s] >= 0 {
+                    vos.output_valid[s * D..(s + 1) * D].to_vec()
+                } else {
+                    vos.output_invalid[s * D..(s + 1) * D].to_vec()
+                }
+            })
+            .collect();
+        let out = vos
+            .mux_decoder
+            .fwd(be, &pix, &vos.prop_pe, &ctx.ps0, &ctx.ps1, &extra)?;
         mark(PROPAGATE_STAGES[3]);
         let masks = host_of(&out.masks, be)?; // [1, 16, 3, M, M]
         let px = vos.geo.low_res() * vos.geo.low_res();
@@ -627,12 +830,25 @@ impl TrackerState {
             } else {
                 dst.iter_mut().for_each(|v| *v = NO_OBJ_SCORE);
             }
-            let tok = &out.sam_tokens[(s * MASKS_PER_OBJ + best) * D..(s * MASKS_PER_OBJ + best + 1) * D];
+            let tok =
+                &out.sam_tokens[(s * MASKS_PER_OBJ + best) * D..(s * MASKS_PER_OBJ + best + 1) * D];
             let ptr = vos.obj_ptr_proj.host(tok, 1);
-            let ptr = if score > 0.0 { ptr } else { vos.no_obj_ptr_linear.host(&ptr, 1) };
+            let ptr = if score > 0.0 {
+                ptr
+            } else {
+                vos.no_obj_ptr_linear.host(&ptr, 1)
+            };
             ptrs[o * D..(o + 1) * D].copy_from_slice(&ptr);
         }
-        Ok(Stored { row_ids: self.obj_ids.clone(), pred_masks: low, scores, obj_ptr: mux(&slot_of, &ptrs, D), cond_objs: BTreeSet::new(), maskmem: None, feats: None })
+        Ok(Stored {
+            row_ids: self.obj_ids.clone(),
+            pred_masks: low,
+            scores,
+            obj_ptr: mux(&slot_of, &ptrs, D),
+            cond_objs: BTreeSet::new(),
+            maskmem: None,
+            feats: None,
+        })
     }
 
     /// `remove_objects` (`strict=False`, `need_output=False`). Returns whether the state still
@@ -647,7 +863,10 @@ impl TrackerState {
     /// Stored memories and pointers are not edited: one bucket stays one bucket, so past frames
     /// keep the removed object's contribution in `maskmem` and its stale pointer in its slot.
     pub fn remove_objects(&mut self, ids: &[i64]) -> Result<bool, ModelError> {
-        let mut rm: Vec<usize> = ids.iter().filter_map(|id| self.obj_ids.iter().position(|x| x == id)).collect();
+        let mut rm: Vec<usize> = ids
+            .iter()
+            .filter_map(|id| self.obj_ids.iter().position(|x| x == id))
+            .collect();
         rm.sort_unstable();
         rm.dedup();
         if rm.is_empty() {
@@ -685,7 +904,11 @@ impl TrackerState {
             return Ok(false);
         }
         let removed_ids: BTreeSet<i64> = rm.iter().map(|&i| self.obj_ids[i]).collect();
-        let rank: BTreeMap<usize, usize> = remaining.iter().enumerate().map(|(new, &old)| (old, new)).collect();
+        let rank: BTreeMap<usize, usize> = remaining
+            .iter()
+            .enumerate()
+            .map(|(new, &old)| (old, new))
+            .collect();
         for s in self.slots.iter_mut() {
             if *s >= 0 {
                 *s = match rank.get(&(*s as usize)) {
@@ -695,18 +918,34 @@ impl TrackerState {
             }
         }
         self.obj_ids = remaining.iter().map(|&i| self.obj_ids[i]).collect();
-        self.inputs = remaining.iter().map(|&i| std::mem::take(&mut self.inputs[i])).collect();
+        self.inputs = remaining
+            .iter()
+            .map(|&i| std::mem::take(&mut self.inputs[i]))
+            .collect();
         for map in [&mut self.cond, &mut self.non_cond] {
             for st in map.values_mut() {
-                let keep: Vec<usize> = (0..st.row_ids.len()).filter(|&r| !removed_ids.contains(&st.row_ids[r])).collect();
+                let keep: Vec<usize> = (0..st.row_ids.len())
+                    .filter(|&r| !removed_ids.contains(&st.row_ids[r]))
+                    .collect();
                 if !st.pred_masks.is_empty() {
                     // One row is one mask's logits; its length is whatever resolution stored it.
                     let px = st.pred_masks.len() / st.row_ids.len();
-                    st.pred_masks = keep.iter().flat_map(|&r| st.pred_masks[r * px..(r + 1) * px].iter().copied()).collect();
+                    st.pred_masks = keep
+                        .iter()
+                        .flat_map(|&r| st.pred_masks[r * px..(r + 1) * px].iter().copied())
+                        .collect();
                 }
                 st.scores = keep.iter().map(|&r| st.scores[r]).collect();
-                let local: BTreeMap<usize, usize> = keep.iter().enumerate().map(|(new, &old)| (old, new)).collect();
-                st.cond_objs = st.cond_objs.iter().filter_map(|o| local.get(o).copied()).collect();
+                let local: BTreeMap<usize, usize> = keep
+                    .iter()
+                    .enumerate()
+                    .map(|(new, &old)| (old, new))
+                    .collect();
+                st.cond_objs = st
+                    .cond_objs
+                    .iter()
+                    .filter_map(|o| local.get(o).copied())
+                    .collect();
                 st.row_ids = keep.iter().map(|&r| st.row_ids[r]).collect();
             }
         }
@@ -732,20 +971,24 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
     /// The frame's propagation-side inputs.
     pub fn frame_ctx(&self, frame: usize, prop: &[Tensor; 3]) -> Result<FrameCtx, ModelError> {
         let (ps0, ps1) = high_res(self.be, &self.mux_decoder, &prop[0], &prop[1])?;
-        let tokens = self.be.permute(&prop[2].reshape(&[1, D, self.geo.tokens()])?, &[0, 2, 1])?;
-        Ok(FrameCtx { frame, prop72: prop[2].clone(), ps0, ps1, feats: Arc::new(FrameFeats { tokens }), inter: None })
+        let tokens = self
+            .be
+            .permute(&prop[2].reshape(&[1, D, self.geo.tokens()])?, &[0, 2, 1])?;
+        Ok(FrameCtx {
+            frame,
+            prop72: prop[2].clone(),
+            ps0,
+            ps1,
+            feats: Arc::new(FrameFeats { tokens }),
+            inter: None,
+        })
     }
 
     /// The interactive features a birth or a recondition needs (`inter` is the interactive neck
     /// of the frame): the top level plus `interactivity_no_mem_embed`, and the two skips.
     pub fn interactive_pix(&self, inter: &[Tensor; 3]) -> Result<InterPix, ModelError> {
         let be = self.be;
-        let (feat, tokens) = (self.geo.grid, self.geo.tokens());
-        let mut v = host_of(&inter[2], be)?;
-        for c in 0..D {
-            v[c * tokens..(c + 1) * tokens].iter_mut().for_each(|x| *x += self.no_mem_embed[c]);
-        }
-        let pix = up(be, &v, &[1, D, feat, feat])?;
+        let pix = be.broadcast_add_forward(&inter[2], &self.no_mem_embed_device)?;
         let p1 = Conv2dParams::new();
         let s0 = be.conv2d_forward(&inter[0], &self.i_conv_s0.0, Some(&self.i_conv_s0.1), p1)?;
         let s1 = be.conv2d_forward(&inter[1], &self.i_conv_s1.0, Some(&self.i_conv_s1.1), p1)?;
@@ -755,18 +998,49 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
     /// `_use_mask_as_output` for `n` binary masks `[n, I * I]` (`I` = 1152 at 1008): object pointers
     /// `[n, 256]`, whether each mask has any foreground, and the low-res mask logits
     /// `[n, M * M]` (`M` = 288; the antialiased resize of `mask * 20 - 10`).
-    pub(crate) fn pointers_from_masks(&self, ip: &InterPix, masks: &[f32], n: usize) -> Result<(Vec<f32>, Vec<bool>, Vec<f32>), ModelError> {
+    pub(crate) fn pointers_from_masks(
+        &self,
+        ip: &InterPix,
+        masks: &[f32],
+        n: usize,
+    ) -> Result<(Vec<f32>, Vec<bool>, Vec<f32>), ModelError> {
         let be = self.be;
         let (mx, low_res) = (self.geo.input_mask(), self.geo.low_res());
-        let appearing: Vec<bool> = (0..n).map(|o| masks[o * mx * mx..(o + 1) * mx * mx].iter().any(|&v| v > 0.0)).collect();
+        let appearing: Vec<bool> = (0..n)
+            .map(|o| {
+                masks[o * mx * mx..(o + 1) * mx * mx]
+                    .iter()
+                    .any(|&v| v > 0.0)
+            })
+            .collect();
         let hi: Vec<f32> = masks.iter().map(|&m| m * 20.0 - 10.0).collect();
         let low = st_video::resize_bilinear_aa_f32(&hi, n, mx, mx, low_res, low_res);
 
         let mut k4 = Conv2dParams::new();
         k4.stride = [4, 4];
-        let down = be.conv2d_forward(&up(be, masks, &[n, 1, mx, mx])?, &self.mask_downsample.w, Some(&self.mask_downsample.b), k4)?;
+        let down = be.conv2d_forward(
+            &up(be, masks, &[n, 1, mx, mx])?,
+            &self.mask_downsample.w,
+            Some(&self.mask_downsample.b),
+            k4,
+        )?;
         let ds = down.shape()[2];
-        let mut x = if ds == low_res { down } else { up(be, &st_video::resize_bilinear_aa_f32(&host_of(&down, be)?, n, ds, ds, low_res, low_res), &[n, 1, low_res, low_res])? };
+        let mut x = if ds == low_res {
+            down
+        } else {
+            up(
+                be,
+                &st_video::resize_bilinear_aa_f32(
+                    &host_of(&down, be)?,
+                    n,
+                    ds,
+                    ds,
+                    low_res,
+                    low_res,
+                ),
+                &[n, 1, low_res, low_res],
+            )?
+        };
         let p1 = Conv2dParams::new();
         let mut k2 = Conv2dParams::new();
         k2.stride = [2, 2];
@@ -777,7 +1051,9 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
             }
         }
         let sparse: Vec<f32> = (0..2 * n).flat_map(|_| self.not_a_point.clone()).collect();
-        let io = self.interactive.fwd(be, &ip.pix, &self.inter_pe, &sparse, 2, &x, &ip.s0, &ip.s1)?;
+        let io =
+            self.interactive
+                .fwd(be, &ip.pix, &self.inter_pe, &sparse, 2, &x, &ip.s0, &ip.s1)?;
         let mut ptrs = vec![0f32; n * D];
         for o in 0..n {
             let tok = &io.mask_tokens[o * 4 * D..o * 4 * D + D]; // mask token 0
@@ -828,7 +1104,9 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         let mut obj_of_slot = [None; MUX];
         for (o, &s) in slot_of.iter().enumerate() {
             if s >= MUX || obj_of_slot[s].replace(o).is_some() {
-                return Err(err(format!("encode_mask_memory: slots {slot_of:?} are not distinct slots below {MUX}")));
+                return Err(err(format!(
+                    "encode_mask_memory: slots {slot_of:?} are not distinct slots below {MUX}"
+                )));
             }
         }
         // The encoder's input is 2 * MUX planes in slot order: each slot's sigmoid mask (0 for an
@@ -847,7 +1125,11 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
             None
         };
         let zero = be.fill(&[1, size, size], DType::F32, 0.0)?;
-        let one = if cond.is_empty() { None } else { Some(be.fill(&[1, size, size], DType::F32, 1.0)?) };
+        let one = if cond.is_empty() {
+            None
+        } else {
+            Some(be.fill(&[1, size, size], DType::F32, 1.0)?)
+        };
         let mut parts: Vec<Tensor> = Vec::with_capacity(2 * MUX);
         let (mut s, mut k) = (0, 0);
         while s < MUX {
@@ -861,8 +1143,14 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
                 s += 1;
                 k += 1;
             }
-            let objs = objs.as_ref().ok_or_else(|| err("encode_mask_memory: an occupied slot with no object planes"))?;
-            parts.push(if k - start == n { objs.clone() } else { be.slice(objs, 0, start, k - start)? });
+            let objs = objs
+                .as_ref()
+                .ok_or_else(|| err("encode_mask_memory: an occupied slot with no object planes"))?;
+            parts.push(if k - start == n {
+                objs.clone()
+            } else {
+                be.slice(objs, 0, start, k - start)?
+            });
         }
         for o in obj_of_slot {
             parts.push(match (o, &one) {
@@ -883,11 +1171,15 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         let mut add = vec![0f32; D];
         for (s, &score) in score_of_slot.iter().enumerate() {
             if !(score > 0.0) {
-                add.iter_mut().zip(&self.no_obj_embed_spatial[s * D..(s + 1) * D]).for_each(|(a, b)| *a += b);
+                add.iter_mut()
+                    .zip(&self.no_obj_embed_spatial[s * D..(s + 1) * D])
+                    .for_each(|(a, b)| *a += b);
             }
         }
         for c in 0..D {
-            feat[c * tokens..(c + 1) * tokens].iter_mut().for_each(|v| *v += add[c]);
+            feat[c * tokens..(c + 1) * tokens]
+                .iter_mut()
+                .for_each(|v| *v += add[c]);
         }
         bf16_round(&mut feat);
         let tokens = up(be, &nchw_to_tokens(&feat, D, tokens), &[1, tokens, D])?;
@@ -906,7 +1198,12 @@ mod tests {
         // out of order and repeated, a single plane, and values from -100 to 100 with the zeros,
         // infinities and a subnormal.
         let mut s = 0x2545_f491u32;
-        for &(px, ref rows) in &[(70_001usize, vec![2usize, 0, 1]), (1152 * 1152 / 9 + 1, vec![0]), (13, vec![1, 1, 0]), (1, vec![0])] {
+        for &(px, ref rows) in &[
+            (70_001usize, vec![2usize, 0, 1]),
+            (1152 * 1152 / 9 + 1, vec![0]),
+            (13, vec![1, 1, 0]),
+            (1, vec![0]),
+        ] {
             let planes = rows.iter().max().map_or(0, |m| m + 1);
             let mut hr: Vec<f32> = (0..planes * px)
                 .map(|_| {
@@ -916,17 +1213,29 @@ mod tests {
                     (s as f32 / u32::MAX as f32 - 0.5) * 200.0
                 })
                 .collect();
-            hr.iter_mut().zip([0.0, -0.0, f32::INFINITY, f32::NEG_INFINITY, 1e-40]).for_each(|(v, e)| *v = e);
+            hr.iter_mut()
+                .zip([0.0, -0.0, f32::INFINITY, f32::NEG_INFINITY, 1e-40])
+                .for_each(|(v, e)| *v = e);
             let mut want = Vec::with_capacity(rows.len() * px);
             for &r in rows {
-                want.extend(hr[r * px..(r + 1) * px].iter().map(|&x| host::sigmoid(x) * 2.0 - 1.0));
+                want.extend(
+                    hr[r * px..(r + 1) * px]
+                        .iter()
+                        .map(|&x| host::sigmoid(x) * 2.0 - 1.0),
+                );
             }
             let mut got = vec![f32::NAN; rows.len() * px];
             fill_sigmoid_planes(&mut got, &hr, rows, px);
-            let differ = got.iter().zip(&want).position(|(a, b)| a.to_bits() != b.to_bits());
+            let differ = got
+                .iter()
+                .zip(&want)
+                .position(|(a, b)| a.to_bits() != b.to_bits());
             assert_eq!(differ, None, "px {px} rows {rows:?}");
         }
-        assert!(3 * 70_001 >= 2 * FILL_MIN_PER_THREAD, "the threaded path is exercised");
+        assert!(
+            3 * 70_001 >= 2 * FILL_MIN_PER_THREAD,
+            "the threaded path is exercised"
+        );
     }
 
     #[test]
@@ -938,7 +1247,10 @@ mod tests {
         assert_eq!(&m[6..8], &[0.0, 1.0]);
         assert_eq!(&m[0..2], &[2.0, 3.0]);
         assert_eq!(&m[14..16], &[4.0, 5.0]);
-        assert!(m.iter().enumerate().all(|(i, &v)| matches!(i / 2, 0 | 3 | 7) || v == 0.0));
+        assert!(m
+            .iter()
+            .enumerate()
+            .all(|(i, &v)| matches!(i / 2, 0 | 3 | 7) || v == 0.0));
         assert_eq!(demux(&slot_of, &m, 2), x);
     }
 
@@ -952,7 +1264,15 @@ mod tests {
         let rows = ids.len();
         s.cond.insert(
             0,
-            Stored { row_ids: ids.to_vec(), pred_masks: vec![0.0; rows * LOW * LOW], scores: (0..rows).map(|r| r as f32).collect(), obj_ptr: vec![0.0; MUX * D], cond_objs: (0..rows).collect(), maskmem: None, feats: None },
+            Stored {
+                row_ids: ids.to_vec(),
+                pred_masks: vec![0.0; rows * LOW * LOW],
+                scores: (0..rows).map(|r| r as f32).collect(),
+                obj_ptr: vec![0.0; MUX * D],
+                cond_objs: (0..rows).collect(),
+                maskmem: None,
+                feats: None,
+            },
         );
         s.consolidated_cond.insert(0);
         s

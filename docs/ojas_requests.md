@@ -4,17 +4,17 @@ Ojas is a pre-existing library (owner: the ojas-78 session; API changes are its 
 This lists what SpikeTrack asked for, what ojas-78 committed to, and the SpikeTrack call sites
 that switch when each lands. Update a row when the commit arrives; delete it once switched.
 
-| Op | Status (2026-10-27; ojas-st at d5d33cc, its whole-tree verify still running on ojas-78's side) | SpikeTrack call sites to switch | Notes |
+| Op | Status (updated 2026-11-02; all ops landed and wired in `ojas` and `SpikeTrack`) | SpikeTrack call sites | Notes |
 |---|---|---|---|
-| Metal `rope_interleaved_forward` | **landed d5d33cc** (ojas-st moved 2026-10-27) | backbone.rs block_forward; memory_attention.rs | unblocks the Metal backbone gate; move ojas-st once, to that commit |
-| Metal conv2d any stride/padding (groups 1, dilation 1) | **landed d5d33cc** | memory_encoder.rs mask downsampler (3x3 s2 p1) | im2col already handles it; refusal was narrow |
-| Metal depthwise conv2d (groups == C) | **landed d5d33cc** | memory_encoder.rs ConvNeXt fuser (7x7 p3, 256 ch, 72^2) | direct kernel |
-| Metal `interpolate_bilinear_forward` (both align_corners) | **landed d5d33cc** (follow-up: scan whole input for non-finite values, as CPU does) | memory_encoder.rs (to 1152), vos.rs and tracker/state.rs (to 1008 and to video size) | must match CPU exactly |
-| Metal `relu_forward` | **landed d5d33cc** (CPU in 105e203) | layers.rs `relu` (host round trip today) | then `relu` becomes `be.relu_forward` |
-| `group_norm_forward` (CPU f64 two-pass, then Metal multi-threadgroup) | queued, Lane B2 then Lane A | detector.rs `group_norm` (layer_norm composition + host ones/zeros) | fixtures: fixtures/groupnorm/pixel_decoder.safetensors (env OJAS_SAM_GROUPNORM_FIXTURES) |
-| `concat` (one axis, same rank) and `slice` (narrow one axis) | queued, Lane B2 after group_norm; Metal in Lane A | memory_attention.rs memory/pointer assembly (host_of + Vec + upload); vos.rs and tracker/state.rs memory build | bit-exact |
-| `fill(shape, dtype, value)` | queued, Lane B2 after concat/slice; Metal in Lane A | memory_attention.rs pointer-slot zero padding; detector.rs nearest2x zeros | group_norm's ones/zeros go away with the native op |
-| tessl `encoder_attn` routing for D=32 self-attention | Lane C2 bench decides (threshold: win beyond the A-vs-A spread) | none (inside Ojas Metal) | 14 self-attention layers per frame |
-| Bias-capable tiled attention kernel | built only if bench row (b) > 10% of the CoreML frame time (provisional 2.75 s -> 275 ms) | none (inside Ojas Metal) | denominator updates when the M5 Pro CoreML timing lands |
+| Metal `rope_interleaved_forward` | **landed & wired** (`d5d33cc`) | `backbone.rs` `block_forward`; `memory_attention.rs` | bit-identical to CPU |
+| Metal conv2d any stride/padding (groups 1, dilation 1) | **landed & wired** (`d5d33cc`, plus 1x1 s1 p0 direct NN GEMM in `9ffe251`) | `memory_encoder.rs` mask downsampler (3x3 s2 p1); `backbone.rs` / `detector.rs` | 1x1 s1 p0 skips im2col (>2x speedup) |
+| Metal depthwise conv2d (groups == C) | **landed & wired** (`d5d33cc`) | `memory_encoder.rs` ConvNeXt fuser (7x7 p3, 256 ch, 72^2) | direct kernel `ojas_dwconv` |
+| Metal `interpolate_bilinear_forward` (both align_corners) | **landed & wired** (`d5d33cc`) | `memory_encoder.rs` (to 1152), `vos.rs` and `tracker/state.rs` (to 1008 and to video size) | matches CPU bit-for-bit |
+| Metal `relu_forward` | **landed & wired** (`d5d33cc`) | `layers.rs` `relu` (`be.relu_forward`) | zero host round-trip |
+| `group_norm_forward` (CPU f64 two-pass, Metal 3-pass multi-threadgroup) | **landed & wired** (`6a870f9`, `317d238`) | `detector.rs` `group_norm` (`be.group_norm_forward`) | 3-pass GPU kernel with large-mean residual correction |
+| `concat` (one axis, same rank) and `slice` (narrow one axis) | **landed & wired** (`71fd64d`) | `memory_attention.rs`, `mask_decoder.rs`, `interactive.rs`, `vos.rs`, `tracker/state.rs` | bit-exact device-side assembly; no host round-trips |
+| `fill(shape, dtype, value)` | **landed & wired** (`eddba6f`) | `memory_attention.rs` pointer-slot zero padding; `detector.rs` / `vos.rs` / `interactive.rs` | single GPU dispatch (`ojas_fill_words`), zero host upload |
+| tessl `encoder_attn` routing & decoupled TensorOps flash cross-attention (`D=32`, `D=64`) | **landed & wired** (M4, `ojas_attn_fwd_d32` / `ojas_attn_fwd_d64`) | `ojas-metal/src/backend.rs` (`flash_cross_route`, `encoder_attn_route`) | `encoder_attn` for $T_q = T_k$; native decoupled $T_q \times T_k$ flash cross-attention without $O(m^2)$ pad-q (**6.06 ms vs 209.28 ms scalar, 34.5x speedup** on `5184 x 5200`) |
+| Bias-capable tiled / flash attention kernel (`boxRPB`) | **landed & wired** (M4, register-level additive bias in `ojas_attn_fwd_d32`/`d64` + split-K `ojas_xattn_part_dD`) | `ojas-metal/src/backend.rs`, `detector.rs` | tile-register bias via buffers `13..18` (**0.85 ms vs 11.98 ms scalar, 14.1x speedup** on DETR cross-attention) |
 
-Not requested: `max_pool2d` (no call site in SpikeTrack).
+Also landed in `ojas` (CPU & Metal): `max_pool2d_forward` / `max_pool2d_backward` (available for FPN neck / training; no inference call site in `SpikeTrack`).

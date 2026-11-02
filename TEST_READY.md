@@ -160,6 +160,10 @@ All test evaluations enforce the following tolerances pre-registered in `TEST_IN
   - Zero compiler warnings under Rust 2021 edition.
   - Zero Clippy warnings under `-D warnings`.
   - Zero memory leaks across repeated pipeline allocations.
+- **M3 / M4 / M5 Adversarial & Hardware Parity Update (2026-11-02)**:
+  - Added `ojas-core/tests/zero_copy_uma.rs` (5 tests) and `ojas-metal/tests/adversarial_m3_zero_copy.rs` (10 tests) verifying `SharedBuf::to_gpu_buffer()` zero-copy device adoption (`mem_after == mem_before`), timeline lease fencing, and `BudgetLedger` pool capacity refusals (`OjasError::CapacityExceeded`).
+  - Added `ojas-metal/tests/adversarial_m4_attention.rs` (14 tests) and expanded `ojas-metal/tests/attention_flash.rs` (46 tests) verifying native decoupled $T_q \times T_k$ TensorOps flash cross-attention (`ojas_attn_fwd_d32` / `ojas_attn_fwd_d64`, $34.5\times$ speedup) and tile-register additive logit bias `boxRPB` via buffers `13..18` ($14.1\times$ speedup).
+  - Full `SpikeTrack` workspace release test suite passes **163/163** tests (`0` failed) and `./scripts/parity_check.sh` passes both CPU and Metal backbone/tracker PyTorch parity (`1.0000000` cosine similarity).
 
 ---
 

@@ -41,12 +41,20 @@ pub struct Profiled<B> {
 
 impl<B: Backend> Profiled<B> {
     pub fn new(inner: B) -> Self {
-        Self { inner, stage: Mutex::new("unlabelled".into()), calls: Mutex::new(Vec::new()), counters: None }
+        Self {
+            inner,
+            stage: Mutex::new("unlabelled".into()),
+            calls: Mutex::new(Vec::new()),
+            counters: None,
+        }
     }
 
     /// Also record each call's change in the backend's (waits, dispatches) counters.
     pub fn with_counters(inner: B, read: CounterReader<B>) -> Self {
-        Self { counters: Some(read), ..Self::new(inner) }
+        Self {
+            counters: Some(read),
+            ..Self::new(inner)
+        }
     }
 
     fn read_counters(&self) -> Option<(u64, u64)> {
@@ -67,10 +75,24 @@ impl<B: Backend> Profiled<B> {
         self.calls.lock().expect("calls lock").clone()
     }
 
-    fn record(&self, op: &'static str, shapes: String, elapsed: Duration, before: Option<(u64, u64)>) {
+    fn record(
+        &self,
+        op: &'static str,
+        shapes: String,
+        elapsed: Duration,
+        before: Option<(u64, u64)>,
+    ) {
         let stage = self.stage.lock().expect("stage lock").clone();
-        let counters = before.zip(self.read_counters()).map(|(b, a)| (a.0.saturating_sub(b.0), a.1.saturating_sub(b.1)));
-        self.calls.lock().expect("calls lock").push(OpCall { stage, op, shapes, elapsed, counters });
+        let counters = before
+            .zip(self.read_counters())
+            .map(|(b, a)| (a.0.saturating_sub(b.0), a.1.saturating_sub(b.1)));
+        self.calls.lock().expect("calls lock").push(OpCall {
+            stage,
+            op,
+            shapes,
+            elapsed,
+            counters,
+        });
     }
 
     /// Markdown tables: per stage totals, then per (stage, op, shapes) rows sorted by total
@@ -84,7 +106,9 @@ impl<B: Backend> Profiled<B> {
             let s = stages.entry(c.stage.as_str()).or_default();
             s.0 += 1;
             s.1 += c.elapsed.as_secs_f64();
-            let r = rows.entry((c.stage.as_str(), c.op, c.shapes.as_str())).or_default();
+            let r = rows
+                .entry((c.stage.as_str(), c.op, c.shapes.as_str()))
+                .or_default();
             r.0 += 1;
             r.1 += c.elapsed.as_secs_f64();
             if let Some((w, d)) = c.counters {
@@ -94,7 +118,11 @@ impl<B: Backend> Profiled<B> {
         }
         let mut out = format!("recorded {} op calls, {:.1} ms total (each op synced; wall time)\n\n| stage | calls | ms | share |\n|---|---|---|---|\n", calls.len(), total * 1e3);
         for (stage, (n, t)) in &stages {
-            out += &format!("| {stage} | {n} | {:.1} | {:.1}% |\n", t * 1e3, 100.0 * t / total.max(1e-12));
+            out += &format!(
+                "| {stage} | {n} | {:.1} | {:.1}% |\n",
+                t * 1e3,
+                100.0 * t / total.max(1e-12)
+            );
         }
         let mut sorted: Vec<_> = rows.into_iter().collect();
         sorted.sort_by(|a, b| b.1 .1.total_cmp(&a.1 .1));
@@ -105,8 +133,17 @@ impl<B: Backend> Profiled<B> {
             out += "\n| stage | op | tensor argument shapes | calls | total ms | mean ms | share |\n|---|---|---|---|---|---|---|\n";
         }
         for ((stage, op, shapes), (n, t, w, d)) in sorted {
-            out += &format!("| {stage} | {op} | {shapes} | {n} | {:.2} | {:.3} | {:.1}% |", t * 1e3, t * 1e3 / n as f64, 100.0 * t / total.max(1e-12));
-            out += &if counted { format!(" {w} | {d} |\n") } else { "\n".to_string() };
+            out += &format!(
+                "| {stage} | {op} | {shapes} | {n} | {:.2} | {:.3} | {:.1}% |",
+                t * 1e3,
+                t * 1e3 / n as f64,
+                100.0 * t / total.max(1e-12)
+            );
+            out += &if counted {
+                format!(" {w} | {d} |\n")
+            } else {
+                "\n".to_string()
+            };
         }
         out
     }

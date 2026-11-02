@@ -60,16 +60,26 @@ fn up<B: Backend + ?Sized>(be: &B, data: &[f32], shape: &[usize]) -> Result<Tens
 impl<'b, B: Backend + ?Sized> Text<'b, B> {
     pub fn new(be: &'b B, w: &TextEncoder) -> Result<Self, OjasError> {
         let lin = |l: &st_weights::Linear| -> Result<Lin, OjasError> {
-            Ok(Lin { w: up(be, &l.weight.data, &l.weight.shape)?, b: up(be, &l.bias.data, &l.bias.shape)? })
+            Ok(Lin {
+                w: up(be, &l.weight.data, &l.weight.shape)?,
+                b: up(be, &l.bias.data, &l.bias.shape)?,
+            })
         };
         let ln = |n: &st_weights::LayerNorm| -> Result<(Tensor, Tensor), OjasError> {
-            Ok((up(be, &n.weight.data, &[TEXT_DIM])?, up(be, &n.bias.data, &[TEXT_DIM])?))
+            Ok((
+                up(be, &n.weight.data, &[TEXT_DIM])?,
+                up(be, &n.bias.data, &[TEXT_DIM])?,
+            ))
         };
         // Fused in_proj rows [q; k; v], each [1024, 1024].
         let part = |b: &TextBlock, i: usize| -> Result<Lin, OjasError> {
             let r = i * TEXT_DIM..(i + 1) * TEXT_DIM;
             Ok(Lin {
-                w: up(be, &b.in_proj.weight.data[r.start * TEXT_DIM..r.end * TEXT_DIM], &[TEXT_DIM, TEXT_DIM])?,
+                w: up(
+                    be,
+                    &b.in_proj.weight.data[r.start * TEXT_DIM..r.end * TEXT_DIM],
+                    &[TEXT_DIM, TEXT_DIM],
+                )?,
                 b: up(be, &b.in_proj.bias.data[r], &[TEXT_DIM])?,
             })
         };
@@ -121,15 +131,28 @@ impl<'b, B: Backend + ?Sized> Text<'b, B> {
             }
         }
         let mut x = up(be, &x, &[n, TEXT_CONTEXT, TEXT_DIM])?;
-        let opts = AttentionOpts { causal: true, window: None, bias: None, key_lens: None, ..Default::default() };
+        let opts = AttentionOpts {
+            causal: true,
+            window: None,
+            bias: None,
+            key_lens: None,
+            ..Default::default()
+        };
         for b in &self.blocks {
             let h = be.layer_norm_forward(&x, &b.ln1.0, &b.ln1.1, LN_EPS)?;
             let heads = |l: &Lin| -> Result<Tensor, OjasError> {
-                let t = be.linear_bias_forward(&h, &l.w, &l.b)?.reshape(&[n, TEXT_CONTEXT, HEADS, HEAD_DIM])?;
+                let t = be.linear_bias_forward(&h, &l.w, &l.b)?.reshape(&[
+                    n,
+                    TEXT_CONTEXT,
+                    HEADS,
+                    HEAD_DIM,
+                ])?;
                 be.permute(&t, &[0, 2, 1, 3])
             };
             let a = be.attention_forward(&heads(&b.q)?, &heads(&b.k)?, &heads(&b.v)?, opts)?;
-            let a = be.permute(&a, &[0, 2, 1, 3])?.reshape(&[n, TEXT_CONTEXT, TEXT_DIM])?;
+            let a = be
+                .permute(&a, &[0, 2, 1, 3])?
+                .reshape(&[n, TEXT_CONTEXT, TEXT_DIM])?;
             let a = be.linear_bias_forward(&a, &b.out.w, &b.out.b)?;
             x = be.residual_add_forward(&x, &a)?;
             let m = be.layer_norm_forward(&x, &b.ln2.0, &b.ln2.1, LN_EPS)?;
@@ -139,6 +162,10 @@ impl<'b, B: Backend + ?Sized> Text<'b, B> {
         }
         let tokens = be.layer_norm_forward(&x, &self.ln_final.0, &self.ln_final.1, LN_EPS)?;
         let resized = be.linear_bias_forward(&tokens, &self.resizer.w, &self.resizer.b)?;
-        Ok(TextFeatures { tokens, resized, padding })
+        Ok(TextFeatures {
+            tokens,
+            resized,
+            padding,
+        })
     }
 }

@@ -9,3 +9,6 @@ description = "HOTA and dataset loaders for SpikeTrack"
 
 [dev-dependencies]
 ojas-io.workspace = true
+
+[lints]
+workspace = true

@@ -44,7 +44,9 @@ impl std::error::Error for TokenizerError {}
 /// U+0100 onwards, in byte order.
 fn bytes_to_unicode() -> [char; 256] {
     let mut table = ['\0'; 256];
-    let printable = |b: u32| (0x21..=0x7e).contains(&b) || (0xa1..=0xac).contains(&b) || (0xae..=0xff).contains(&b);
+    let printable = |b: u32| {
+        (0x21..=0x7e).contains(&b) || (0xa1..=0xac).contains(&b) || (0xae..=0xff).contains(&b)
+    };
     let mut n = 0;
     for b in 0..256u32 {
         table[b as usize] = if printable(b) {
@@ -75,17 +77,26 @@ impl Tokenizer {
 
     pub fn from_hf_text(vocab_json: &str, merges_txt: &str) -> Result<Self, TokenizerError> {
         let bad = |s: String| TokenizerError::Vocab(s);
-        let v = ojas_io::parse_json(vocab_json).map_err(|e| bad(format!("vocab.json: {}", e.detail())))?;
-        let obj = v.as_object().map_err(|e| bad(format!("vocab.json: {}", e.detail())))?;
+        let v = ojas_io::parse_json(vocab_json)
+            .map_err(|e| bad(format!("vocab.json: {}", e.detail())))?;
+        let obj = v
+            .as_object()
+            .map_err(|e| bad(format!("vocab.json: {}", e.detail())))?;
         let mut encoder = HashMap::with_capacity(obj.len());
         for (piece, id) in obj {
-            let id = id.as_u64().map_err(|e| bad(format!("id of {piece:?}: {}", e.detail())))?;
-            let id = u32::try_from(id).map_err(|_| bad(format!("id {id} of {piece:?} overflows u32")))?;
+            let id = id
+                .as_u64()
+                .map_err(|e| bad(format!("id of {piece:?}: {}", e.detail())))?;
+            let id = u32::try_from(id)
+                .map_err(|_| bad(format!("id {id} of {piece:?} overflows u32")))?;
             encoder.insert(piece.clone(), id);
         }
         // Upstream builds these two from its own list; the HF file spells them
         // `<|startoftext|>` / `<|endoftext|>` at the same ids.
-        for (name, hf, id) in [(SPECIALS[0], "<|startoftext|>", SOT), (SPECIALS[1], "<|endoftext|>", EOT)] {
+        for (name, hf, id) in [
+            (SPECIALS[0], "<|startoftext|>", SOT),
+            (SPECIALS[1], "<|endoftext|>", EOT),
+        ] {
             match encoder.get(hf) {
                 Some(&got) if got == id => {
                     encoder.insert(name.to_string(), id);
@@ -94,14 +105,23 @@ impl Tokenizer {
             }
         }
         let mut ranks = HashMap::new();
-        for (rank, line) in merges_txt.lines().skip(1).filter(|l| !l.is_empty()).enumerate() {
+        for (rank, line) in merges_txt
+            .lines()
+            .skip(1)
+            .filter(|l| !l.is_empty())
+            .enumerate()
+        {
             let mut parts = line.split(' ');
             let (Some(a), Some(b), None) = (parts.next(), parts.next(), parts.next()) else {
                 return Err(bad(format!("merges.txt line {}: {line:?}", rank + 2)));
             };
             ranks.insert((a.to_string(), b.to_string()), rank);
         }
-        Ok(Self { encoder, ranks, byte_enc: bytes_to_unicode() })
+        Ok(Self {
+            encoder,
+            ranks,
+            byte_enc: bytes_to_unicode(),
+        })
     }
 
     /// `[SOT] + encode(text) + [EOT]`, truncated to `CONTEXT` with EOT kept
@@ -149,9 +169,15 @@ impl Tokenizer {
         while word.len() > 1 {
             let best = word
                 .windows(2)
-                .filter_map(|p| self.ranks.get(&(p[0].clone(), p[1].clone())).map(|&r| (r, p[0].clone(), p[1].clone())))
+                .filter_map(|p| {
+                    self.ranks
+                        .get(&(p[0].clone(), p[1].clone()))
+                        .map(|&r| (r, p[0].clone(), p[1].clone()))
+                })
                 .min_by_key(|t| t.0);
-            let Some((_, first, second)) = best else { break };
+            let Some((_, first, second)) = best else {
+                break;
+            };
             let mut merged = Vec::with_capacity(word.len());
             let mut i = 0;
             while i < word.len() {
@@ -175,7 +201,10 @@ fn ftfy_subset(text: &str) -> Result<String, TokenizerError> {
     let mut chars = text.chars().peekable();
     while let Some(c) = chars.next() {
         let u = c as u32;
-        if (0x0300..=0x036f).contains(&u) || (0x1ab0..=0x1aff).contains(&u) || (0x20d0..=0x20ff).contains(&u) {
+        if (0x0300..=0x036f).contains(&u)
+            || (0x1ab0..=0x1aff).contains(&u)
+            || (0x20d0..=0x20ff).contains(&u)
+        {
             return Err(TokenizerError::Unsupported(format!(
                 "combining mark U+{u:04X}: upstream NFC-normalizes (ftfy) and this tokenizer does not"
             )));
@@ -211,7 +240,14 @@ fn html_unescape(s: &str) -> String {
     while let Some(i) = rest.find('&') {
         out.push_str(&rest[..i]);
         let tail = &rest[i..];
-        let named = [("&amp;", '&'), ("&lt;", '<'), ("&gt;", '>'), ("&quot;", '"'), ("&apos;", '\''), ("&#39;", '\'')];
+        let named = [
+            ("&amp;", '&'),
+            ("&lt;", '<'),
+            ("&gt;", '>'),
+            ("&quot;", '"'),
+            ("&apos;", '\''),
+            ("&#39;", '\''),
+        ];
         if let Some((pat, ch)) = named.iter().find(|(p, _)| tail.starts_with(p)) {
             out.push(*ch);
             rest = &tail[pat.len()..];
@@ -269,13 +305,21 @@ fn pre_tokenize(text: &str) -> Vec<&str> {
             continue;
         }
         if c == '\'' {
-            if let Some(n) = ["s", "t", "re", "ve", "m", "ll", "d"].iter().find(|s| rest[1..].starts_with(**s)).map(|s| 1 + s.len()) {
+            if let Some(n) = ["s", "t", "re", "ve", "m", "ll", "d"]
+                .iter()
+                .find(|s| rest[1..].starts_with(**s))
+                .map(|s| 1 + s.len())
+            {
                 out.push(&rest[..n]);
                 i += n;
                 continue;
             }
         }
-        let run = |pred: &dyn Fn(char) -> bool| rest.char_indices().find(|(_, ch)| !pred(*ch)).map_or(rest.len(), |(j, _)| j);
+        let run = |pred: &dyn Fn(char) -> bool| {
+            rest.char_indices()
+                .find(|(_, ch)| !pred(*ch))
+                .map_or(rest.len(), |(j, _)| j)
+        };
         let n = if letter(c) {
             run(&letter)
         } else if number(c) {
@@ -298,14 +342,23 @@ mod tests {
 
     #[test]
     fn splits_like_the_upstream_regex() {
-        assert_eq!(pre_tokenize("sperm-cell, (pinhead)!"), ["sperm", "-", "cell", ",", "(", "pinhead", ")!"]);
-        assert_eq!(pre_tokenize("it's they're 42x"), ["it", "'s", "they", "'re", "4", "2", "x"]);
+        assert_eq!(
+            pre_tokenize("sperm-cell, (pinhead)!"),
+            ["sperm", "-", "cell", ",", "(", "pinhead", ")!"]
+        );
+        assert_eq!(
+            pre_tokenize("it's they're 42x"),
+            ["it", "'s", "they", "'re", "4", "2", "x"]
+        );
         assert_eq!(pre_tokenize("a!'s"), ["a", "!'", "s"]);
     }
 
     #[test]
     fn cleaning() {
-        assert_eq!(clean_lower("  White\u{2019}s   SPACE ").unwrap(), "white's space");
+        assert_eq!(
+            clean_lower("  White\u{2019}s   SPACE ").unwrap(),
+            "white's space"
+        );
         assert_eq!(clean_lower("&amp;amp; &#65;").unwrap(), "& a");
         assert!(clean_lower("cafe\u{301}").is_err());
     }

@@ -13,8 +13,16 @@ pub struct Mask {
 
 impl Mask {
     pub fn new(width: usize, height: usize, data: Vec<bool>) -> Self {
-        assert_eq!(data.len(), width * height, "mask data is not {width} x {height}");
-        Self { width, height, data }
+        assert_eq!(
+            data.len(),
+            width * height,
+            "mask data is not {width} x {height}"
+        );
+        Self {
+            width,
+            height,
+            data,
+        }
     }
 
     pub fn empty(width: usize, height: usize) -> Self {
@@ -98,8 +106,10 @@ pub fn seg2bmap(seg: &Mask) -> Mask {
 /// `dx^2 + dy^2 <= radius^2`); pixels outside the image count as unset.
 fn dilate_disk(m: &Mask, radius: usize) -> Mask {
     let r = radius as isize;
-    let offsets: Vec<(isize, isize)> =
-        (-r..=r).flat_map(|dy| (-r..=r).map(move |dx| (dy, dx))).filter(|(dy, dx)| dy * dy + dx * dx <= r * r).collect();
+    let offsets: Vec<(isize, isize)> = (-r..=r)
+        .flat_map(|dy| (-r..=r).map(move |dx| (dy, dx)))
+        .filter(|(dy, dx)| dy * dy + dx * dx <= r * r)
+        .collect();
     let (w, h) = (m.width as isize, m.height as isize);
     let mut out = vec![false; m.data.len()];
     for y in 0..h {
@@ -125,7 +135,15 @@ pub fn boundary_f(foreground: &Mask, gt: &Mask, void: Option<&Mask>, bound_th: f
         match void {
             Some(v) => {
                 m.same_size(v, "boundary_f void");
-                Mask::new(m.width, m.height, m.data.iter().zip(&v.data).map(|(&a, &vd)| a && !vd).collect())
+                Mask::new(
+                    m.width,
+                    m.height,
+                    m.data
+                        .iter()
+                        .zip(&v.data)
+                        .map(|(&a, &vd)| a && !vd)
+                        .collect(),
+                )
             }
             None => m.clone(),
         }
@@ -133,14 +151,16 @@ pub fn boundary_f(foreground: &Mask, gt: &Mask, void: Option<&Mask>, bound_th: f
     let bound_pix = if bound_th >= 1.0 {
         bound_th
     } else {
-        (bound_th * ((foreground.height as f64).powi(2) + (foreground.width as f64).powi(2)).sqrt()).ceil()
+        (bound_th * ((foreground.height as f64).powi(2) + (foreground.width as f64).powi(2)).sqrt())
+            .ceil()
     };
     let fg_b = seg2bmap(&keep(foreground));
     let gt_b = seg2bmap(&keep(gt));
     let fg_dil = dilate_disk(&fg_b, bound_pix as usize);
     let gt_dil = dilate_disk(&gt_b, bound_pix as usize);
     let count = |m: &Mask| m.data.iter().filter(|&&b| b).count() as f64;
-    let both = |a: &Mask, b: &Mask| a.data.iter().zip(&b.data).filter(|(&x, &y)| x && y).count() as f64;
+    let both =
+        |a: &Mask, b: &Mask| a.data.iter().zip(&b.data).filter(|(&x, &y)| x && y).count() as f64;
     let (n_fg, n_gt) = (count(&fg_b), count(&gt_b));
     let (precision, recall) = match (n_fg == 0.0, n_gt == 0.0) {
         (true, false) => (1.0, 0.0),
@@ -160,7 +180,13 @@ mod tests {
     use super::*;
 
     fn square(w: usize, h: usize, x0: usize, y0: usize, s: usize) -> Mask {
-        Mask::new(w, h, (0..w * h).map(|i| (x0..x0 + s).contains(&(i % w)) && (y0..y0 + s).contains(&(i / w))).collect())
+        Mask::new(
+            w,
+            h,
+            (0..w * h)
+                .map(|i| (x0..x0 + s).contains(&(i % w)) && (y0..y0 + s).contains(&(i / w)))
+                .collect(),
+        )
     }
 
     #[test]

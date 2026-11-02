@@ -108,27 +108,39 @@ pub struct VitTrunk {
 impl VitTrunk {
     fn load(src: &dyn Source) -> Result<Self, WeightsError> {
         let t = format!("{VISION}.trunk");
-        let patch_embed =
-            src.tensor(&format!("{t}.patch_embed.proj.weight"), &[VIT_DIM, 3, VIT_PATCH, VIT_PATCH])?;
+        let patch_embed = src.tensor(
+            &format!("{t}.patch_embed.proj.weight"),
+            &[VIT_DIM, 3, VIT_PATCH, VIT_PATCH],
+        )?;
         let pos_embed = src.tensor(&format!("{t}.pos_embed"), &[1, VIT_POS_TOKENS, VIT_DIM])?;
         let ln_pre = LayerNorm::load(src, &format!("{t}.ln_pre"), VIT_DIM)?;
         let mut blocks = Vec::with_capacity(VIT_DEPTH);
         for i in 0..VIT_DEPTH {
             let p = format!("{t}.blocks.{i}");
             let global = VIT_GLOBAL_BLOCKS.contains(&i);
-            let tokens = if global { VIT_GRID * VIT_GRID } else { VIT_WINDOW * VIT_WINDOW };
+            let tokens = if global {
+                VIT_GRID * VIT_GRID
+            } else {
+                VIT_WINDOW * VIT_WINDOW
+            };
             blocks.push(VitBlock {
                 global,
                 norm1: LayerNorm::load(src, &format!("{p}.norm1"), VIT_DIM)?,
                 qkv: Linear::load(src, &format!("{p}.attn.qkv"), 3 * VIT_DIM, VIT_DIM)?,
                 proj: Linear::load(src, &format!("{p}.attn.proj"), VIT_DIM, VIT_DIM)?,
-                freqs_cis: src.complex_pairs(&format!("{p}.attn.freqs_cis"), &[tokens, VIT_ROPE_PAIRS])?,
+                freqs_cis: src
+                    .complex_pairs(&format!("{p}.attn.freqs_cis"), &[tokens, VIT_ROPE_PAIRS])?,
                 norm2: LayerNorm::load(src, &format!("{p}.norm2"), VIT_DIM)?,
                 fc1: Linear::load(src, &format!("{p}.mlp.fc1"), VIT_MLP, VIT_DIM)?,
                 fc2: Linear::load(src, &format!("{p}.mlp.fc2"), VIT_DIM, VIT_MLP)?,
             });
         }
-        Ok(Self { patch_embed, pos_embed, ln_pre, blocks })
+        Ok(Self {
+            patch_embed,
+            pos_embed,
+            ln_pre,
+            blocks,
+        })
     }
 }
 
@@ -137,9 +149,18 @@ impl VitTrunk {
 #[derive(Clone, Debug)]
 pub enum FpnLevel {
     /// x4 up to 288x288: convT 1024->512, GELU, convT 512->256 (kernel 2, stride 2).
-    Up4 { dconv0: Conv, dconv1: Conv, conv_1x1: Conv, conv_3x3: Conv },
+    Up4 {
+        dconv0: Conv,
+        dconv1: Conv,
+        conv_1x1: Conv,
+        conv_3x3: Conv,
+    },
     /// x2 up to 144x144: convT 1024->512.
-    Up2 { dconv: Conv, conv_1x1: Conv, conv_3x3: Conv },
+    Up2 {
+        dconv: Conv,
+        conv_1x1: Conv,
+        conv_3x3: Conv,
+    },
     /// x1 at 72x72.
     Same { conv_1x1: Conv, conv_3x3: Conv },
 }
@@ -164,13 +185,27 @@ impl FpnNeck {
         let dconv0 = Conv::load(src, &p(0, "dconv_2x2_0"), [d, d / 2, 2, 2], d / 2)?;
         let dconv1 = Conv::load(src, &p(0, "dconv_2x2_1"), [d / 2, d / 4, 2, 2], d / 4)?;
         let (c1, c3) = tail(0, d / 4)?;
-        let up4 = FpnLevel::Up4 { dconv0, dconv1, conv_1x1: c1, conv_3x3: c3 };
+        let up4 = FpnLevel::Up4 {
+            dconv0,
+            dconv1,
+            conv_1x1: c1,
+            conv_3x3: c3,
+        };
         let dconv = Conv::load(src, &p(1, "dconv_2x2"), [d, d / 2, 2, 2], d / 2)?;
         let (c1, c3) = tail(1, d / 2)?;
-        let up2 = FpnLevel::Up2 { dconv, conv_1x1: c1, conv_3x3: c3 };
+        let up2 = FpnLevel::Up2 {
+            dconv,
+            conv_1x1: c1,
+            conv_3x3: c3,
+        };
         let (c1, c3) = tail(2, d)?;
-        let same = FpnLevel::Same { conv_1x1: c1, conv_3x3: c3 };
-        Ok(Self { levels: [up4, up2, same] })
+        let same = FpnLevel::Same {
+            conv_1x1: c1,
+            conv_3x3: c3,
+        };
+        Ok(Self {
+            levels: [up4, up2, same],
+        })
     }
 }
 
@@ -222,15 +257,24 @@ pub struct TextEncoder {
 impl TextEncoder {
     pub fn load(src: &dyn Source) -> Result<Self, WeightsError> {
         let e = format!("{TEXT}.encoder");
-        let token_embedding = src.tensor(&format!("{e}.token_embedding.weight"), &[TEXT_VOCAB, TEXT_DIM])?;
-        let positional_embedding = src.tensor(&format!("{e}.positional_embedding"), &[TEXT_CONTEXT, TEXT_DIM])?;
+        let token_embedding = src.tensor(
+            &format!("{e}.token_embedding.weight"),
+            &[TEXT_VOCAB, TEXT_DIM],
+        )?;
+        let positional_embedding = src.tensor(
+            &format!("{e}.positional_embedding"),
+            &[TEXT_CONTEXT, TEXT_DIM],
+        )?;
         let mut blocks = Vec::with_capacity(TEXT_DEPTH);
         for i in 0..TEXT_DEPTH {
             let p = format!("{e}.transformer.resblocks.{i}");
             blocks.push(TextBlock {
                 ln_1: LayerNorm::load(src, &format!("{p}.ln_1"), TEXT_DIM)?,
                 in_proj: Linear {
-                    weight: src.tensor(&format!("{p}.attn.in_proj_weight"), &[3 * TEXT_DIM, TEXT_DIM])?,
+                    weight: src.tensor(
+                        &format!("{p}.attn.in_proj_weight"),
+                        &[3 * TEXT_DIM, TEXT_DIM],
+                    )?,
                     bias: src.tensor(&format!("{p}.attn.in_proj_bias"), &[3 * TEXT_DIM])?,
                 },
                 out_proj: Linear::load(src, &format!("{p}.attn.out_proj"), TEXT_DIM, TEXT_DIM)?,

@@ -83,7 +83,9 @@ impl BackendChoice {
         match s {
             "cpu" => Ok(Self::Cpu),
             "metal" => Ok(Self::Metal),
-            other => Err(CliError::usage(format!("--backend: {other:?} is not available (choices: cpu, metal)"))),
+            other => Err(CliError::usage(format!(
+                "--backend: {other:?} is not available (choices: cpu, metal)"
+            ))),
         }
     }
 
@@ -143,24 +145,62 @@ pub struct RawDetections<'a> {
 
 /// Keep the queries above `threshold`, highest score first, with boxes in
 /// normalised and pixel xyxy and masks resized to `height x width` and run-length coded.
-pub fn select(raw: &RawDetections<'_>, threshold: f32, height: usize, width: usize) -> Result<Vec<Detection>, String> {
+pub fn select(
+    raw: &RawDetections<'_>,
+    threshold: f32,
+    height: usize,
+    width: usize,
+) -> Result<Vec<Detection>, String> {
     let n = raw.probabilities.len();
     let plane = raw.mask_side * raw.mask_side;
     if raw.boxes_cxcywh.len() != n * 4 || raw.masks.len() != n * plane {
-        return Err(format!("detector outputs disagree: {n} probabilities, {} box values, {} mask values", raw.boxes_cxcywh.len(), raw.masks.len()));
+        return Err(format!(
+            "detector outputs disagree: {n} probabilities, {} box values, {} mask values",
+            raw.boxes_cxcywh.len(),
+            raw.masks.len()
+        ));
     }
     // A NaN probability compares false and is never kept.
-    let mut kept: Vec<usize> = (0..n).filter(|&q| raw.probabilities[q] > threshold).collect();
-    kept.sort_by(|&a, &b| raw.probabilities[b].total_cmp(&raw.probabilities[a]).then(a.cmp(&b)));
+    let mut kept: Vec<usize> = (0..n)
+        .filter(|&q| raw.probabilities[q] > threshold)
+        .collect();
+    kept.sort_by(|&a, &b| {
+        raw.probabilities[b]
+            .total_cmp(&raw.probabilities[a])
+            .then(a.cmp(&b))
+    });
     Ok(kept
         .into_iter()
         .map(|q| {
             let b = &raw.boxes_cxcywh[q * 4..q * 4 + 4];
-            let norm = [b[0] - b[2] / 2.0, b[1] - b[3] / 2.0, b[0] + b[2] / 2.0, b[1] + b[3] / 2.0];
+            let norm = [
+                b[0] - b[2] / 2.0,
+                b[1] - b[3] / 2.0,
+                b[0] + b[2] / 2.0,
+                b[1] + b[3] / 2.0,
+            ];
             let (w, h) = (width as f64, height as f64);
-            let px = [f64::from(norm[0]) * w, f64::from(norm[1]) * h, f64::from(norm[2]) * w, f64::from(norm[3]) * h];
-            let rle = ResizedMask::new(&raw.masks[q * plane..(q + 1) * plane], raw.mask_side, raw.mask_side, height, width).rle();
-            Detection { query: q, score: raw.probabilities[q], box_norm: norm, box_px: px, rle }
+            let px = [
+                f64::from(norm[0]) * w,
+                f64::from(norm[1]) * h,
+                f64::from(norm[2]) * w,
+                f64::from(norm[3]) * h,
+            ];
+            let rle = ResizedMask::new(
+                &raw.masks[q * plane..(q + 1) * plane],
+                raw.mask_side,
+                raw.mask_side,
+                height,
+                width,
+            )
+            .rle();
+            Detection {
+                query: q,
+                score: raw.probabilities[q],
+                box_norm: norm,
+                box_px: px,
+                rle,
+            }
         })
         .collect())
 }
@@ -195,7 +235,11 @@ pub fn detections_json(r: &Report<'_>) -> Result<String, String> {
         lora_json(r.lora),
     ));
     for (i, d) in r.detections.iter().enumerate() {
-        let norm_text: Result<Vec<String>, String> = d.box_norm.iter().map(|&v| json::number32(v, "box")).collect();
+        let norm_text: Result<Vec<String>, String> = d
+            .box_norm
+            .iter()
+            .map(|&v| json::number32(v, "box"))
+            .collect();
         let counts: Vec<String> = d.rle.counts.iter().map(u64::to_string).collect();
         out.push_str(&format!(
             "{}\n    {{\"query\": {}, \"score\": {}, \"box_xyxy_norm\": [{}], \"box_xyxy_px\": {}, \"mask_area\": {}, \"mask\": {{\"size\": [{}, {}], \"counts\": [{}]}}}}",
@@ -210,12 +254,18 @@ pub fn detections_json(r: &Report<'_>) -> Result<String, String> {
             counts.join(", "),
         ));
     }
-    out.push_str(if r.detections.is_empty() { "]\n}\n" } else { "\n  ]\n}\n" });
+    out.push_str(if r.detections.is_empty() {
+        "]\n}\n"
+    } else {
+        "\n  ]\n}\n"
+    });
     Ok(out)
 }
 
 fn host_f32(t: &Tensor, budget: &Budget) -> Result<Vec<f32>, CliError> {
-    t.to_host(budget).and_then(|h| h.to_f32_vec()).map_err(CliError::from_err)
+    t.to_host(budget)
+        .and_then(|h| h.to_f32_vec())
+        .map_err(CliError::from_err)
 }
 
 /// Run the model on one decoded image: the detector's raw outputs.
@@ -227,42 +277,88 @@ struct Inference {
     seconds: f64,
 }
 
-fn infer(image: &Rgb8, prompt: &str, w: &Sam31Weights, model_dir: &Path, backend: BackendChoice, threads: usize) -> Result<Inference, CliError> {
+fn infer(
+    image: &Rgb8,
+    prompt: &str,
+    w: &Sam31Weights,
+    model_dir: &Path,
+    backend: BackendChoice,
+    threads: usize,
+) -> Result<Inference, CliError> {
     match backend {
-        BackendChoice::Cpu => infer_on(&CpuBackend::with_threads(Budget::new(BUDGET_BYTES), threads).map_err(CliError::from_err)?, w, image, prompt, model_dir),
-        BackendChoice::Metal => infer_on(&MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?, w, image, prompt, model_dir),
+        BackendChoice::Cpu => infer_on(
+            &CpuBackend::with_threads(Budget::new(BUDGET_BYTES), threads)
+                .map_err(CliError::from_err)?,
+            w,
+            image,
+            prompt,
+            model_dir,
+        ),
+        BackendChoice::Metal => infer_on(
+            &MetalBackend::new(Budget::new(BUDGET_BYTES)).map_err(CliError::from_err)?,
+            w,
+            image,
+            prompt,
+            model_dir,
+        ),
     }
 }
 
-fn infer_on<B: Backend>(be: &B, w: &Sam31Weights, image: &Rgb8, prompt: &str, model_dir: &Path) -> Result<Inference, CliError> {
+fn infer_on<B: Backend>(
+    be: &B,
+    w: &Sam31Weights,
+    image: &Rgb8,
+    prompt: &str,
+    model_dir: &Path,
+) -> Result<Inference, CliError> {
     let backbone = Backbone::new(be, &w.vision).map_err(CliError::from_err)?;
     let text = Text::new(be, &w.text).map_err(CliError::from_err)?;
     let det = Detector::new(
         be,
-        DetectorWeights { transformer: &w.detector_transformer, geometry: &w.geometry_encoder, segmentation: &w.segmentation_head, scoring: &w.dot_prod_scoring },
+        DetectorWeights {
+            transformer: &w.detector_transformer,
+            geometry: &w.geometry_encoder,
+            segmentation: &w.segmentation_head,
+            scoring: &w.dot_prod_scoring,
+        },
     )
     .map_err(CliError::from_err)?;
     let vocab = model_dir.join("vocab.json");
     let merges = model_dir.join("merges.txt");
-    let tok = Tokenizer::from_hf_files(&vocab, &merges).map_err(|e| CliError::failed(format!("tokenizer files in {}: {e}", model_dir.display())))?;
+    let tok = Tokenizer::from_hf_files(&vocab, &merges).map_err(|e| {
+        CliError::failed(format!("tokenizer files in {}: {e}", model_dir.display()))
+    })?;
 
-    let ids = tok.tokenize(prompt).map_err(|e| CliError::failed(format!("prompt {prompt:?}: {e}")))?;
+    let ids = tok
+        .tokenize(prompt)
+        .map_err(|e| CliError::failed(format!("prompt {prompt:?}: {e}")))?;
     let tf = text.encode(&[ids]).map_err(CliError::from_err)?;
     let resized = host_f32(&tf.resized, be.budget())?;
-    let valid: Vec<f32> = (0..tf.padding.len()).filter(|&t| !tf.padding[t]).flat_map(|t| resized[t * D..(t + 1) * D].to_vec()).collect();
+    let valid: Vec<f32> = (0..tf.padding.len())
+        .filter(|&t| !tf.padding[t])
+        .flat_map(|t| resized[t * D..(t + 1) * D].to_vec())
+        .collect();
     if valid.is_empty() {
         return Err(CliError::failed(format!("prompt {prompt:?} has no tokens")));
     }
-    let prompt_t = Tensor::from_f32(&valid, &[1, valid.len() / D, D], be.budget()).map_err(CliError::from_err)?;
+    let prompt_t = Tensor::from_f32(&valid, &[1, valid.len() / D, D], be.budget())
+        .map_err(CliError::from_err)?;
 
     let side = st_model::IMAGE_SIZE;
     let input = sam_input(image, side);
-    let t = Tensor::from_f32(&input, &[1, 3, side, side], be.budget()).map_err(CliError::from_err)?;
+    let t =
+        Tensor::from_f32(&input, &[1, 3, side, side], be.budget()).map_err(CliError::from_err)?;
     let device = be.upload(&t).map_err(CliError::from_err)?;
     let t0 = Instant::now();
-    let trunk = backbone.trunk(&device, &[], &mut Taps::default()).map_err(CliError::from_err)?;
-    let fpn = backbone.neck(Neck::Detector, &trunk).map_err(CliError::from_err)?;
-    let out = det.forward(&fpn, &prompt_t, &mut DetectorTaps::default()).map_err(CliError::from_err)?;
+    let trunk = backbone
+        .trunk(&device, &[], &mut Taps::default())
+        .map_err(CliError::from_err)?;
+    let fpn = backbone
+        .neck(Neck::Detector, &trunk)
+        .map_err(CliError::from_err)?;
+    let out = det
+        .forward(&fpn, &prompt_t, &mut DetectorTaps::default())
+        .map_err(CliError::from_err)?;
     be.sync().map_err(CliError::from_err)?;
     let seconds = t0.elapsed().as_secs_f64();
     Ok(Inference {
@@ -275,7 +371,20 @@ fn infer_on<B: Backend>(be: &B, w: &Sam31Weights, image: &Rgb8, prompt: &str, mo
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
-    let args = Args::parse(raw, &["prompt", "out", "threshold", "backend", "weights", "lora", "model-dir", "threads"], 1)?;
+    let args = Args::parse(
+        raw,
+        &[
+            "prompt",
+            "out",
+            "threshold",
+            "backend",
+            "weights",
+            "lora",
+            "model-dir",
+            "threads",
+        ],
+        1,
+    )?;
     if args.help {
         println!("{USAGE}");
         return Ok(());
@@ -287,27 +396,51 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     }
     let threshold: f32 = args.parsed("threshold", 0.5)?;
     if !(0.0..1.0).contains(&threshold) {
-        return Err(CliError::usage(format!("--threshold {threshold} is outside [0, 1)")));
+        return Err(CliError::usage(format!(
+            "--threshold {threshold} is outside [0, 1)"
+        )));
     }
     let backend = BackendChoice::parse(args.get("backend").unwrap_or("metal"))?;
     let threads: usize = args.parsed("threads", 8)?;
     if !(1..=256).contains(&threads) {
-        return Err(CliError::usage(format!("--threads {threads} is outside 1..=256")));
+        return Err(CliError::usage(format!(
+            "--threads {threads} is outside 1..=256"
+        )));
     }
     let out_dir = PathBuf::from(args.get("out").unwrap_or("spiketrack-out"));
-    let weights = existing_path(args.get("weights"), "SPIKETRACK_WEIGHTS", "weights", "weights")?;
+    let weights = existing_path(
+        args.get("weights"),
+        "SPIKETRACK_WEIGHTS",
+        "weights",
+        "weights",
+    )?;
     let lora = weights::lora_path(args.get("lora"))?;
-    let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
+    let model_dir = existing_path(
+        args.get("model-dir"),
+        "SPIKETRACK_MODEL_DIR",
+        "tokenizer folder",
+        "model-dir",
+    )?;
 
     let (image, decoder) = decode_image_with_source(&image_path).map_err(CliError::from_err)?;
     let (w, applied) = weights::load(&weights, lora.as_deref())?;
     let inf = infer(&image, &prompt, &w, &model_dir, backend, threads)?;
     let n = inf.probabilities.len();
     if n != QUERIES || inf.masks.len() != QUERIES * MASK * MASK {
-        return Err(CliError::failed(format!("the detector returned {n} queries and {} mask values, expected {QUERIES} and {}", inf.masks.len(), QUERIES * MASK * MASK)));
+        return Err(CliError::failed(format!(
+            "the detector returned {n} queries and {} mask values, expected {QUERIES} and {}",
+            inf.masks.len(),
+            QUERIES * MASK * MASK
+        )));
     }
-    let raw = RawDetections { probabilities: &inf.probabilities, boxes_cxcywh: &inf.boxes, masks: &inf.masks, mask_side: MASK };
-    let detections = select(&raw, threshold, image.height, image.width).map_err(CliError::failed)?;
+    let raw = RawDetections {
+        probabilities: &inf.probabilities,
+        boxes_cxcywh: &inf.boxes,
+        masks: &inf.masks,
+        mask_side: MASK,
+    };
+    let detections =
+        select(&raw, threshold, image.height, image.width).map_err(CliError::failed)?;
 
     let report = Report {
         image: &image_path.to_string_lossy(),
@@ -323,14 +456,32 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     };
     let text = detections_json(&report).map_err(CliError::failed)?;
     let masks: Vec<Vec<bool>> = detections.iter().map(|d| d.rle.decode()).collect();
-    let drawn: Vec<Drawn<'_>> = detections.iter().zip(&masks).enumerate().map(|(i, (d, m))| Drawn { mask: m, box_px: d.box_px, colour: i, label: None }).collect();
-    let overlay_png = png::encode_rgb(image.width, image.height, &overlay::render(&image, &drawn).data).map_err(CliError::from_err)?;
+    let drawn: Vec<Drawn<'_>> = detections
+        .iter()
+        .zip(&masks)
+        .enumerate()
+        .map(|(i, (d, m))| Drawn {
+            mask: m,
+            box_px: d.box_px,
+            colour: i,
+            label: None,
+        })
+        .collect();
+    let overlay_png = png::encode_rgb(
+        image.width,
+        image.height,
+        &overlay::render(&image, &drawn).data,
+    )
+    .map_err(CliError::from_err)?;
 
-    std::fs::create_dir_all(&out_dir).map_err(|e| CliError::failed(format!("{}: {e}", out_dir.display())))?;
+    std::fs::create_dir_all(&out_dir)
+        .map_err(|e| CliError::failed(format!("{}: {e}", out_dir.display())))?;
     let json_path = out_dir.join("detections.json");
     let png_path = out_dir.join("overlay.png");
-    std::fs::write(&json_path, text).map_err(|e| CliError::failed(format!("{}: {e}", json_path.display())))?;
-    std::fs::write(&png_path, overlay_png).map_err(|e| CliError::failed(format!("{}: {e}", png_path.display())))?;
+    std::fs::write(&json_path, text)
+        .map_err(|e| CliError::failed(format!("{}: {e}", json_path.display())))?;
+    std::fs::write(&png_path, overlay_png)
+        .map_err(|e| CliError::failed(format!("{}: {e}", png_path.display())))?;
     println!(
         "{} detection(s) for {prompt:?} above {threshold} in {} ({}x{}), {:.1} s on {}\n  {}\n  {}",
         detections.len(),
@@ -365,7 +516,12 @@ mod tests {
     #[test]
     fn select_keeps_above_threshold_sorted_by_score_and_scales_boxes() {
         let (probs, boxes, masks) = raw_fixture();
-        let raw = RawDetections { probabilities: &probs, boxes_cxcywh: &boxes, masks: &masks, mask_side: 2 };
+        let raw = RawDetections {
+            probabilities: &probs,
+            boxes_cxcywh: &boxes,
+            masks: &masks,
+            mask_side: 2,
+        };
         let d = select(&raw, 0.5, 4, 8).unwrap();
         assert_eq!(d.iter().map(|d| d.query).collect::<Vec<_>>(), vec![1, 2]);
         assert_eq!(d[0].box_norm, [0.25, 0.0, 0.75, 0.5]);
@@ -380,10 +536,20 @@ mod tests {
     #[test]
     fn select_refuses_inconsistent_outputs() {
         let (probs, boxes, masks) = raw_fixture();
-        let short = RawDetections { probabilities: &probs, boxes_cxcywh: &boxes[..8], masks: &masks, mask_side: 2 };
+        let short = RawDetections {
+            probabilities: &probs,
+            boxes_cxcywh: &boxes[..8],
+            masks: &masks,
+            mask_side: 2,
+        };
         assert!(select(&short, 0.5, 4, 4).is_err());
         let nan = [f32::NAN, 0.9, 0.7];
-        let bad = RawDetections { probabilities: &nan, boxes_cxcywh: &boxes, masks: &masks, mask_side: 2 };
+        let bad = RawDetections {
+            probabilities: &nan,
+            boxes_cxcywh: &boxes,
+            masks: &masks,
+            mask_side: 2,
+        };
         // NaN > threshold is false, so it is not kept and cannot poison the output.
         assert_eq!(select(&bad, 0.5, 4, 4).unwrap().len(), 2);
     }
@@ -391,9 +557,26 @@ mod tests {
     #[test]
     fn detections_json_parses_and_carries_every_field() {
         let (probs, boxes, masks) = raw_fixture();
-        let raw = RawDetections { probabilities: &probs, boxes_cxcywh: &boxes, masks: &masks, mask_side: 2 };
+        let raw = RawDetections {
+            probabilities: &probs,
+            boxes_cxcywh: &boxes,
+            masks: &masks,
+            mask_side: 2,
+        };
         let d = select(&raw, 0.5, 4, 8).unwrap();
-        let text = detections_json(&Report { image: "a \"b\".jpg", width: 8, height: 4, prompt: "cell", threshold: 0.5, backend: BackendChoice::Cpu, presence: 0.99, decoder: "pillow-exact-jpeg", lora: None, detections: &d }).unwrap();
+        let text = detections_json(&Report {
+            image: "a \"b\".jpg",
+            width: 8,
+            height: 4,
+            prompt: "cell",
+            threshold: 0.5,
+            backend: BackendChoice::Cpu,
+            presence: 0.99,
+            decoder: "pillow-exact-jpeg",
+            lora: None,
+            detections: &d,
+        })
+        .unwrap();
         let v = parse_json(&text).expect("valid JSON");
         assert_eq!(v.get_str("image").unwrap(), "a \"b\".jpg");
         assert_eq!(v.get_str("backend").unwrap(), "cpu");
@@ -405,21 +588,61 @@ mod tests {
         assert!((dets[0].get_f64("score").unwrap() - 0.9).abs() < 1e-6);
         assert_eq!(dets[0].get_array("box_xyxy_px").unwrap().len(), 4);
         let mask = dets[1].get_object("mask").unwrap();
-        let counts: Vec<u64> = mask.get_array("counts").unwrap().iter().map(|c| c.as_u64().unwrap()).collect();
+        let counts: Vec<u64> = mask
+            .get_array("counts")
+            .unwrap()
+            .iter()
+            .map(|c| c.as_u64().unwrap())
+            .collect();
         assert_eq!(counts, vec![0, 32]);
         assert_eq!(mask.get_array("size").unwrap().len(), 2);
         assert_eq!(dets[1].get_u64("mask_area").unwrap(), 32);
         // No detections is still valid JSON with an empty list.
-        let empty = detections_json(&Report { image: "x", width: 1, height: 1, prompt: "p", threshold: 0.5, backend: BackendChoice::Cpu, presence: 0.0, decoder: "imageio", lora: None, detections: &[] }).unwrap();
-        assert_eq!(parse_json(&empty).unwrap().get_array("detections").unwrap().len(), 0);
+        let empty = detections_json(&Report {
+            image: "x",
+            width: 1,
+            height: 1,
+            prompt: "p",
+            threshold: 0.5,
+            backend: BackendChoice::Cpu,
+            presence: 0.0,
+            decoder: "imageio",
+            lora: None,
+            detections: &[],
+        })
+        .unwrap();
+        assert_eq!(
+            parse_json(&empty)
+                .unwrap()
+                .get_array("detections")
+                .unwrap()
+                .len(),
+            0
+        );
     }
 
     #[test]
     fn a_non_finite_number_is_an_error_not_a_null() {
         let (probs, boxes, masks) = raw_fixture();
-        let raw = RawDetections { probabilities: &probs, boxes_cxcywh: &boxes, masks: &masks, mask_side: 2 };
+        let raw = RawDetections {
+            probabilities: &probs,
+            boxes_cxcywh: &boxes,
+            masks: &masks,
+            mask_side: 2,
+        };
         let d = select(&raw, 0.5, 4, 8).unwrap();
-        let r = Report { image: "x", width: 8, height: 4, prompt: "p", threshold: 0.5, backend: BackendChoice::Cpu, presence: f32::NAN, decoder: "imageio", lora: None, detections: &d };
+        let r = Report {
+            image: "x",
+            width: 8,
+            height: 4,
+            prompt: "p",
+            threshold: 0.5,
+            backend: BackendChoice::Cpu,
+            presence: f32::NAN,
+            decoder: "imageio",
+            lora: None,
+            detections: &d,
+        };
         assert!(detections_json(&r).unwrap_err().contains("presence"));
     }
 

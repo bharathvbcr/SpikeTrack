@@ -78,7 +78,10 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use crate::decode::{class, file_url, msg, ns_error_text, CfRef, CfTypeRef, CmTime, DecodeError, Id, Obj, Pool, CV_RETURN_SUCCESS, MAX_VIDEO_FRAMES, PIXEL_FORMAT_32BGRA};
+use crate::decode::{
+    class, file_url, msg, ns_error_text, CfRef, CfTypeRef, CmTime, DecodeError, Id, Obj, Pool,
+    CV_RETURN_SUCCESS, MAX_VIDEO_FRAMES, PIXEL_FORMAT_32BGRA,
+};
 use crate::resize::Rgb8;
 
 /// Smallest width or height accepted, in pixels.
@@ -121,7 +124,11 @@ const PIXEL_BUFFER_LOCK_READ_WRITE: u64 = 0;
 #[derive(Debug)]
 pub enum EncodeError {
     /// Width or height the writer refuses.
-    InvalidSize { width: usize, height: usize, detail: String },
+    InvalidSize {
+        width: usize,
+        height: usize,
+        detail: String,
+    },
     /// A frame rate outside [`MIN_FPS`]..=[`MAX_FPS`], or not a number.
     InvalidFps { fps: f64 },
     /// An output path the writer refuses (extension, parent directory, not a file).
@@ -139,7 +146,11 @@ pub enum EncodeError {
     /// More frames than [`MAX_VIDEO_FRAMES`], the most [`crate::decode::VideoReader`] reads.
     TooManyFrames { limit: usize },
     /// A wait was abandoned: the encoder did not accept a frame, or finish the file, in time.
-    Timeout { what: &'static str, waited: Duration, frames: usize },
+    Timeout {
+        what: &'static str,
+        waited: Duration,
+        frames: usize,
+    },
     /// `AVAssetWriter` failed or was cancelled; `detail` is its `NSError`'s text. Every later call on
     /// the writer returns the same error.
     Failed { path: PathBuf, detail: String },
@@ -150,17 +161,44 @@ pub enum EncodeError {
 impl fmt::Display for EncodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidSize { width, height, detail } => write!(f, "video size {width}x{height}: {detail}"),
-            Self::InvalidFps { fps } => write!(f, "frame rate {fps} is outside {MIN_FPS}..={MAX_FPS} fps"),
+            Self::InvalidSize {
+                width,
+                height,
+                detail,
+            } => write!(f, "video size {width}x{height}: {detail}"),
+            Self::InvalidFps { fps } => {
+                write!(f, "frame rate {fps} is outside {MIN_FPS}..={MAX_FPS} fps")
+            }
             Self::InvalidPath { path, detail } => write!(f, "{}: {detail}", path.display()),
-            Self::Exists { path } => write!(f, "{}: the file already exists (remove it, or choose another name)", path.display()),
+            Self::Exists { path } => write!(
+                f,
+                "{}: the file already exists (remove it, or choose another name)",
+                path.display()
+            ),
             Self::Io { path, err } => write!(f, "{}: {err}", path.display()),
             Self::BadFrame { index, detail } => write!(f, "frame {index}: {detail}"),
-            Self::Unsupported { detail } => write!(f, "the system H.264 encoder will not write this video: {detail}"),
-            Self::Empty { path } => write!(f, "{}: no frame was written, so there is no video", path.display()),
+            Self::Unsupported { detail } => write!(
+                f,
+                "the system H.264 encoder will not write this video: {detail}"
+            ),
+            Self::Empty { path } => write!(
+                f,
+                "{}: no frame was written, so there is no video",
+                path.display()
+            ),
             Self::TooManyFrames { limit } => write!(f, "more than {limit} frames"),
-            Self::Timeout { what, waited, frames } => write!(f, "gave up waiting {:.0} s for {what} after {frames} frame(s)", waited.as_secs_f64()),
-            Self::Failed { path, detail } => write!(f, "{}: AVAssetWriter failed: {detail}", path.display()),
+            Self::Timeout {
+                what,
+                waited,
+                frames,
+            } => write!(
+                f,
+                "gave up waiting {:.0} s for {what} after {frames} frame(s)",
+                waited.as_secs_f64()
+            ),
+            Self::Failed { path, detail } => {
+                write!(f, "{}: AVAssetWriter failed: {detail}", path.display())
+            }
             Self::Framework { api, detail } => write!(f, "{api}: {detail}"),
         }
     }
@@ -174,13 +212,19 @@ impl From<DecodeError> for EncodeError {
     fn from(e: DecodeError) -> Self {
         match e {
             DecodeError::Framework { api, detail } => Self::Framework { api, detail },
-            other => Self::Framework { api: "objc", detail: other.to_string() },
+            other => Self::Framework {
+                api: "objc",
+                detail: other.to_string(),
+            },
         }
     }
 }
 
 fn fw(api: &'static str, detail: impl Into<String>) -> EncodeError {
-    EncodeError::Framework { api, detail: detail.into() }
+    EncodeError::Framework {
+        api,
+        detail: detail.into(),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -217,7 +261,11 @@ extern "C" {
     static kCVPixelBufferWidthKey: CfTypeRef;
     static kCVPixelBufferHeightKey: CfTypeRef;
 
-    fn CVPixelBufferPoolCreatePixelBuffer(allocator: CfTypeRef, pool: CfTypeRef, out: *mut CfTypeRef) -> i32;
+    fn CVPixelBufferPoolCreatePixelBuffer(
+        allocator: CfTypeRef,
+        pool: CfTypeRef,
+        out: *mut CfTypeRef,
+    ) -> i32;
     fn CVPixelBufferLockBaseAddress(pb: CfTypeRef, flags: u64) -> i32;
     fn CVPixelBufferUnlockBaseAddress(pb: CfTypeRef, flags: u64) -> i32;
     fn CVPixelBufferGetBaseAddress(pb: CfTypeRef) -> *const u8;
@@ -259,9 +307,18 @@ unsafe impl Sync for GlobalBlock {}
 
 unsafe extern "C" fn do_nothing(_: *const GlobalBlock) {}
 
-static NOOP_DESCRIPTOR: BlockDescriptor = BlockDescriptor { reserved: 0, size: std::mem::size_of::<GlobalBlock>() as std::ffi::c_ulong };
+static NOOP_DESCRIPTOR: BlockDescriptor = BlockDescriptor {
+    reserved: 0,
+    size: std::mem::size_of::<GlobalBlock>() as std::ffi::c_ulong,
+};
 
-static NOOP_BLOCK: GlobalBlock = GlobalBlock { isa: &raw const _NSConcreteGlobalBlock as *const c_void, flags: BLOCK_IS_GLOBAL, reserved: 0, invoke: do_nothing, descriptor: &NOOP_DESCRIPTOR };
+static NOOP_BLOCK: GlobalBlock = GlobalBlock {
+    isa: &raw const _NSConcreteGlobalBlock as *const c_void,
+    flags: BLOCK_IS_GLOBAL,
+    reserved: 0,
+    invoke: do_nothing,
+    descriptor: &NOOP_DESCRIPTOR,
+};
 
 // ---------------------------------------------------------------------------
 // Boundary checks
@@ -278,12 +335,22 @@ pub struct WriterOptions {
 /// The size and frame-rate checks of [`VideoWriter::create`], without touching the file system or
 /// AVFoundation. Returns the track time scale, `round(fps * 1000)`.
 pub fn check_format(width: usize, height: usize, fps: f64) -> Result<i32, EncodeError> {
-    let size = |detail: String| EncodeError::InvalidSize { width, height, detail };
+    let size = |detail: String| EncodeError::InvalidSize {
+        width,
+        height,
+        detail,
+    };
     if width % 2 != 0 || height % 2 != 0 {
-        return Err(size("H.264 4:2:0 needs an even width and height".to_string()));
+        return Err(size(
+            "H.264 4:2:0 needs an even width and height".to_string(),
+        ));
     }
-    if !(MIN_DIMENSION..=MAX_DIMENSION).contains(&width) || !(MIN_DIMENSION..=MAX_DIMENSION).contains(&height) {
-        return Err(size(format!("each side must be {MIN_DIMENSION} to {MAX_DIMENSION} pixels")));
+    if !(MIN_DIMENSION..=MAX_DIMENSION).contains(&width)
+        || !(MIN_DIMENSION..=MAX_DIMENSION).contains(&height)
+    {
+        return Err(size(format!(
+            "each side must be {MIN_DIMENSION} to {MAX_DIMENSION} pixels"
+        )));
     }
     if width * height > MAX_PIXELS {
         return Err(size(format!("more than {MAX_PIXELS} pixels")));
@@ -304,9 +371,19 @@ pub fn check_output(path: impl AsRef<Path>, overwrite: bool) -> Result<PathBuf, 
 
 /// [`check_output`], also saying whether a file is there to be replaced.
 fn inspect_output(path: &Path, overwrite: bool) -> Result<(PathBuf, bool), EncodeError> {
-    let bad = |detail: &str| EncodeError::InvalidPath { path: path.to_path_buf(), detail: detail.to_string() };
-    let io = |p: &Path, err| EncodeError::Io { path: p.to_path_buf(), err };
-    if !path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("mp4")) {
+    let bad = |detail: &str| EncodeError::InvalidPath {
+        path: path.to_path_buf(),
+        detail: detail.to_string(),
+    };
+    let io = |p: &Path, err| EncodeError::Io {
+        path: p.to_path_buf(),
+        err,
+    };
+    if !path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("mp4"))
+    {
         return Err(bad("the output file name must end in .mp4"));
     }
     let name = path.file_name().ok_or_else(|| bad("no file name"))?;
@@ -334,7 +411,10 @@ fn inspect_output(path: &Path, overwrite: bool) -> Result<(PathBuf, bool), Encod
 fn prepare_output(path: &Path, overwrite: bool) -> Result<PathBuf, EncodeError> {
     let (full, exists) = inspect_output(path, overwrite)?;
     if exists {
-        std::fs::remove_file(&full).map_err(|err| EncodeError::Io { path: full.clone(), err })?;
+        std::fs::remove_file(&full).map_err(|err| EncodeError::Io {
+            path: full.clone(),
+            err,
+        })?;
     }
     Ok(full)
 }
@@ -361,7 +441,10 @@ unsafe fn ns_dict(pairs: &[(Id, Id)]) -> Result<Id, EncodeError> {
     let values: Vec<Id> = pairs.iter().map(|p| p.1).collect();
     let d: Id = msg!(class(c"NSDictionary")?, "dictionaryWithObjects:forKeys:count:", values.as_ptr() => *const Id, keys.as_ptr() => *const Id, pairs.len() => usize; -> Id);
     if d.is_null() {
-        return Err(fw("NSDictionary", "dictionaryWithObjects:forKeys:count: returned nil"));
+        return Err(fw(
+            "NSDictionary",
+            "dictionaryWithObjects:forKeys:count: returned nil",
+        ));
     }
     Ok(d)
 }
@@ -371,11 +454,16 @@ unsafe fn ns_dict(pairs: &[(Id, Id)]) -> Result<Id, EncodeError> {
 /// # Safety
 /// An autorelease pool is active.
 unsafe fn output_settings(width: usize, height: usize, fps: f64) -> Result<Id, EncodeError> {
-    let bit_rate = (width as f64 * height as f64 * fps * BITS_PER_PIXEL).clamp(MIN_BIT_RATE, MAX_BIT_RATE).round() as isize;
+    let bit_rate = (width as f64 * height as f64 * fps * BITS_PER_PIXEL)
+        .clamp(MIN_BIT_RATE, MAX_BIT_RATE)
+        .round() as isize;
     let compression = ns_dict(&[(AVVideoAverageBitRateKey, ns_int(bit_rate)?)])?;
     let colour = ns_dict(&[
         (AVVideoColorPrimariesKey, AVVideoColorPrimaries_ITU_R_709_2),
-        (AVVideoTransferFunctionKey, AVVideoTransferFunction_ITU_R_709_2),
+        (
+            AVVideoTransferFunctionKey,
+            AVVideoTransferFunction_ITU_R_709_2,
+        ),
         (AVVideoYCbCrMatrixKey, AVVideoYCbCrMatrix_ITU_R_709_2),
     ])?;
     ns_dict(&[
@@ -452,12 +540,23 @@ pub struct VideoWriter {
 impl VideoWriter {
     /// A writer for a `width x height` video at `fps` frames per second at `path`, refusing an
     /// existing file. See the module documentation for what is checked.
-    pub fn create(path: impl AsRef<Path>, width: usize, height: usize, fps: f64) -> Result<VideoWriter, EncodeError> {
+    pub fn create(
+        path: impl AsRef<Path>,
+        width: usize,
+        height: usize,
+        fps: f64,
+    ) -> Result<VideoWriter, EncodeError> {
         Self::create_with(path, width, height, fps, WriterOptions::default())
     }
 
     /// [`VideoWriter::create`] with [`WriterOptions`].
-    pub fn create_with(path: impl AsRef<Path>, width: usize, height: usize, fps: f64, options: WriterOptions) -> Result<VideoWriter, EncodeError> {
+    pub fn create_with(
+        path: impl AsRef<Path>,
+        width: usize,
+        height: usize,
+        fps: f64,
+        options: WriterOptions,
+    ) -> Result<VideoWriter, EncodeError> {
         let timescale = check_format(width, height, fps)?;
         let path = prepare_output(path.as_ref(), options.overwrite)?;
         let _pool = Pool::new()?;
@@ -469,7 +568,10 @@ impl VideoWriter {
         let writer = unsafe {
             let mut error: Id = std::ptr::null_mut();
             let w: Id = msg!(class(c"AVAssetWriter")?, "assetWriterWithURL:fileType:error:", url.as_ptr() as Id => Id, AVFileTypeMPEG4 => Id, &mut error as *mut Id => *mut Id; -> Id);
-            Obj::retain(w).ok_or_else(|| EncodeError::Failed { path: path.clone(), detail: ns_error_text(error) })?
+            Obj::retain(w).ok_or_else(|| EncodeError::Failed {
+                path: path.clone(),
+                detail: ns_error_text(error),
+            })?
         };
         // SAFETY: `writer` is live; the pool is active; every object in the settings is live. The
         // `can...` tests precede `addInput:` and the adaptor, which throw for what they refuse.
@@ -477,18 +579,25 @@ impl VideoWriter {
             let settings = output_settings(width, height, fps)?;
             let ok: bool = msg!(writer.id(), "canApplyOutputSettings:forMediaType:", settings => Id, AVMediaTypeVideo => Id; -> bool);
             if !ok {
-                return Err(EncodeError::Unsupported { detail: format!("{width}x{height} at {fps} fps as H.264 in an mp4") });
+                return Err(EncodeError::Unsupported {
+                    detail: format!("{width}x{height} at {fps} fps as H.264 in an mp4"),
+                });
             }
             let input = Obj::retain(msg!(class(c"AVAssetWriterInput")?, "assetWriterInputWithMediaType:outputSettings:", AVMediaTypeVideo => Id, settings => Id; -> Id))
                 .ok_or_else(|| fw("AVAssetWriterInput", "assetWriterInputWithMediaType:outputSettings: returned nil"))?;
             let can: bool = msg!(writer.id(), "canAddInput:", input.id() => Id; -> bool);
             if !can {
-                return Err(EncodeError::Unsupported { detail: "AVAssetWriter cannot take this video input".to_string() });
+                return Err(EncodeError::Unsupported {
+                    detail: "AVAssetWriter cannot take this video input".to_string(),
+                });
             }
             let _: () = msg!(writer.id(), "addInput:", input.id() => Id; -> ());
             // The pool needs the width, height and pixel format (the header: it throws without them).
             let attrs = ns_dict(&[
-                (kCVPixelBufferPixelFormatTypeKey as Id, ns_int(PIXEL_FORMAT_32BGRA as isize)?),
+                (
+                    kCVPixelBufferPixelFormatTypeKey as Id,
+                    ns_int(PIXEL_FORMAT_32BGRA as isize)?,
+                ),
                 (kCVPixelBufferWidthKey as Id, ns_int(width as isize)?),
                 (kCVPixelBufferHeightKey as Id, ns_int(height as isize)?),
             ])?;
@@ -497,7 +606,18 @@ impl VideoWriter {
             (input, adaptor)
         };
         // From here a `VideoWriter` exists, so an early return cancels the session and removes the file.
-        let mut w = VideoWriter { adaptor, input, writer, path, width, height, fps: f64::from(timescale) / TICKS_PER_FRAME as f64, timescale, frames: 0, state: State::Writing };
+        let mut w = VideoWriter {
+            adaptor,
+            input,
+            writer,
+            path,
+            width,
+            height,
+            fps: f64::from(timescale) / TICKS_PER_FRAME as f64,
+            timescale,
+            frames: 0,
+            state: State::Writing,
+        };
         // SAFETY: the input is attached; writing starts after all inputs are added.
         let started: bool = unsafe { msg!(w.writer.id(), "startWriting"; -> bool) };
         if !started {
@@ -553,7 +673,10 @@ impl VideoWriter {
     /// Record a failure: every later call returns it, and drop cleans the file up.
     fn fail(&mut self, detail: String) -> EncodeError {
         self.state = State::Failed(detail.clone());
-        EncodeError::Failed { path: self.path.clone(), detail }
+        EncodeError::Failed {
+            path: self.path.clone(),
+            detail,
+        }
     }
 
     fn status(&self) -> isize {
@@ -579,7 +702,11 @@ impl VideoWriter {
             if waited >= READY_TIMEOUT {
                 let frames = self.frames;
                 self.state = State::Failed("the encoder stopped accepting frames".to_string());
-                return Err(EncodeError::Timeout { what: "the encoder to accept a frame", waited, frames });
+                return Err(EncodeError::Timeout {
+                    what: "the encoder to accept a frame",
+                    waited,
+                    frames,
+                });
             }
             std::thread::sleep(POLL);
         }
@@ -592,18 +719,32 @@ impl VideoWriter {
         let index = self.frames;
         match &self.state {
             State::Writing => {}
-            State::Failed(detail) => return Err(EncodeError::Failed { path: self.path.clone(), detail: detail.clone() }),
+            State::Failed(detail) => {
+                return Err(EncodeError::Failed {
+                    path: self.path.clone(),
+                    detail: detail.clone(),
+                })
+            }
             State::Finished => return Err(fw("VideoWriter", "the writer is finished")),
         }
         let bad = |detail: String| EncodeError::BadFrame { index, detail };
         if (frame.width, frame.height) != (self.width, self.height) {
-            return Err(bad(format!("{}x{}, but the video is {}x{}", frame.width, frame.height, self.width, self.height)));
+            return Err(bad(format!(
+                "{}x{}, but the video is {}x{}",
+                frame.width, frame.height, self.width, self.height
+            )));
         }
         if frame.data.len() != self.width * self.height * 3 {
-            return Err(bad(format!("{} bytes of pixels, expected {}", frame.data.len(), self.width * self.height * 3)));
+            return Err(bad(format!(
+                "{} bytes of pixels, expected {}",
+                frame.data.len(),
+                self.width * self.height * 3
+            )));
         }
         if index >= MAX_VIDEO_FRAMES {
-            return Err(EncodeError::TooManyFrames { limit: MAX_VIDEO_FRAMES });
+            return Err(EncodeError::TooManyFrames {
+                limit: MAX_VIDEO_FRAMES,
+            });
         }
         let _pool = Pool::new()?;
         self.wait_ready()?;
@@ -613,7 +754,9 @@ impl VideoWriter {
         // SAFETY: `adaptor` is live; the input is attached to a writer that is writing, inside a
         // session, and was just seen ready (the call throws otherwise); the buffer is a live
         // CVPixelBuffer the adaptor retains and is no longer modified.
-        let appended: bool = unsafe { msg!(self.adaptor.id(), "appendPixelBuffer:withPresentationTime:", buffer.as_ptr() as Id => Id, pts => CmTime; -> bool) };
+        let appended: bool = unsafe {
+            msg!(self.adaptor.id(), "appendPixelBuffer:withPresentationTime:", buffer.as_ptr() as Id => Id, pts => CmTime; -> bool)
+        };
         if !appended {
             let detail = self.writer_error();
             return Err(self.fail(detail));
@@ -629,7 +772,10 @@ impl VideoWriter {
         // pool is owned by the adaptor and is used within this call.
         let pool: CfTypeRef = unsafe { msg!(self.adaptor.id(), "pixelBufferPool"; -> CfTypeRef) };
         if pool.is_null() {
-            return Err(fw("AVAssetWriterInputPixelBufferAdaptor", "pixelBufferPool is NULL after startWriting"));
+            return Err(fw(
+                "AVAssetWriterInputPixelBufferAdaptor",
+                "pixelBufferPool is NULL after startWriting",
+            ));
         }
         let mut raw: CfTypeRef = std::ptr::null();
         // SAFETY: `pool` is live; the out parameter receives a +1 buffer or stays NULL.
@@ -637,11 +783,21 @@ impl VideoWriter {
         // SAFETY: on success `raw` is a buffer we own one reference to.
         let buffer = unsafe { CfRef::take(raw) };
         let Some(buffer) = buffer.filter(|_| r == CV_RETURN_SUCCESS) else {
-            return Err(fw("CVPixelBufferPoolCreatePixelBuffer", format!("CVReturn {r}")));
+            return Err(fw(
+                "CVPixelBufferPoolCreatePixelBuffer",
+                format!("CVReturn {r}"),
+            ));
         };
         let pb = buffer.as_ptr();
         // SAFETY: `pb` is a live CVPixelBuffer; the getters read plain properties.
-        let (format, bw, bh, stride) = unsafe { (CVPixelBufferGetPixelFormatType(pb), CVPixelBufferGetWidth(pb), CVPixelBufferGetHeight(pb), CVPixelBufferGetBytesPerRow(pb)) };
+        let (format, bw, bh, stride) = unsafe {
+            (
+                CVPixelBufferGetPixelFormatType(pb),
+                CVPixelBufferGetWidth(pb),
+                CVPixelBufferGetHeight(pb),
+                CVPixelBufferGetBytesPerRow(pb),
+            )
+        };
         if format != PIXEL_FORMAT_32BGRA || (bw, bh) != (w, h) || stride < w * 4 {
             return Err(fw("CVPixelBufferPool", format!("the pool vended a {bw}x{bh} buffer, format {format:#x}, stride {stride}; expected {w}x{h} 32BGRA")));
         }
@@ -650,12 +806,18 @@ impl VideoWriter {
         // SAFETY: the buffer is locked.
         let base = unsafe { CVPixelBufferGetBaseAddress(pb) }.cast_mut();
         if base.is_null() {
-            return Err(fw("CVPixelBufferGetBaseAddress", "NULL for a locked buffer"));
+            return Err(fw(
+                "CVPixelBufferGetBaseAddress",
+                "NULL for a locked buffer",
+            ));
         }
         // SAFETY: while locked, `base` addresses `h` rows of `stride` bytes (a chunky format), and
         // nothing else holds the fresh buffer.
         let dst = unsafe { std::slice::from_raw_parts_mut(base, stride * h) };
-        for (row, src) in dst.chunks_exact_mut(stride).zip(frame.data.chunks_exact(w * 3)) {
+        for (row, src) in dst
+            .chunks_exact_mut(stride)
+            .zip(frame.data.chunks_exact(w * 3))
+        {
             for (px, rgb) in row[..w * 4].chunks_exact_mut(4).zip(src.chunks_exact(3)) {
                 px.copy_from_slice(&[rgb[2], rgb[1], rgb[0], 255]);
             }
@@ -669,11 +831,18 @@ impl VideoWriter {
     pub fn finish(mut self) -> Result<VideoFile, EncodeError> {
         match &self.state {
             State::Writing => {}
-            State::Failed(detail) => return Err(EncodeError::Failed { path: self.path.clone(), detail: detail.clone() }),
+            State::Failed(detail) => {
+                return Err(EncodeError::Failed {
+                    path: self.path.clone(),
+                    detail: detail.clone(),
+                })
+            }
             State::Finished => return Err(fw("VideoWriter", "the writer is finished")),
         }
         if self.frames == 0 {
-            return Err(EncodeError::Empty { path: self.path.clone() });
+            return Err(EncodeError::Empty {
+                path: self.path.clone(),
+            });
         }
         let _pool = Pool::new()?;
         // SAFETY: the writer is writing; the input is attached; the end time follows the last
@@ -699,13 +868,26 @@ impl VideoWriter {
             if waited >= FINISH_TIMEOUT {
                 let frames = self.frames;
                 self.state = State::Failed("the file was not completed in time".to_string());
-                return Err(EncodeError::Timeout { what: "the file to be completed", waited, frames });
+                return Err(EncodeError::Timeout {
+                    what: "the file to be completed",
+                    waited,
+                    frames,
+                });
             }
             std::thread::sleep(POLL);
         }
-        let bytes = std::fs::metadata(&self.path).map_err(|err| EncodeError::Io { path: self.path.clone(), err })?.len();
+        let bytes = std::fs::metadata(&self.path)
+            .map_err(|err| EncodeError::Io {
+                path: self.path.clone(),
+                err,
+            })?
+            .len();
         self.state = State::Finished;
-        Ok(VideoFile { path: self.path.clone(), frames: self.frames, bytes })
+        Ok(VideoFile {
+            path: self.path.clone(),
+            frames: self.frames,
+            bytes,
+        })
     }
 }
 
@@ -729,7 +911,13 @@ impl Drop for VideoWriter {
 
 impl fmt::Debug for VideoWriter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("VideoWriter").field("path", &self.path).field("size", &(self.width, self.height)).field("fps", &self.fps).field("frames", &self.frames).field("state", &self.state).finish()
+        f.debug_struct("VideoWriter")
+            .field("path", &self.path)
+            .field("size", &(self.width, self.height))
+            .field("fps", &self.fps)
+            .field("frames", &self.frames)
+            .field("state", &self.state)
+            .finish()
     }
 }
 
@@ -742,14 +930,49 @@ mod tests {
         assert_eq!(check_format(320, 240, 24.0).unwrap(), 24_000);
         assert_eq!(check_format(640, 480, 29.97).unwrap(), 29_970);
         assert_eq!(check_format(640, 480, 47.9521).unwrap(), 47_952);
-        assert!(matches!(check_format(321, 240, 24.0), Err(EncodeError::InvalidSize { .. })));
-        assert!(matches!(check_format(320, 241, 24.0), Err(EncodeError::InvalidSize { .. })));
-        assert!(matches!(check_format(0, 0, 24.0), Err(EncodeError::InvalidSize { .. })));
-        assert!(matches!(check_format(8, 240, 24.0), Err(EncodeError::InvalidSize { .. })));
-        assert!(matches!(check_format(MAX_DIMENSION + 2, 16, 24.0), Err(EncodeError::InvalidSize { .. })));
-        assert!(matches!(check_format(8192, 8192, 24.0), Err(EncodeError::InvalidSize { .. })), "over the pixel bound");
-        for fps in [0.0, 0.5, 240.5, -1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            assert!(matches!(check_format(320, 240, fps), Err(EncodeError::InvalidFps { .. })), "{fps}");
+        assert!(matches!(
+            check_format(321, 240, 24.0),
+            Err(EncodeError::InvalidSize { .. })
+        ));
+        assert!(matches!(
+            check_format(320, 241, 24.0),
+            Err(EncodeError::InvalidSize { .. })
+        ));
+        assert!(matches!(
+            check_format(0, 0, 24.0),
+            Err(EncodeError::InvalidSize { .. })
+        ));
+        assert!(matches!(
+            check_format(8, 240, 24.0),
+            Err(EncodeError::InvalidSize { .. })
+        ));
+        assert!(matches!(
+            check_format(MAX_DIMENSION + 2, 16, 24.0),
+            Err(EncodeError::InvalidSize { .. })
+        ));
+        assert!(
+            matches!(
+                check_format(8192, 8192, 24.0),
+                Err(EncodeError::InvalidSize { .. })
+            ),
+            "over the pixel bound"
+        );
+        for fps in [
+            0.0,
+            0.5,
+            240.5,
+            -1.0,
+            f64::NAN,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+        ] {
+            assert!(
+                matches!(
+                    check_format(320, 240, fps),
+                    Err(EncodeError::InvalidFps { .. })
+                ),
+                "{fps}"
+            );
         }
         assert!(check_format(320, 240, MIN_FPS).is_ok() && check_format(320, 240, MAX_FPS).is_ok());
     }
@@ -760,6 +983,9 @@ mod tests {
         assert_eq!(std::mem::size_of::<GlobalBlock>(), 32);
         assert_eq!(NOOP_DESCRIPTOR.size, 32);
         assert_eq!(NOOP_BLOCK.flags, 1 << 28);
-        assert!(std::ptr::eq(NOOP_BLOCK.isa, (&raw const _NSConcreteGlobalBlock).cast()));
+        assert!(std::ptr::eq(
+            NOOP_BLOCK.isa,
+            (&raw const _NSConcreteGlobalBlock).cast()
+        ));
     }
 }

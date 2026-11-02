@@ -77,13 +77,15 @@ use std::time::Instant;
 use ojas_core::{Autocast, Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
 use ojas_metal::{MetalBackend, WaitCounts};
-use st_model::tracker::session::{Session, SessionConfig, YieldedFrame};
-use st_model::Geometry;
-use st_model::tracker::vos::Vos;
 use st_coreml::{CoremlTrunk, Units};
+use st_model::tracker::session::{Session, SessionConfig, YieldedFrame};
+use st_model::tracker::vos::Vos;
+use st_model::Geometry;
 use st_model::{Backbone, Detector, DetectorWeights, Text, Tokenizer};
 use st_video::encode;
-use st_video::{decode_image_with_source, resize_bilinear_pil, Rgb8, VideoFile, VideoReader, VideoWriter};
+use st_video::{
+    decode_image_with_source, resize_bilinear_pil, Rgb8, VideoFile, VideoReader, VideoWriter,
+};
 use st_weights::Sam31Weights;
 
 use crate::cli::{existing_path, Args, CliError};
@@ -94,8 +96,8 @@ use crate::overlay::{self, Drawn};
 use crate::png;
 use crate::procinfo::{phys_footprint_bytes, vm_pageouts_swapins};
 use crate::track_profile::{self, OpsLabels, ProfileMode, StageClock, StageSink};
-use st_model::profile::Profiled;
 use crate::weights::{self, lora_json};
+use st_model::profile::Profiled;
 
 /// `--max-objects` when not given. Upstream's builder caps tracking at 16, which bounds the dense
 /// VISEM videos (27-46 sperm a frame): at 64 the held-out HOTA is 0.4868 against 0.4695
@@ -282,37 +284,76 @@ pub fn discover_frames(dir: &Path) -> Result<Folder, String> {
     let mut frames: BTreeMap<u32, PathBuf> = BTreeMap::new();
     for entry in entries {
         let path = entry.map_err(|e| format!("{}: {e}", dir.display()))?.path();
-        let ext = path.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).unwrap_or_default();
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase)
+            .unwrap_or_default();
         if !IMAGE_EXTENSIONS.contains(&ext.as_str()) || !path.is_file() {
             continue;
         }
-        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
-        let (prefix, n) = parse_stem(stem).ok_or_else(|| format!("{}: an image whose name is not <video>_frame_<n>.{ext}", path.display()))?;
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
+        let (prefix, n) = parse_stem(stem).ok_or_else(|| {
+            format!(
+                "{}: an image whose name is not <video>_frame_<n>.{ext}",
+                path.display()
+            )
+        })?;
         match &video {
             None => video = Some(prefix.to_string()),
             Some(v) if v == prefix => {}
-            Some(v) => return Err(format!("{}: frames of two videos ({v:?} and {prefix:?})", dir.display())),
+            Some(v) => {
+                return Err(format!(
+                    "{}: frames of two videos ({v:?} and {prefix:?})",
+                    dir.display()
+                ))
+            }
         }
         if let Some(prev) = frames.insert(n, path.clone()) {
-            return Err(format!("frame {n} appears twice: {} and {}", prev.display(), path.display()));
+            return Err(format!(
+                "frame {n} appears twice: {} and {}",
+                prev.display(),
+                path.display()
+            ));
         }
     }
     let video = video.ok_or_else(|| format!("{}: no <video>_frame_<n> images", dir.display()))?;
-    Ok(Folder { video, frames: frames.into_iter().map(|(n, path)| FrameFile { n, path }).collect() })
+    Ok(Folder {
+        video,
+        frames: frames
+            .into_iter()
+            .map(|(n, path)| FrameFile { n, path })
+            .collect(),
+    })
 }
 
 /// The frames from number `start` (default: the first), at most `max` of them; they must be
 /// consecutive numbers.
-pub fn select_window(frames: &[FrameFile], start: Option<u32>, max: Option<usize>) -> Result<&[FrameFile], String> {
+pub fn select_window(
+    frames: &[FrameFile],
+    start: Option<u32>,
+    max: Option<usize>,
+) -> Result<&[FrameFile], String> {
     let first = frames.first().ok_or("the folder has no frames")?.n;
     let start = start.unwrap_or(first);
-    let at = frames.iter().position(|f| f.n == start).ok_or_else(|| format!("no frame {start} in the folder (frames {first}..{})", frames[frames.len() - 1].n))?;
+    let at = frames.iter().position(|f| f.n == start).ok_or_else(|| {
+        format!(
+            "no frame {start} in the folder (frames {first}..{})",
+            frames[frames.len() - 1].n
+        )
+    })?;
     let rest = &frames[at..];
     let take = max.map_or(rest.len(), |m| m.min(rest.len()));
     let window = &rest[..take];
     for pair in window.windows(2) {
         if pair[1].n != pair[0].n + 1 {
-            return Err(format!("frames {} and {} are not consecutive (the tracker needs every frame)", pair[0].n, pair[1].n));
+            return Err(format!(
+                "frames {} and {} are not consecutive (the tracker needs every frame)",
+                pair[0].n, pair[1].n
+            ));
         }
     }
     Ok(window)
@@ -343,15 +384,29 @@ pub struct FrameStream {
 }
 
 fn is_video_file(path: &Path) -> bool {
-    matches!(path.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref(), Some("mp4" | "mov" | "m4v"))
+    matches!(
+        path.extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("mp4" | "mov" | "m4v")
+    )
 }
 
 impl FrameStream {
-    pub fn open(input: &Path, start: Option<u32>, max: Option<usize>, video_override: Option<&str>) -> Result<FrameStream, CliError> {
+    pub fn open(
+        input: &Path,
+        start: Option<u32>,
+        max: Option<usize>,
+        video_override: Option<&str>,
+    ) -> Result<FrameStream, CliError> {
         if input.is_dir() {
             let folder = discover_frames(input).map_err(CliError::failed)?;
-            let files = select_window(&folder.frames, start, max).map_err(CliError::failed)?.to_vec();
-            let (first, decoder) = decode_image_with_source(&files[0].path).map_err(CliError::from_err)?;
+            let files = select_window(&folder.frames, start, max)
+                .map_err(CliError::failed)?
+                .to_vec();
+            let (first, decoder) =
+                decode_image_with_source(&files[0].path).map_err(CliError::from_err)?;
             Ok(FrameStream {
                 decoders: BTreeMap::new(),
                 first_n: files[0].n,
@@ -370,16 +425,29 @@ impl FrameStream {
             let info = reader.info().clone();
             let start = start.unwrap_or(0);
             if start as usize >= info.frame_count {
-                return Err(CliError::failed(format!("--start {start} is past the video's {} frames", info.frame_count)));
+                return Err(CliError::failed(format!(
+                    "--start {start} is past the video's {} frames",
+                    info.frame_count
+                )));
             }
             for skipped in 0..start as usize {
                 match reader.next_frame().map_err(CliError::from_err)? {
                     Some(_) => {}
-                    None => return Err(CliError::failed(format!("the video ended after {skipped} frames while skipping to --start {start}"))),
+                    None => {
+                        return Err(CliError::failed(format!(
+                        "the video ended after {skipped} frames while skipping to --start {start}"
+                    )))
+                    }
                 }
             }
-            let len = max.map_or(info.frame_count - start as usize, |m| m.min(info.frame_count - start as usize));
-            let stem = input.file_stem().and_then(|s| s.to_str()).unwrap_or("video").to_string();
+            let len = max.map_or(info.frame_count - start as usize, |m| {
+                m.min(info.frame_count - start as usize)
+            });
+            let stem = input
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("video")
+                .to_string();
             Ok(FrameStream {
                 first_n: start,
                 len,
@@ -394,9 +462,15 @@ impl FrameStream {
                 pending: None,
             })
         } else if input.exists() {
-            Err(CliError::failed(format!("{}: not a folder of frames or an .mp4/.mov/.m4v file", input.display())))
+            Err(CliError::failed(format!(
+                "{}: not a folder of frames or an .mp4/.mov/.m4v file",
+                input.display()
+            )))
         } else {
-            Err(CliError::failed(format!("{}: does not exist", input.display())))
+            Err(CliError::failed(format!(
+                "{}: does not exist",
+                input.display()
+            )))
         }
     }
 
@@ -410,7 +484,9 @@ impl FrameStream {
             Kind::Folder { files } => {
                 let (img, decoder) = match self.pending.take() {
                     Some(first) => first,
-                    None => decode_image_with_source(&files[self.produced].path).map(|(img, d)| (img, d.name())).map_err(CliError::from_err)?,
+                    None => decode_image_with_source(&files[self.produced].path)
+                        .map(|(img, d)| (img, d.name()))
+                        .map_err(CliError::from_err)?,
                 };
                 *self.decoders.entry(decoder).or_insert(0) += 1;
                 img
@@ -420,12 +496,24 @@ impl FrameStream {
                     *self.decoders.entry("avfoundation").or_insert(0) += 1;
                     rgb
                 }
-                Some((i, _, _)) => return Err(CliError::failed(format!("the video returned frame {i} where {n} was expected"))),
-                None => return Err(CliError::failed(format!("the video ended at frame {n}, before the {} frames asked for", self.len))),
+                Some((i, _, _)) => {
+                    return Err(CliError::failed(format!(
+                        "the video returned frame {i} where {n} was expected"
+                    )))
+                }
+                None => {
+                    return Err(CliError::failed(format!(
+                        "the video ended at frame {n}, before the {} frames asked for",
+                        self.len
+                    )))
+                }
             },
         };
         if (img.height, img.width) != (self.height, self.width) {
-            return Err(CliError::failed(format!("frame {n} is {}x{} but the video is {}x{}", img.width, img.height, self.width, self.height)));
+            return Err(CliError::failed(format!(
+                "frame {n} is {}x{} but the video is {}x{}",
+                img.width, img.height, self.width, self.height
+            )));
         }
         self.produced += 1;
         Ok(Some((n, img)))
@@ -450,7 +538,9 @@ impl BoxSource {
         match s {
             "mask" => Ok(Self::Mask),
             "detector" => Ok(Self::Detector),
-            other => Err(CliError::usage(format!("--boxes: {other:?} is not a box source (choices: mask, detector)"))),
+            other => Err(CliError::usage(format!(
+                "--boxes: {other:?} is not a box source (choices: mask, detector)"
+            ))),
         }
     }
 
@@ -478,9 +568,18 @@ pub struct FrameResult {
 /// A released frame's objects with boxes as normalised xyxy from `source`, how many boxes were
 /// widened to one pixel (a mask a single pixel wide or high, or a degenerate detection box), and
 /// how many came from a detection. Detection boxes are clipped to the frame.
-pub fn objects_of(y: &YieldedFrame, height: usize, width: usize, source: BoxSource) -> Result<(Vec<TrackedObject>, usize, usize), String> {
+pub fn objects_of(
+    y: &YieldedFrame,
+    height: usize,
+    width: usize,
+    source: BoxSource,
+) -> Result<(Vec<TrackedObject>, usize, usize), String> {
     let n = y.obj_ids.len();
-    if y.probs.len() != n || y.boxes_xywh.len() != n * 4 || y.masks.len() != n || y.det_boxes_xyxy.len() != n {
+    if y.probs.len() != n
+        || y.boxes_xywh.len() != n * 4
+        || y.masks.len() != n
+        || y.det_boxes_xyxy.len() != n
+    {
         return Err(format!(
             "frame {}: {n} ids, {} scores, {} box values, {} masks, {} detection boxes",
             y.frame,
@@ -494,8 +593,14 @@ pub fn objects_of(y: &YieldedFrame, height: usize, width: usize, source: BoxSour
     let mut out = Vec::with_capacity(n);
     for k in 0..n {
         let b = &y.boxes_xywh[k * 4..k * 4 + 4];
-        if !b.iter().all(|v| v.is_finite()) || !y.probs[k].is_finite() || y.det_boxes_xyxy[k].is_some_and(|d| !d.iter().all(|v| v.is_finite())) {
-            return Err(format!("frame {}: id {} has a non-finite box or score", y.frame, y.obj_ids[k]));
+        if !b.iter().all(|v| v.is_finite())
+            || !y.probs[k].is_finite()
+            || y.det_boxes_xyxy[k].is_some_and(|d| !d.iter().all(|v| v.is_finite()))
+        {
+            return Err(format!(
+                "frame {}: id {} has a non-finite box or score",
+                y.frame, y.obj_ids[k]
+            ));
         }
         let ([x0, y0], [mut x1, mut y1]) = match (source, y.det_boxes_xyxy[k]) {
             (BoxSource::Detector, Some(d)) => {
@@ -515,24 +620,47 @@ pub fn objects_of(y: &YieldedFrame, height: usize, width: usize, source: BoxSour
             changed = true;
         }
         widened += usize::from(changed);
-        out.push(TrackedObject { id: y.obj_ids[k], score: y.probs[k], box_xyxy_norm: [x0, y0, x1, y1] });
+        out.push(TrackedObject {
+            id: y.obj_ids[k],
+            score: y.probs[k],
+            box_xyxy_norm: [x0, y0, x1, y1],
+        });
     }
     Ok((out, widened, from_detector))
 }
 
 /// `{"<decoder>": frames, ...}` for `<video>.run.json`.
 pub fn decoders_json(d: &BTreeMap<&'static str, usize>) -> String {
-    let parts: Vec<String> = d.iter().map(|(k, v)| format!("{}: {v}", json::string(k))).collect();
+    let parts: Vec<String> = d
+        .iter()
+        .map(|(k, v)| format!("{}: {v}", json::string(k)))
+        .collect();
     format!("{{{}}}", parts.join(", "))
 }
 
 /// `DIR/<video>.json`: the `spiketrack eval-visem` prediction schema.
-pub fn predictions_json(video: &str, width: usize, height: usize, frames: &[FrameResult]) -> Result<String, String> {
-    let mut out = format!("{{\n  \"video\": {},\n  \"width\": {width},\n  \"height\": {height},\n  \"frames\": [", json::string(video));
+pub fn predictions_json(
+    video: &str,
+    width: usize,
+    height: usize,
+    frames: &[FrameResult],
+) -> Result<String, String> {
+    let mut out = format!(
+        "{{\n  \"video\": {},\n  \"width\": {width},\n  \"height\": {height},\n  \"frames\": [",
+        json::string(video)
+    );
     for (i, f) in frames.iter().enumerate() {
-        out.push_str(&format!("{}\n    {{\"frame\": {}, \"objects\": [", if i == 0 { "" } else { "," }, f.n));
+        out.push_str(&format!(
+            "{}\n    {{\"frame\": {}, \"objects\": [",
+            if i == 0 { "" } else { "," },
+            f.n
+        ));
         for (k, o) in f.objects.iter().enumerate() {
-            let b: Result<Vec<String>, String> = o.box_xyxy_norm.iter().map(|&v| json::number32(v, "box")).collect();
+            let b: Result<Vec<String>, String> = o
+                .box_xyxy_norm
+                .iter()
+                .map(|&v| json::number32(v, "box"))
+                .collect();
             out.push_str(&format!(
                 "{}{{\"id\": {}, \"box_xyxy_norm\": [{}], \"score\": {}}}",
                 if k == 0 { "" } else { ", " },
@@ -543,14 +671,30 @@ pub fn predictions_json(video: &str, width: usize, height: usize, frames: &[Fram
         }
         out.push_str("]}");
     }
-    out.push_str(if frames.is_empty() { "]\n}\n" } else { "\n  ]\n}\n" });
+    out.push_str(if frames.is_empty() {
+        "]\n}\n"
+    } else {
+        "\n  ]\n}\n"
+    });
     Ok(out)
 }
 
 /// `DIR/masks/<video>_frame_<n>.json`.
 pub fn masks_json(n: u32, height: usize, width: usize, items: &[(i64, Rle)]) -> String {
-    let objs: Vec<String> = items.iter().map(|(id, r)| format!("{{\"id\": {id}, \"area\": {}, \"counts\": [{}]}}", r.area, r.counts_json())).collect();
-    format!("{{\"frame\": {n}, \"size\": [{height}, {width}], \"objects\": [{}]}}\n", objs.join(", "))
+    let objs: Vec<String> = items
+        .iter()
+        .map(|(id, r)| {
+            format!(
+                "{{\"id\": {id}, \"area\": {}, \"counts\": [{}]}}",
+                r.area,
+                r.counts_json()
+            )
+        })
+        .collect();
+    format!(
+        "{{\"frame\": {n}, \"size\": [{height}, {width}], \"objects\": [{}]}}\n",
+        objs.join(", ")
+    )
 }
 
 /// The `--overlay-video` writer, and the index of the frame it expects next (frames are released
@@ -583,10 +727,20 @@ pub struct Collector {
 }
 
 impl Collector {
-    pub fn new(out: &Path, video: &str, first_n: u32, height: usize, width: usize, overlay_every: Option<u32>, boxes: BoxSource) -> Result<Collector, CliError> {
-        std::fs::create_dir_all(out.join("masks")).map_err(|e| CliError::failed(format!("{}: {e}", out.display())))?;
+    pub fn new(
+        out: &Path,
+        video: &str,
+        first_n: u32,
+        height: usize,
+        width: usize,
+        overlay_every: Option<u32>,
+        boxes: BoxSource,
+    ) -> Result<Collector, CliError> {
+        std::fs::create_dir_all(out.join("masks"))
+            .map_err(|e| CliError::failed(format!("{}: {e}", out.display())))?;
         if overlay_every.is_some() {
-            std::fs::create_dir_all(out.join("overlay")).map_err(|e| CliError::failed(format!("{}: {e}", out.display())))?;
+            std::fs::create_dir_all(out.join("overlay"))
+                .map_err(|e| CliError::failed(format!("{}: {e}", out.display())))?;
         }
         Ok(Collector {
             out: out.to_path_buf(),
@@ -610,8 +764,18 @@ impl Collector {
     /// whatever `--overlay K` says. It must be a writer for this collector's frame size, with no
     /// frame written yet, and be set before the first [`Collector::keep_image`].
     pub fn set_overlay_video(&mut self, writer: VideoWriter) -> Result<(), CliError> {
-        if writer.size() != (self.width, self.height) || writer.frames() != 0 || !self.images.is_empty() {
-            return Err(CliError::failed(format!("the overlay video is {}x{} with {} frame(s) written; the frames are {}x{}", writer.size().0, writer.size().1, writer.frames(), self.width, self.height)));
+        if writer.size() != (self.width, self.height)
+            || writer.frames() != 0
+            || !self.images.is_empty()
+        {
+            return Err(CliError::failed(format!(
+                "the overlay video is {}x{} with {} frame(s) written; the frames are {}x{}",
+                writer.size().0,
+                writer.size().1,
+                writer.frames(),
+                self.width,
+                self.height
+            )));
         }
         self.overlay_video = Some(OverlayVideo { writer, next: 0 });
         Ok(())
@@ -622,16 +786,23 @@ impl Collector {
         let Some(v) = self.overlay_video.take() else {
             return Ok(None);
         };
-        let file = v.writer.finish().map_err(|e| CliError::failed(format!("--overlay-video: {e}")))?;
+        let file = v
+            .writer
+            .finish()
+            .map_err(|e| CliError::failed(format!("--overlay-video: {e}")))?;
         if file.frames != expected {
-            return Err(CliError::failed(format!("--overlay-video: {} frame(s) written for {expected} processed", file.frames)));
+            return Err(CliError::failed(format!(
+                "--overlay-video: {} frame(s) written for {expected} processed",
+                file.frames
+            )));
         }
         Ok(Some(file))
     }
 
     /// Whether frame `index` (0-based within the run) gets a PNG for `--overlay K`.
     fn wants_png(&self, index: usize) -> bool {
-        self.overlay_every.is_some_and(|k| (self.first_n + index as u32) % k == 0)
+        self.overlay_every
+            .is_some_and(|k| (self.first_n + index as u32) % k == 0)
     }
 
     /// Frame `index` (0-based within the run) was pushed: keep it if an overlay will want it.
@@ -644,17 +815,31 @@ impl Collector {
     pub fn accept(&mut self, y: YieldedFrame) -> Result<(), CliError> {
         let (h, w) = (self.height, self.width);
         let n = self.first_n + y.frame as u32;
-        let (objects, widened, from_detector) = objects_of(&y, h, w, self.boxes).map_err(CliError::failed)?;
+        let (objects, widened, from_detector) =
+            objects_of(&y, h, w, self.boxes).map_err(CliError::failed)?;
         self.widened += widened;
         self.reported += objects.len();
         self.from_detector += from_detector;
         self.ids.extend(objects.iter().map(|o| o.id));
-        let rles: Vec<(i64, Rle)> = y.obj_ids.iter().zip(&y.masks).map(|(&id, m)| (id, Rle::from_fn(h, w, |r, c| m.get(r * w + c)))).collect();
-        let path = self.out.join("masks").join(format!("{}_frame_{n}.json", self.video));
-        std::fs::write(&path, masks_json(n, h, w, &rles)).map_err(|e| CliError::failed(format!("{}: {e}", path.display())))?;
+        let rles: Vec<(i64, Rle)> = y
+            .obj_ids
+            .iter()
+            .zip(&y.masks)
+            .map(|(&id, m)| (id, Rle::from_fn(h, w, |r, c| m.get(r * w + c))))
+            .collect();
+        let path = self
+            .out
+            .join("masks")
+            .join(format!("{}_frame_{n}.json", self.video));
+        std::fs::write(&path, masks_json(n, h, w, &rles))
+            .map_err(|e| CliError::failed(format!("{}: {e}", path.display())))?;
         let png_wanted = self.wants_png(y.frame);
         if png_wanted || self.overlay_video.is_some() {
-            let image = self.images.remove(&y.frame).ok_or_else(|| CliError::failed(format!("frame {n} was released but its image was not kept for the overlay")))?;
+            let image = self.images.remove(&y.frame).ok_or_else(|| {
+                CliError::failed(format!(
+                    "frame {n} was released but its image was not kept for the overlay"
+                ))
+            })?;
             let bits: Vec<Vec<bool>> = rles.iter().map(|(_, r)| r.decode()).collect();
             let drawn: Vec<Drawn<'_>> = objects
                 .iter()
@@ -662,7 +847,17 @@ impl Collector {
                 .map(|(o, m)| {
                     let b = o.box_xyxy_norm;
                     let (fw, fh) = (w as f64, h as f64);
-                    Drawn { mask: m, box_px: [f64::from(b[0]) * fw, f64::from(b[1]) * fh, f64::from(b[2]) * fw, f64::from(b[3]) * fh], colour: o.id.rem_euclid(1 << 20) as usize, label: u64::try_from(o.id).ok() }
+                    Drawn {
+                        mask: m,
+                        box_px: [
+                            f64::from(b[0]) * fw,
+                            f64::from(b[1]) * fh,
+                            f64::from(b[2]) * fw,
+                            f64::from(b[3]) * fh,
+                        ],
+                        colour: o.id.rem_euclid(1 << 20) as usize,
+                        label: u64::try_from(o.id).ok(),
+                    }
                 })
                 .collect();
             // One rendering feeds both outputs, so the video shows exactly the PNG's pixels.
@@ -671,13 +866,19 @@ impl Collector {
                 if y.frame != v.next {
                     return Err(CliError::failed(format!("--overlay-video: frame {n} released out of order (the video is at its frame {})", v.next)));
                 }
-                v.writer.push(&rendered).map_err(|e| CliError::failed(format!("--overlay-video, frame {n}: {e}")))?;
+                v.writer
+                    .push(&rendered)
+                    .map_err(|e| CliError::failed(format!("--overlay-video, frame {n}: {e}")))?;
                 v.next += 1;
             }
             if png_wanted {
                 let bytes = png::encode_rgb(w, h, &rendered.data).map_err(CliError::from_err)?;
-                let path = self.out.join("overlay").join(format!("{}_frame_{n}.png", self.video));
-                std::fs::write(&path, bytes).map_err(|e| CliError::failed(format!("{}: {e}", path.display())))?;
+                let path = self
+                    .out
+                    .join("overlay")
+                    .join(format!("{}_frame_{n}.png", self.video));
+                std::fs::write(&path, bytes)
+                    .map_err(|e| CliError::failed(format!("{}: {e}", path.display())))?;
             }
         }
         self.results.push(FrameResult { n, objects });
@@ -728,29 +929,54 @@ struct OverlayVideoRun {
 
 /// Check `--overlay-video` against the frames (even size, a frame rate the encoder takes, a free
 /// `.mp4` path) before any model work, so a refusal costs a second and not a model load.
-fn plan_overlay_video(path: PathBuf, fps_option: Option<f64>, stream: &FrameStream) -> Result<OverlayVideoSpec, CliError> {
+fn plan_overlay_video(
+    path: PathBuf,
+    fps_option: Option<f64>,
+    stream: &FrameStream,
+) -> Result<OverlayVideoSpec, CliError> {
     let (fps, fps_source) = overlay_fps_choice(fps_option, stream.fps);
     let refuse = |e: encode::EncodeError| {
         let hint = match (&e, fps_source) {
-            (encode::EncodeError::InvalidFps { .. }, FPS_FROM_INPUT) => " (the input video's own rate; pass --overlay-fps)",
-            (encode::EncodeError::InvalidSize { .. }, _) => " (the video is written at the frames' size, which H.264 4:2:0 needs even)",
+            (encode::EncodeError::InvalidFps { .. }, FPS_FROM_INPUT) => {
+                " (the input video's own rate; pass --overlay-fps)"
+            }
+            (encode::EncodeError::InvalidSize { .. }, _) => {
+                " (the video is written at the frames' size, which H.264 4:2:0 needs even)"
+            }
             _ => "",
         };
         CliError::failed(format!("--overlay-video: {e}{hint}"))
     };
     encode::check_format(stream.width, stream.height, fps).map_err(refuse)?;
     encode::check_output(&path, false).map_err(refuse)?;
-    Ok(OverlayVideoSpec { path, fps, fps_source })
+    Ok(OverlayVideoSpec {
+        path,
+        fps,
+        fps_source,
+    })
 }
 
 /// `overlay_video`, `overlay_video_fps`, `overlay_video_fps_source`, `overlay_video_frames` for
 /// `<video>.run.json`, as JSON values (all `null` without `--overlay-video`).
 fn overlay_video_json(run: Option<&OverlayVideoRun>) -> Result<[String; 4], String> {
     let Some(run) = run else {
-        return Ok(["null".to_string(), "null".to_string(), "null".to_string(), "null".to_string()]);
+        return Ok([
+            "null".to_string(),
+            "null".to_string(),
+            "null".to_string(),
+            "null".to_string(),
+        ]);
     };
-    let file = run.file.as_ref().ok_or("the overlay video was not finished")?;
-    Ok([json::string(&file.path.to_string_lossy()), json::number(run.fps, "overlay video fps")?, json::string(run.fps_source), file.frames.to_string()])
+    let file = run
+        .file
+        .as_ref()
+        .ok_or("the overlay video was not finished")?;
+    Ok([
+        json::string(&file.path.to_string_lossy()),
+        json::number(run.fps, "overlay video fps")?,
+        json::string(run.fps_source),
+        file.frames.to_string(),
+    ])
 }
 
 struct Options {
@@ -789,7 +1015,11 @@ impl TrunkPrecision {
             "bf16-linears" => Self::Bf16Linears,
             "coreml-fp32" => Self::Coreml("fp32"),
             "coreml-fp16" => Self::Coreml("fp16"),
-            other => return Err(CliError::usage(format!("--trunk-precision: {other:?} is not f32, bf16-linears, coreml-fp32 or coreml-fp16"))),
+            other => {
+                return Err(CliError::usage(format!(
+                "--trunk-precision: {other:?} is not f32, bf16-linears, coreml-fp32 or coreml-fp16"
+            )))
+            }
         })
     }
 
@@ -816,7 +1046,9 @@ impl TrunkPrecision {
 
 /// `<model-dir>/coreml/sam3.1_trunk_<precision>.mlpackage`, where tools/baselines/coreml_trunk.py writes it.
 fn coreml_package(model_dir: &Path, precision: &str) -> PathBuf {
-    model_dir.join("coreml").join(format!("sam3.1_trunk_{precision}.mlpackage"))
+    model_dir
+        .join("coreml")
+        .join(format!("sam3.1_trunk_{precision}.mlpackage"))
 }
 
 struct Timing {
@@ -837,7 +1069,9 @@ struct HostProbe {
 
 impl HostProbe {
     fn new() -> Self {
-        Self { vm: vm_pageouts_swapins() }
+        Self {
+            vm: vm_pageouts_swapins(),
+        }
     }
 
     fn field(&mut self) -> String {
@@ -847,7 +1081,11 @@ impl HostProbe {
         };
         let now = vm_pageouts_swapins();
         let vm = match (self.vm, now) {
-            (Some((po0, si0)), Some((po, si))) => format!("pageouts +{}, swapins +{}", po.saturating_sub(po0), si.saturating_sub(si0)),
+            (Some((po0, si0)), Some((po, si))) => format!(
+                "pageouts +{}, swapins +{}",
+                po.saturating_sub(po0),
+                si.saturating_sub(si0)
+            ),
             _ => "vm counters unreadable".to_string(),
         };
         self.vm = now;
@@ -866,7 +1104,10 @@ struct MetalProbe {
 impl MetalProbe {
     fn new(be: &MetalBackend) -> Result<Self, CliError> {
         be.memory_and_reset_peak().map_err(CliError::from_err)?;
-        Ok(Self { waits: be.wait_counts(), dispatches: be.dispatches() })
+        Ok(Self {
+            waits: be.wait_counts(),
+            dispatches: be.dispatches(),
+        })
     }
 
     fn frame(&mut self, be: &MetalBackend) -> Result<String, CliError> {
@@ -883,12 +1124,20 @@ impl MetalProbe {
             ("recycle", w.recycle - p.recycle),
             ("freed", w.freed - p.freed),
         ];
-        let nonzero: Vec<String> = causes.iter().filter(|c| c.1 > 0).map(|(k, v)| format!("{k} {v}")).collect();
+        let nonzero: Vec<String> = causes
+            .iter()
+            .filter(|c| c.1 > 0)
+            .map(|(k, v)| format!("{k} {v}"))
+            .collect();
         let m = be.memory_and_reset_peak().map_err(CliError::from_err)?;
         let out = format!(
             "waits +{} ({}), dispatches +{}, metal allocated {:.0} MiB (frame peak {:.0} MiB)",
             w.total() - p.total(),
-            if nonzero.is_empty() { "none".to_string() } else { nonzero.join(", ") },
+            if nonzero.is_empty() {
+                "none".to_string()
+            } else {
+                nonzero.join(", ")
+            },
             d - self.dispatches,
             m.allocated as f64 / MIB,
             m.peak_allocated as f64 / MIB
@@ -923,7 +1172,12 @@ struct MetalTelemetry {
 
 impl MetalTelemetry {
     fn new(metal: &MetalBackend, trim_every: Option<u32>) -> Result<Self, CliError> {
-        Ok(Self { metal: metal.clone(), probe: MetalProbe::new(metal)?, host: HostProbe::new(), trim_every })
+        Ok(Self {
+            metal: metal.clone(),
+            probe: MetalProbe::new(metal)?,
+            host: HostProbe::new(),
+            trim_every,
+        })
     }
 }
 
@@ -931,9 +1185,15 @@ impl<B: Backend> FrameTelemetry<B> for MetalTelemetry {
     fn after_frame(&mut self, _: &B, index: usize) -> Result<String, CliError> {
         let be = &self.metal;
         let mut line = format!("{}, {}", self.probe.frame(be)?, self.host.field());
-        if self.trim_every.is_some_and(|k| (index + 1) % k as usize == 0) {
+        if self
+            .trim_every
+            .is_some_and(|k| (index + 1) % k as usize == 0)
+        {
             be.trim_pool().map_err(CliError::from_err)?;
-            line.push_str(&format!(", pool trimmed (metal allocated {:.0} MiB)", be.memory().map_err(CliError::from_err)?.allocated as f64 / MIB));
+            line.push_str(&format!(
+                ", pool trimmed (metal allocated {:.0} MiB)",
+                be.memory().map_err(CliError::from_err)?.allocated as f64 / MIB
+            ));
         }
         Ok(line)
     }
@@ -956,8 +1216,12 @@ fn track_on<B: Backend>(
 ) -> Result<Timing, CliError> {
     let t_load = Instant::now();
     let backbone = match opts.trunk {
-        TrunkPrecision::F32 => Backbone::new_at(be, &w.vision, opts.geometry).map_err(CliError::from_err)?,
-        TrunkPrecision::Bf16Linears => Backbone::new_at(be, &w.vision, opts.geometry).and_then(|b| b.with_trunk_linears_bf16()).map_err(CliError::from_err)?,
+        TrunkPrecision::F32 => {
+            Backbone::new_at(be, &w.vision, opts.geometry).map_err(CliError::from_err)?
+        }
+        TrunkPrecision::Bf16Linears => Backbone::new_at(be, &w.vision, opts.geometry)
+            .and_then(|b| b.with_trunk_linears_bf16())
+            .map_err(CliError::from_err)?,
         TrunkPrecision::Coreml(precision) => {
             let package = coreml_package(&opts.model_dir, precision);
             if !package.is_dir() {
@@ -967,7 +1231,8 @@ fn track_on<B: Backend>(
                     package.display()
                 )));
             }
-            let trunk = CoremlTrunk::load(&package, Units::CpuAndGpu).map_err(CliError::from_err)?;
+            let trunk =
+                CoremlTrunk::load(&package, Units::CpuAndGpu).map_err(CliError::from_err)?;
             println!(
                 "CoreML trunk {} loaded in {:.1} s ({}; hash {:.2} s {}, compile {:.2} s, model load {:.2} s)",
                 package.display(),
@@ -978,21 +1243,36 @@ fn track_on<B: Backend>(
                 trunk.compile_seconds,
                 trunk.model_seconds
             );
-            Backbone::with_external_trunk(be, &w.vision, Box::new(trunk)).map_err(CliError::from_err)?
+            Backbone::with_external_trunk(be, &w.vision, Box::new(trunk))
+                .map_err(CliError::from_err)?
         }
     };
     let external_trunk = backbone.external_trunk();
     let text = Text::new(be, &w.text).map_err(CliError::from_err)?;
     let detector = Detector::new_at(
         be,
-        DetectorWeights { transformer: &w.detector_transformer, geometry: &w.geometry_encoder, segmentation: &w.segmentation_head, scoring: &w.dot_prod_scoring },
+        DetectorWeights {
+            transformer: &w.detector_transformer,
+            geometry: &w.geometry_encoder,
+            segmentation: &w.segmentation_head,
+            scoring: &w.dot_prod_scoring,
+        },
         opts.geometry,
     )
     .map_err(CliError::from_err)?;
     let vos = Vos::new(be, &backbone, &w.tracker).map_err(CliError::from_err)?;
-    let tok = Tokenizer::from_hf_files(&opts.model_dir.join("vocab.json"), &opts.model_dir.join("merges.txt"))
-        .map_err(|e| CliError::failed(format!("tokenizer files in {}: {e}", opts.model_dir.display())))?;
-    let prompt = Session::encode_prompt(be, &text, &tok, &opts.prompt).map_err(|e| CliError::failed(format!("prompt {:?}: {e}", opts.prompt)))?;
+    let tok = Tokenizer::from_hf_files(
+        &opts.model_dir.join("vocab.json"),
+        &opts.model_dir.join("merges.txt"),
+    )
+    .map_err(|e| {
+        CliError::failed(format!(
+            "tokenizer files in {}: {e}",
+            opts.model_dir.display()
+        ))
+    })?;
+    let prompt = Session::encode_prompt(be, &text, &tok, &opts.prompt)
+        .map_err(|e| CliError::failed(format!("prompt {:?}: {e}", opts.prompt)))?;
     let mut cfg = SessionConfig::new(stream.len, stream.height, stream.width);
     cfg.book.max_num_objects = opts.max_objects;
     let mut session = Session::new(&vos, &detector, prompt, cfg);
@@ -1000,7 +1280,12 @@ fn track_on<B: Backend>(
         session.set_stage_marker(move |stage| p.enter(stage));
     }
     let load_seconds = t_load.elapsed().as_secs_f64();
-    println!("model loaded in {load_seconds:.1} s on {}; tracking {} frame(s) of {:?}", opts.backend.name(), stream.len, stream.video);
+    println!(
+        "model loaded in {load_seconds:.1} s on {}; tracking {} frame(s) of {:?}",
+        opts.backend.name(),
+        stream.len,
+        stream.video
+    );
 
     let side = opts.geometry.pixels();
     let mut frame_seconds = Vec::with_capacity(stream.len);
@@ -1009,13 +1294,18 @@ fn track_on<B: Backend>(
         if let Some(p) = profile {
             p.enter(track_profile::DECODE);
         }
-        let Some((n, image)) = stream.next_frame()? else { break };
+        let Some((n, image)) = stream.next_frame()? else {
+            break;
+        };
         let input = upstream_input(&image, side);
-        let tensor = Tensor::from_f32(&input, &[1, 3, side, side], be.budget()).map_err(CliError::from_err)?;
+        let tensor = Tensor::from_f32(&input, &[1, 3, side, side], be.budget())
+            .map_err(CliError::from_err)?;
         let device = be.upload(&tensor).map_err(CliError::from_err)?;
         collector.keep_image(index, &image);
         let t0 = Instant::now();
-        let released = session.push_frame(&device).map_err(|e| CliError::failed(format!("frame {n}: {e}")))?;
+        let released = session
+            .push_frame(&device)
+            .map_err(|e| CliError::failed(format!("frame {n}: {e}")))?;
         be.sync().map_err(CliError::from_err)?;
         let secs = t0.elapsed().as_secs_f64();
         frame_seconds.push(secs);
@@ -1023,7 +1313,13 @@ fn track_on<B: Backend>(
             p.enter(track_profile::COLLECTOR);
         }
         let extra = telemetry.after_frame(be, index)?;
-        println!("frame {n} ({}/{}): {secs:.2} s, {} active track(s), {} frame(s) released; {extra}", index + 1, stream.len, session.book().obj_ids().len(), released.len());
+        println!(
+            "frame {n} ({}/{}): {secs:.2} s, {} active track(s), {} frame(s) released; {extra}",
+            index + 1,
+            stream.len,
+            session.book().obj_ids().len(),
+            released.len()
+        );
         for y in released {
             collector.accept(y)?;
         }
@@ -1035,11 +1331,39 @@ fn track_on<B: Backend>(
     for y in session.finish() {
         collector.accept(y)?;
     }
-    Ok(Timing { load_seconds, frame_seconds, external_trunk })
+    Ok(Timing {
+        load_seconds,
+        frame_seconds,
+        external_trunk,
+    })
 }
 
 pub fn run(raw: &[String]) -> Result<(), CliError> {
-    let args = Args::parse(raw, &["prompt", "out", "backend", "max-frames", "start", "overlay", "overlay-video", "overlay-fps", "video", "boxes", "weights", "lora", "model-dir", "threads", "trim-pool-every", "trunk-precision", "max-objects", "input-size", "profile"], 1)?;
+    let args = Args::parse(
+        raw,
+        &[
+            "prompt",
+            "out",
+            "backend",
+            "max-frames",
+            "start",
+            "overlay",
+            "overlay-video",
+            "overlay-fps",
+            "video",
+            "boxes",
+            "weights",
+            "lora",
+            "model-dir",
+            "threads",
+            "trim-pool-every",
+            "trunk-precision",
+            "max-objects",
+            "input-size",
+            "profile",
+        ],
+        1,
+    )?;
     if args.help {
         println!("{USAGE}");
         return Ok(());
@@ -1051,7 +1375,10 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     }
     let backend = BackendChoice::parse(args.get("backend").unwrap_or("metal"))?;
     let boxes = BoxSource::parse(args.get("boxes").unwrap_or("mask"))?;
-    let trim_pool_every = args.get("trim-pool-every").map(|_| args.parsed("trim-pool-every", 0u32)).transpose()?;
+    let trim_pool_every = args
+        .get("trim-pool-every")
+        .map(|_| args.parsed("trim-pool-every", 0u32))
+        .transpose()?;
     if trim_pool_every == Some(0) {
         return Err(CliError::usage("--trim-pool-every must be at least 1"));
     }
@@ -1060,7 +1387,9 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     }
     let max_objects: usize = args.parsed("max-objects", DEFAULT_MAX_OBJECTS)?;
     if !(1..=128).contains(&max_objects) {
-        return Err(CliError::usage(format!("--max-objects {max_objects} is outside 1..=128")));
+        return Err(CliError::usage(format!(
+            "--max-objects {max_objects} is outside 1..=128"
+        )));
     }
     let geometry = parse_input_size(args.parsed("input-size", DEFAULT_INPUT_SIZE)?)?;
     let trunk = match args.get("trunk-precision") {
@@ -1068,8 +1397,12 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         None => TrunkPrecision::default_for(backend),
     };
     let profile = args.get("profile").map(ProfileMode::parse).transpose()?;
-    if profile.is_some() && (backend != BackendChoice::Metal || trunk == TrunkPrecision::Bf16Linears) {
-        return Err(CliError::usage("--profile is for --backend metal, with any --trunk-precision but bf16-linears"));
+    if profile.is_some()
+        && (backend != BackendChoice::Metal || trunk == TrunkPrecision::Bf16Linears)
+    {
+        return Err(CliError::usage(
+            "--profile is for --backend metal, with any --trunk-precision but bf16-linears",
+        ));
     }
     if matches!(trunk, TrunkPrecision::Coreml(_)) && geometry != Geometry::SAM3 {
         return Err(CliError::usage(format!(
@@ -1081,25 +1414,43 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     }
     let threads: usize = args.parsed("threads", 8)?;
     if !(1..=256).contains(&threads) {
-        return Err(CliError::usage(format!("--threads {threads} is outside 1..=256")));
+        return Err(CliError::usage(format!(
+            "--threads {threads} is outside 1..=256"
+        )));
     }
-    let max_frames = args.get("max-frames").map(|_| args.parsed("max-frames", 0usize)).transpose()?;
+    let max_frames = args
+        .get("max-frames")
+        .map(|_| args.parsed("max-frames", 0usize))
+        .transpose()?;
     if max_frames == Some(0) {
         return Err(CliError::usage("--max-frames must be at least 1"));
     }
-    let start = args.get("start").map(|_| args.parsed("start", 0u32)).transpose()?;
-    let overlay_every = args.get("overlay").map(|_| args.parsed("overlay", 0u32)).transpose()?;
+    let start = args
+        .get("start")
+        .map(|_| args.parsed("start", 0u32))
+        .transpose()?;
+    let overlay_every = args
+        .get("overlay")
+        .map(|_| args.parsed("overlay", 0u32))
+        .transpose()?;
     if overlay_every == Some(0) {
         return Err(CliError::usage("--overlay must be at least 1"));
     }
     let overlay_video = args.get("overlay-video").map(PathBuf::from);
-    let overlay_fps = args.get("overlay-fps").map(|_| args.parsed("overlay-fps", 0f64)).transpose()?;
+    let overlay_fps = args
+        .get("overlay-fps")
+        .map(|_| args.parsed("overlay-fps", 0f64))
+        .transpose()?;
     if overlay_fps.is_some() && overlay_video.is_none() {
         return Err(CliError::usage("--overlay-fps needs --overlay-video"));
     }
     if let Some(f) = overlay_fps {
         if !(f.is_finite() && (encode::MIN_FPS..=encode::MAX_FPS).contains(&f)) {
-            return Err(CliError::usage(format!("--overlay-fps {f} is outside {}..={} fps", encode::MIN_FPS, encode::MAX_FPS)));
+            return Err(CliError::usage(format!(
+                "--overlay-fps {f} is outside {}..={} fps",
+                encode::MIN_FPS,
+                encode::MAX_FPS
+            )));
         }
     }
     if let Some(v) = args.get("video") {
@@ -1115,52 +1466,161 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     // So is the overlay video: its size, frame rate and file name are checked before the weights load.
     // The video usually goes under `--out`, which may not exist yet: its parent must, to be checked.
     if overlay_video.is_some() {
-        std::fs::create_dir_all(&out).map_err(|e| CliError::failed(format!("{}: {e}", out.display())))?;
+        std::fs::create_dir_all(&out)
+            .map_err(|e| CliError::failed(format!("{}: {e}", out.display())))?;
     }
-    let overlay_spec = overlay_video.map(|path| plan_overlay_video(path, overlay_fps, &stream)).transpose()?;
-    let weights = existing_path(args.get("weights"), "SPIKETRACK_WEIGHTS", "weights", "weights")?;
+    let overlay_spec = overlay_video
+        .map(|path| plan_overlay_video(path, overlay_fps, &stream))
+        .transpose()?;
+    let weights = existing_path(
+        args.get("weights"),
+        "SPIKETRACK_WEIGHTS",
+        "weights",
+        "weights",
+    )?;
     let lora = weights::lora_path(args.get("lora"))?;
-    let model_dir = existing_path(args.get("model-dir"), "SPIKETRACK_MODEL_DIR", "tokenizer folder", "model-dir")?;
-    let opts = Options { prompt, out, overlay_every, boxes, backend, threads, weights, model_dir, trim_pool_every, trunk, max_objects, geometry, profile };
+    let model_dir = existing_path(
+        args.get("model-dir"),
+        "SPIKETRACK_MODEL_DIR",
+        "tokenizer folder",
+        "model-dir",
+    )?;
+    let opts = Options {
+        prompt,
+        out,
+        overlay_every,
+        boxes,
+        backend,
+        threads,
+        weights,
+        model_dir,
+        trim_pool_every,
+        trunk,
+        max_objects,
+        geometry,
+        profile,
+    };
 
     let (w, applied) = weights::load(&opts.weights, lora.as_deref())?;
-    let mut collector = Collector::new(&opts.out, &stream.video, stream.first_n, stream.height, stream.width, opts.overlay_every, opts.boxes)?;
+    let mut collector = Collector::new(
+        &opts.out,
+        &stream.video,
+        stream.first_n,
+        stream.height,
+        stream.width,
+        opts.overlay_every,
+        opts.boxes,
+    )?;
     let mut overlay_run = None;
     if let Some(spec) = overlay_spec {
-        let writer = VideoWriter::create(&spec.path, stream.width, stream.height, spec.fps).map_err(|e| CliError::failed(format!("--overlay-video: {e}")))?;
-        overlay_run = Some(OverlayVideoRun { fps: writer.fps(), fps_source: spec.fps_source, file: None });
+        let writer = VideoWriter::create(&spec.path, stream.width, stream.height, spec.fps)
+            .map_err(|e| CliError::failed(format!("--overlay-video: {e}")))?;
+        overlay_run = Some(OverlayVideoRun {
+            fps: writer.fps(),
+            fps_source: spec.fps_source,
+            file: None,
+        });
         collector.set_overlay_video(writer)?;
     }
     let t_all = Instant::now();
     let (timing, metal_mem_cap, profile_text) = match opts.backend {
         BackendChoice::Cpu if opts.trunk == TrunkPrecision::Bf16Linears => {
-            let be = Autocast::new(CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?);
-            (track_on(&be, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new(), None)?, None, None)
+            let be = Autocast::new(
+                CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads)
+                    .map_err(CliError::from_err)?,
+            );
+            (
+                track_on(
+                    &be,
+                    &w,
+                    &mut stream,
+                    &opts,
+                    &mut collector,
+                    &mut HostProbe::new(),
+                    None,
+                )?,
+                None,
+                None,
+            )
         }
         BackendChoice::Cpu => {
-            let be = CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads).map_err(CliError::from_err)?;
-            (track_on(&be, &w, &mut stream, &opts, &mut collector, &mut HostProbe::new(), None)?, None, None)
+            let be = CpuBackend::with_threads(Budget::new(BUDGET_BYTES), opts.threads)
+                .map_err(CliError::from_err)?;
+            (
+                track_on(
+                    &be,
+                    &w,
+                    &mut stream,
+                    &opts,
+                    &mut collector,
+                    &mut HostProbe::new(),
+                    None,
+                )?,
+                None,
+                None,
+            )
         }
         BackendChoice::Metal if opts.trunk == TrunkPrecision::Bf16Linears => {
             let (metal, cap) = open_metal()?;
             let mut telemetry = MetalTelemetry::new(&metal, opts.trim_pool_every)?;
-            (track_on(&Autocast::new(metal), &w, &mut stream, &opts, &mut collector, &mut telemetry, None)?, Some(cap), None)
+            (
+                track_on(
+                    &Autocast::new(metal),
+                    &w,
+                    &mut stream,
+                    &opts,
+                    &mut collector,
+                    &mut telemetry,
+                    None,
+                )?,
+                Some(cap),
+                None,
+            )
         }
         BackendChoice::Metal => {
             let (be, cap) = open_metal()?;
             let mut telemetry = MetalTelemetry::new(&be, opts.trim_pool_every)?;
             match opts.profile {
-                None => (track_on(&be, &w, &mut stream, &opts, &mut collector, &mut telemetry, None)?, Some(cap), None),
+                None => (
+                    track_on(
+                        &be,
+                        &w,
+                        &mut stream,
+                        &opts,
+                        &mut collector,
+                        &mut telemetry,
+                        None,
+                    )?,
+                    Some(cap),
+                    None,
+                ),
                 Some(ProfileMode::Stages) => {
                     let clock = StageClock::new(&be);
-                    let timing = track_on(&be, &w, &mut stream, &opts, &mut collector, &mut telemetry, Some(&clock))?;
+                    let timing = track_on(
+                        &be,
+                        &w,
+                        &mut stream,
+                        &opts,
+                        &mut collector,
+                        &mut telemetry,
+                        Some(&clock),
+                    )?;
                     let text = track_profile::stage_report(&clock.rows(), &timing.frame_seconds);
                     (timing, Some(cap), Some(text))
                 }
                 Some(ProfileMode::Ops) => {
-                    let profiled = Profiled::with_counters(be.clone(), track_profile::metal_counters);
+                    let profiled =
+                        Profiled::with_counters(be.clone(), track_profile::metal_counters);
                     let labels = OpsLabels::new(&profiled);
-                    let timing = track_on(&profiled, &w, &mut stream, &opts, &mut collector, &mut telemetry, Some(&labels))?;
+                    let timing = track_on(
+                        &profiled,
+                        &w,
+                        &mut stream,
+                        &opts,
+                        &mut collector,
+                        &mut telemetry,
+                        Some(&labels),
+                    )?;
                     // Before the first frame's first stage: the model load's uploads.
                     profiled.retain(|c| c.stage != "unlabelled");
                     (timing, Some(cap), Some(profiled.report()))
@@ -1170,8 +1630,11 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     };
     let total_seconds = t_all.elapsed().as_secs_f64();
     if let (Some(mode), Some(text)) = (opts.profile, profile_text) {
-        let path = opts.out.join(format!("{}.profile-{}.md", stream.video, mode.name()));
-        std::fs::write(&path, text).map_err(|e| CliError::failed(format!("{}: {e}", path.display())))?;
+        let path = opts
+            .out
+            .join(format!("{}.profile-{}.md", stream.video, mode.name()));
+        std::fs::write(&path, text)
+            .map_err(|e| CliError::failed(format!("{}: {e}", path.display())))?;
         println!("profile ({}) written to {}", mode.name(), path.display());
     }
 
@@ -1179,15 +1642,22 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     results.sort_by_key(|r| r.n);
     let expect: Vec<u32> = (stream.first_n..stream.first_n + stream.len as u32).collect();
     if results.iter().map(|r| r.n).collect::<Vec<_>>() != expect {
-        return Err(CliError::failed(format!("the session released {} frame(s) for {} processed", results.len(), stream.len)));
+        return Err(CliError::failed(format!(
+            "the session released {} frame(s) for {} processed",
+            results.len(),
+            stream.len
+        )));
     }
-    let text = predictions_json(&stream.video, stream.width, stream.height, &results).map_err(CliError::failed)?;
+    let text = predictions_json(&stream.video, stream.width, stream.height, &results)
+        .map_err(CliError::failed)?;
     let pred_path = opts.out.join(format!("{}.json", stream.video));
-    std::fs::write(&pred_path, text).map_err(|e| CliError::failed(format!("{}: {e}", pred_path.display())))?;
+    std::fs::write(&pred_path, text)
+        .map_err(|e| CliError::failed(format!("{}: {e}", pred_path.display())))?;
     if let Some(run) = overlay_run.as_mut() {
         run.file = collector.finish_overlay_video(stream.len)?;
     }
-    let [video_path_json, video_fps_json, video_fps_source_json, video_frames_json] = overlay_video_json(overlay_run.as_ref()).map_err(CliError::failed)?;
+    let [video_path_json, video_fps_json, video_fps_source_json, video_frames_json] =
+        overlay_video_json(overlay_run.as_ref()).map_err(CliError::failed)?;
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
@@ -1223,7 +1693,8 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         opts.profile.map_or_else(|| "null".to_string(), |m| json::string(m.name())),
     );
     let run_path = opts.out.join(format!("{}.run.json", stream.video));
-    std::fs::write(&run_path, run_text).map_err(|e| CliError::failed(format!("{}: {e}", run_path.display())))?;
+    std::fs::write(&run_path, run_text)
+        .map_err(|e| CliError::failed(format!("{}: {e}", run_path.display())))?;
 
     println!(
         "{} frame(s) of {:?} tracked on {}: {} track(s) born, {:.2} s/frame (model, mean), {:.1} s total\n  {}\n  {}",
@@ -1238,14 +1709,26 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     );
     if let Some(run) = &overlay_run {
         if let Some(file) = &run.file {
-            println!("  {} (overlay video: {} frame(s) at {} fps from {}, {:.1} MiB)", file.path.display(), file.frames, run.fps, run.fps_source, file.bytes as f64 / MIB);
+            println!(
+                "  {} (overlay video: {} frame(s) at {} fps from {}, {:.1} MiB)",
+                file.path.display(),
+                file.frames,
+                run.fps,
+                run.fps_source,
+                file.bytes as f64 / MIB
+            );
         }
     }
     if collector.widened > 0 {
-        println!("  note: {} box(es) widened to one pixel (a mask one pixel wide or high)", collector.widened);
+        println!(
+            "  note: {} box(es) widened to one pixel (a mask one pixel wide or high)",
+            collector.widened
+        );
     }
     if stream.from_video {
-        println!("  note: mp4 input does not match upstream's mp4 preprocessing (GAP-MP4-PREPROCESSING)");
+        println!(
+            "  note: mp4 input does not match upstream's mp4 preprocessing (GAP-MP4-PREPROCESSING)"
+        );
     }
     Ok(())
 }
@@ -1257,7 +1740,8 @@ mod tests {
     use st_model::tracker::associate::Bitmask;
 
     fn temp(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("spiketrack-track-{name}-{}", std::process::id()));
+        let d =
+            std::env::temp_dir().join(format!("spiketrack-track-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         d
@@ -1281,7 +1765,10 @@ mod tests {
         // ... and 1 + 3 * 2^-11 (halfway between 1 + 2^-10 and 1 + 2^-9) to the even 1 + 2^-9.
         assert_eq!(f16_round(1.0 + 3.0 * 2f32.powi(-11)), 1.0 + 2f32.powi(-9));
         // Just above the halfway point rounds up; just below rounds down.
-        assert_eq!(f16_round(1.0 + 2f32.powi(-11) + 2f32.powi(-20)), 1.0 + 2f32.powi(-10));
+        assert_eq!(
+            f16_round(1.0 + 2f32.powi(-11) + 2f32.powi(-20)),
+            1.0 + 2f32.powi(-10)
+        );
         assert_eq!(f16_round(1.0 + 2f32.powi(-11) - 2f32.powi(-20)), 1.0);
         // 0.1 is not representable: the float16 neighbour is 0.0999755859375 (= 1638 / 2^14).
         assert_eq!(f16_round(0.1), 1638.0 / 16384.0);
@@ -1305,7 +1792,9 @@ mod tests {
         assert!(((1.0f32 / 255.0 - 0.5) / 0.5 - upstream_normalise(1)).abs() > 1e-5);
         // Every value is a float16 number in [-1, 1], and the map is monotone.
         let all: Vec<f32> = (0..=255u8).map(upstream_normalise).collect();
-        assert!(all.iter().all(|&v| (-1.0..=1.0).contains(&v) && f16_round(v) == v));
+        assert!(all
+            .iter()
+            .all(|&v| (-1.0..=1.0).contains(&v) && f16_round(v) == v));
         assert!(all.windows(2).all(|w| w[0] <= w[1]));
     }
 
@@ -1319,26 +1808,58 @@ mod tests {
     #[ignore = "needs fixtures/detect_track/11.safetensors, fixtures/decode/11_frame_0.rgb and data/visem"]
     fn upstream_input_matches_upstreams_loader_on_a_visem_frame() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let st = ojas_io::SafeTensors::open(&root.join("fixtures/detect_track/11.safetensors")).unwrap_or_else(|e| panic!("{}", e.detail()));
-        let (shape, frames) = st.read_f32_widened("frames").unwrap_or_else(|e| panic!("{}", e.detail()));
+        let st = ojas_io::SafeTensors::open(&root.join("fixtures/detect_track/11.safetensors"))
+            .unwrap_or_else(|e| panic!("{}", e.detail()));
+        let (shape, frames) = st
+            .read_f32_widened("frames")
+            .unwrap_or_else(|e| panic!("{}", e.detail()));
         assert_eq!(&shape[1..], &[3, 1008, 1008]);
         let want = &frames[..3 * 1008 * 1008];
-        let rgb = std::fs::read(root.join("fixtures/decode/11_frame_0.rgb")).expect("run tools/reference/decode_oracle.py");
+        let rgb = std::fs::read(root.join("fixtures/decode/11_frame_0.rgb"))
+            .expect("run tools/reference/decode_oracle.py");
         let pillow = Rgb8::new(640, 480, rgb);
         let ours = upstream_input(&pillow, 1008);
         let differing = ours.iter().zip(want).filter(|(a, b)| a != b).count();
-        let max = ours.iter().zip(want).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
+        let max = ours
+            .iter()
+            .zip(want)
+            .map(|(a, b)| (a - b).abs())
+            .fold(0f32, f32::max);
         println!("Pillow-decoded frame 0: {differing} of {} samples differ from upstream's float16 frame (max {max})", want.len());
-        assert_eq!(differing, 0, "the resize and float16 normalisation are not bit-identical to upstream's loader");
-        let (decoded, decoder) = decode_image_with_source(root.join("data/visem/VISEM_Tracking_Train_v4/Train/11/images/11_frame_0.jpg")).expect("jpeg");
+        assert_eq!(
+            differing, 0,
+            "the resize and float16 normalisation are not bit-identical to upstream's loader"
+        );
+        let (decoded, decoder) = decode_image_with_source(
+            root.join("data/visem/VISEM_Tracking_Train_v4/Train/11/images/11_frame_0.jpg"),
+        )
+        .expect("jpeg");
         assert_eq!(decoder.name(), "pillow-exact-jpeg");
         let ours = upstream_input(&decoded, 1008);
         let differing = ours.iter().zip(want).filter(|(a, b)| a != b).count();
-        let max = ours.iter().zip(want).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
+        let max = ours
+            .iter()
+            .zip(want)
+            .map(|(a, b)| (a - b).abs())
+            .fold(0f32, f32::max);
         println!("CLI-decoded frame 0: {differing} of {} samples differ (max {max}); plain f32 sam_input differs from upstream by", want.len());
-        assert_eq!(differing, 0, "the CLI's decode + upstream_input is not bit-identical to upstream's loader");
-        let plain = st_video::sam_input(&Rgb8::new(640, 480, std::fs::read(root.join("fixtures/decode/11_frame_0.rgb")).unwrap()), 1008);
-        let max_plain = plain.iter().zip(want).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
+        assert_eq!(
+            differing, 0,
+            "the CLI's decode + upstream_input is not bit-identical to upstream's loader"
+        );
+        let plain = st_video::sam_input(
+            &Rgb8::new(
+                640,
+                480,
+                std::fs::read(root.join("fixtures/decode/11_frame_0.rgb")).unwrap(),
+            ),
+            1008,
+        );
+        let max_plain = plain
+            .iter()
+            .zip(want)
+            .map(|(a, b)| (a - b).abs())
+            .fold(0f32, f32::max);
         let diff_plain = plain.iter().zip(want).filter(|(a, b)| a != b).count();
         println!("  (Pillow-decoded, f32 sam_input: {diff_plain} samples differ, max {max_plain})");
     }
@@ -1346,11 +1867,25 @@ mod tests {
     #[test]
     fn the_model_input_is_resized_then_normalised_planar() {
         // A constant image stays constant under bilinear resize; 3 planes, each one value.
-        let img = Rgb8::new(5, 3, [10u8, 128, 250].iter().copied().cycle().take(5 * 3 * 3).collect());
+        let img = Rgb8::new(
+            5,
+            3,
+            [10u8, 128, 250]
+                .iter()
+                .copied()
+                .cycle()
+                .take(5 * 3 * 3)
+                .collect(),
+        );
         let x = upstream_input(&img, 8);
         assert_eq!(x.len(), 3 * 64);
         for (c, v) in [10u8, 128, 250].into_iter().enumerate() {
-            assert!(x[c * 64..(c + 1) * 64].iter().all(|&s| s == upstream_normalise(v)), "plane {c}");
+            assert!(
+                x[c * 64..(c + 1) * 64]
+                    .iter()
+                    .all(|&s| s == upstream_normalise(v)),
+                "plane {c}"
+            );
         }
     }
 
@@ -1364,7 +1899,10 @@ mod tests {
         touch(&d, "notes.txt");
         let f = discover_frames(&d).unwrap();
         assert_eq!(f.video, "22");
-        assert_eq!(f.frames.iter().map(|f| f.n).collect::<Vec<_>>(), vec![1, 2, 10, 21, 100]);
+        assert_eq!(
+            f.frames.iter().map(|f| f.n).collect::<Vec<_>>(),
+            vec![1, 2, 10, 21, 100]
+        );
         let _ = std::fs::remove_dir_all(&d);
     }
 
@@ -1382,56 +1920,108 @@ mod tests {
     #[test]
     fn folders_that_cannot_be_tracked_are_refused() {
         let d = temp("bad");
-        assert!(discover_frames(&d).unwrap_err().contains("no <video>_frame_<n>"));
+        assert!(discover_frames(&d)
+            .unwrap_err()
+            .contains("no <video>_frame_<n>"));
         touch(&d, "22_frame_1.jpg");
         touch(&d, "23_frame_2.jpg");
         assert!(discover_frames(&d).unwrap_err().contains("two videos"));
         std::fs::remove_file(d.join("23_frame_2.jpg")).unwrap();
         touch(&d, "22_frame_01.png");
-        assert!(discover_frames(&d).unwrap_err().contains("twice"), "frame 1 as .jpg and as 01.png");
+        assert!(
+            discover_frames(&d).unwrap_err().contains("twice"),
+            "frame 1 as .jpg and as 01.png"
+        );
         std::fs::remove_file(d.join("22_frame_01.png")).unwrap();
         touch(&d, "stray.JPG");
-        assert!(discover_frames(&d).unwrap_err().contains("not <video>_frame_<n>"));
+        assert!(discover_frames(&d)
+            .unwrap_err()
+            .contains("not <video>_frame_<n>"));
         let _ = std::fs::remove_dir_all(&d);
     }
 
     fn files(ns: &[u32]) -> Vec<FrameFile> {
-        ns.iter().map(|&n| FrameFile { n, path: PathBuf::from(format!("{n}.jpg")) }).collect()
+        ns.iter()
+            .map(|&n| FrameFile {
+                n,
+                path: PathBuf::from(format!("{n}.jpg")),
+            })
+            .collect()
     }
 
     #[test]
     fn the_window_starts_at_a_frame_number_and_stops_at_max() {
         let f = files(&[5, 6, 7, 8, 9]);
         assert_eq!(select_window(&f, None, None).unwrap().len(), 5);
-        assert_eq!(select_window(&f, Some(7), None).unwrap().iter().map(|f| f.n).collect::<Vec<_>>(), vec![7, 8, 9]);
-        assert_eq!(select_window(&f, Some(6), Some(2)).unwrap().iter().map(|f| f.n).collect::<Vec<_>>(), vec![6, 7]);
+        assert_eq!(
+            select_window(&f, Some(7), None)
+                .unwrap()
+                .iter()
+                .map(|f| f.n)
+                .collect::<Vec<_>>(),
+            vec![7, 8, 9]
+        );
+        assert_eq!(
+            select_window(&f, Some(6), Some(2))
+                .unwrap()
+                .iter()
+                .map(|f| f.n)
+                .collect::<Vec<_>>(),
+            vec![6, 7]
+        );
         assert_eq!(select_window(&f, None, Some(99)).unwrap().len(), 5);
-        assert!(select_window(&f, Some(4), None).unwrap_err().contains("no frame 4"));
+        assert!(select_window(&f, Some(4), None)
+            .unwrap_err()
+            .contains("no frame 4"));
         assert!(select_window(&[], None, None).is_err());
     }
 
     #[test]
     fn a_gap_inside_the_window_is_an_error_but_one_outside_is_not() {
         let f = files(&[0, 1, 2, 5, 6]);
-        assert!(select_window(&f, None, None).unwrap_err().contains("not consecutive"));
+        assert!(select_window(&f, None, None)
+            .unwrap_err()
+            .contains("not consecutive"));
         assert_eq!(select_window(&f, None, Some(3)).unwrap().len(), 3);
         assert_eq!(select_window(&f, Some(5), None).unwrap().len(), 2);
     }
 
     fn yielded(frame: usize, ids: &[i64], boxes_xywh: &[f32], masks: Vec<Bitmask>) -> YieldedFrame {
-        YieldedFrame { frame, obj_ids: ids.to_vec(), probs: ids.iter().map(|&i| 0.5 + i as f32 / 100.0).collect(), boxes_xywh: boxes_xywh.to_vec(), det_boxes_xyxy: vec![None; ids.len()], masks }
+        YieldedFrame {
+            frame,
+            obj_ids: ids.to_vec(),
+            probs: ids.iter().map(|&i| 0.5 + i as f32 / 100.0).collect(),
+            boxes_xywh: boxes_xywh.to_vec(),
+            det_boxes_xyxy: vec![None; ids.len()],
+            masks,
+        }
     }
 
     #[test]
     fn boxes_become_xyxy_and_degenerate_ones_are_widened_and_counted() {
         let m = || Bitmask::from_fn(4 * 8, |_| false);
         // 8 wide, 4 high: id 1 normal, id 2 zero width, id 3 zero height.
-        let y = yielded(0, &[1, 2, 3], &[0.25, 0.5, 0.25, 0.25, 0.5, 0.0, 0.0, 0.25, 0.0, 0.5, 0.5, 0.0], vec![m(), m(), m()]);
+        let y = yielded(
+            0,
+            &[1, 2, 3],
+            &[
+                0.25, 0.5, 0.25, 0.25, 0.5, 0.0, 0.0, 0.25, 0.0, 0.5, 0.5, 0.0,
+            ],
+            vec![m(), m(), m()],
+        );
         let (o, widened, from_detector) = objects_of(&y, 4, 8, BoxSource::Mask).unwrap();
         assert_eq!(from_detector, 0);
         assert_eq!(o[0].box_xyxy_norm, [0.25, 0.5, 0.5, 0.75]);
-        assert_eq!(o[1].box_xyxy_norm, [0.5, 0.0, 0.625, 0.25], "one pixel wide = 1/8");
-        assert_eq!(o[2].box_xyxy_norm, [0.0, 0.5, 0.5, 0.75], "one pixel high = 1/4");
+        assert_eq!(
+            o[1].box_xyxy_norm,
+            [0.5, 0.0, 0.625, 0.25],
+            "one pixel wide = 1/8"
+        );
+        assert_eq!(
+            o[2].box_xyxy_norm,
+            [0.0, 0.5, 0.5, 0.75],
+            "one pixel high = 1/4"
+        );
         assert_eq!(widened, 2);
         assert_eq!(o[1].score, 0.52);
     }
@@ -1439,12 +2029,33 @@ mod tests {
     #[test]
     fn inconsistent_or_non_finite_frames_are_errors() {
         let m = || Bitmask::from_fn(4, |_| false);
-        assert!(objects_of(&yielded(0, &[1], &[0.1, 0.1], vec![m()]), 2, 2, BoxSource::Mask).is_err());
-        assert!(objects_of(&yielded(0, &[1], &[0.1, 0.1, f32::NAN, 0.1], vec![m()]), 2, 2, BoxSource::Mask).is_err());
-        assert!(objects_of(&yielded(0, &[1, 2], &[0.1, 0.1, 0.1, 0.1], vec![m()]), 2, 2, BoxSource::Mask).is_err());
+        assert!(objects_of(
+            &yielded(0, &[1], &[0.1, 0.1], vec![m()]),
+            2,
+            2,
+            BoxSource::Mask
+        )
+        .is_err());
+        assert!(objects_of(
+            &yielded(0, &[1], &[0.1, 0.1, f32::NAN, 0.1], vec![m()]),
+            2,
+            2,
+            BoxSource::Mask
+        )
+        .is_err());
+        assert!(objects_of(
+            &yielded(0, &[1, 2], &[0.1, 0.1, 0.1, 0.1], vec![m()]),
+            2,
+            2,
+            BoxSource::Mask
+        )
+        .is_err());
         let mut y = yielded(0, &[1], &[0.1, 0.1, 0.1, 0.1], vec![m()]);
         y.det_boxes_xyxy = vec![];
-        assert!(objects_of(&y, 2, 2, BoxSource::Mask).is_err(), "a missing detection-box slot is an error under either source");
+        assert!(
+            objects_of(&y, 2, 2, BoxSource::Mask).is_err(),
+            "a missing detection-box slot is an error under either source"
+        );
         y.det_boxes_xyxy = vec![Some([0.1, f32::NAN, 0.2, 0.2])];
         assert!(objects_of(&y, 2, 2, BoxSource::Detector).is_err());
     }
@@ -1453,25 +2064,75 @@ mod tests {
     fn detector_boxes_replace_mask_boxes_where_assigned_and_are_clipped() {
         let m = || Bitmask::from_fn(4 * 8, |_| false);
         // id 1 has a detection (partly outside the frame), id 2 has none, id 3 a degenerate one.
-        let mut y = yielded(0, &[1, 2, 3], &[0.25, 0.5, 0.25, 0.25, 0.5, 0.25, 0.25, 0.25, 0.0, 0.0, 0.5, 0.5], vec![m(), m(), m()]);
-        y.det_boxes_xyxy = vec![Some([-0.1, 0.25, 0.375, 1.2]), None, Some([0.5, 0.5, 0.5, 0.75])];
+        let mut y = yielded(
+            0,
+            &[1, 2, 3],
+            &[
+                0.25, 0.5, 0.25, 0.25, 0.5, 0.25, 0.25, 0.25, 0.0, 0.0, 0.5, 0.5,
+            ],
+            vec![m(), m(), m()],
+        );
+        y.det_boxes_xyxy = vec![
+            Some([-0.1, 0.25, 0.375, 1.2]),
+            None,
+            Some([0.5, 0.5, 0.5, 0.75]),
+        ];
         let (o, widened, from_detector) = objects_of(&y, 4, 8, BoxSource::Detector).unwrap();
-        assert_eq!(o[0].box_xyxy_norm, [0.0, 0.25, 0.375, 1.0], "clipped to the frame");
-        assert_eq!(o[1].box_xyxy_norm, [0.5, 0.25, 0.75, 0.5], "no detection: the mask box");
-        assert_eq!(o[2].box_xyxy_norm, [0.5, 0.5, 0.625, 0.75], "zero width widened to one pixel");
+        assert_eq!(
+            o[0].box_xyxy_norm,
+            [0.0, 0.25, 0.375, 1.0],
+            "clipped to the frame"
+        );
+        assert_eq!(
+            o[1].box_xyxy_norm,
+            [0.5, 0.25, 0.75, 0.5],
+            "no detection: the mask box"
+        );
+        assert_eq!(
+            o[2].box_xyxy_norm,
+            [0.5, 0.5, 0.625, 0.75],
+            "zero width widened to one pixel"
+        );
         assert_eq!((widened, from_detector), (1, 2));
         // The same frame under --boxes mask ignores the detections.
         let (o, _, from_detector) = objects_of(&y, 4, 8, BoxSource::Mask).unwrap();
-        assert_eq!((o[0].box_xyxy_norm, from_detector), ([0.25, 0.5, 0.5, 0.75], 0));
+        assert_eq!(
+            (o[0].box_xyxy_norm, from_detector),
+            ([0.25, 0.5, 0.5, 0.75], 0)
+        );
         assert!(BoxSource::parse("detector").is_ok() && BoxSource::parse("box").is_err());
     }
 
     #[test]
     fn the_predictions_file_is_what_eval_visem_reads() {
         let frames = vec![
-            FrameResult { n: 5, objects: vec![TrackedObject { id: 1, score: 0.9, box_xyxy_norm: [0.1, 0.2, 0.3, 0.4] }, TrackedObject { id: 7, score: 0.6, box_xyxy_norm: [0.5, 0.5, 0.75, 0.625] }] },
-            FrameResult { n: 6, objects: vec![] },
-            FrameResult { n: 7, objects: vec![TrackedObject { id: 1, score: 0.9, box_xyxy_norm: [0.125, 0.25, 0.3, 0.4] }] },
+            FrameResult {
+                n: 5,
+                objects: vec![
+                    TrackedObject {
+                        id: 1,
+                        score: 0.9,
+                        box_xyxy_norm: [0.1, 0.2, 0.3, 0.4],
+                    },
+                    TrackedObject {
+                        id: 7,
+                        score: 0.6,
+                        box_xyxy_norm: [0.5, 0.5, 0.75, 0.625],
+                    },
+                ],
+            },
+            FrameResult {
+                n: 6,
+                objects: vec![],
+            },
+            FrameResult {
+                n: 7,
+                objects: vec![TrackedObject {
+                    id: 1,
+                    score: 0.9,
+                    box_xyxy_norm: [0.125, 0.25, 0.3, 0.4],
+                }],
+            },
         ];
         let text = predictions_json("22", 640, 480, &frames).unwrap();
         let p = parse_predictions(&text, "22").expect("eval-visem's reader accepts it");
@@ -1482,10 +2143,31 @@ mod tests {
         let b = p.frames[&7][0].1;
         assert_eq!((b.x, b.y), (0.125, 0.25));
         assert!((b.w - 0.175).abs() < 1e-6 && (b.h - 0.15).abs() < 1e-6);
-        assert!(parse_predictions(&text, "23").is_err(), "the video id is checked");
+        assert!(
+            parse_predictions(&text, "23").is_err(),
+            "the video id is checked"
+        );
         // No frames at all is still a valid file.
-        assert!(parse_predictions(&predictions_json("22", 640, 480, &[]).unwrap(), "22").unwrap().frames.is_empty());
-        assert!(predictions_json("22", 640, 480, &[FrameResult { n: 0, objects: vec![TrackedObject { id: 1, score: f32::NAN, box_xyxy_norm: [0.0; 4] }] }]).is_err());
+        assert!(
+            parse_predictions(&predictions_json("22", 640, 480, &[]).unwrap(), "22")
+                .unwrap()
+                .frames
+                .is_empty()
+        );
+        assert!(predictions_json(
+            "22",
+            640,
+            480,
+            &[FrameResult {
+                n: 0,
+                objects: vec![TrackedObject {
+                    id: 1,
+                    score: f32::NAN,
+                    box_xyxy_norm: [0.0; 4]
+                }]
+            }]
+        )
+        .is_err());
     }
 
     #[test]
@@ -1499,20 +2181,38 @@ mod tests {
         }
         assert_eq!(c.images.len(), 2, "frames 100 and 102 are multiples of 2");
         let mask = Bitmask::from_fn(h * w, |p| p % w < 2); // the two left columns
-        c.accept(yielded(0, &[3], &[0.0, 0.0, 0.25, 0.75], vec![mask])).unwrap();
+        c.accept(yielded(0, &[3], &[0.0, 0.0, 0.25, 0.75], vec![mask]))
+            .unwrap();
         c.accept(yielded(1, &[], &[], vec![])).unwrap();
-        assert!(d.join("masks/9_frame_100.json").is_file() && d.join("masks/9_frame_101.json").is_file());
+        assert!(
+            d.join("masks/9_frame_100.json").is_file()
+                && d.join("masks/9_frame_101.json").is_file()
+        );
         assert!(d.join("overlay/9_frame_100.png").is_file());
-        assert!(!d.join("overlay/9_frame_101.png").exists(), "an odd frame has no overlay");
-        let m = ojas_io::parse_json(&std::fs::read_to_string(d.join("masks/9_frame_100.json")).unwrap()).unwrap();
+        assert!(
+            !d.join("overlay/9_frame_101.png").exists(),
+            "an odd frame has no overlay"
+        );
+        let m = ojas_io::parse_json(
+            &std::fs::read_to_string(d.join("masks/9_frame_100.json")).unwrap(),
+        )
+        .unwrap();
         assert_eq!(m.get_u64("frame").unwrap(), 100);
         let obj = &m.get_array("objects").unwrap()[0];
         assert_eq!(obj.get_u64("id").unwrap(), 3);
         assert_eq!(obj.get_u64("area").unwrap(), 8);
         // Column-major: two full columns of 4 set, then 16 clear.
-        let counts: Vec<u64> = obj.get_array("counts").unwrap().iter().map(|v| v.as_u64().unwrap()).collect();
+        let counts: Vec<u64> = obj
+            .get_array("counts")
+            .unwrap()
+            .iter()
+            .map(|v| v.as_u64().unwrap())
+            .collect();
         assert_eq!(counts, vec![0, 8, 16]);
-        assert_eq!(c.results.iter().map(|r| r.n).collect::<Vec<_>>(), vec![100, 101]);
+        assert_eq!(
+            c.results.iter().map(|r| r.n).collect::<Vec<_>>(),
+            vec![100, 101]
+        );
         assert_eq!(c.ids.iter().copied().collect::<Vec<_>>(), vec![3]);
         let _ = std::fs::remove_dir_all(&d);
     }
@@ -1522,7 +2222,8 @@ mod tests {
     fn video_collector(dir: &Path, overlay_every: Option<u32>, video: Option<&Path>) -> Collector {
         let mut c = Collector::new(dir, "9", 100, VH, VW, overlay_every, BoxSource::Mask).unwrap();
         if let Some(p) = video {
-            c.set_overlay_video(VideoWriter::create(p, VW, VH, 10.0).unwrap()).unwrap();
+            c.set_overlay_video(VideoWriter::create(p, VW, VH, 10.0).unwrap())
+                .unwrap();
         }
         c
     }
@@ -1536,7 +2237,12 @@ mod tests {
 
     /// The released frame `k`: id 3 with the left half masked and boxed.
     fn left_half(k: usize) -> YieldedFrame {
-        yielded(k, &[3], &[0.0, 0.0, 0.5, 1.0], vec![Bitmask::from_fn(VH * VW, |p| p % VW < VW / 2)])
+        yielded(
+            k,
+            &[3],
+            &[0.0, 0.0, 0.5, 1.0],
+            vec![Bitmask::from_fn(VH * VW, |p| p % VW < VW / 2)],
+        )
     }
 
     #[test]
@@ -1559,26 +2265,59 @@ mod tests {
         for k in total - LAG..total {
             c.accept(left_half(k)).unwrap();
         }
-        assert_eq!(peak, LAG + 1, "one frame awaiting release for each frame of lag, plus the one just pushed");
+        assert_eq!(
+            peak,
+            LAG + 1,
+            "one frame awaiting release for each frame of lag, plus the one just pushed"
+        );
         assert!(c.images.is_empty(), "every kept frame was released");
-        let file = c.finish_overlay_video(total).unwrap().expect("a video was asked for");
+        let file = c
+            .finish_overlay_video(total)
+            .unwrap()
+            .expect("a video was asked for");
         assert_eq!(file.frames, total);
         assert!(!d.join("overlay").exists(), "no --overlay K, no PNGs");
-        assert!(c.finish_overlay_video(total).unwrap().is_none(), "finished once");
+        assert!(
+            c.finish_overlay_video(total).unwrap().is_none(),
+            "finished once"
+        );
 
         let mut reader = VideoReader::open(&file.path).unwrap();
-        assert_eq!((reader.info().width, reader.info().height, reader.info().frame_count), (VW, VH, total));
-        assert!((reader.info().fps - 10.0).abs() < 0.1, "{}", reader.info().fps);
+        assert_eq!(
+            (
+                reader.info().width,
+                reader.info().height,
+                reader.info().frame_count
+            ),
+            (VW, VH, total)
+        );
+        assert!(
+            (reader.info().fps - 10.0).abs() < 0.1,
+            "{}",
+            reader.info().fps
+        );
         let mut n = 0;
         while let Some((i, _, img)) = reader.next_frame().unwrap() {
             assert_eq!(i, n);
-            let at = |x: usize, y: usize| -> [u8; 3] { img.data[(y * VW + x) * 3..][..3].try_into().unwrap() };
+            let at = |x: usize, y: usize| -> [u8; 3] {
+                img.data[(y * VW + x) * 3..][..3].try_into().unwrap()
+            };
             // Id 3 is the palette's fourth colour (0, 130, 200) blended 100/256 over grey 50, away
             // from the box outline; the right half is the untouched frame.
-            let tinted = (0..3).map(|k| ((50 * 156 + u32::from(overlay::colour(3)[k]) * 100) / 256) as u8).collect::<Vec<_>>();
+            let tinted = (0..3)
+                .map(|k| ((50 * 156 + u32::from(overlay::colour(3)[k]) * 100) / 256) as u8)
+                .collect::<Vec<_>>();
             for k in 0..3 {
-                assert!(at(10, 24)[k].abs_diff(tinted[k]) <= 8, "frame {i} masked pixel {:?}, expected about {tinted:?}", at(10, 24));
-                assert!(at(50, 24)[k].abs_diff(50) <= 8, "frame {i} unmasked pixel {:?}", at(50, 24));
+                assert!(
+                    at(10, 24)[k].abs_diff(tinted[k]) <= 8,
+                    "frame {i} masked pixel {:?}, expected about {tinted:?}",
+                    at(10, 24)
+                );
+                assert!(
+                    at(50, 24)[k].abs_diff(50) <= 8,
+                    "frame {i} unmasked pixel {:?}",
+                    at(50, 24)
+                );
             }
             n += 1;
         }
@@ -1601,11 +2340,18 @@ mod tests {
             }
         }
         assert_eq!(both.finish_overlay_video(4).unwrap().unwrap().frames, 4);
-        assert_eq!(video_only.finish_overlay_video(4).unwrap().unwrap().frames, 4);
+        assert_eq!(
+            video_only.finish_overlay_video(4).unwrap().unwrap().frames,
+            4
+        );
         assert!(png_only.finish_overlay_video(4).unwrap().is_none());
         for n in [100, 102] {
             let name = format!("overlay/9_frame_{n}.png");
-            assert_eq!(std::fs::read(a.join(&name)).unwrap(), std::fs::read(b.join(&name)).unwrap(), "{name}: the PNG is the same with or without a video");
+            assert_eq!(
+                std::fs::read(a.join(&name)).unwrap(),
+                std::fs::read(b.join(&name)).unwrap(),
+                "{name}: the PNG is the same with or without a video"
+            );
         }
         for odd in [101, 103] {
             assert!(!b.join(format!("overlay/9_frame_{odd}.png")).exists());
@@ -1637,7 +2383,10 @@ mod tests {
         let mut c = Collector::new(&d, "9", 0, VH, VW, None, BoxSource::Mask).unwrap();
         let wrong = VideoWriter::create(d.join("o.mp4"), VW + 2, VH, 10.0).unwrap();
         assert!(c.set_overlay_video(wrong).is_err());
-        assert!(!d.join("o.mp4").exists(), "the refused writer was dropped and cleaned up");
+        assert!(
+            !d.join("o.mp4").exists(),
+            "the refused writer was dropped and cleaned up"
+        );
         let _ = std::fs::remove_dir_all(&d);
     }
 
@@ -1659,31 +2408,61 @@ mod tests {
 
     #[test]
     fn the_overlay_frame_rate_comes_from_the_option_then_the_input_then_the_folder_default() {
-        assert_eq!(overlay_fps_choice(Some(30.0), Some(49.0)), (30.0, "--overlay-fps"));
+        assert_eq!(
+            overlay_fps_choice(Some(30.0), Some(49.0)),
+            (30.0, "--overlay-fps")
+        );
         assert_eq!(overlay_fps_choice(None, Some(25.0)), (25.0, "input video"));
         assert_eq!(overlay_fps_choice(None, None).0, FOLDER_OVERLAY_FPS);
         assert_eq!(FOLDER_OVERLAY_FPS, 49.0);
     }
 
     fn stream_of(width: usize, height: usize, fps: Option<f64>) -> FrameStream {
-        FrameStream { kind: Kind::Folder { files: vec![] }, video: "v".into(), first_n: 0, len: 1, height, width, from_video: fps.is_some(), fps, decoders: BTreeMap::new(), produced: 0, pending: None }
+        FrameStream {
+            kind: Kind::Folder { files: vec![] },
+            video: "v".into(),
+            first_n: 0,
+            len: 1,
+            height,
+            width,
+            from_video: fps.is_some(),
+            fps,
+            decoders: BTreeMap::new(),
+            produced: 0,
+            pending: None,
+        }
     }
 
     #[test]
     fn the_overlay_video_is_checked_before_any_model_work() {
         let d = temp("video-plan");
         let ok = plan_overlay_video(d.join("o.mp4"), None, &stream_of(640, 480, None)).unwrap();
-        assert_eq!((ok.fps, ok.fps_source), (FOLDER_OVERLAY_FPS, FPS_FROM_DEFAULT));
-        let ok = plan_overlay_video(d.join("o.mp4"), None, &stream_of(640, 480, Some(47.95))).unwrap();
+        assert_eq!(
+            (ok.fps, ok.fps_source),
+            (FOLDER_OVERLAY_FPS, FPS_FROM_DEFAULT)
+        );
+        let ok =
+            plan_overlay_video(d.join("o.mp4"), None, &stream_of(640, 480, Some(47.95))).unwrap();
         assert_eq!((ok.fps, ok.fps_source), (47.95, FPS_FROM_INPUT));
-        let e = plan_overlay_video(d.join("o.mp4"), Some(30.0), &stream_of(641, 480, None)).unwrap_err().to_string();
+        let e = plan_overlay_video(d.join("o.mp4"), Some(30.0), &stream_of(641, 480, None))
+            .unwrap_err()
+            .to_string();
         assert!(e.contains("--overlay-video") && e.contains("even"), "{e}");
-        let e = plan_overlay_video(d.join("o.mov"), None, &stream_of(640, 480, None)).unwrap_err().to_string();
+        let e = plan_overlay_video(d.join("o.mov"), None, &stream_of(640, 480, None))
+            .unwrap_err()
+            .to_string();
         assert!(e.contains(".mp4"), "{e}");
-        let e = plan_overlay_video(d.join("o.mp4"), None, &stream_of(640, 480, Some(0.5))).unwrap_err().to_string();
-        assert!(e.contains("--overlay-fps"), "an input rate the encoder refuses points at the option: {e}");
+        let e = plan_overlay_video(d.join("o.mp4"), None, &stream_of(640, 480, Some(0.5)))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            e.contains("--overlay-fps"),
+            "an input rate the encoder refuses points at the option: {e}"
+        );
         std::fs::write(d.join("taken.mp4"), b"x").unwrap();
-        let e = plan_overlay_video(d.join("taken.mp4"), None, &stream_of(640, 480, None)).unwrap_err().to_string();
+        let e = plan_overlay_video(d.join("taken.mp4"), None, &stream_of(640, 480, None))
+            .unwrap_err()
+            .to_string();
         assert!(e.contains("already exists"), "{e}");
         assert_eq!(std::fs::read(d.join("taken.mp4")).unwrap(), b"x");
         let _ = std::fs::remove_dir_all(&d);
@@ -1695,23 +2474,64 @@ mod tests {
         let d = temp("video-newout");
         let frames = d.join("frames");
         std::fs::create_dir_all(&frames).unwrap();
-        std::fs::write(frames.join("v_frame_0.png"), png::encode_rgb(16, 16, &[90; 16 * 16 * 3]).unwrap()).unwrap();
+        std::fs::write(
+            frames.join("v_frame_0.png"),
+            png::encode_rgb(16, 16, &[90; 16 * 16 * 3]).unwrap(),
+        )
+        .unwrap();
         let (out, video) = (d.join("newout"), d.join("newout/o.mp4"));
         // The run stops at the missing weights, after the video has been checked and before it is created.
-        let r = run(&args(&[frames.to_str().unwrap(), "--prompt", "p", "--out", out.to_str().unwrap(), "--weights", "/nonexistent/weights", "--overlay-video", video.to_str().unwrap()]));
-        assert!(matches!(&r, Err(CliError::Failed(m)) if m.contains("weights") && m.contains("does not exist")), "{r:?}");
+        let r = run(&args(&[
+            frames.to_str().unwrap(),
+            "--prompt",
+            "p",
+            "--out",
+            out.to_str().unwrap(),
+            "--weights",
+            "/nonexistent/weights",
+            "--overlay-video",
+            video.to_str().unwrap(),
+        ]));
+        assert!(
+            matches!(&r, Err(CliError::Failed(m)) if m.contains("weights") && m.contains("does not exist")),
+            "{r:?}"
+        );
         assert!(out.is_dir(), "--out was created for the video's sake");
         assert!(!video.exists());
         // A bad video request is refused at the same point, ahead of the weights.
-        let r = run(&args(&[frames.to_str().unwrap(), "--prompt", "p", "--out", out.to_str().unwrap(), "--weights", "/nonexistent/weights", "--overlay-video", out.join("o.mov").to_str().unwrap()]));
-        assert!(matches!(&r, Err(CliError::Failed(m)) if m.contains("--overlay-video") && m.contains(".mp4")), "{r:?}");
+        let r = run(&args(&[
+            frames.to_str().unwrap(),
+            "--prompt",
+            "p",
+            "--out",
+            out.to_str().unwrap(),
+            "--weights",
+            "/nonexistent/weights",
+            "--overlay-video",
+            out.join("o.mov").to_str().unwrap(),
+        ]));
+        assert!(
+            matches!(&r, Err(CliError::Failed(m)) if m.contains("--overlay-video") && m.contains(".mp4")),
+            "{r:?}"
+        );
         let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]
     fn run_json_records_the_overlay_video_or_null() {
-        assert_eq!(overlay_video_json(None).unwrap(), ["null", "null", "null", "null"].map(String::from));
-        let run = OverlayVideoRun { fps: 49.0, fps_source: FPS_FROM_DEFAULT, file: Some(VideoFile { path: PathBuf::from("/x/o.mp4"), frames: 24, bytes: 10 }) };
+        assert_eq!(
+            overlay_video_json(None).unwrap(),
+            ["null", "null", "null", "null"].map(String::from)
+        );
+        let run = OverlayVideoRun {
+            fps: 49.0,
+            fps_source: FPS_FROM_DEFAULT,
+            file: Some(VideoFile {
+                path: PathBuf::from("/x/o.mp4"),
+                frames: 24,
+                bytes: 10,
+            }),
+        };
         let [path, fps, source, frames] = overlay_video_json(Some(&run)).unwrap();
         assert_eq!((path.as_str(), frames.as_str()), ("\"/x/o.mp4\"", "24"));
         assert_eq!(fps.parse::<f64>().unwrap(), 49.0);
@@ -1729,12 +2549,36 @@ mod tests {
         let mut frames = Vec::new();
         for t in 0..6u32 {
             let x = 0.1 + 0.05 * f64::from(t);
-            std::fs::write(labels.join(format!("5_frame_{t}_with_ftid.txt")), format!("a 0 {} 0.5 0.1 0.2\n", x + 0.05)).unwrap();
-            frames.push(FrameResult { n: t, objects: vec![TrackedObject { id: 42, score: 0.9, box_xyxy_norm: [x as f32, 0.4, (x + 0.1) as f32, 0.6] }] });
+            std::fs::write(
+                labels.join(format!("5_frame_{t}_with_ftid.txt")),
+                format!("a 0 {} 0.5 0.1 0.2\n", x + 0.05),
+            )
+            .unwrap();
+            frames.push(FrameResult {
+                n: t,
+                objects: vec![TrackedObject {
+                    id: 42,
+                    score: 0.9,
+                    box_xyxy_norm: [x as f32, 0.4, (x + 0.1) as f32, 0.6],
+                }],
+            });
         }
         std::fs::create_dir_all(d.join("pred")).unwrap();
-        std::fs::write(d.join("pred/5.json"), predictions_json("5", 640, 480, &frames).unwrap()).unwrap();
-        let e = evaluate_window(&d.join("pred"), &["5".to_string()], &d.join("gt"), Window { start: Some(0), max_frames: Some(6) }).unwrap();
+        std::fs::write(
+            d.join("pred/5.json"),
+            predictions_json("5", 640, 480, &frames).unwrap(),
+        )
+        .unwrap();
+        let e = evaluate_window(
+            &d.join("pred"),
+            &["5".to_string()],
+            &d.join("gt"),
+            Window {
+                start: Some(0),
+                max_frames: Some(6),
+            },
+        )
+        .unwrap();
         let hota = e.videos[0].hota.summary().hota;
         assert!(hota > 0.999, "HOTA {hota}");
         let _ = std::fs::remove_dir_all(&d);
@@ -1752,39 +2596,135 @@ mod tests {
         assert!(usage(&["in", "--prompt", "p", "--max-frames", "-3"]));
         assert!(usage(&["in", "--prompt", "p", "--start", "x"]));
         assert!(usage(&["in", "--prompt", "p", "--overlay", "0"]));
-        assert!(usage(&["in", "--prompt", "p", "--overlay-fps", "49"]), "a frame rate without a video");
+        assert!(
+            usage(&["in", "--prompt", "p", "--overlay-fps", "49"]),
+            "a frame rate without a video"
+        );
         for fps in ["0", "0.5", "241", "abc", "NaN", "inf"] {
-            assert!(usage(&["in", "--prompt", "p", "--overlay-video", "o.mp4", "--overlay-fps", fps]), "--overlay-fps {fps}");
+            assert!(
+                usage(&[
+                    "in",
+                    "--prompt",
+                    "p",
+                    "--overlay-video",
+                    "o.mp4",
+                    "--overlay-fps",
+                    fps
+                ]),
+                "--overlay-fps {fps}"
+            );
         }
-        assert!(usage(&["in", "--prompt", "p", "--overlay-video"]), "no file name");
+        assert!(
+            usage(&["in", "--prompt", "p", "--overlay-video"]),
+            "no file name"
+        );
         assert!(usage(&["in", "--prompt", "p", "--threads", "0"]));
         assert!(usage(&["in", "--prompt", "p", "--video", "a/b"]));
         assert!(usage(&["in", "--prompt", "p", "--bogus", "1"]));
         // The CoreML trunks exist at 1008 only, and coreml-fp32 is the Metal default.
-        assert!(usage(&["in", "--prompt", "p", "--input-size", "672"]), "default Metal trunk at 672");
-        assert!(usage(&["in", "--prompt", "p", "--input-size", "672", "--trunk-precision", "coreml-fp16"]));
-        assert!(usage(&["in", "--prompt", "p", "--input-size", "672", "--backend", "cpu", "--trunk-precision", "coreml-fp32"]));
-        assert!(!usage(&["in", "--prompt", "p", "--input-size", "672", "--trunk-precision", "f32"]), "the Ojas trunk takes 672");
-        assert!(!usage(&["in", "--prompt", "p", "--input-size", "672", "--backend", "cpu"]), "the CPU default is the Ojas trunk");
+        assert!(
+            usage(&["in", "--prompt", "p", "--input-size", "672"]),
+            "default Metal trunk at 672"
+        );
+        assert!(usage(&[
+            "in",
+            "--prompt",
+            "p",
+            "--input-size",
+            "672",
+            "--trunk-precision",
+            "coreml-fp16"
+        ]));
+        assert!(usage(&[
+            "in",
+            "--prompt",
+            "p",
+            "--input-size",
+            "672",
+            "--backend",
+            "cpu",
+            "--trunk-precision",
+            "coreml-fp32"
+        ]));
+        assert!(
+            !usage(&[
+                "in",
+                "--prompt",
+                "p",
+                "--input-size",
+                "672",
+                "--trunk-precision",
+                "f32"
+            ]),
+            "the Ojas trunk takes 672"
+        );
+        assert!(
+            !usage(&[
+                "in",
+                "--prompt",
+                "p",
+                "--input-size",
+                "672",
+                "--backend",
+                "cpu"
+            ]),
+            "the CPU default is the Ojas trunk"
+        );
         assert!(usage(&["in", "--prompt", "p", "--profile", "all"]));
-        assert!(usage(&["in", "--prompt", "p", "--profile", "stages", "--backend", "cpu"]));
-        assert!(usage(&["in", "--prompt", "p", "--profile", "ops", "--trunk-precision", "bf16-linears"]));
-        assert!(!usage(&["in", "--prompt", "p", "--profile", "stages"]), "the default Metal trunk profiles");
-        assert!(!usage(&["in", "--prompt", "p", "--profile", "ops", "--trunk-precision", "f32"]));
+        assert!(usage(&[
+            "in",
+            "--prompt",
+            "p",
+            "--profile",
+            "stages",
+            "--backend",
+            "cpu"
+        ]));
+        assert!(usage(&[
+            "in",
+            "--prompt",
+            "p",
+            "--profile",
+            "ops",
+            "--trunk-precision",
+            "bf16-linears"
+        ]));
+        assert!(
+            !usage(&["in", "--prompt", "p", "--profile", "stages"]),
+            "the default Metal trunk profiles"
+        );
+        assert!(!usage(&[
+            "in",
+            "--prompt",
+            "p",
+            "--profile",
+            "ops",
+            "--trunk-precision",
+            "f32"
+        ]));
     }
 
     #[test]
     fn a_bad_input_fails_before_the_weights_are_looked_for() {
         // Weights are not given and may not exist: the input error must come first.
         let missing = run(&args(&["/nonexistent/spiketrack-input", "--prompt", "p"]));
-        assert!(matches!(&missing, Err(CliError::Failed(m)) if m.contains("does not exist")), "{missing:?}");
+        assert!(
+            matches!(&missing, Err(CliError::Failed(m)) if m.contains("does not exist")),
+            "{missing:?}"
+        );
         let d = temp("notframes");
         touch(&d, "readme.txt");
         let empty = run(&args(&[d.to_str().unwrap(), "--prompt", "p"]));
-        assert!(matches!(&empty, Err(CliError::Failed(m)) if m.contains("no <video>_frame_<n>")), "{empty:?}");
+        assert!(
+            matches!(&empty, Err(CliError::Failed(m)) if m.contains("no <video>_frame_<n>")),
+            "{empty:?}"
+        );
         let file = d.join("readme.txt");
         let notvideo = run(&args(&[file.to_str().unwrap(), "--prompt", "p"]));
-        assert!(matches!(&notvideo, Err(CliError::Failed(m)) if m.contains("not a folder of frames")), "{notvideo:?}");
+        assert!(
+            matches!(&notvideo, Err(CliError::Failed(m)) if m.contains("not a folder of frames")),
+            "{notvideo:?}"
+        );
         let _ = std::fs::remove_dir_all(&d);
     }
 
@@ -1796,7 +2736,10 @@ mod tests {
     #[test]
     fn max_objects_defaults_to_64_and_the_help_says_so() {
         assert_eq!(DEFAULT_MAX_OBJECTS, 64);
-        assert!(USAGE.contains(&format!("1 to 128 (default {DEFAULT_MAX_OBJECTS};")), "--max-objects help names another default");
+        assert!(
+            USAGE.contains(&format!("1 to 128 (default {DEFAULT_MAX_OBJECTS};")),
+            "--max-objects help names another default"
+        );
         assert!(run(&args(&["--help"])).is_ok());
     }
 
@@ -1810,14 +2753,30 @@ mod tests {
         }
         // Multiples of the patch that tile no window, and sizes that are not even patches.
         for n in [0usize, 14, 350, 448, 504, 1000, 1009] {
-            let Err(CliError::Usage(m)) = parse_input_size(n) else { panic!("{n} was accepted") };
+            let Err(CliError::Usage(m)) = parse_input_size(n) else {
+                panic!("{n} was accepted")
+            };
             assert!(m.contains("--input-size") && m.contains("336"), "{n}: {m}");
         }
         // The flag is checked before the input is opened: a missing folder does not mask it.
-        assert!(matches!(run(&args(&["/nonexistent", "--prompt", "p", "--input-size", "500"])), Err(CliError::Usage(m)) if m.contains("--input-size 500")));
-        assert!(matches!(run(&args(&["/nonexistent", "--prompt", "p", "--input-size", "abc"])), Err(CliError::Usage(_))));
+        assert!(
+            matches!(run(&args(&["/nonexistent", "--prompt", "p", "--input-size", "500"])), Err(CliError::Usage(m)) if m.contains("--input-size 500"))
+        );
+        assert!(matches!(
+            run(&args(&[
+                "/nonexistent",
+                "--prompt",
+                "p",
+                "--input-size",
+                "abc"
+            ])),
+            Err(CliError::Usage(_))
+        ));
         // The run's preprocessing text names the size that ran.
-        assert!(preprocessing_text(false, 672).contains("resize to 672x672") && !preprocessing_text(false, 672).contains("1008"));
+        assert!(
+            preprocessing_text(false, 672).contains("resize to 672x672")
+                && !preprocessing_text(false, 672).contains("1008")
+        );
         assert!(preprocessing_text(true, 1008).contains("resize to 1008x1008"));
     }
 
@@ -1829,7 +2788,10 @@ mod tests {
     #[test]
     #[ignore = "needs a Metal GPU"]
     fn a_track_runs_metal_backend_has_the_raised_memory_cap() {
-        let default = MetalBackend::new(Budget::new(BUDGET_BYTES)).expect("metal").mem_cap().expect("mem_cap");
+        let default = MetalBackend::new(Budget::new(BUDGET_BYTES))
+            .expect("metal")
+            .mem_cap()
+            .expect("mem_cap");
         let (_be, cap) = open_metal().expect("open_metal");
         assert_eq!(default, 1 << 30, "ojas's default is min(1 GiB, budget / 4)");
         assert_eq!(cap, METAL_MEM_CAP);
@@ -1840,17 +2802,29 @@ mod tests {
         for name in ["f32", "bf16-linears", "coreml-fp32", "coreml-fp16"] {
             assert_eq!(TrunkPrecision::parse(name).expect(name).name(), name);
         }
-        assert_eq!(TrunkPrecision::parse("coreml-fp16").unwrap(), TrunkPrecision::Coreml("fp16"));
+        assert_eq!(
+            TrunkPrecision::parse("coreml-fp16").unwrap(),
+            TrunkPrecision::Coreml("fp16")
+        );
         for bad in ["", "fp32", "coreml", "coreml-bf16", "F32"] {
             assert!(TrunkPrecision::parse(bad).is_err(), "{bad:?} accepted");
         }
-        assert_eq!(coreml_package(Path::new("/m"), "fp32"), PathBuf::from("/m/coreml/sam3.1_trunk_fp32.mlpackage"));
+        assert_eq!(
+            coreml_package(Path::new("/m"), "fp32"),
+            PathBuf::from("/m/coreml/sam3.1_trunk_fp32.mlpackage")
+        );
     }
 
     #[test]
     fn the_default_trunk_is_coreml_fp32_on_metal_and_the_ojas_trunk_on_cpu() {
-        assert_eq!(TrunkPrecision::default_for(BackendChoice::Metal), TrunkPrecision::Coreml("fp32"));
-        assert_eq!(TrunkPrecision::default_for(BackendChoice::Cpu), TrunkPrecision::F32);
+        assert_eq!(
+            TrunkPrecision::default_for(BackendChoice::Metal),
+            TrunkPrecision::Coreml("fp32")
+        );
+        assert_eq!(
+            TrunkPrecision::default_for(BackendChoice::Cpu),
+            TrunkPrecision::F32
+        );
     }
 
     /// With no --trunk-precision, a Metal run whose model dir has no CoreML package fails loud and
@@ -1861,16 +2835,36 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let images = root.join("data/visem/VISEM_Tracking_Train_v4/Train/22/images");
         let model_dir = temp("no-coreml-model-dir");
-        let tokenizer = PathBuf::from(std::env::var("SPIKETRACK_MODEL_DIR").expect("set SPIKETRACK_MODEL_DIR"));
+        let tokenizer =
+            PathBuf::from(std::env::var("SPIKETRACK_MODEL_DIR").expect("set SPIKETRACK_MODEL_DIR"));
         for f in ["vocab.json", "merges.txt"] {
             std::fs::copy(tokenizer.join(f), model_dir.join(f)).unwrap();
         }
         let out = temp("default-trunk-missing");
-        let r = run(&args(&[images.to_str().unwrap(), "--prompt", "cell", "--out", out.to_str().unwrap(), "--max-frames", "1", "--model-dir", model_dir.to_str().unwrap()]));
-        let Err(CliError::Failed(msg)) = r else { panic!("expected a failure, got {r:?}") };
+        let r = run(&args(&[
+            images.to_str().unwrap(),
+            "--prompt",
+            "cell",
+            "--out",
+            out.to_str().unwrap(),
+            "--max-frames",
+            "1",
+            "--model-dir",
+            model_dir.to_str().unwrap(),
+        ]));
+        let Err(CliError::Failed(msg)) = r else {
+            panic!("expected a failure, got {r:?}")
+        };
         assert!(msg.starts_with("--trunk-precision coreml-fp32: "), "{msg}");
-        assert!(msg.contains("coreml_trunk.py export --precision fp32") && msg.contains("--trunk-precision f32"), "{msg}");
-        assert!(!out.join("22.json").exists(), "a failed run wrote predictions");
+        assert!(
+            msg.contains("coreml_trunk.py export --precision fp32")
+                && msg.contains("--trunk-precision f32"),
+            "{msg}"
+        );
+        assert!(
+            !out.join("22.json").exists(),
+            "a failed run wrote predictions"
+        );
     }
 
     /// The CoreML fp32 trunk on the first 8 frames of VISEM 22 against the Ojas f32 trunk: run.json
@@ -1883,25 +2877,58 @@ mod tests {
         let mut preds = Vec::new();
         for precision in ["f32", "coreml-fp32"] {
             let out = temp(&format!("visem22-{precision}"));
-            run(&args(&[images.to_str().unwrap(), "--prompt", "cell", "--out", out.to_str().unwrap(), "--backend", "metal", "--max-frames", "8", "--trunk-precision", precision])).expect("track");
-            let run_json = ojas_io::parse_json(&std::fs::read_to_string(out.join("22.run.json")).unwrap()).unwrap();
+            run(&args(&[
+                images.to_str().unwrap(),
+                "--prompt",
+                "cell",
+                "--out",
+                out.to_str().unwrap(),
+                "--backend",
+                "metal",
+                "--max-frames",
+                "8",
+                "--trunk-precision",
+                precision,
+            ]))
+            .expect("track");
+            let run_json =
+                ojas_io::parse_json(&std::fs::read_to_string(out.join("22.run.json")).unwrap())
+                    .unwrap();
             assert_eq!(run_json.get_str("trunk_precision").unwrap(), precision);
             match precision {
-                "f32" => assert!(run_json.field("external_trunk").unwrap().is_null(), "the Ojas trunk reports no external trunk"),
+                "f32" => assert!(
+                    run_json.field("external_trunk").unwrap().is_null(),
+                    "the Ojas trunk reports no external trunk"
+                ),
                 _ => {
                     let ext = run_json.get_str("external_trunk").unwrap();
-                    assert!(ext.starts_with("coreml sam3.1_trunk_fp32.mlpackage (cpu_and_gpu) sha256 "), "{ext}");
+                    assert!(
+                        ext.starts_with("coreml sam3.1_trunk_fp32.mlpackage (cpu_and_gpu) sha256 "),
+                        "{ext}"
+                    );
                 }
             }
             let text = std::fs::read_to_string(out.join("22.json")).unwrap();
             preds.push(parse_predictions(&text, "22").expect("predictions"));
         }
         for n in 0..8u32 {
-            let ids = |i: usize| -> BTreeSet<String> { preds[i].frames[&n].iter().map(|(id, _)| id.clone()).collect() };
-            println!("frame {n}: ojas {} ids, coreml {} ids", ids(0).len(), ids(1).len());
+            let ids = |i: usize| -> BTreeSet<String> {
+                preds[i].frames[&n]
+                    .iter()
+                    .map(|(id, _)| id.clone())
+                    .collect()
+            };
+            println!(
+                "frame {n}: ojas {} ids, coreml {} ids",
+                ids(0).len(),
+                ids(1).len()
+            );
             assert_eq!(ids(0), ids(1), "frame {n}: the id sets differ");
         }
-        assert!(!preds[0].frames[&0].is_empty(), "no object in frame 0: the comparison would be vacuous");
+        assert!(
+            !preds[0].frames[&0].is_empty(),
+            "no object in frame 0: the comparison would be vacuous"
+        );
     }
 
     #[test]
@@ -1928,16 +2955,30 @@ mod tests {
         run(&a).expect("track");
         let text = std::fs::read_to_string(out.join("22.json")).expect("22.json");
         let p = parse_predictions(&text, "22").expect("eval-visem reads the file");
-        assert_eq!(p.frames.keys().copied().collect::<Vec<_>>(), (0..8).collect::<Vec<u32>>());
+        assert_eq!(
+            p.frames.keys().copied().collect::<Vec<_>>(),
+            (0..8).collect::<Vec<u32>>()
+        );
         for n in 0..8u32 {
-            assert!(out.join(format!("masks/22_frame_{n}.json")).is_file(), "masks for frame {n}");
+            assert!(
+                out.join(format!("masks/22_frame_{n}.json")).is_file(),
+                "masks for frame {n}"
+            );
         }
-        assert!(out.join("overlay/22_frame_0.png").is_file() && out.join("overlay/22_frame_4.png").is_file());
-        let run_json = ojas_io::parse_json(&std::fs::read_to_string(out.join("22.run.json")).unwrap()).unwrap();
+        assert!(
+            out.join("overlay/22_frame_0.png").is_file()
+                && out.join("overlay/22_frame_4.png").is_file()
+        );
+        let run_json =
+            ojas_io::parse_json(&std::fs::read_to_string(out.join("22.run.json")).unwrap())
+                .unwrap();
         assert_eq!(run_json.get_str("backend").unwrap(), "metal");
         assert_eq!(run_json.get_u64("frames").unwrap(), 8);
         assert_eq!(run_json.get_str("boxes").unwrap(), "mask");
-        assert_eq!(run_json.get_u64("metal_mem_cap_bytes").unwrap(), METAL_MEM_CAP);
+        assert_eq!(
+            run_json.get_u64("metal_mem_cap_bytes").unwrap(),
+            METAL_MEM_CAP
+        );
 
         // Stability: print the id sets, then require that the ids of frame 0 are carried to
         // frame 7 and that a track's written mask (its centroid) moves less than 0.1 of the frame
@@ -1945,23 +2986,52 @@ mod tests {
         // non-overlap rule (sam3_multiplex_tracking.py:729-746), so a few raw-mask pixels on a
         // neighbouring cell that the rule then gives to that cell stretch the box while the
         // track's own mask stays put (VISEM 22 id 3, frame 2: bench/results/track/box-convention).
-        let ids = |n: u32| -> BTreeSet<String> { p.frames[&n].iter().map(|(id, _)| id.clone()).collect() };
+        let ids = |n: u32| -> BTreeSet<String> {
+            p.frames[&n].iter().map(|(id, _)| id.clone()).collect()
+        };
         for n in 0..8 {
             println!("frame {n}: {} objects", p.frames[&n].len());
         }
-        assert!(!ids(0).is_empty(), "no object in frame 0: the prompt found nothing");
+        assert!(
+            !ids(0).is_empty(),
+            "no object in frame 0: the prompt found nothing"
+        );
         let kept = ids(0).intersection(&ids(7)).count();
-        println!("ids in frame 0: {}, still present in frame 7: {kept}", ids(0).len());
-        assert!(kept * 10 >= ids(0).len() * 9, "only {kept} of {} ids of frame 0 reach frame 7", ids(0).len());
+        println!(
+            "ids in frame 0: {}, still present in frame 7: {kept}",
+            ids(0).len()
+        );
+        assert!(
+            kept * 10 >= ids(0).len() * 9,
+            "only {kept} of {} ids of frame 0 reach frame 7",
+            ids(0).len()
+        );
         // id -> normalised centroid of its written mask, per frame.
         let centroids = |n: u32| -> BTreeMap<i64, (f64, f64)> {
-            let v = ojas_io::parse_json(&std::fs::read_to_string(out.join(format!("masks/22_frame_{n}.json"))).unwrap()).unwrap();
+            let v = ojas_io::parse_json(
+                &std::fs::read_to_string(out.join(format!("masks/22_frame_{n}.json"))).unwrap(),
+            )
+            .unwrap();
             let size = v.get_array("size").unwrap();
-            let (h, w) = (size[0].as_u64().unwrap() as usize, size[1].as_u64().unwrap() as usize);
+            let (h, w) = (
+                size[0].as_u64().unwrap() as usize,
+                size[1].as_u64().unwrap() as usize,
+            );
             let mut c = BTreeMap::new();
             for o in v.get_array("objects").unwrap() {
-                let counts: Vec<u64> = o.get_array("counts").unwrap().iter().map(|x| x.as_u64().unwrap()).collect();
-                let bits = Rle { height: h, width: w, area: o.get_u64("area").unwrap(), counts }.decode();
+                let counts: Vec<u64> = o
+                    .get_array("counts")
+                    .unwrap()
+                    .iter()
+                    .map(|x| x.as_u64().unwrap())
+                    .collect();
+                let bits = Rle {
+                    height: h,
+                    width: w,
+                    area: o.get_u64("area").unwrap(),
+                    counts,
+                }
+                .decode();
                 let (mut sx, mut sy, mut k) = (0f64, 0f64, 0f64);
                 for (i, _) in bits.iter().enumerate().filter(|(_, &b)| b) {
                     sx += (i % w) as f64;
@@ -1969,7 +3039,10 @@ mod tests {
                     k += 1.0;
                 }
                 if k > 0.0 {
-                    c.insert(o.get_i64("id").unwrap(), (sx / k / w as f64, sy / k / h as f64));
+                    c.insert(
+                        o.get_i64("id").unwrap(),
+                        (sx / k / w as f64, sy / k / h as f64),
+                    );
                 }
             }
             c
@@ -1978,13 +3051,29 @@ mod tests {
             let (a, b) = (centroids(n), centroids(n + 1));
             for (id, c0) in &a {
                 if let Some(c1) = b.get(id) {
-                    assert!((c0.0 - c1.0).abs() < 0.1 && (c0.1 - c1.1).abs() < 0.1, "id {id}'s mask jumps between frames {n} and {}: {c0:?} -> {c1:?}", n + 1);
+                    assert!(
+                        (c0.0 - c1.0).abs() < 0.1 && (c0.1 - c1.1).abs() < 0.1,
+                        "id {id}'s mask jumps between frames {n} and {}: {c0:?} -> {c1:?}",
+                        n + 1
+                    );
                 }
             }
         }
         let visem_str = visem.to_str().unwrap();
-        let e = evaluate_window(&out, &["22".to_string()], Path::new(visem_str), Window { start: Some(0), max_frames: Some(8) }).expect("eval-visem");
-        println!("HOTA on frames 0..8 of video 22: {:.4}", e.videos[0].hota.summary().hota);
+        let e = evaluate_window(
+            &out,
+            &["22".to_string()],
+            Path::new(visem_str),
+            Window {
+                start: Some(0),
+                max_frames: Some(8),
+            },
+        )
+        .expect("eval-visem");
+        println!(
+            "HOTA on frames 0..8 of video 22: {:.4}",
+            e.videos[0].hota.summary().hota
+        );
         let _ = std::fs::remove_dir_all(&out);
     }
 
@@ -2023,32 +3112,72 @@ mod tests {
         ]);
         run(&a).expect("track");
 
-        let mut reader = VideoReader::open(&video).expect("the overlay video opens in AVFoundation");
+        let mut reader =
+            VideoReader::open(&video).expect("the overlay video opens in AVFoundation");
         let info = reader.info().clone();
         assert_eq!((info.width, info.height, info.frame_count), (640, 480, 24));
-        assert!((info.fps - FOLDER_OVERLAY_FPS).abs() < 0.5, "fps {}", info.fps);
-        let frames: Vec<Rgb8> = std::iter::from_fn(|| reader.next_frame().expect("decode").map(|f| f.2)).collect();
+        assert!(
+            (info.fps - FOLDER_OVERLAY_FPS).abs() < 0.5,
+            "fps {}",
+            info.fps
+        );
+        let frames: Vec<Rgb8> =
+            std::iter::from_fn(|| reader.next_frame().expect("decode").map(|f| f.2)).collect();
         assert_eq!(frames.len(), 24);
 
         // The overlay is in the video: frame 0 differs from the bare JPEG by more than codec noise somewhere.
-        let bare = decode_image_with_source(visem.join("22/images/22_frame_0.jpg")).expect("jpeg").0;
-        let changed = frames[0].data.iter().zip(&bare.data).filter(|(a, b)| a.abs_diff(**b) > 30).count();
-        println!("frame 0: {changed} of {} samples differ from the bare frame by more than 30 levels", bare.data.len());
-        assert!(changed > 100, "frame 0 of the video shows no overlay ({changed} samples changed)");
+        let bare = decode_image_with_source(visem.join("22/images/22_frame_0.jpg"))
+            .expect("jpeg")
+            .0;
+        let changed = frames[0]
+            .data
+            .iter()
+            .zip(&bare.data)
+            .filter(|(a, b)| a.abs_diff(**b) > 30)
+            .count();
+        println!(
+            "frame 0: {changed} of {} samples differ from the bare frame by more than 30 levels",
+            bare.data.len()
+        );
+        assert!(
+            changed > 100,
+            "frame 0 of the video shows no overlay ({changed} samples changed)"
+        );
 
         // The video's frame 8 is the PNG overlay of frame 8, up to H.264 loss: the mean absolute difference is small.
-        let png = decode_image_with_source(out.join("overlay/22_frame_8.png")).expect("png overlay").0;
-        let mean = frames[8].data.iter().zip(&png.data).map(|(a, b)| f64::from(a.abs_diff(*b))).sum::<f64>() / png.data.len() as f64;
-        println!("video frame 8 against overlay/22_frame_8.png: mean abs difference {mean:.2} levels");
+        let png = decode_image_with_source(out.join("overlay/22_frame_8.png"))
+            .expect("png overlay")
+            .0;
+        let mean = frames[8]
+            .data
+            .iter()
+            .zip(&png.data)
+            .map(|(a, b)| f64::from(a.abs_diff(*b)))
+            .sum::<f64>()
+            / png.data.len() as f64;
+        println!(
+            "video frame 8 against overlay/22_frame_8.png: mean abs difference {mean:.2} levels"
+        );
         assert!(mean < 4.0, "mean abs difference {mean}");
 
-        let run_json = ojas_io::parse_json(&std::fs::read_to_string(out.join("22.run.json")).unwrap()).unwrap();
-        assert_eq!(run_json.get_str("overlay_video").unwrap(), std::fs::canonicalize(&video).unwrap().to_str().unwrap());
+        let run_json =
+            ojas_io::parse_json(&std::fs::read_to_string(out.join("22.run.json")).unwrap())
+                .unwrap();
+        assert_eq!(
+            run_json.get_str("overlay_video").unwrap(),
+            std::fs::canonicalize(&video).unwrap().to_str().unwrap()
+        );
         assert_eq!(run_json.get_u64("overlay_video_frames").unwrap(), 24);
         assert_eq!(run_json.get_f64("overlay_video_fps").unwrap(), 49.0);
-        assert!(run_json.get_str("overlay_video_fps_source").unwrap().contains("folder of frames"));
+        assert!(run_json
+            .get_str("overlay_video_fps_source")
+            .unwrap()
+            .contains("folder of frames"));
         for n in 0..24u32 {
-            assert!(out.join(format!("masks/22_frame_{n}.json")).is_file(), "masks for frame {n}");
+            assert!(
+                out.join(format!("masks/22_frame_{n}.json")).is_file(),
+                "masks for frame {n}"
+            );
         }
         assert!(out.join("22.json").is_file());
         let _ = std::fs::remove_dir_all(&out);
@@ -2070,36 +3199,79 @@ mod tests {
         const N: usize = 8;
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let weights = std::env::var("SPIKETRACK_WEIGHTS").expect("set SPIKETRACK_WEIGHTS");
-        let model_dir = PathBuf::from(std::env::var("SPIKETRACK_MODEL_DIR").expect("set SPIKETRACK_MODEL_DIR"));
+        let model_dir =
+            PathBuf::from(std::env::var("SPIKETRACK_MODEL_DIR").expect("set SPIKETRACK_MODEL_DIR"));
         let (w, _) = weights::load(Path::new(&weights), None).expect("weights");
-        let fx = ojas_io::SafeTensors::open(&root.join("fixtures/detect_track/22.safetensors")).expect("oracle fixture");
+        let fx = ojas_io::SafeTensors::open(&root.join("fixtures/detect_track/22.safetensors"))
+            .expect("oracle fixture");
         let (_, oracle) = fx.read_f32_widened("frames").expect("frames");
         let px = 3 * 1008 * 1008;
         let imageio: Vec<Vec<f32>> = (0..N)
-            .map(|t| upstream_input(&decode_image_with_source(root.join(format!("data/visem/VISEM_Tracking_Train_v4/Train/22/images/22_frame_{t}.jpg"))).map(|d| d.0).expect("decode"), 1008))
+            .map(|t| {
+                upstream_input(
+                    &decode_image_with_source(root.join(format!(
+                        "data/visem/VISEM_Tracking_Train_v4/Train/22/images/22_frame_{t}.jpg"
+                    )))
+                    .map(|d| d.0)
+                    .expect("decode"),
+                    1008,
+                )
+            })
             .collect();
         for t in 0..N {
-            let d = oracle[t * px..(t + 1) * px].iter().zip(&imageio[t]).filter(|(a, b)| a != b).count();
+            let d = oracle[t * px..(t + 1) * px]
+                .iter()
+                .zip(&imageio[t])
+                .filter(|(a, b)| a != b)
+                .count();
             println!("frame {t}: CLI-decoded input differs from upstream's on {d} of {px} samples");
         }
         let (h, wd) = (480, 640);
 
-        fn areas<B: Backend>(be: &B, w: &Sam31Weights, model_dir: &Path, frames: &dyn Fn(usize) -> Vec<f32>, label: &str) -> Vec<Vec<(i64, u32)>> {
+        fn areas<B: Backend>(
+            be: &B,
+            w: &Sam31Weights,
+            model_dir: &Path,
+            frames: &dyn Fn(usize) -> Vec<f32>,
+            label: &str,
+        ) -> Vec<Vec<(i64, u32)>> {
             let backbone = Backbone::new(be, &w.vision).expect("backbone");
             let text = Text::new(be, &w.text).expect("text");
-            let det = Detector::new(be, DetectorWeights { transformer: &w.detector_transformer, geometry: &w.geometry_encoder, segmentation: &w.segmentation_head, scoring: &w.dot_prod_scoring }).expect("detector");
+            let det = Detector::new(
+                be,
+                DetectorWeights {
+                    transformer: &w.detector_transformer,
+                    geometry: &w.geometry_encoder,
+                    segmentation: &w.segmentation_head,
+                    scoring: &w.dot_prod_scoring,
+                },
+            )
+            .expect("detector");
             let vos = Vos::new(be, &backbone, &w.tracker).expect("tracker");
-            let tok = Tokenizer::from_hf_files(&model_dir.join("vocab.json"), &model_dir.join("merges.txt")).expect("tokenizer");
+            let tok = Tokenizer::from_hf_files(
+                &model_dir.join("vocab.json"),
+                &model_dir.join("merges.txt"),
+            )
+            .expect("tokenizer");
             let prompt = Session::encode_prompt(be, &text, &tok, "cell").expect("prompt");
             let mut session = Session::new(&vos, &det, prompt, SessionConfig::new(N, 480, 640));
             let mut out = vec![Vec::new(); N];
             let mut take = |ys: Vec<YieldedFrame>| {
                 for y in ys {
-                    out[y.frame] = y.obj_ids.iter().zip(&y.masks).map(|(&id, m)| (id, m.area())).collect();
+                    out[y.frame] = y
+                        .obj_ids
+                        .iter()
+                        .zip(&y.masks)
+                        .map(|(&id, m)| (id, m.area()))
+                        .collect();
                 }
             };
             for t in 0..N {
-                let x = be.upload(&Tensor::from_f32(&frames(t), &[1, 3, 1008, 1008], be.budget()).expect("t")).expect("up");
+                let x = be
+                    .upload(
+                        &Tensor::from_f32(&frames(t), &[1, 3, 1008, 1008], be.budget()).expect("t"),
+                    )
+                    .expect("up");
                 take(session.push_frame(&x).expect("push"));
             }
             take(session.finish());
@@ -2111,17 +3283,61 @@ mod tests {
         let cpu = || CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu");
         let metal = || MetalBackend::new(Budget::new(28 << 30)).expect("metal");
         let runs = [
-            ("upstream frames, CPU", areas(&cpu(), &w, &model_dir, &oracle_frame, "upstream frames, CPU")),
-            ("upstream frames, Metal", areas(&metal(), &w, &model_dir, &oracle_frame, "upstream frames, Metal")),
-            ("CLI-decoded frames, Metal", areas(&metal(), &w, &model_dir, &imageio_frame, "CLI-decoded frames, Metal")),
-            ("CLI-decoded frames, CPU", areas(&cpu(), &w, &model_dir, &imageio_frame, "CLI-decoded frames, CPU")),
+            (
+                "upstream frames, CPU",
+                areas(
+                    &cpu(),
+                    &w,
+                    &model_dir,
+                    &oracle_frame,
+                    "upstream frames, CPU",
+                ),
+            ),
+            (
+                "upstream frames, Metal",
+                areas(
+                    &metal(),
+                    &w,
+                    &model_dir,
+                    &oracle_frame,
+                    "upstream frames, Metal",
+                ),
+            ),
+            (
+                "CLI-decoded frames, Metal",
+                areas(
+                    &metal(),
+                    &w,
+                    &model_dir,
+                    &imageio_frame,
+                    "CLI-decoded frames, Metal",
+                ),
+            ),
+            (
+                "CLI-decoded frames, CPU",
+                areas(
+                    &cpu(),
+                    &w,
+                    &model_dir,
+                    &imageio_frame,
+                    "CLI-decoded frames, CPU",
+                ),
+            ),
         ];
         let px_frame = (h * wd) as f64;
         for (label, a) in &runs {
-            println!("\n[{label}] per frame: id:area (largest area / frame {:.0} px)", px_frame);
+            println!(
+                "\n[{label}] per frame: id:area (largest area / frame {:.0} px)",
+                px_frame
+            );
             for (t, row) in a.iter().enumerate() {
                 let max = row.iter().map(|&(_, ar)| ar).max().unwrap_or(0);
-                println!("frame {t}: {} objects, max area {max} ({:.2}% of frame): {:?}", row.len(), 100.0 * max as f64 / px_frame, row);
+                println!(
+                    "frame {t}: {} objects, max area {max} ({:.2}% of frame): {:?}",
+                    row.len(),
+                    100.0 * max as f64 / px_frame,
+                    row
+                );
             }
         }
     }

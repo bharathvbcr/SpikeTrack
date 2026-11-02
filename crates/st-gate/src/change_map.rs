@@ -63,7 +63,11 @@ pub struct Geometry {
 impl Geometry {
     /// SAM 3.1's PE ViT: a 72x72 token grid of 14x14 patches on a 1008x1008
     /// frame, attention windows of 24x24 tokens (a 3x3 grid of windows).
-    pub const SAM3: Geometry = Geometry { grid: 72, patch: 14, window: 24 };
+    pub const SAM3: Geometry = Geometry {
+        grid: 72,
+        patch: 14,
+        window: 24,
+    };
 
     /// SAM 3.1's PE ViT on a square `side` x `side` frame: 14-pixel patches, 24-token
     /// windows, so `side` must be a whole number of windows, a multiple of 14 x 24 = 336
@@ -72,14 +76,18 @@ impl Geometry {
     pub fn from_image_side(side: usize) -> Result<Self, GateError> {
         let (patch, window) = (Self::SAM3.patch, Self::SAM3.window);
         let unit = patch * window;
-        if side == 0 || side % unit != 0 {
+        if side == 0 || !side.is_multiple_of(unit) {
             return Err(GateError::Geometry(format!(
                 "image side {side} is not a positive multiple of {unit} ({patch}-pixel patches x {window}-token windows); try {unit}, {}, {}",
                 2 * unit,
                 3 * unit
             )));
         }
-        let geo = Geometry { grid: side / patch, patch, window };
+        let geo = Geometry {
+            grid: side / patch,
+            patch,
+            window,
+        };
         geo.validate()?;
         Ok(geo)
     }
@@ -119,10 +127,15 @@ impl Geometry {
 
     fn validate(self) -> Result<(), GateError> {
         if self.grid == 0 || self.patch == 0 || self.window == 0 {
-            return Err(GateError::Geometry(format!("{self:?} has a zero dimension")));
+            return Err(GateError::Geometry(format!(
+                "{self:?} has a zero dimension"
+            )));
         }
-        if self.grid % self.window != 0 {
-            return Err(GateError::Geometry(format!("window {} does not divide grid {}", self.window, self.grid)));
+        if !self.grid.is_multiple_of(self.window) {
+            return Err(GateError::Geometry(format!(
+                "window {} does not divide grid {}",
+                self.window, self.grid
+            )));
         }
         Ok(())
     }
@@ -133,11 +146,20 @@ impl Geometry {
 pub enum GateError {
     Geometry(String),
     /// `data.len()` is not `width * height * channels`.
-    DataLength { expected: usize, found: usize },
+    DataLength {
+        expected: usize,
+        found: usize,
+    },
     /// The frame is not `pixels x pixels` for the geometry.
-    FrameSize { expected: usize, found: (usize, usize) },
+    FrameSize {
+        expected: usize,
+        found: (usize, usize),
+    },
     /// Zero channels, more than 8, or a different count than the reference.
-    Channels { expected: usize, found: usize },
+    Channels {
+        expected: usize,
+        found: usize,
+    },
     Config(String),
 }
 
@@ -145,9 +167,17 @@ impl fmt::Display for GateError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Geometry(d) => write!(f, "bad geometry: {d}"),
-            Self::DataLength { expected, found } => write!(f, "frame data is {found} bytes, expected {expected}"),
-            Self::FrameSize { expected, found } => write!(f, "frame is {} x {}, expected {expected} x {expected}", found.0, found.1),
-            Self::Channels { expected, found } => write!(f, "frame has {found} channels, expected {expected}"),
+            Self::DataLength { expected, found } => {
+                write!(f, "frame data is {found} bytes, expected {expected}")
+            }
+            Self::FrameSize { expected, found } => write!(
+                f,
+                "frame is {} x {}, expected {expected} x {expected}",
+                found.0, found.1
+            ),
+            Self::Channels { expected, found } => {
+                write!(f, "frame has {found} channels, expected {expected}")
+            }
             Self::Config(d) => write!(f, "bad gate configuration: {d}"),
         }
     }
@@ -167,15 +197,33 @@ pub struct Frame<'a> {
 }
 
 impl<'a> Frame<'a> {
-    pub fn new(data: &'a [u8], width: usize, height: usize, channels: usize) -> Result<Self, GateError> {
+    pub fn new(
+        data: &'a [u8],
+        width: usize,
+        height: usize,
+        channels: usize,
+    ) -> Result<Self, GateError> {
         if channels == 0 || channels > 8 {
-            return Err(GateError::Channels { expected: 3, found: channels });
+            return Err(GateError::Channels {
+                expected: 3,
+                found: channels,
+            });
         }
-        let expected = width.checked_mul(height).and_then(|p| p.checked_mul(channels));
+        let expected = width
+            .checked_mul(height)
+            .and_then(|p| p.checked_mul(channels));
         if expected != Some(data.len()) {
-            return Err(GateError::DataLength { expected: expected.unwrap_or(usize::MAX), found: data.len() });
+            return Err(GateError::DataLength {
+                expected: expected.unwrap_or(usize::MAX),
+                found: data.len(),
+            });
         }
-        Ok(Self { data, width, height, channels })
+        Ok(Self {
+            data,
+            width,
+            height,
+            channels,
+        })
     }
 
     pub fn data(&self) -> &'a [u8] {
@@ -197,7 +245,10 @@ impl<'a> Frame<'a> {
     pub(crate) fn check(&self, geo: Geometry) -> Result<(), GateError> {
         let px = geo.pixels();
         if self.width != px || self.height != px {
-            return Err(GateError::FrameSize { expected: px, found: (self.width, self.height) });
+            return Err(GateError::FrameSize {
+                expected: px,
+                found: (self.width, self.height),
+            });
         }
         Ok(())
     }
@@ -214,7 +265,11 @@ pub struct ChangeMap {
 impl ChangeMap {
     /// Nothing changed.
     pub fn new(geo: Geometry) -> Self {
-        Self { geo, patches: BitSet::new(geo.tokens()), windows: WindowSet::new(geo.side()) }
+        Self {
+            geo,
+            patches: BitSet::new(geo.tokens()),
+            windows: WindowSet::new(geo.side()),
+        }
     }
 
     pub fn geometry(&self) -> Geometry {
@@ -267,7 +322,10 @@ pub struct ChangeMapper {
 impl ChangeMapper {
     pub fn new(geo: Geometry) -> Result<Self, GateError> {
         geo.validate()?;
-        Ok(Self { geo, sad: vec![0; geo.tokens()] })
+        Ok(Self {
+            geo,
+            sad: vec![0; geo.tokens()],
+        })
     }
 
     pub fn geometry(&self) -> Geometry {
@@ -277,29 +335,57 @@ impl ChangeMapper {
     /// Fills `out` with the patches of `current` that differ from `reference`
     /// by more than `tau` (see the module docs). Both frames must be
     /// `geometry().pixels()` square with the same channel count.
-    pub fn compute(&mut self, reference: &Frame<'_>, current: &Frame<'_>, tau: u32, out: &mut ChangeMap) -> Result<(), GateError> {
+    pub fn compute(
+        &mut self,
+        reference: &Frame<'_>,
+        current: &Frame<'_>,
+        tau: u32,
+        out: &mut ChangeMap,
+    ) -> Result<(), GateError> {
         let geo = self.geo;
         reference.check(geo)?;
         current.check(geo)?;
         if reference.channels != current.channels {
-            return Err(GateError::Channels { expected: reference.channels, found: current.channels });
+            return Err(GateError::Channels {
+                expected: reference.channels,
+                found: current.channels,
+            });
         }
         if out.geo != geo {
-            return Err(GateError::Geometry(format!("map is for {:?}, mapper for {geo:?}", out.geo)));
+            return Err(GateError::Geometry(format!(
+                "map is for {:?}, mapper for {geo:?}",
+                out.geo
+            )));
         }
         let ch = current.channels;
         let row_bytes = geo.pixels() * ch;
         let patch_bytes = geo.patch * ch;
         // One patch is at most 255 * patch * patch * 8 samples, which must fit u32.
         if geo.patch * geo.patch * ch * 255 > u32::MAX as usize {
-            return Err(GateError::Geometry(format!("patch {} x {ch} channels overflows the u32 accumulator", geo.patch)));
+            return Err(GateError::Geometry(format!(
+                "patch {} x {ch} channels overflows the u32 accumulator",
+                geo.patch
+            )));
         }
 
         self.sad.iter_mut().for_each(|s| *s = 0);
-        for (y, (a, b)) in reference.data.chunks_exact(row_bytes).zip(current.data.chunks_exact(row_bytes)).enumerate() {
+        for (y, (a, b)) in reference
+            .data
+            .chunks_exact(row_bytes)
+            .zip(current.data.chunks_exact(row_bytes))
+            .enumerate()
+        {
             let acc = &mut self.sad[(y / geo.patch) * geo.grid..][..geo.grid];
-            for ((s, pa), pb) in acc.iter_mut().zip(a.chunks_exact(patch_bytes)).zip(b.chunks_exact(patch_bytes)) {
-                *s += pa.iter().zip(pb).map(|(&p, &q)| u32::from(p.abs_diff(q))).sum::<u32>();
+            for ((s, pa), pb) in acc
+                .iter_mut()
+                .zip(a.chunks_exact(patch_bytes))
+                .zip(b.chunks_exact(patch_bytes))
+            {
+                *s += pa
+                    .iter()
+                    .zip(pb)
+                    .map(|(&p, &q)| u32::from(p.abs_diff(q)))
+                    .sum::<u32>();
             }
         }
 
@@ -318,7 +404,12 @@ impl ChangeMapper {
 }
 
 /// [`ChangeMapper::compute`] into a fresh map; for one-off use and tests.
-pub fn change_map(reference: &Frame<'_>, current: &Frame<'_>, geo: Geometry, tau: u32) -> Result<ChangeMap, GateError> {
+pub fn change_map(
+    reference: &Frame<'_>,
+    current: &Frame<'_>,
+    geo: Geometry,
+    tau: u32,
+) -> Result<ChangeMap, GateError> {
     let mut mapper = ChangeMapper::new(geo)?;
     let mut out = ChangeMap::new(geo);
     mapper.compute(reference, current, tau, &mut out)?;
@@ -330,7 +421,11 @@ mod tests {
     use super::*;
 
     /// 6x6 tokens of 2x2 pixels, windows of 2x2 tokens: a 3x3 grid of windows on a 12x12 frame.
-    const TINY: Geometry = Geometry { grid: 6, patch: 2, window: 2 };
+    const TINY: Geometry = Geometry {
+        grid: 6,
+        patch: 2,
+        window: 2,
+    };
 
     fn blank(geo: Geometry, ch: usize, v: u8) -> Vec<u8> {
         vec![v; geo.pixels() * geo.pixels() * ch]
@@ -349,7 +444,11 @@ mod tests {
         let a = blank(TINY, 3, 90);
         for tau in [0, 1, 255] {
             let m = change_map(&frame(&a, TINY, 3), &frame(&a, TINY, 3), TINY, tau).unwrap();
-            assert_eq!((m.patches_changed(), m.windows_changed()), (0, 0), "tau {tau}");
+            assert_eq!(
+                (m.patches_changed(), m.windows_changed()),
+                (0, 0),
+                "tau {tau}"
+            );
         }
     }
 
@@ -360,7 +459,10 @@ mod tests {
         // Pixel (5, 3) is in patch (2, 1), which is in window (row 0, col 1) = window 1.
         put(&mut b, TINY, 3, 5, 3, 2, 101);
         let m = change_map(&frame(&a, TINY, 3), &frame(&b, TINY, 3), TINY, 0).unwrap();
-        assert_eq!(m.patches().iter_ones().collect::<Vec<_>>(), vec![TINY.grid + 2]);
+        assert_eq!(
+            m.patches().iter_ones().collect::<Vec<_>>(),
+            vec![TINY.grid + 2]
+        );
         assert!(m.patch_changed(2, 1));
         assert_eq!(m.windows().iter().collect::<Vec<_>>(), vec![1]);
         // The same single-level change is invisible to any tau >= 1: the mean is 1/12.
@@ -444,29 +546,60 @@ mod tests {
     }
 
     fn lcg(state: &mut u64) -> u64 {
-        *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        *state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         *state >> 33
     }
 
     #[test]
     fn matches_a_direct_implementation_on_random_sparse_changes() {
         let mut s = 7u64;
-        for (geo, ch) in [(TINY, 3), (TINY, 1), (Geometry { grid: 8, patch: 3, window: 4 }, 3), (Geometry { grid: 4, patch: 5, window: 2 }, 2)] {
+        for (geo, ch) in [
+            (TINY, 3),
+            (TINY, 1),
+            (
+                Geometry {
+                    grid: 8,
+                    patch: 3,
+                    window: 4,
+                },
+                3,
+            ),
+            (
+                Geometry {
+                    grid: 4,
+                    patch: 5,
+                    window: 2,
+                },
+                2,
+            ),
+        ] {
             let mut mapper = ChangeMapper::new(geo).unwrap();
             let mut out = ChangeMap::new(geo);
             for round in 0..40 {
-                let a: Vec<u8> = (0..geo.pixels() * geo.pixels() * ch).map(|_| (lcg(&mut s) % 256) as u8).collect();
+                let a: Vec<u8> = (0..geo.pixels() * geo.pixels() * ch)
+                    .map(|_| (lcg(&mut s) % 256) as u8)
+                    .collect();
                 let mut b = a.clone();
                 for _ in 0..(lcg(&mut s) % 12) {
                     let i = (lcg(&mut s) as usize) % b.len();
                     b[i] = (lcg(&mut s) % 256) as u8;
                 }
                 let tau = [0, 0, 1, 3, 20][round % 5];
-                mapper.compute(&frame(&a, geo, ch), &frame(&b, geo, ch), tau, &mut out).unwrap();
+                mapper
+                    .compute(&frame(&a, geo, ch), &frame(&b, geo, ch), tau, &mut out)
+                    .unwrap();
                 let (p, w) = naive(&a, &b, geo, ch, tau);
                 let got_p: Vec<bool> = (0..geo.tokens()).map(|i| out.patches().get(i)).collect();
-                let got_w: Vec<bool> = (0..geo.side() * geo.side()).map(|i| out.windows().contains(i)).collect();
-                assert_eq!((got_p, got_w), (p, w), "{geo:?} ch {ch} round {round} tau {tau}");
+                let got_w: Vec<bool> = (0..geo.side() * geo.side())
+                    .map(|i| out.windows().contains(i))
+                    .collect();
+                assert_eq!(
+                    (got_p, got_w),
+                    (p, w),
+                    "{geo:?} ch {ch} round {round} tau {tau}"
+                );
             }
         }
     }
@@ -478,9 +611,13 @@ mod tests {
         put(&mut b, TINY, 3, 0, 0, 0, 200);
         let mut mapper = ChangeMapper::new(TINY).unwrap();
         let mut out = ChangeMap::new(TINY);
-        mapper.compute(&frame(&a, TINY, 3), &frame(&b, TINY, 3), 0, &mut out).unwrap();
+        mapper
+            .compute(&frame(&a, TINY, 3), &frame(&b, TINY, 3), 0, &mut out)
+            .unwrap();
         assert_eq!(out.patches_changed(), 1);
-        mapper.compute(&frame(&a, TINY, 3), &frame(&a, TINY, 3), 0, &mut out).unwrap();
+        mapper
+            .compute(&frame(&a, TINY, 3), &frame(&a, TINY, 3), 0, &mut out)
+            .unwrap();
         assert_eq!((out.patches_changed(), out.windows_changed()), (0, 0));
     }
 
@@ -495,39 +632,77 @@ mod tests {
         put(&mut b, g, 3, 1007, 1007, 1, 11);
         let m = change_map(&frame(&a, g, 3), &frame(&b, g, 3), g, 0).unwrap();
         assert_eq!(m.windows().iter().collect::<Vec<_>>(), vec![1, 8]);
-        assert_eq!(m.patches().iter_ones().collect::<Vec<_>>(), vec![24, 71 * 72 + 71]);
+        assert_eq!(
+            m.patches().iter_ones().collect::<Vec<_>>(),
+            vec![24, 71 * 72 + 71]
+        );
     }
 
     #[test]
     fn image_side_gives_the_model_geometry_and_refuses_unaligned_sizes() {
         assert_eq!(Geometry::from_image_side(1008).unwrap(), Geometry::SAM3);
         let g = Geometry::from_image_side(672).unwrap();
-        assert_eq!((g.grid, g.pixels(), g.side(), g.tokens()), (48, 672, 2, 2304));
+        assert_eq!(
+            (g.grid, g.pixels(), g.side(), g.tokens()),
+            (48, 672, 2, 2304)
+        );
         assert_eq!((g.low_res(), g.mid_res(), g.input_mask()), (192, 96, 768));
         let s = Geometry::SAM3;
         assert_eq!((s.low_res(), s.mid_res(), s.input_mask()), (288, 144, 1152));
         assert_eq!(Geometry::from_image_side(336).unwrap().side(), 1);
         // Multiples of the patch that do not tile the 24-token window, and non-multiples.
         for bad in [0usize, 14, 350, 448, 504, 1000, 1009, 1344 + 1] {
-            assert!(matches!(Geometry::from_image_side(bad), Err(GateError::Geometry(_))), "{bad}");
+            assert!(
+                matches!(Geometry::from_image_side(bad), Err(GateError::Geometry(_))),
+                "{bad}"
+            );
         }
     }
 
     #[test]
     fn refuses_frames_that_do_not_fit() {
         let a = blank(TINY, 3, 0);
-        assert!(matches!(Frame::new(&a[1..], 12, 12, 3), Err(GateError::DataLength { .. })));
-        assert!(matches!(Frame::new(&a, 12, 12, 0), Err(GateError::Channels { .. })));
+        assert!(matches!(
+            Frame::new(&a[1..], 12, 12, 3),
+            Err(GateError::DataLength { .. })
+        ));
+        assert!(matches!(
+            Frame::new(&a, 12, 12, 0),
+            Err(GateError::Channels { .. })
+        ));
         let small = Frame::new(&a[..6 * 6 * 3], 6, 6, 3).unwrap();
         let ok = frame(&a, TINY, 3);
         let mut mapper = ChangeMapper::new(TINY).unwrap();
         let mut out = ChangeMap::new(TINY);
-        assert!(matches!(mapper.compute(&small, &ok, 0, &mut out), Err(GateError::FrameSize { .. })));
+        assert!(matches!(
+            mapper.compute(&small, &ok, 0, &mut out),
+            Err(GateError::FrameSize { .. })
+        ));
         let grey = blank(TINY, 1, 0);
-        assert!(matches!(mapper.compute(&frame(&grey, TINY, 1), &ok, 0, &mut out), Err(GateError::Channels { .. })));
-        assert!(ChangeMapper::new(Geometry { grid: 7, patch: 2, window: 2 }).is_err());
-        assert!(ChangeMapper::new(Geometry { grid: 6, patch: 0, window: 2 }).is_err());
-        let mut other = ChangeMap::new(Geometry { grid: 4, patch: 2, window: 2 });
-        assert!(matches!(mapper.compute(&ok, &ok, 0, &mut other), Err(GateError::Geometry(_))));
+        assert!(matches!(
+            mapper.compute(&frame(&grey, TINY, 1), &ok, 0, &mut out),
+            Err(GateError::Channels { .. })
+        ));
+        assert!(ChangeMapper::new(Geometry {
+            grid: 7,
+            patch: 2,
+            window: 2
+        })
+        .is_err());
+        assert!(ChangeMapper::new(Geometry {
+            grid: 6,
+            patch: 0,
+            window: 2
+        })
+        .is_err());
+        let mut other = ChangeMap::new(Geometry {
+            grid: 4,
+            patch: 2,
+            window: 2,
+        });
+        assert!(matches!(
+            mapper.compute(&ok, &ok, 0, &mut other),
+            Err(GateError::Geometry(_))
+        ));
     }
 }

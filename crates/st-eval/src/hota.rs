@@ -137,7 +137,10 @@ pub fn hota_sequence<Id: Eq + Hash + Clone + std::fmt::Debug>(frames: &[Frame<Id
             s.dedup();
             assert_eq!(s.len(), ids.len(), "frame {t}: a {what} id appears twice");
         }
-        let sim: Vec<f64> = f.gt.iter().flat_map(|(_, gb)| f.pred.iter().map(move |(_, pb)| iou(gb, pb))).collect();
+        let sim: Vec<f64> =
+            f.gt.iter()
+                .flat_map(|(_, gb)| f.pred.iter().map(move |(_, pb)| iou(gb, pb)))
+                .collect();
         per_frame.push((g, p, sim));
     }
     let (ng, nt) = (gmap.len(), tmap.len());
@@ -149,8 +152,12 @@ pub fn hota_sequence<Id: Eq + Hash + Clone + std::fmt::Debug>(frames: &[Frame<Id
     let mut tr_count = vec![0.0f64; nt];
     for (g, p, sim) in &per_frame {
         let (rows, cols) = (g.len(), p.len());
-        let row_sum: Vec<f64> = (0..rows).map(|i| (0..cols).map(|j| sim[i * cols + j]).sum()).collect();
-        let col_sum: Vec<f64> = (0..cols).map(|j| (0..rows).map(|i| sim[i * cols + j]).sum()).collect();
+        let row_sum: Vec<f64> = (0..rows)
+            .map(|i| (0..cols).map(|j| sim[i * cols + j]).sum())
+            .collect();
+        let col_sum: Vec<f64> = (0..cols)
+            .map(|j| (0..rows).map(|i| sim[i * cols + j]).sum())
+            .collect();
         for i in 0..rows {
             for j in 0..cols {
                 let s = sim[i * cols + j];
@@ -181,11 +188,15 @@ pub fn hota_sequence<Id: Eq + Hash + Clone + std::fmt::Debug>(frames: &[Frame<Id
             }
             continue;
         }
-        let neg_score: Vec<f64> =
-            (0..rows * cols).map(|k| -(global[g[k / cols] * nt + p[k % cols]] * sim[k])).collect();
+        let neg_score: Vec<f64> = (0..rows * cols)
+            .map(|k| -(global[g[k / cols] * nt + p[k % cols]] * sim[k]))
+            .collect();
         let pairs = linear_sum_assignment(&neg_score, rows, cols);
         for a in 0..ALPHAS {
-            let ok: Vec<&(usize, usize)> = pairs.iter().filter(|&&(i, j)| sim[i * cols + j] >= alpha(a) - EPS).collect();
+            let ok: Vec<&(usize, usize)> = pairs
+                .iter()
+                .filter(|&&(i, j)| sim[i * cols + j] >= alpha(a) - EPS)
+                .collect();
             let n = ok.len() as f64;
             res.tp[a] += n;
             res.fn_[a] += rows as f64 - n;
@@ -227,11 +238,18 @@ pub fn combine(seqs: &[Hota]) -> Hota {
         out.tp[a] = tp;
         out.fn_[a] = seqs.iter().map(|s| s.fn_[a]).sum();
         out.fp[a] = seqs.iter().map(|s| s.fp[a]).sum();
-        let w = |f: fn(&Hota, usize) -> f64| seqs.iter().map(|s| f(s, a) * s.tp[a]).sum::<f64>() / tp.max(1.0);
+        let w = |f: fn(&Hota, usize) -> f64| {
+            seqs.iter().map(|s| f(s, a) * s.tp[a]).sum::<f64>() / tp.max(1.0)
+        };
         out.ass_a[a] = w(|s, a| s.ass_a[a]);
         out.ass_re[a] = w(|s, a| s.ass_re[a]);
         out.ass_pr[a] = w(|s, a| s.ass_pr[a]);
-        out.loc_a[a] = seqs.iter().map(|s| s.loc_a[a] * s.tp[a]).sum::<f64>().max(1e-10) / tp.max(1e-10);
+        out.loc_a[a] = seqs
+            .iter()
+            .map(|s| s.loc_a[a] * s.tp[a])
+            .sum::<f64>()
+            .max(1e-10)
+            / tp.max(1e-10);
     }
     out
 }
@@ -241,7 +259,12 @@ mod tests {
     use super::*;
 
     fn b(x: f64, y: f64) -> Xywh {
-        Xywh { x, y, w: 10.0, h: 10.0 }
+        Xywh {
+            x,
+            y,
+            w: 10.0,
+            h: 10.0,
+        }
     }
 
     #[test]
@@ -262,7 +285,10 @@ mod tests {
     fn id_switch_halves_association() {
         // One object, tracker switches id halfway: detection perfect, AssA = 0.5.
         let frames: Vec<Frame<u32>> = (0..10)
-            .map(|t| Frame { gt: vec![(1, b(0.0, 0.0))], pred: vec![(if t < 5 { 1 } else { 2 }, b(0.0, 0.0))] })
+            .map(|t| Frame {
+                gt: vec![(1, b(0.0, 0.0))],
+                pred: vec![(if t < 5 { 1 } else { 2 }, b(0.0, 0.0))],
+            })
             .collect();
         let s = hota_sequence(&frames).summary();
         assert!((s.det_a - 1.0).abs() < 1e-12);
@@ -272,7 +298,10 @@ mod tests {
 
     #[test]
     fn empty_tracker_scores_zero() {
-        let frames: Vec<Frame<u32>> = vec![Frame { gt: vec![(1, b(0.0, 0.0))], pred: vec![] }];
+        let frames: Vec<Frame<u32>> = vec![Frame {
+            gt: vec![(1, b(0.0, 0.0))],
+            pred: vec![],
+        }];
         let h = hota_sequence(&frames);
         assert_eq!(h.fn_[0], 1.0);
         assert_eq!(h.summary().hota, 0.0);

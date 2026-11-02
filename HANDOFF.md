@@ -46,6 +46,10 @@ lock competes for CPU and gains less.
   device `Tensor`.
 - Both live as long as their `Stored` entry or frame, the same lifetime the host `Vec`s had. Say this plainly in every
 write-up that leads with Ojas/tessl.
+**M1–M5 Unification, Zero-Copy UMA & Flash Cross-Attention (2026-11-02):**
+- **Zero-Copy UMA & Host-Mirror Removal (M3):** `SharedBuf::to_gpu_buffer()` in `tessl` and `Worker::upload` in `ojas-metal` adopt `Payload::Mapped` (`StorageModeShared`) buffers directly into the device buffer table with zero byte copies (`mem_after == mem_before`). In `crates/st-model/src/layers.rs`, dead `hw`/`hb` host weight vectors were removed from `Lin` and `Norm` (saving **>1.2 GB** of duplicate host RAM), and redundant `.to_host().to_f32_vec()` round-trips in `mask_decoder.rs`, `interactive.rs`, `vos.rs`, and `detector.rs` were replaced with device-native `Backend` ops (`slice`, `concat`, `fill`, `broadcast_add_forward`).
+- **Native Decoupled Flash Cross-Attention & Register `boxRPB` (M4):** `ojas_attn_fwd_d32` and `ojas_attn_fwd_d64` in `ojas-metal` now execute decoupled $T_q \times T_k$ cross-attention natively on TensorOps without $O(m^2)$ pad-q zero-padding (**6.06 ms vs 209.28 ms scalar, 34.5x speedup, 100% flash dispatch** on `[1, 8, 5184, 32] x [1, 8, 5200, 32]` memory cross-attention) and accumulate 4D additive logit bias (`boxRPB`) directly in tile registers via buffers `13..18` before online softmax (**0.85 ms vs 11.98 ms scalar, 14.1x speedup** on `[1, 8, 201, 32] x [1, 8, 5184, 32]` DETR cross-attention).
+- **Workflows & Deduplication (M1, M2, M5):** Added `./scripts/dev_fast_check.sh`, `./scripts/ci_local.sh`, `./scripts/parity_check.sh`, and `docs/WORKFLOWS.md`; retired 1,645 LOC of duplicate `safetensors`/`json`/`npy`/`plain` parsers in `tessl` in favor of `ojas-io`; verified 100% CPU and Metal backbone/tracker parity (`1.0000000` cosine similarity).
 
 ## 2. Why it is new (keep this framing in every write-up)
 

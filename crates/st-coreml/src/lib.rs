@@ -33,8 +33,8 @@ use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::AllocAnyThread;
 use objc2_core_ml::{
-    MLComputeUnits, MLDictionaryFeatureProvider, MLFeatureProvider, MLFeatureValue, MLModel, MLModelConfiguration,
-    MLMultiArray, MLMultiArrayDataType,
+    MLComputeUnits, MLDictionaryFeatureProvider, MLFeatureProvider, MLFeatureValue, MLModel,
+    MLModelConfiguration, MLMultiArray, MLMultiArrayDataType,
 };
 use objc2_foundation::{NSArray, NSDictionary, NSError, NSInteger, NSNumber, NSString, NSURL};
 use ojas_core::OjasError;
@@ -123,7 +123,10 @@ impl CoremlTrunk {
     pub fn load(package: &Path, units: Units) -> Result<Self, CoremlError> {
         let t0 = Instant::now();
         if !package.is_dir() {
-            return Err(fail(format!("{} is not an .mlpackage directory", package.display())));
+            return Err(fail(format!(
+                "{} is not an .mlpackage directory",
+                package.display()
+            )));
         }
         let resolved = resolve_sha256(package, STAT_KEY_FULL_BYTES)?;
         let t_hash = t0.elapsed().as_secs_f64();
@@ -137,7 +140,8 @@ impl CoremlTrunk {
             record_sha256(package, &resolved, STAT_KEY_FULL_BYTES)?;
         }
         let t_compile = t0.elapsed().as_secs_f64();
-        let url = NSURL::from_file_path(&compiled_dir).ok_or_else(|| fail(format!("{} is not a file URL", compiled_dir.display())))?;
+        let url = NSURL::from_file_path(&compiled_dir)
+            .ok_or_else(|| fail(format!("{} is not a file URL", compiled_dir.display())))?;
         let model = autoreleasepool(|_| -> Result<Retained<MLModel>, CoremlError> {
             let cfg = unsafe { MLModelConfiguration::new() };
             unsafe { cfg.setComputeUnits(units.ml()) };
@@ -176,12 +180,16 @@ impl CoremlTrunk {
     pub fn predict(&self, image: &[f32]) -> Result<Vec<f32>, CoremlError> {
         let n_in: usize = IMAGE_SHAPE.iter().product();
         if image.len() != n_in {
-            return Err(fail(format!("image has {} values, want {n_in} ({IMAGE_SHAPE:?})", image.len())));
+            return Err(fail(format!(
+                "image has {} values, want {n_in} ({IMAGE_SHAPE:?})",
+                image.len()
+            )));
         }
         autoreleasepool(|_| {
             // Core ML reads the input through this pointer; the buffer outlives the prediction.
             let mut input = image.to_vec();
-            let ptr = NonNull::new(input.as_mut_ptr().cast::<c_void>()).ok_or_else(|| fail("input buffer is null"))?;
+            let ptr = NonNull::new(input.as_mut_ptr().cast::<c_void>())
+                .ok_or_else(|| fail("input buffer is null"))?;
             let arr = unsafe {
                 MLMultiArray::initWithDataPointer_shape_dataType_strides_deallocator_error(
                     MLMultiArray::alloc(),
@@ -196,14 +204,24 @@ impl CoremlTrunk {
             let value = unsafe { MLFeatureValue::featureValueWithMultiArray(&arr) };
             let key = NSString::from_str(INPUT);
             let obj: &AnyObject = value.as_ref();
-            let dict: Retained<NSDictionary<NSString, AnyObject>> = NSDictionary::from_slices(&[&*key], &[obj]);
-            let provider = unsafe { MLDictionaryFeatureProvider::initWithDictionary_error(MLDictionaryFeatureProvider::alloc(), &dict) }
-                .map_err(|e| ns_fail("building the input features", &e))?;
-            let out = unsafe { self.model.predictionFromFeatures_error(ProtocolObject::from_ref(&*provider)) }
-                .map_err(|e| ns_fail("prediction", &e))?;
+            let dict: Retained<NSDictionary<NSString, AnyObject>> =
+                NSDictionary::from_slices(&[&*key], &[obj]);
+            let provider = unsafe {
+                MLDictionaryFeatureProvider::initWithDictionary_error(
+                    MLDictionaryFeatureProvider::alloc(),
+                    &dict,
+                )
+            }
+            .map_err(|e| ns_fail("building the input features", &e))?;
+            let out = unsafe {
+                self.model
+                    .predictionFromFeatures_error(ProtocolObject::from_ref(&*provider))
+            }
+            .map_err(|e| ns_fail("prediction", &e))?;
             let value = unsafe { out.featureValueForName(&NSString::from_str(OUTPUT)) }
                 .ok_or_else(|| fail(format!("the model has no output {OUTPUT:?}")))?;
-            let arr = unsafe { value.multiArrayValue() }.ok_or_else(|| fail(format!("output {OUTPUT:?} is not a multi-array")))?;
+            let arr = unsafe { value.multiArrayValue() }
+                .ok_or_else(|| fail(format!("output {OUTPUT:?} is not a multi-array")))?;
             let result = read_f32(&arr, &TRUNK_SHAPE);
             drop(input);
             result
@@ -213,12 +231,23 @@ impl CoremlTrunk {
 
 impl ExternalTrunk for CoremlTrunk {
     fn describe(&self) -> String {
-        let name = self.package.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        format!("coreml {name} ({}) sha256 {}", self.units.name(), self.sha256)
+        let name = self
+            .package
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        format!(
+            "coreml {name} ({}) sha256 {}",
+            self.units.name(),
+            self.sha256
+        )
     }
 
     fn run(&self, image: &[f32]) -> Result<Vec<f32>, OjasError> {
-        self.predict(image).map_err(|e| OjasError::Unsupported { op: "st_coreml::CoremlTrunk::run", detail: e.to_string() })
+        self.predict(image).map_err(|e| OjasError::Unsupported {
+            op: "st_coreml::CoremlTrunk::run",
+            detail: e.to_string(),
+        })
     }
 }
 
@@ -231,13 +260,18 @@ fn contiguous_strides(shape: &[usize]) -> Vec<usize> {
 }
 
 fn ns_ints(v: &[usize]) -> Retained<NSArray<NSNumber>> {
-    let nums: Vec<Retained<NSNumber>> = v.iter().map(|&x| NSNumber::numberWithInteger(x as NSInteger)).collect();
+    let nums: Vec<Retained<NSNumber>> = v
+        .iter()
+        .map(|&x| NSNumber::numberWithInteger(x as NSInteger))
+        .collect();
     let refs: Vec<&NSNumber> = nums.iter().map(|n| &**n).collect();
     NSArray::from_slice(&refs)
 }
 
 fn ints_of(a: &NSArray<NSNumber>) -> Result<Vec<usize>, CoremlError> {
-    a.iter().map(|n| usize::try_from(n.integerValue()).map_err(|_| fail("negative shape or stride"))).collect()
+    a.iter()
+        .map(|n| usize::try_from(n.integerValue()).map_err(|_| fail("negative shape or stride")))
+        .collect()
 }
 
 /// The f32 elements of `arr` in row-major order of `want`, honouring Core ML's strides (an output
@@ -248,7 +282,10 @@ fn read_f32(arr: &MLMultiArray, want: &[usize]) -> Result<Vec<f32>, CoremlError>
     }
     let dtype = unsafe { arr.dataType() };
     if dtype != MLMultiArrayDataType::Float32 {
-        return Err(fail(format!("output dtype is {:#x}, want Float32", dtype.0)));
+        return Err(fail(format!(
+            "output dtype is {:#x}, want Float32",
+            dtype.0
+        )));
     }
     let shape = ints_of(&*unsafe { arr.shape() })?;
     if shape != want {
@@ -256,16 +293,28 @@ fn read_f32(arr: &MLMultiArray, want: &[usize]) -> Result<Vec<f32>, CoremlError>
     }
     let strides = ints_of(&*unsafe { arr.strides() })?;
     if strides.len() != want.len() {
-        return Err(fail(format!("output has {} strides for {} dims", strides.len(), want.len())));
+        return Err(fail(format!(
+            "output has {} strides for {} dims",
+            strides.len(),
+            want.len()
+        )));
     }
     let n: usize = want.iter().product();
-    let span = 1 + want.iter().zip(&strides).map(|(d, s)| (d - 1) * s).sum::<usize>();
+    let span = 1 + want
+        .iter()
+        .zip(&strides)
+        .map(|(d, s)| (d - 1) * s)
+        .sum::<usize>();
     let contiguous = strides == contiguous_strides(want);
-    let got: RefCell<Result<Vec<f32>, CoremlError>> = RefCell::new(Err(fail("Core ML did not call the read handler")));
+    let got: RefCell<Result<Vec<f32>, CoremlError>> =
+        RefCell::new(Err(fail("Core ML did not call the read handler")));
     let handler = StackBlock::new(|bytes: NonNull<c_void>, size: NSInteger| {
         let size = usize::try_from(size).unwrap_or(0);
         let r = if size < span * 4 {
-            Err(fail(format!("output buffer is {size} bytes, its strides span {} bytes", span * 4)))
+            Err(fail(format!(
+                "output buffer is {size} bytes, its strides span {} bytes",
+                span * 4
+            )))
         } else {
             // SAFETY: Core ML hands a buffer of `size` bytes, valid for the handler's duration; it
             // holds f32 elements (dtype checked above) and `span * 4 <= size`.
@@ -302,9 +351,12 @@ fn package_files(package: &Path) -> Result<Vec<PathBuf>, CoremlError> {
     let mut files = Vec::new();
     let mut stack = vec![package.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        let entries = fs::read_dir(&dir).map_err(|e| fail(format!("reading {}: {e}", dir.display())))?;
+        let entries =
+            fs::read_dir(&dir).map_err(|e| fail(format!("reading {}: {e}", dir.display())))?;
         for entry in entries {
-            let path = entry.map_err(|e| fail(format!("reading {}: {e}", dir.display())))?.path();
+            let path = entry
+                .map_err(|e| fail(format!("reading {}: {e}", dir.display())))?
+                .path();
             if path.is_dir() {
                 stack.push(path);
             } else {
@@ -321,9 +373,16 @@ fn hex(digest: &[u8]) -> String {
 }
 
 /// Feeds `path`'s whole content to `h`.
-fn hash_file(h: &mut Sha256, f: &mut fs::File, path: &Path, buf: &mut [u8]) -> Result<(), CoremlError> {
+fn hash_file(
+    h: &mut Sha256,
+    f: &mut fs::File,
+    path: &Path,
+    buf: &mut [u8],
+) -> Result<(), CoremlError> {
     loop {
-        let k = f.read(buf).map_err(|e| fail(format!("reading {}: {e}", path.display())))?;
+        let k = f
+            .read(buf)
+            .map_err(|e| fail(format!("reading {}: {e}", path.display())))?;
         if k == 0 {
             return Ok(());
         }
@@ -337,11 +396,17 @@ fn package_sha256(package: &Path) -> Result<String, CoremlError> {
     let mut h = Sha256::new();
     let mut buf = vec![0u8; 8 << 20];
     for path in &package_files(package)? {
-        let rel = path.strip_prefix(package).map_err(|_| fail("package walk left the package"))?;
+        let rel = path
+            .strip_prefix(package)
+            .map_err(|_| fail("package walk left the package"))?;
         h.update(rel.to_string_lossy().as_bytes());
         h.update([0]);
-        let mut f = fs::File::open(path).map_err(|e| fail(format!("opening {}: {e}", path.display())))?;
-        let len = f.metadata().map_err(|e| fail(format!("reading {}: {e}", path.display())))?.len();
+        let mut f =
+            fs::File::open(path).map_err(|e| fail(format!("opening {}: {e}", path.display())))?;
+        let len = f
+            .metadata()
+            .map_err(|e| fail(format!("reading {}: {e}", path.display())))?
+            .len();
         h.update(len.to_le_bytes());
         hash_file(&mut h, &mut f, path, &mut buf)?;
     }
@@ -354,11 +419,16 @@ fn stat_key(package: &Path, full_bytes: u64) -> Result<String, CoremlError> {
     let mut h = Sha256::new();
     let mut buf = vec![0u8; 1 << 20];
     for path in &package_files(package)? {
-        let rel = path.strip_prefix(package).map_err(|_| fail("package walk left the package"))?;
+        let rel = path
+            .strip_prefix(package)
+            .map_err(|_| fail("package walk left the package"))?;
         h.update(rel.to_string_lossy().as_bytes());
         h.update([0]);
-        let mut f = fs::File::open(path).map_err(|e| fail(format!("opening {}: {e}", path.display())))?;
-        let meta = f.metadata().map_err(|e| fail(format!("reading {}: {e}", path.display())))?;
+        let mut f =
+            fs::File::open(path).map_err(|e| fail(format!("opening {}: {e}", path.display())))?;
+        let meta = f
+            .metadata()
+            .map_err(|e| fail(format!("reading {}: {e}", path.display())))?;
         h.update(meta.len().to_le_bytes());
         if meta.len() <= full_bytes {
             h.update([b'c']);
@@ -366,7 +436,12 @@ fn stat_key(package: &Path, full_bytes: u64) -> Result<String, CoremlError> {
         } else {
             let mtime = meta
                 .modified()
-                .map_err(|e| fail(format!("reading the modification time of {}: {e}", path.display())))?
+                .map_err(|e| {
+                    fail(format!(
+                        "reading the modification time of {}: {e}",
+                        path.display()
+                    ))
+                })?
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_err(|_| fail(format!("{} is modified before 1970", path.display())))?;
             h.update([b's']);
@@ -390,7 +465,8 @@ fn recorded_path(package: &Path, key: &str) -> PathBuf {
 fn read_recorded(path: &Path) -> Option<String> {
     let text = fs::read_to_string(path).ok()?;
     let s = text.strip_suffix('\n').unwrap_or(&text);
-    (s.len() == 64 && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))).then(|| s.to_string())
+    (s.len() == 64 && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')))
+        .then(|| s.to_string())
 }
 
 /// A package's content hash, and how it was found.
@@ -409,10 +485,18 @@ fn resolve_sha256(package: &Path, full_bytes: u64) -> Result<Resolved, CoremlErr
     let key = stat_key(package, full_bytes)?;
     if let Some(sha256) = read_recorded(&recorded_path(package, &key)) {
         if compiled_path(package, &sha256).is_dir() {
-            return Ok(Resolved { sha256, key, hashed: false });
+            return Ok(Resolved {
+                sha256,
+                key,
+                hashed: false,
+            });
         }
     }
-    Ok(Resolved { sha256: package_sha256(package)?, key, hashed: true })
+    Ok(Resolved {
+        sha256: package_sha256(package)?,
+        key,
+        hashed: true,
+    })
 }
 
 /// Records `r`'s full hash under its stat key, if the package's stat key is still the one taken
@@ -426,14 +510,22 @@ fn record_sha256(package: &Path, r: &Resolved, full_bytes: u64) -> Result<(), Co
     let mut staging = dst.as_os_str().to_os_string();
     staging.push(format!(".staging-{}", std::process::id()));
     let staging = PathBuf::from(staging);
-    fs::write(&staging, format!("{}\n", r.sha256)).map_err(|e| fail(format!("writing {}: {e}", staging.display())))?;
-    fs::rename(&staging, &dst).map_err(|e| fail(format!("moving {} to {}: {e}", staging.display(), dst.display())))
+    fs::write(&staging, format!("{}\n", r.sha256))
+        .map_err(|e| fail(format!("writing {}: {e}", staging.display())))?;
+    fs::rename(&staging, &dst).map_err(|e| {
+        fail(format!(
+            "moving {} to {}: {e}",
+            staging.display(),
+            dst.display()
+        ))
+    })
 }
 
 /// Compile `package` with Core ML and move the result to `dst` (via a staging name beside it, so a
 /// crash mid-move never leaves a partial `dst`).
 fn compile(package: &Path, dst: &Path) -> Result<(), CoremlError> {
-    let url = NSURL::from_file_path(package).ok_or_else(|| fail(format!("{} is not a file URL", package.display())))?;
+    let url = NSURL::from_file_path(package)
+        .ok_or_else(|| fail(format!("{} is not a file URL", package.display())))?;
     let mut staging = dst.as_os_str().to_os_string();
     staging.push(format!(".staging-{}", std::process::id()));
     let staging = PathBuf::from(staging);
@@ -445,22 +537,40 @@ fn compile(package: &Path, dst: &Path) -> Result<(), CoremlError> {
         // SAFETY: Core ML passes either a valid compiled-model URL or a valid error, for the call.
         let r = match (unsafe { compiled.as_ref() }, unsafe { err.as_ref() }) {
             (Some(u), _) => match u.to_file_path() {
-                Some(tmp) => fs::rename(&tmp, &move_to).map_err(|e| fail(format!("moving {} to {}: {e}", tmp.display(), move_to.display()))),
+                Some(tmp) => fs::rename(&tmp, &move_to).map_err(|e| {
+                    fail(format!(
+                        "moving {} to {}: {e}",
+                        tmp.display(),
+                        move_to.display()
+                    ))
+                }),
                 None => Err(fail("the compiled model's URL is not a file path")),
             },
             (None, Some(e)) => Err(ns_fail("compiling", e)),
-            (None, None) => Err(fail("Core ML's compile reported neither a model nor an error")),
+            (None, None) => Err(fail(
+                "Core ML's compile reported neither a model nor an error",
+            )),
         };
         let _ = tx.send(r);
     });
     autoreleasepool(|_| unsafe { MLModel::compileModelAtURL_completionHandler(&url, &handler) });
-    let r = rx.recv_timeout(COMPILE_TIMEOUT).map_err(|_| fail(format!("compiling {} did not finish in {COMPILE_TIMEOUT:?}", package.display())))?;
+    let r = rx.recv_timeout(COMPILE_TIMEOUT).map_err(|_| {
+        fail(format!(
+            "compiling {} did not finish in {COMPILE_TIMEOUT:?}",
+            package.display()
+        ))
+    })?;
     r?;
     match fs::rename(&staging, dst) {
         Ok(()) => Ok(()),
         // Another process compiled the same package first: keep its copy.
-        Err(_) if dst.is_dir() => fs::remove_dir_all(&staging).map_err(|e| fail(format!("removing {}: {e}", staging.display()))),
-        Err(e) => Err(fail(format!("moving {} to {}: {e}", staging.display(), dst.display()))),
+        Err(_) if dst.is_dir() => fs::remove_dir_all(&staging)
+            .map_err(|e| fail(format!("removing {}: {e}", staging.display()))),
+        Err(e) => Err(fail(format!(
+            "moving {} to {}: {e}",
+            staging.display(),
+            dst.display()
+        ))),
     }
 }
 
@@ -470,14 +580,23 @@ mod tests {
 
     #[test]
     fn contiguous_strides_are_row_major() {
-        assert_eq!(contiguous_strides(&TRUNK_SHAPE), vec![72 * 72 * 1024, 72 * 1024, 1024, 1]);
+        assert_eq!(
+            contiguous_strides(&TRUNK_SHAPE),
+            vec![72 * 72 * 1024, 72 * 1024, 1024, 1]
+        );
         assert_eq!(contiguous_strides(&[5]), vec![1]);
     }
 
     #[test]
     fn compiled_path_carries_the_hash_prefix() {
-        let p = compiled_path(Path::new("/m/coreml/t_fp32.mlpackage"), "0123456789abcdef0123");
-        assert_eq!(p, PathBuf::from("/m/coreml/t_fp32.mlpackage.0123456789abcdef.mlmodelc"));
+        let p = compiled_path(
+            Path::new("/m/coreml/t_fp32.mlpackage"),
+            "0123456789abcdef0123",
+        );
+        assert_eq!(
+            p,
+            PathBuf::from("/m/coreml/t_fp32.mlpackage.0123456789abcdef.mlmodelc")
+        );
     }
 
     #[test]
@@ -511,7 +630,12 @@ mod tests {
     }
 
     fn set_mtime(path: &Path, t: std::time::SystemTime) {
-        fs::OpenOptions::new().write(true).open(path).unwrap().set_modified(t).unwrap();
+        fs::OpenOptions::new()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_modified(t)
+            .unwrap();
     }
 
     #[test]
@@ -527,7 +651,11 @@ mod tests {
         let mtime = fs::metadata(&w).unwrap().modified().unwrap();
         fs::write(&w, b"abcdefgX").unwrap();
         set_mtime(&w, mtime);
-        assert_eq!(k1, stat_key(&pkg, 4).unwrap(), "a large file's bytes are not in the key");
+        assert_eq!(
+            k1,
+            stat_key(&pkg, 4).unwrap(),
+            "a large file's bytes are not in the key"
+        );
         set_mtime(&w, mtime + Duration::from_secs(1));
         let k2 = stat_key(&pkg, 4).unwrap();
         assert_ne!(k1, k2, "a large file's modification time is in the key");
@@ -550,20 +678,34 @@ mod tests {
         record_sha256(&pkg, &r, 4).unwrap();
         let rec = recorded_path(&pkg, &r.key);
         assert_eq!(fs::read_to_string(&rec).unwrap(), format!("{full}\n"));
-        assert!(resolve_sha256(&pkg, 4).unwrap().hashed, "a record whose compiled model is missing is not used");
+        assert!(
+            resolve_sha256(&pkg, 4).unwrap().hashed,
+            "a record whose compiled model is missing is not used"
+        );
         fs::create_dir_all(compiled_path(&pkg, &full)).unwrap();
         let hit = resolve_sha256(&pkg, 4).unwrap();
         assert!(!hit.hashed, "the record is used");
         assert_eq!(hit.sha256, full);
-        for bad in ["garbage\n".to_string(), full.to_uppercase(), full[..63].to_string(), format!("{full}0")] {
+        for bad in [
+            "garbage\n".to_string(),
+            full.to_uppercase(),
+            full[..63].to_string(),
+            format!("{full}0"),
+        ] {
             fs::write(&rec, &bad).unwrap();
-            assert!(resolve_sha256(&pkg, 4).unwrap().hashed, "a malformed record {bad:?} is not used");
+            assert!(
+                resolve_sha256(&pkg, 4).unwrap().hashed,
+                "a malformed record {bad:?} is not used"
+            );
         }
         record_sha256(&pkg, &r, 4).unwrap();
         assert!(!resolve_sha256(&pkg, 4).unwrap().hashed);
         fs::write(pkg.join("Manifest.json"), b"[]").unwrap();
         let changed = resolve_sha256(&pkg, 4).unwrap();
-        assert!(changed.hashed, "a changed package has a new stat key and no record");
+        assert!(
+            changed.hashed,
+            "a changed package has a new stat key and no record"
+        );
         assert_ne!(changed.sha256, full);
         fs::remove_dir_all(&root).unwrap();
     }
@@ -580,7 +722,12 @@ mod tests {
 
     #[test]
     fn load_refuses_a_missing_package() {
-        let err = CoremlTrunk::load(Path::new("/nonexistent/x.mlpackage"), Units::CpuAndGpu).err().expect("refused");
-        assert!(err.to_string().contains("not an .mlpackage directory"), "{err}");
+        let err = CoremlTrunk::load(Path::new("/nonexistent/x.mlpackage"), Units::CpuAndGpu)
+            .err()
+            .expect("refused");
+        assert!(
+            err.to_string().contains("not an .mlpackage directory"),
+            "{err}"
+        );
     }
 }

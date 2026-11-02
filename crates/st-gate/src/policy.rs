@@ -97,19 +97,37 @@ pub struct GateConfig {
 impl GateConfig {
     /// `policy` at threshold `tau`, with no forced refresh and no changed-window cap.
     pub fn new(policy: GatePolicy, tau: u32) -> Self {
-        Self { policy, tau, reuse_patches: 0, refresh_every: 0, full_above_percent: 100 }
+        Self {
+            policy,
+            tau,
+            reuse_patches: 0,
+            refresh_every: 0,
+            full_above_percent: 100,
+        }
     }
 
     /// Policy 1 or 2 with nothing approximate in it: `tau = 0`, window carrying
     /// only in the first windowed run. The result equals the ungated trunk
     /// bit for bit (on a backend whose arithmetic does not depend on batch size).
     pub fn exact(windows: bool) -> Self {
-        Self::new(if windows { GatePolicy::Windows { approximate_after_global: false } } else { GatePolicy::Frame }, 0)
+        Self::new(
+            if windows {
+                GatePolicy::Windows {
+                    approximate_after_global: false,
+                }
+            } else {
+                GatePolicy::Frame
+            },
+            0,
+        )
     }
 
     fn validate(&self) -> Result<(), GateError> {
         if self.full_above_percent > 100 {
-            return Err(GateError::Config(format!("full_above_percent {} is over 100", self.full_above_percent)));
+            return Err(GateError::Config(format!(
+                "full_above_percent {} is over 100",
+                self.full_above_percent
+            )));
         }
         Ok(())
     }
@@ -213,8 +231,14 @@ impl Gate {
         if !self.has_reference {
             return Ok(self.full(frame, FullReason::First));
         }
-        let reference = Frame::new(&self.reference, frame.width(), frame.height(), self.channels)?;
-        self.mapper.compute(&reference, frame, self.cfg.tau, &mut self.map)?;
+        let reference = Frame::new(
+            &self.reference,
+            frame.width(),
+            frame.height(),
+            self.channels,
+        )?;
+        self.mapper
+            .compute(&reference, frame, self.cfg.tau, &mut self.map)?;
 
         if self.cfg.refresh_every > 0 && self.since_full + 1 >= self.cfg.refresh_every {
             return Ok(self.full(frame, FullReason::Refresh));
@@ -269,7 +293,11 @@ impl Gate {
 mod tests {
     use super::*;
 
-    const TINY: Geometry = Geometry { grid: 6, patch: 2, window: 2 };
+    const TINY: Geometry = Geometry {
+        grid: 6,
+        patch: 2,
+        window: 2,
+    };
     const PX: usize = 12;
 
     fn img(v: u8) -> Vec<u8> {
@@ -297,14 +325,19 @@ mod tests {
         Gate::new(GateConfig::new(policy, tau), TINY).unwrap()
     }
 
-    const WIN: GatePolicy = GatePolicy::Windows { approximate_after_global: false };
+    const WIN: GatePolicy = GatePolicy::Windows {
+        approximate_after_global: false,
+    };
 
     #[test]
     fn first_frame_is_full_then_an_identical_frame_is_reused() {
         for policy in [GatePolicy::Frame, WIN] {
             let mut g = gate(policy, 0);
             let a = img(50);
-            assert_eq!(g.decide(&frame(&a)).unwrap(), Decision::Full(FullReason::First));
+            assert_eq!(
+                g.decide(&frame(&a)).unwrap(),
+                Decision::Full(FullReason::First)
+            );
             assert_eq!(g.decide(&frame(&a)).unwrap(), Decision::Reuse);
             assert_eq!(g.decide(&frame(&a)).unwrap(), Decision::Reuse);
         }
@@ -314,7 +347,10 @@ mod tests {
     fn off_never_compares_and_is_always_full() {
         let mut g = gate(GatePolicy::Off, 0);
         for v in [1, 1, 200] {
-            assert_eq!(g.decide(&frame(&img(v))).unwrap(), Decision::Full(FullReason::Disabled));
+            assert_eq!(
+                g.decide(&frame(&img(v))).unwrap(),
+                Decision::Full(FullReason::Disabled)
+            );
         }
         assert_eq!(g.last_map().patches_changed(), 0);
     }
@@ -326,7 +362,10 @@ mod tests {
         g.decide(&frame(&a)).unwrap();
         let mut b = a.clone();
         bump(&mut b, 4, 1);
-        assert_eq!(g.decide(&frame(&b)).unwrap(), Decision::Full(FullReason::Changed));
+        assert_eq!(
+            g.decide(&frame(&b)).unwrap(),
+            Decision::Full(FullReason::Changed)
+        );
         assert_eq!(g.decide(&frame(&b)).unwrap(), Decision::Reuse);
     }
 
@@ -350,7 +389,10 @@ mod tests {
     fn all_windows_changed_is_full_not_a_full_window_set() {
         let mut g = gate(WIN, 0);
         g.decide(&frame(&img(10))).unwrap();
-        assert_eq!(g.decide(&frame(&img(11))).unwrap(), Decision::Full(FullReason::AllChanged));
+        assert_eq!(
+            g.decide(&frame(&img(11))).unwrap(),
+            Decision::Full(FullReason::AllChanged)
+        );
     }
 
     #[test]
@@ -366,7 +408,12 @@ mod tests {
         }
         assert_eq!(
             verdicts,
-            vec![Decision::Reuse, Decision::Reuse, Decision::Windows(WindowSet::from_indices(3, &[4])), Decision::Reuse]
+            vec![
+                Decision::Reuse,
+                Decision::Reuse,
+                Decision::Windows(WindowSet::from_indices(3, &[4])),
+                Decision::Reuse
+            ]
         );
     }
 
@@ -377,10 +424,16 @@ mod tests {
         g.decide(&frame(&a)).unwrap();
         let mut b = a.clone();
         bump(&mut b, 0, 1);
-        assert_eq!(g.decide(&frame(&b)).unwrap(), Decision::Windows(WindowSet::from_indices(3, &[0])));
+        assert_eq!(
+            g.decide(&frame(&b)).unwrap(),
+            Decision::Windows(WindowSet::from_indices(3, &[0]))
+        );
         // Window 0 is now current; window 5 changing alone is reported alone.
         bump(&mut b, 5, 1);
-        assert_eq!(g.decide(&frame(&b)).unwrap(), Decision::Windows(WindowSet::from_indices(3, &[5])));
+        assert_eq!(
+            g.decide(&frame(&b)).unwrap(),
+            Decision::Windows(WindowSet::from_indices(3, &[5]))
+        );
         // The reference equals the last frame exactly.
         assert_eq!(g.decide(&frame(&b)).unwrap(), Decision::Reuse);
     }
@@ -391,7 +444,9 @@ mod tests {
         cfg.refresh_every = 3;
         let mut g = Gate::new(cfg, TINY).unwrap();
         let a = img(10);
-        let kinds: Vec<_> = (0..7).map(|_| matches!(g.decide(&frame(&a)).unwrap(), Decision::Full(_))).collect();
+        let kinds: Vec<_> = (0..7)
+            .map(|_| matches!(g.decide(&frame(&a)).unwrap(), Decision::Full(_)))
+            .collect();
         // First, then reuse, reuse, refresh, reuse, reuse, refresh.
         assert_eq!(kinds, vec![true, false, false, true, false, false, true]);
         let mut cfg = GateConfig::new(WIN, 0);
@@ -409,11 +464,24 @@ mod tests {
         g.decide(&frame(&a)).unwrap();
         let mut three = a.clone();
         [0, 4, 8].iter().for_each(|&w| bump(&mut three, w, 1));
-        assert_eq!(g.decide(&frame(&three)).unwrap(), Decision::Windows(WindowSet::from_indices(3, &[0, 4, 8])));
+        assert_eq!(
+            g.decide(&frame(&three)).unwrap(),
+            Decision::Windows(WindowSet::from_indices(3, &[0, 4, 8]))
+        );
         let mut four = three.clone();
         [1, 2, 3, 5].iter().for_each(|&w| bump(&mut four, w, 1));
-        assert_eq!(g.decide(&frame(&four)).unwrap(), Decision::Full(FullReason::TooMuchChanged));
-        assert!(Gate::new(GateConfig { full_above_percent: 101, ..GateConfig::new(WIN, 0) }, TINY).is_err());
+        assert_eq!(
+            g.decide(&frame(&four)).unwrap(),
+            Decision::Full(FullReason::TooMuchChanged)
+        );
+        assert!(Gate::new(
+            GateConfig {
+                full_above_percent: 101,
+                ..GateConfig::new(WIN, 0)
+            },
+            TINY
+        )
+        .is_err());
     }
 
     #[test]
@@ -429,7 +497,10 @@ mod tests {
         bump(&mut b, 0, 9); // window 0 is 4 patches here, which still fits the budget
         assert_eq!(g.decide(&frame(&b)).unwrap(), Decision::Reuse);
         bump(&mut b, 1, 9); // 8 patches differ from the reference now
-        assert_eq!(g.decide(&frame(&b)).unwrap(), Decision::Full(FullReason::Changed));
+        assert_eq!(
+            g.decide(&frame(&b)).unwrap(),
+            Decision::Full(FullReason::Changed)
+        );
     }
 
     #[test]
@@ -438,13 +509,24 @@ mod tests {
         let a = img(10);
         g.decide(&frame(&a)).unwrap();
         g.reset();
-        assert_eq!(g.decide(&frame(&a)).unwrap(), Decision::Full(FullReason::First));
+        assert_eq!(
+            g.decide(&frame(&a)).unwrap(),
+            Decision::Full(FullReason::First)
+        );
     }
 
     #[test]
     fn same_stream_same_decisions() {
         let run = || {
-            let mut g = Gate::new(GateConfig { refresh_every: 5, full_above_percent: 60, ..GateConfig::new(WIN, 2) }, TINY).unwrap();
+            let mut g = Gate::new(
+                GateConfig {
+                    refresh_every: 5,
+                    full_above_percent: 60,
+                    ..GateConfig::new(WIN, 2)
+                },
+                TINY,
+            )
+            .unwrap();
             let mut d = img(30);
             let mut out = Vec::new();
             for step in 0..30usize {

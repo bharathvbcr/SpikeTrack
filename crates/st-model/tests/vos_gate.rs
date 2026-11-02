@@ -12,8 +12,8 @@ use std::time::Instant;
 
 use ojas_core::{Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
-use ojas_metal::MetalBackend;
 use ojas_io::SafeTensors;
+use ojas_metal::MetalBackend;
 use st_eval::jf::{boundary_f, region_j, Mask, DAVIS_BOUND_TH};
 use st_model::tracker::vos::Vos;
 use st_model::Backbone;
@@ -47,19 +47,28 @@ fn jf(pred: &[Vec<u8>], gt: &[Vec<u8>], objects: &[u8], w: usize, h: usize) -> (
         js.push(j / count);
         fs.push(f / count);
     }
-    (js.iter().sum::<f64>() / js.len() as f64, fs.iter().sum::<f64>() / fs.len() as f64)
+    (
+        js.iter().sum::<f64>() / js.len() as f64,
+        fs.iter().sum::<f64>() / fs.len() as f64,
+    )
 }
 
 #[test]
 #[ignore = "needs the gated checkpoint and VOS fixtures (tools/reference/dump_vos_frames.py)"]
 fn vos_jf_within_two_points_of_upstream() {
-    vos_jf_within_two_points_of_upstream_on(&CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu"), "CPU");
+    vos_jf_within_two_points_of_upstream_on(
+        &CpuBackend::with_threads(Budget::new(28 << 30), 8).expect("cpu"),
+        "CPU",
+    );
 }
 
 #[test]
 #[ignore = "needs a Metal GPU; needs the gated checkpoint and VOS fixtures (tools/reference/dump_vos_frames.py)"]
 fn vos_jf_within_two_points_of_upstream_on_metal() {
-    vos_jf_within_two_points_of_upstream_on(&MetalBackend::new(Budget::new(28 << 30)).expect("metal"), "Metal");
+    vos_jf_within_two_points_of_upstream_on(
+        &MetalBackend::new(Budget::new(28 << 30)).expect("metal"),
+        "Metal",
+    );
 }
 
 fn vos_jf_within_two_points_of_upstream_on<B: Backend>(be: &B, label: &str) {
@@ -69,7 +78,11 @@ fn vos_jf_within_two_points_of_upstream_on<B: Backend>(be: &B, label: &str) {
     let backbone = Backbone::new(be, &w.vision).expect("backbone");
     let vos = Vos::new(be, &backbone, &w.tracker).expect("tracker");
     let dir = env_path("SPIKETRACK_VOS_FIXTURES");
-    let clips: Vec<String> = std::env::var("SPIKETRACK_VOS_CLIPS").unwrap_or_else(|_| "judo,shooting,gold-fish".into()).split(',').map(str::to_string).collect();
+    let clips: Vec<String> = std::env::var("SPIKETRACK_VOS_CLIPS")
+        .unwrap_or_else(|_| "judo,shooting,gold-fish".into())
+        .split(',')
+        .map(str::to_string)
+        .collect();
     let mut rows = Vec::new();
     let mut failed = Vec::new();
     for clip in &clips {
@@ -80,15 +93,29 @@ fn vos_jf_within_two_points_of_upstream_on<B: Backend>(be: &B, label: &str) {
         let (h, wd) = (gt_info.shape[1] as usize, gt_info.shape[2] as usize);
         let gt_raw = fx.read_bytes("gt").expect("gt");
         let up_raw = fx.read_bytes("upstream").expect("upstream");
-        let split = |raw: &[u8]| -> Vec<Vec<u8>> { raw.chunks_exact(h * wd).map(<[u8]>::to_vec).collect() };
+        let split =
+            |raw: &[u8]| -> Vec<Vec<u8>> { raw.chunks_exact(h * wd).map(<[u8]>::to_vec).collect() };
         let (gt, upstream) = (split(&gt_raw), split(&up_raw));
         let mut objects: Vec<u8> = gt[0].iter().copied().filter(|&v| v != 0).collect();
         objects.sort_unstable();
         objects.dedup();
         let n = objects.len();
-        let masks0: Vec<f32> = objects.iter().flat_map(|&o| gt[0].iter().map(move |&v| f32::from(u8::from(v == o)))).collect();
+        let masks0: Vec<f32> = objects
+            .iter()
+            .flat_map(|&o| gt[0].iter().map(move |&v| f32::from(u8::from(v == o))))
+            .collect();
         let frame_tensors: Vec<Tensor> = (0..t_n)
-            .map(|t| be.upload(&Tensor::from_f32(&frames[t * px..(t + 1) * px], &[1, 3, 1008, 1008], be.budget()).expect("t")).expect("up"))
+            .map(|t| {
+                be.upload(
+                    &Tensor::from_f32(
+                        &frames[t * px..(t + 1) * px],
+                        &[1, 3, 1008, 1008],
+                        be.budget(),
+                    )
+                    .expect("t"),
+                )
+                .expect("up")
+            })
             .collect();
         let mut ours: Vec<Vec<u8>> = Vec::with_capacity(t_n);
         let t0 = Instant::now();
@@ -104,7 +131,11 @@ fn vos_jf_within_two_points_of_upstream_on<B: Backend>(be: &B, label: &str) {
             }
             ours.push(lab);
             if out.frame % 10 == 0 {
-                println!("{clip} frame {}/{t_n} ({:.0} s)", out.frame, t0.elapsed().as_secs_f64());
+                println!(
+                    "{clip} frame {}/{t_n} ({:.0} s)",
+                    out.frame,
+                    t0.elapsed().as_secs_f64()
+                );
             }
         })
         .expect("vos run");
@@ -116,11 +147,14 @@ fn vos_jf_within_two_points_of_upstream_on<B: Backend>(be: &B, label: &str) {
         let agree: f64 = objects
             .iter()
             .map(|&o| {
-                (1..t_n).map(|t| {
-                    let a = Mask::new(wd, h, ours[t].iter().map(|&v| v == o).collect());
-                    let b = Mask::new(wd, h, upstream[t].iter().map(|&v| v == o).collect());
-                    region_j(&b, &a, None)
-                }).sum::<f64>() / (t_n - 1) as f64
+                (1..t_n)
+                    .map(|t| {
+                        let a = Mask::new(wd, h, ours[t].iter().map(|&v| v == o).collect());
+                        let b = Mask::new(wd, h, upstream[t].iter().map(|&v| v == o).collect());
+                        region_j(&b, &a, None)
+                    })
+                    .sum::<f64>()
+                    / (t_n - 1) as f64
             })
             .sum::<f64>()
             / n as f64;
@@ -132,5 +166,8 @@ fn vos_jf_within_two_points_of_upstream_on<B: Backend>(be: &B, label: &str) {
     }
     println!("\n| clip | objects | frames | J (ours) | F (ours) | J&F (ours) | J&F (upstream) | diff | mean IoU vs upstream masks | s ({label}) | gate |\n|---|---|---|---|---|---|---|---|---|---|---|");
     rows.iter().for_each(|r| println!("{r}"));
-    assert!(failed.is_empty(), "J&F more than {GATE_POINTS} from upstream on {failed:?}");
+    assert!(
+        failed.is_empty(),
+        "J&F more than {GATE_POINTS} from upstream on {failed:?}"
+    );
 }

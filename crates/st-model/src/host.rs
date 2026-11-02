@@ -21,11 +21,15 @@ pub fn linear(x: &[f32], n: usize, w: &[f32], b: &[f32], out: usize) -> Vec<f32>
         return y;
     }
     if inp == 0 {
-        y.chunks_exact_mut(out).for_each(|yr| yr.iter_mut().zip(b).for_each(|(v, &bo)| *v = 0f32 + bo));
+        y.chunks_exact_mut(out)
+            .for_each(|yr| yr.iter_mut().zip(b).for_each(|(v, &bo)| *v = 0f32 + bo));
         return y;
     }
     let threads = if n * inp * out >= THREAD_MIN_MACS {
-        std::thread::available_parallelism().map_or(1, |p| p.get()).min(MAX_THREADS).min(n)
+        std::thread::available_parallelism()
+            .map_or(1, |p| p.get())
+            .min(MAX_THREADS)
+            .min(n)
     } else {
         1
     };
@@ -49,7 +53,11 @@ pub const MAX_THREADS: usize = 8;
 /// to [`MAX_THREADS`] scoped threads with at least `min_per_thread` elements each (one piece, on
 /// the calling thread, below that). Every element lies in exactly one piece, so an `f` that
 /// computes each element from its index alone gives the same result however `dst` is split.
-pub fn for_each_chunk_mut<T: Send>(dst: &mut [T], min_per_thread: usize, f: impl Fn(usize, &mut [T]) + Sync) {
+pub fn for_each_chunk_mut<T: Send>(
+    dst: &mut [T],
+    min_per_thread: usize,
+    f: impl Fn(usize, &mut [T]) + Sync,
+) {
     let len = dst.len();
     let threads = std::thread::available_parallelism()
         .map_or(1, |p| p.get())
@@ -90,7 +98,14 @@ fn linear_rows(x: &[f32], w: &[f32], b: &[f32], inp: usize, out: usize, y: &mut 
 
 /// Outputs `o0..o0 + N` of one row.
 #[inline(always)]
-fn linear_block<const N: usize>(xr: &[f32], w: &[f32], b: &[f32], inp: usize, o0: usize, yr: &mut [f32]) {
+fn linear_block<const N: usize>(
+    xr: &[f32],
+    w: &[f32],
+    b: &[f32],
+    inp: usize,
+    o0: usize,
+    yr: &mut [f32],
+) {
     let wr: [&[f32]; N] = std::array::from_fn(|k| &w[(o0 + k) * inp..(o0 + k + 1) * inp]);
     let mut acc = [0f32; N];
     for i in 0..inp {
@@ -113,7 +128,11 @@ pub fn layer_norm(x: &[f32], dim: usize, w: &[f32], b: &[f32], eps: f32) -> Vec<
     let mut y = vec![0f32; x.len()];
     for (row, out) in x.chunks_exact(dim).zip(y.chunks_exact_mut(dim)) {
         let mean = row.iter().map(|&v| f64::from(v)).sum::<f64>() / dim as f64;
-        let var = row.iter().map(|&v| (f64::from(v) - mean).powi(2)).sum::<f64>() / dim as f64;
+        let var = row
+            .iter()
+            .map(|&v| (f64::from(v) - mean).powi(2))
+            .sum::<f64>()
+            / dim as f64;
         let inv = 1.0 / (var + f64::from(eps)).sqrt();
         for i in 0..dim {
             out[i] = ((f64::from(row[i]) - mean) * inv) as f32 * w[i] + b[i];
@@ -137,7 +156,9 @@ pub fn inverse_sigmoid(x: f32) -> f32 {
 /// interleaved sin/cos of `v * 2pi / 10000^(2 floor(i / 2) / 128)`.
 pub fn sine_embed_boxes(boxes: &[f32]) -> Vec<f32> {
     const HALF: usize = 128;
-    let dim_t: Vec<f32> = (0..HALF).map(|i| 10000f32.powf((2 * (i / 2)) as f32 / HALF as f32)).collect();
+    let dim_t: Vec<f32> = (0..HALF)
+        .map(|i| 10000f32.powf((2 * (i / 2)) as f32 / HALF as f32))
+        .collect();
     let scale = 2.0 * std::f32::consts::PI;
     let n = boxes.len() / 4;
     let mut out = Vec::with_capacity(n * 4 * HALF);
@@ -157,7 +178,9 @@ pub fn sine_embed_boxes(boxes: &[f32]) -> Vec<f32> {
 /// map: `[256, h, w]`, channels (y then x), each 128 interleaved sin/cos.
 pub fn sine_position_map(h: usize, w: usize) -> Vec<f32> {
     const HALF: usize = 128;
-    let dim_t: Vec<f32> = (0..HALF).map(|i| 10000f32.powf((2 * (i / 2)) as f32 / HALF as f32)).collect();
+    let dim_t: Vec<f32> = (0..HALF)
+        .map(|i| 10000f32.powf((2 * (i / 2)) as f32 / HALF as f32))
+        .collect();
     let scale = 2.0 * std::f32::consts::PI;
     let eps = 1e-6f32;
     let mut out = vec![0f32; 2 * HALF * h * w];
@@ -167,7 +190,11 @@ pub fn sine_position_map(h: usize, w: usize) -> Vec<f32> {
             let xe = (x + 1) as f32 / (w as f32 + eps) * scale;
             for (i, &d) in dim_t.iter().enumerate() {
                 let (py, px) = (ye / d, xe / d);
-                let (vy, vx) = if i % 2 == 0 { (py.sin(), px.sin()) } else { (py.cos(), px.cos()) };
+                let (vy, vx) = if i % 2 == 0 {
+                    (py.sin(), px.sin())
+                } else {
+                    (py.cos(), px.cos())
+                };
                 out[(i * h + y) * w + x] = vy;
                 out[((HALF + i) * h + y) * w + x] = vx;
             }
@@ -220,29 +247,62 @@ mod tests {
         // ref_point_head 512 -> 256, bbox_embed 256 -> 4), single rows, and out not a multiple
         // of 4 or 8. The 14400-row cases cross THREAD_MIN_MACS, with rows not divisible by the
         // thread count.
-        for (case, &(n, inp, out)) in [(14_400, 2, 256), (14_400, 256, 8), (200, 512, 256), (200, 256, 4), (1, 256, 256), (3, 7, 13), (14_401, 5, 15), (2, 1, 1)].iter().enumerate() {
+        for (case, &(n, inp, out)) in [
+            (14_400, 2, 256),
+            (14_400, 256, 8),
+            (200, 512, 256),
+            (200, 256, 4),
+            (1, 256, 256),
+            (3, 7, 13),
+            (14_401, 5, 15),
+            (2, 1, 1),
+        ]
+        .iter()
+        .enumerate()
+        {
             let x = values(n * inp, case as u32);
             let w = values(out * inp, 100 + case as u32);
             let b = values(out, 200 + case as u32);
-            let (got, want) = (linear(&x, n, &w, &b, out), linear_scalar(&x, n, &w, &b, out));
+            let (got, want) = (
+                linear(&x, n, &w, &b, out),
+                linear_scalar(&x, n, &w, &b, out),
+            );
             assert_eq!(got.len(), want.len());
             for (i, (g, e)) in got.iter().zip(&want).enumerate() {
-                assert_eq!(g.to_bits(), e.to_bits(), "case {case} ({n}, {inp}, {out}) element {i}: {g} vs {e}");
+                assert_eq!(
+                    g.to_bits(),
+                    e.to_bits(),
+                    "case {case} ({n}, {inp}, {out}) element {i}: {g} vs {e}"
+                );
             }
         }
-        assert!(14_400 * 256 * 8 >= THREAD_MIN_MACS, "the threaded path is exercised");
+        assert!(
+            14_400 * 256 * 8 >= THREAD_MIN_MACS,
+            "the threaded path is exercised"
+        );
     }
 
     #[test]
     fn linear_edge_shapes() {
         assert!(linear(&[], 0, &[1.0, 2.0], &[0.5, 0.25], 2).is_empty());
-        assert_eq!(linear(&[], 3, &[], &[0.5, -0.0], 2), vec![0.5, 0.0, 0.5, 0.0, 0.5, 0.0]);
+        assert_eq!(
+            linear(&[], 3, &[], &[0.5, -0.0], 2),
+            vec![0.5, 0.0, 0.5, 0.0, 0.5, 0.0]
+        );
     }
 
     #[test]
     fn chunked_pieces_cover_every_index_once_at_their_start() {
         // Lengths below, at and above the threading threshold, and not divisible by the thread count.
-        for &(len, min) in &[(0usize, 1usize), (1, 1), (7, 1), (1000, 64), (1001, 64), (100_003, 1 << 12), (5, 100)] {
+        for &(len, min) in &[
+            (0usize, 1usize),
+            (1, 1),
+            (7, 1),
+            (1000, 64),
+            (1001, 64),
+            (100_003, 1 << 12),
+            (5, 100),
+        ] {
             let mut v = vec![usize::MAX; len];
             for_each_chunk_mut(&mut v, min, |start, piece| {
                 for (j, x) in piece.iter_mut().enumerate() {
@@ -250,7 +310,10 @@ mod tests {
                     *x = start + j;
                 }
             });
-            assert!(v.iter().enumerate().all(|(i, &x)| x == i), "len {len} min {min}");
+            assert!(
+                v.iter().enumerate().all(|(i, &x)| x == i),
+                "len {len} min {min}"
+            );
         }
     }
 

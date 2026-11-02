@@ -9,3 +9,6 @@ description = "Frame preprocessing (Pillow-exact bilinear resize) for SpikeTrack
 
 [dev-dependencies]
 ojas-io.workspace = true
+
+[lints]
+workspace = true

@@ -9,8 +9,8 @@ use std::time::Instant;
 
 use ojas_core::{Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
-use ojas_metal::MetalBackend;
 use ojas_io::SafeTensors;
+use ojas_metal::MetalBackend;
 use st_model::detector::{Detector, DetectorTaps, DetectorWeights, D, MASK, QUERIES, TOKENS};
 use st_model::host;
 use st_weights::{Checkpoint, Sam31Weights};
@@ -34,7 +34,13 @@ struct Cmp {
 
 impl Cmp {
     fn check(&mut self, case: &str, stage: &str, got: &[f32], want: &[f32], gate: f64) {
-        assert_eq!(got.len(), want.len(), "{case} {stage}: length {} vs {}", got.len(), want.len());
+        assert_eq!(
+            got.len(),
+            want.len(),
+            "{case} {stage}: length {} vs {}",
+            got.len(),
+            want.len()
+        );
         let (mut dot, mut gg, mut ww, mut max_abs, mut ref_max) = (0f64, 0f64, 0f64, 0f64, 0f64);
         for (&g, &w) in got.iter().zip(want) {
             let (g, w) = (f64::from(g), f64::from(w));
@@ -45,19 +51,32 @@ impl Cmp {
             max_abs = max_abs.max((g - w).abs());
             ref_max = ref_max.max(w.abs());
         }
-        let cos = if gg == 0.0 && ww == 0.0 { 1.0 } else { dot / (gg.sqrt() * ww.sqrt()) };
+        let cos = if gg == 0.0 && ww == 0.0 {
+            1.0
+        } else {
+            dot / (gg.sqrt() * ww.sqrt())
+        };
         self.worst = self.worst.min(cos);
         let ok = cos > gate;
-        self.rows.push(format!("| {case} | {stage} | {cos:.7} | {max_abs:.3e} | {:.3e} | {} |", max_abs / ref_max.max(1e-30), if ok { "pass" } else { "FAIL" }));
+        self.rows.push(format!(
+            "| {case} | {stage} | {cos:.7} | {max_abs:.3e} | {:.3e} | {} |",
+            max_abs / ref_max.max(1e-30),
+            if ok { "pass" } else { "FAIL" }
+        ));
     }
 }
 
 fn f(st: &SafeTensors<'_>, name: &str) -> Vec<f32> {
-    st.read_f32(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail())).1
+    st.read_f32(name)
+        .unwrap_or_else(|e| panic!("{name}: {}", e.detail()))
+        .1
 }
 
 fn host<B: Backend>(t: &Tensor, be: &B) -> Vec<f32> {
-    t.to_host(be.budget()).expect("host").to_f32_vec().expect("f32")
+    t.to_host(be.budget())
+        .expect("host")
+        .to_f32_vec()
+        .expect("f32")
 }
 
 /// Mean IoU of binarized (logit > 0) masks over the queries upstream keeps at 0.5.
@@ -73,7 +92,11 @@ fn mask_iou(got: &[f32], want: &[f32], keep: &[usize]) -> f64 {
                 i += u64::from(a && b);
                 u += u64::from(a || b);
             }
-            if u == 0 { 1.0 } else { i as f64 / u as f64 }
+            if u == 0 {
+                1.0
+            } else {
+                i as f64 / u as f64
+            }
         })
         .collect();
     ious.iter().sum::<f64>() / ious.len().max(1) as f64
@@ -82,13 +105,19 @@ fn mask_iou(got: &[f32], want: &[f32], keep: &[usize]) -> f64 {
 #[test]
 #[ignore = "needs the gated checkpoint and detector fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_DETECTOR_FIXTURES"]
 fn detector_matches_upstream_stage_by_stage() {
-    detector_parity(&CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu backend"), "CPU");
+    detector_parity(
+        &CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu backend"),
+        "CPU",
+    );
 }
 
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint and detector fixtures: set SPIKETRACK_WEIGHTS and SPIKETRACK_DETECTOR_FIXTURES"]
 fn detector_matches_upstream_stage_by_stage_on_metal() {
-    detector_parity(&MetalBackend::new(Budget::new(24 << 30)).expect("metal backend"), "Metal");
+    detector_parity(
+        &MetalBackend::new(Budget::new(24 << 30)).expect("metal backend"),
+        "Metal",
+    );
 }
 
 fn detector_parity<B: Backend>(be: &B, label: &str) {
@@ -97,30 +126,57 @@ fn detector_parity<B: Backend>(be: &B, label: &str) {
     let dir = env_path("SPIKETRACK_DETECTOR_FIXTURES");
     let det = Detector::new(
         be,
-        DetectorWeights { transformer: &w.detector_transformer, geometry: &w.geometry_encoder, segmentation: &w.segmentation_head, scoring: &w.dot_prod_scoring },
+        DetectorWeights {
+            transformer: &w.detector_transformer,
+            geometry: &w.geometry_encoder,
+            segmentation: &w.segmentation_head,
+            scoring: &w.dot_prod_scoring,
+        },
     )
     .expect("detector");
     // Every detector tensor is read by the port, apart from the ones upstream's text path never touches.
-    let groups = [&w.detector_transformer, &w.geometry_encoder, &w.segmentation_head, &w.dot_prod_scoring];
-    let unused: Vec<&String> = groups.iter().flat_map(|g| g.tensors.keys()).filter(|n| Detector::<B>::unused_by_text_prompts(n)).collect();
+    let groups = [
+        &w.detector_transformer,
+        &w.geometry_encoder,
+        &w.segmentation_head,
+        &w.dot_prod_scoring,
+    ];
+    let unused: Vec<&String> = groups
+        .iter()
+        .flat_map(|g| g.tensors.keys())
+        .filter(|n| Detector::<B>::unused_by_text_prompts(n))
+        .collect();
     println!("{} detector tensors not read on the text path (point/box/mask prompt encoders, pixel_decoder stage 3)", unused.len());
 
-    let mut cmp = Cmp { rows: Vec::new(), worst: f64::INFINITY };
+    let mut cmp = Cmp {
+        rows: Vec::new(),
+        worst: f64::INFINITY,
+    };
     let mut iou_rows = Vec::new();
     for case in CASES {
         let st = SafeTensors::open(&dir.join(format!("{case}.safetensors"))).expect("fixture");
         let fpn: [Tensor; 3] = [0, 1, 2].map(|i| {
             let (shape, data) = st.read_f32(&format!("in.fpn{i}")).expect("fpn");
             let shape: Vec<usize> = shape.into_iter().map(|d| d as usize).collect();
-            be.upload(&Tensor::from_f32(&data, &shape, be.budget()).expect("t")).expect("up")
+            be.upload(&Tensor::from_f32(&data, &shape, be.budget()).expect("t"))
+                .expect("up")
         });
         // Upstream's position encoding for the 72x72 level vs ours.
         let pos_chw = f(&st, "in.pos2");
-        cmp.check(case, "sine pos 72x72", &host::sine_position_map(72, 72), &pos_chw, 0.99999);
+        cmp.check(
+            case,
+            "sine pos 72x72",
+            &host::sine_position_map(72, 72),
+            &pos_chw,
+            0.99999,
+        );
         // Valid text tokens, [32, 1, 256] seq first with a [1, 32] pad mask.
         let text = f(&st, "in.text");
         let pad = st.read_bytes("in.text_pad").expect("pad");
-        let valid: Vec<f32> = (0..32).filter(|&t| pad[t] == 0).flat_map(|t| text[t * D..(t + 1) * D].to_vec()).collect();
+        let valid: Vec<f32> = (0..32)
+            .filter(|&t| pad[t] == 0)
+            .flat_map(|t| text[t * D..(t + 1) * D].to_vec())
+            .collect();
         let len = valid.len() / D;
         let text_t = Tensor::from_f32(&valid, &[1, len, D], be.budget()).expect("text");
         let mut taps = DetectorTaps::default();
@@ -129,39 +185,120 @@ fn detector_parity<B: Backend>(be: &B, label: &str) {
         be.sync().expect("sync");
         let secs = t0.elapsed().as_secs_f64();
 
-        cmp.check(case, "geometry CLS", taps.geo.as_ref().expect("geo"), &f(&st, "geo.0"), 0.9999);
+        cmp.check(
+            case,
+            "geometry CLS",
+            taps.geo.as_ref().expect("geo"),
+            &f(&st, "geo.0"),
+            0.9999,
+        );
         for (i, t) in taps.enc_layers.iter().enumerate() {
-            cmp.check(case, &format!("encoder layer {i}"), &host(t, be), &f(&st, &format!("enc.layer{i}")), 0.999);
+            cmp.check(
+                case,
+                &format!("encoder layer {i}"),
+                &host(t, be),
+                &f(&st, &format!("enc.layer{i}")),
+                0.999,
+            );
         }
         let hs = f(&st, "dec.0"); // [6, 200, 1, 256]
         let refs = f(&st, "dec.1"); // [6, 200, 1, 4]
         let pres = f(&st, "dec.2"); // [6, 1, 1]
         let scores = f(&st, "scoring"); // [6, 1, 200, 1]
         for l in 0..6 {
-            cmp.check(case, &format!("decoder {l} queries"), &taps.hs[l], &hs[l * QUERIES * D..(l + 1) * QUERIES * D], 0.999);
-            cmp.check(case, &format!("decoder {l} ref boxes in"), &taps.ref_boxes[l], &refs[l * QUERIES * 4..(l + 1) * QUERIES * 4], 0.9999);
-            cmp.check(case, &format!("decoder {l} scores"), &taps.scores[l], &scores[l * QUERIES..(l + 1) * QUERIES], 0.999);
+            cmp.check(
+                case,
+                &format!("decoder {l} queries"),
+                &taps.hs[l],
+                &hs[l * QUERIES * D..(l + 1) * QUERIES * D],
+                0.999,
+            );
+            cmp.check(
+                case,
+                &format!("decoder {l} ref boxes in"),
+                &taps.ref_boxes[l],
+                &refs[l * QUERIES * 4..(l + 1) * QUERIES * 4],
+                0.9999,
+            );
+            cmp.check(
+                case,
+                &format!("decoder {l} scores"),
+                &taps.scores[l],
+                &scores[l * QUERIES..(l + 1) * QUERIES],
+                0.999,
+            );
             let d = (f64::from(taps.presence_logits[l]) - f64::from(pres[l])).abs();
-            assert!(d < 0.05, "{case} presence logit layer {l}: {} vs {}", taps.presence_logits[l], pres[l]);
+            assert!(
+                d < 0.05,
+                "{case} presence logit layer {l}: {} vs {}",
+                taps.presence_logits[l],
+                pres[l]
+            );
         }
-        cmp.check(case, "seg prompt cross-attn", &host(taps.seg_cross_attn.as_ref().expect("tap"), be), &f(&st, "seg.cross_attend_prompt.0"), 0.999);
-        cmp.check(case, "pixel embed", &host(taps.pixel_embed.as_ref().expect("tap"), be), &f(&st, "seg.pixel_embed"), 0.999);
-        cmp.check(case, "semantic seg", &host(&out.semantic_seg, be), &f(&st, "seg.semantic_seg"), 0.999);
-        cmp.check(case, "pred_logits", &out.pred_logits, &f(&st, "out.pred_logits"), 0.999);
-        cmp.check(case, "pred_boxes", &out.pred_boxes, &f(&st, "out.pred_boxes"), 0.9999);
+        cmp.check(
+            case,
+            "seg prompt cross-attn",
+            &host(taps.seg_cross_attn.as_ref().expect("tap"), be),
+            &f(&st, "seg.cross_attend_prompt.0"),
+            0.999,
+        );
+        cmp.check(
+            case,
+            "pixel embed",
+            &host(taps.pixel_embed.as_ref().expect("tap"), be),
+            &f(&st, "seg.pixel_embed"),
+            0.999,
+        );
+        cmp.check(
+            case,
+            "semantic seg",
+            &host(&out.semantic_seg, be),
+            &f(&st, "seg.semantic_seg"),
+            0.999,
+        );
+        cmp.check(
+            case,
+            "pred_logits",
+            &out.pred_logits,
+            &f(&st, "out.pred_logits"),
+            0.999,
+        );
+        cmp.check(
+            case,
+            "pred_boxes",
+            &out.pred_boxes,
+            &f(&st, "out.pred_boxes"),
+            0.9999,
+        );
         let masks = host(&out.pred_masks, be);
         let want_masks = f(&st, "out.pred_masks");
         cmp.check(case, "pred_masks", &masks, &want_masks, 0.999);
         let pres_ref = f(&st, "out.presence_logit_dec")[0];
-        let want_prob: Vec<f32> = f(&st, "out.pred_logits").iter().map(|&l| host::sigmoid(l) * host::sigmoid(pres_ref)).collect();
+        let want_prob: Vec<f32> = f(&st, "out.pred_logits")
+            .iter()
+            .map(|&l| host::sigmoid(l) * host::sigmoid(pres_ref))
+            .collect();
         let keep: Vec<usize> = (0..QUERIES).filter(|&q| want_prob[q] > 0.5).collect();
         let got_prob = out.probabilities();
         let got_keep: Vec<usize> = (0..QUERIES).filter(|&q| got_prob[q] > 0.5).collect();
         let iou = mask_iou(&masks, &want_masks, &keep);
         // A query sitting at 0.5 can flip under fp32 drift: report the set difference, gate on IoU.
-        let only_ref: Vec<usize> = keep.iter().copied().filter(|q| !got_keep.contains(q)).collect();
-        let only_ours: Vec<usize> = got_keep.iter().copied().filter(|q| !keep.contains(q)).collect();
-        let near = |qs: &[usize]| qs.iter().map(|&q| format!("{q}:{:.3}/{:.3}", want_prob[q], got_prob[q])).collect::<Vec<_>>().join(" ");
+        let only_ref: Vec<usize> = keep
+            .iter()
+            .copied()
+            .filter(|q| !got_keep.contains(q))
+            .collect();
+        let only_ours: Vec<usize> = got_keep
+            .iter()
+            .copied()
+            .filter(|q| !keep.contains(q))
+            .collect();
+        let near = |qs: &[usize]| {
+            qs.iter()
+                .map(|&q| format!("{q}:{:.3}/{:.3}", want_prob[q], got_prob[q]))
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
         iou_rows.push(format!(
             "| {case} | {} | {} | {} | {} | {iou:.4} | {secs:.1} |",
             keep.len(),
@@ -169,7 +306,10 @@ fn detector_parity<B: Backend>(be: &B, label: &str) {
             near(&only_ref),
             near(&only_ours)
         ));
-        assert!(iou >= 0.95, "{case}: mean mask IoU {iou} over upstream's kept queries < 0.95");
+        assert!(
+            iou >= 0.95,
+            "{case}: mean mask IoU {iou} over upstream's kept queries < 0.95"
+        );
     }
     let _ = TOKENS;
     println!("\n| case | stage | cosine | max abs | max abs / max ref | gate |\n|---|---|---|---|---|---|");
@@ -177,5 +317,8 @@ fn detector_parity<B: Backend>(be: &B, label: &str) {
     println!("\n| case | upstream kept @0.5 | ours kept | only upstream (q:ref/ours) | only ours | mean mask IoU (upstream's kept) | detector s ({label}) |\n|---|---|---|---|---|---|---|");
     iou_rows.iter().for_each(|r| println!("{r}"));
     println!("\nworst cosine {:.7}", cmp.worst);
-    assert!(cmp.rows.iter().all(|r| r.ends_with("pass |")), "a stage failed its cosine gate");
+    assert!(
+        cmp.rows.iter().all(|r| r.ends_with("pass |")),
+        "a stage failed its cosine gate"
+    );
 }

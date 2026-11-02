@@ -18,12 +18,18 @@ pub struct BitSet {
 impl BitSet {
     /// `len` bits, all clear.
     pub fn new(len: usize) -> Self {
-        Self { words: vec![0; len.div_ceil(64)], len }
+        Self {
+            words: vec![0; len.div_ceil(64)],
+            len,
+        }
     }
 
     /// `len` bits, all set.
     pub fn full(len: usize) -> Self {
-        let mut s = Self { words: vec![!0; len.div_ceil(64)], len };
+        let mut s = Self {
+            words: vec![!0; len.div_ceil(64)],
+            len,
+        };
         s.mask_tail();
         s
     }
@@ -41,16 +47,28 @@ impl BitSet {
         self.len
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
     /// Panics when `i >= len()`: an index out of range is a caller bug, and a
     /// silently ignored bit would be a skipped recompute.
     pub fn get(&self, i: usize) -> bool {
-        assert!(i < self.len, "bit {i} out of range for a set of {}", self.len);
+        assert!(
+            i < self.len,
+            "bit {i} out of range for a set of {}",
+            self.len
+        );
         self.words[i / 64] >> (i % 64) & 1 == 1
     }
 
     /// Panics when `i >= len()`.
     pub fn set(&mut self, i: usize, on: bool) {
-        assert!(i < self.len, "bit {i} out of range for a set of {}", self.len);
+        assert!(
+            i < self.len,
+            "bit {i} out of range for a set of {}",
+            self.len
+        );
         let (w, b) = (i / 64, i % 64);
         if on {
             self.words[w] |= 1 << b;
@@ -79,7 +97,10 @@ impl BitSet {
     /// `self |= other`; the sets must have the same length.
     pub fn or_assign(&mut self, other: &Self) {
         assert_eq!(self.len, other.len, "or of sets of different lengths");
-        self.words.iter_mut().zip(&other.words).for_each(|(a, b)| *a |= b);
+        self.words
+            .iter_mut()
+            .zip(&other.words)
+            .for_each(|(a, b)| *a |= b);
     }
 
     /// The indices of the set bits, ascending.
@@ -116,12 +137,18 @@ pub struct WindowSet {
 impl WindowSet {
     /// No windows selected, on a `side x side` grid of windows.
     pub fn new(side: usize) -> Self {
-        Self { side, bits: BitSet::new(side * side) }
+        Self {
+            side,
+            bits: BitSet::new(side * side),
+        }
     }
 
     /// Every window selected.
     pub fn full(side: usize) -> Self {
-        Self { side, bits: BitSet::full(side * side) }
+        Self {
+            side,
+            bits: BitSet::full(side * side),
+        }
     }
 
     /// The listed windows; panics on an index past `side * side`.
@@ -189,7 +216,10 @@ mod tests {
             assert!(s.get(i));
         }
         assert_eq!(s.count(), 8);
-        assert_eq!(s.iter_ones().collect::<Vec<_>>(), vec![0, 1, 63, 64, 65, 127, 128, 129]);
+        assert_eq!(
+            s.iter_ones().collect::<Vec<_>>(),
+            vec![0, 1, 63, 64, 65, 127, 128, 129]
+        );
         s.set(64, false);
         assert_eq!(s.count(), 7);
         assert!(!s.get(64));

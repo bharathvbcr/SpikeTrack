@@ -50,7 +50,10 @@ fn env_path(var: &str) -> PathBuf {
 
 /// The 1/5/15-minute load averages (`sysctl -n vm.loadavg`), or why they could not be read.
 fn load_average() -> String {
-    match std::process::Command::new("/usr/sbin/sysctl").args(["-n", "vm.loadavg"]).output() {
+    match std::process::Command::new("/usr/sbin/sysctl")
+        .args(["-n", "vm.loadavg"])
+        .output()
+    {
         Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
         Ok(o) => format!("unreadable (sysctl exit {})", o.status),
         Err(e) => format!("unreadable ({e})"),
@@ -58,7 +61,9 @@ fn load_average() -> String {
 }
 
 fn tracker_stage(t: usize) -> Option<String> {
-    MEASURED.iter().find(|(f, _)| *f == t).map(|(f, depth)| format!("tracker frame {f} (F={depth}; its trunk + propagation neck + tracker step)"))
+    MEASURED.iter().find(|(f, _)| *f == t).map(|(f, depth)| {
+        format!("tracker frame {f} (F={depth}; its trunk + propagation neck + tracker step)")
+    })
 }
 
 /// Builds the models on `be`, encodes the prompt, then (inside `mode`'s autocast region)
@@ -66,47 +71,94 @@ fn tracker_stage(t: usize) -> Option<String> {
 /// 0..8. `stage` labels what follows ("warm-up" for unmeasured work). Returns the detector
 /// run's ms and each measured tracker frame's (frame, F, ms).
 /// `trunk_bf16`: the backbone's trunk linears run bf16 ([`Backbone::with_trunk_linears_bf16`]).
-fn measure<B: Backend>(be: &B, w: &Sam31Weights, mode: AutocastMode, trunk_bf16: bool, mut stage: impl FnMut(&str)) -> (f64, Vec<(usize, usize, f64)>) {
+fn measure<B: Backend>(
+    be: &B,
+    w: &Sam31Weights,
+    mode: AutocastMode,
+    trunk_bf16: bool,
+    mut stage: impl FnMut(&str),
+) -> (f64, Vec<(usize, usize, f64)>) {
     let backbone = Backbone::new(be, &w.vision).expect("backbone");
-    let backbone = if trunk_bf16 { backbone.with_trunk_linears_bf16().expect("bf16 trunk linears") } else { backbone };
+    let backbone = if trunk_bf16 {
+        backbone
+            .with_trunk_linears_bf16()
+            .expect("bf16 trunk linears")
+    } else {
+        backbone
+    };
     let text = Text::new(be, &w.text).expect("text");
     let det = Detector::new(
         be,
-        DetectorWeights { transformer: &w.detector_transformer, geometry: &w.geometry_encoder, segmentation: &w.segmentation_head, scoring: &w.dot_prod_scoring },
+        DetectorWeights {
+            transformer: &w.detector_transformer,
+            geometry: &w.geometry_encoder,
+            segmentation: &w.segmentation_head,
+            scoring: &w.dot_prod_scoring,
+        },
     )
     .expect("detector");
     let vos = Vos::new(be, &backbone, &w.tracker).expect("tracker");
     let dir = env_path("SPIKETRACK_MODEL_DIR");
-    let tok = Tokenizer::from_hf_files(&dir.join("vocab.json"), &dir.join("merges.txt")).expect("tokenizer");
+    let tok = Tokenizer::from_hf_files(&dir.join("vocab.json"), &dir.join("merges.txt"))
+        .expect("tokenizer");
     stage("text (once per prompt)");
-    let tf = text.encode(&[tok.tokenize(PROMPT).expect("tokenize")]).expect("text encode");
-    let resized = tf.resized.to_host(be.budget()).expect("host").to_f32_vec().expect("f32");
-    let valid: Vec<f32> = (0..32).filter(|&t| !tf.padding[t]).flat_map(|t| resized[t * D..(t + 1) * D].to_vec()).collect();
+    let tf = text
+        .encode(&[tok.tokenize(PROMPT).expect("tokenize")])
+        .expect("text encode");
+    let resized = tf
+        .resized
+        .to_host(be.budget())
+        .expect("host")
+        .to_f32_vec()
+        .expect("f32");
+    let valid: Vec<f32> = (0..32)
+        .filter(|&t| !tf.padding[t])
+        .flat_map(|t| resized[t * D..(t + 1) * D].to_vec())
+        .collect();
     let prompt = Tensor::from_f32(&valid, &[1, valid.len() / D, D], be.budget()).expect("prompt");
 
     let fx = SafeTensors::open(&env_path("SPIKETRACK_TRACKER_FIXTURES")).expect("fixtures");
-    let h = |name: &str| fx.read_f32_widened(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
+    let h = |name: &str| {
+        fx.read_f32_widened(name)
+            .unwrap_or_else(|e| panic!("{name}: {}", e.detail()))
+    };
     let (mshape, masks0) = h("f0.input_masks");
     let (n, ht, wd) = (mshape[0] as usize, mshape[1] as usize, mshape[2] as usize);
     let frames: Vec<Tensor> = (0..FRAMES)
-        .map(|f| be.upload(&Tensor::from_f32(&h(&format!("f{f}.image")).1, &[1, 3, 1008, 1008], be.budget()).expect("t")).expect("up"))
+        .map(|f| {
+            be.upload(
+                &Tensor::from_f32(
+                    &h(&format!("f{f}.image")).1,
+                    &[1, 3, 1008, 1008],
+                    be.budget(),
+                )
+                .expect("t"),
+            )
+            .expect("up")
+        })
         .collect();
 
     let _region = be.autocast_region(mode).expect("autocast region");
     let detect = |img: &Tensor| {
-        let trunk = backbone.trunk(img, &[], &mut Taps::default()).expect("trunk");
+        let trunk = backbone
+            .trunk(img, &[], &mut Taps::default())
+            .expect("trunk");
         let fpn = backbone.neck(Neck::Detector, &trunk).expect("neck");
-        det.forward(&fpn, &prompt, &mut DetectorTaps::default()).expect("detector");
+        det.forward(&fpn, &prompt, &mut DetectorTaps::default())
+            .expect("detector");
     };
     stage("warm-up");
     detect(&frames[1]);
     be.sync().expect("sync");
     stage("trunk (detector run)");
     let t0 = Instant::now();
-    let trunk = backbone.trunk(&frames[2], &[], &mut Taps::default()).expect("trunk");
+    let trunk = backbone
+        .trunk(&frames[2], &[], &mut Taps::default())
+        .expect("trunk");
     stage("detector neck + detector");
     let fpn = backbone.neck(Neck::Detector, &trunk).expect("neck");
-    det.forward(&fpn, &prompt, &mut DetectorTaps::default()).expect("detector");
+    det.forward(&fpn, &prompt, &mut DetectorTaps::default())
+        .expect("detector");
     be.sync().expect("sync");
     let det_ms = t0.elapsed().as_secs_f64() * 1e3;
 
@@ -139,7 +191,10 @@ fn run<B: Backend>(
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = Sam31Weights::load(&ck).expect("weights");
     let show = |kind: &str, det_ms: f64, times: &[(usize, usize, f64)]| {
-        let tr: Vec<String> = times.iter().map(|(f, d, ms)| format!("frame {f} F={d} {ms:.0} ms")).collect();
+        let tr: Vec<String> = times
+            .iter()
+            .map(|(f, d, ms)| format!("frame {f} F={d} {ms:.0} ms"))
+            .collect();
         println!("[{label}] {kind}: detector run (trunk + neck + detector) {det_ms:.0} ms; tracker frames (each incl. its trunk + neck + step): {}", tr.join(", "));
     };
     // Three unprofiled passes back to back in one process separate warm-up / first-touch
@@ -152,12 +207,19 @@ fn run<B: Backend>(
         let before = counters.map(|read| read(&be));
         let split_before = split.map(|read| read(&be));
         let (det_ms, times) = measure(&be, &w, mode, trunk_bf16, |_| {});
-        let delta = before.zip(counters.map(|read| read(&be))).map(|(b, a)| format!("; waits +{}, dispatches +{}", a.0 - b.0, a.1 - b.1)).unwrap_or_default();
+        let delta = before
+            .zip(counters.map(|read| read(&be)))
+            .map(|(b, a)| format!("; waits +{}, dispatches +{}", a.0 - b.0, a.1 - b.1))
+            .unwrap_or_default();
         let delta = match split_before.zip(split.map(|read| read(&be))) {
             Some((b, a)) => format!("{delta}; waits by trigger {:?}", a.since(&b)),
             None => delta,
         };
-        show(&format!("unprofiled pass {pass} (load before: {load}{delta})"), det_ms, &times);
+        show(
+            &format!("unprofiled pass {pass} (load before: {load}{delta})"),
+            det_ms,
+            &times,
+        );
     }
     drop(be);
     let load = load_average();
@@ -178,19 +240,40 @@ fn run<B: Backend>(
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the tracker fixture"]
 fn frame_profile_metal() {
-    run(|| MetalBackend::new(Budget::new(24 << 30)).expect("metal"), AutocastMode::Off, false, "Metal f32, contended", Some(|b: &MetalBackend| (b.waits(), b.dispatches())), Some(|b: &MetalBackend| b.wait_counts()));
+    run(
+        || MetalBackend::new(Budget::new(24 << 30)).expect("metal"),
+        AutocastMode::Off,
+        false,
+        "Metal f32, contended",
+        Some(|b: &MetalBackend| (b.waits(), b.dispatches())),
+        Some(|b: &MetalBackend| b.wait_counts()),
+    );
 }
 
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the tracker fixture"]
 fn frame_profile_metal_bf16() {
-    run(|| Autocast::new(shared_metal()), AutocastMode::Bf16, false, "Metal Autocast bf16, contended", Some(|_: &Autocast<&MetalBackend>| metal_counters()), Some(|_: &Autocast<&MetalBackend>| shared_metal().wait_counts()));
+    run(
+        || Autocast::new(shared_metal()),
+        AutocastMode::Bf16,
+        false,
+        "Metal Autocast bf16, contended",
+        Some(|_: &Autocast<&MetalBackend>| metal_counters()),
+        Some(|_: &Autocast<&MetalBackend>| shared_metal().wait_counts()),
+    );
 }
 
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint, tokenizer files and the tracker fixture"]
 fn frame_profile_metal_bf16_linears() {
-    run(|| Autocast::new(shared_metal()), AutocastMode::Off, true, "Metal bf16 trunk linears, contended", Some(|_: &Autocast<&MetalBackend>| metal_counters()), Some(|_: &Autocast<&MetalBackend>| shared_metal().wait_counts()));
+    run(
+        || Autocast::new(shared_metal()),
+        AutocastMode::Off,
+        true,
+        "Metal bf16 trunk linears, contended",
+        Some(|_: &Autocast<&MetalBackend>| metal_counters()),
+        Some(|_: &Autocast<&MetalBackend>| shared_metal().wait_counts()),
+    );
 }
 
 thread_local! {
@@ -213,5 +296,12 @@ fn metal_counters() -> (u64, u64) {
 #[test]
 #[ignore = "needs the gated checkpoint, tokenizer files and the tracker fixture"]
 fn frame_profile_cpu() {
-    run(|| CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"), AutocastMode::Off, false, "CPU f32, contended", None, None);
+    run(
+        || CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"),
+        AutocastMode::Off,
+        false,
+        "CPU f32, contended",
+        None,
+        None,
+    );
 }

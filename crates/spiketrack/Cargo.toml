@@ -21,3 +21,6 @@ st-model = { path = "../st-model" }
 st-coreml = { path = "../st-coreml" }
 st-video.workspace = true
 st-weights.workspace = true
+
+[lints]
+workspace = true

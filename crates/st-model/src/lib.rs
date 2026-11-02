@@ -1,5 +1,18 @@
 //! SAM 3.1 image model on the Ojas Backend.
 
+#![allow(
+    clippy::chunks_exact_to_as_chunks,
+    clippy::manual_is_multiple_of,
+    clippy::manual_range_contains,
+    clippy::cloned_ref_to_slice_refs,
+    clippy::assertions_on_constants,
+    clippy::too_many_arguments,
+    clippy::needless_range_loop,
+    clippy::neg_cmp_op_on_partial_ord,
+    clippy::type_complexity,
+    clippy::doc_overindented_list_items
+)]
+
 use std::fmt;
 
 use ojas_core::OjasError;
@@ -25,7 +38,11 @@ pub use tokenizer::Tokenizer;
 pub enum ModelError {
     Ojas(OjasError),
     MissingWeight(String),
-    WeightShape { name: String, expected: Vec<usize>, found: Vec<usize> },
+    WeightShape {
+        name: String,
+        expected: Vec<usize>,
+        found: Vec<usize>,
+    },
 }
 
 impl fmt::Display for ModelError {
@@ -33,7 +50,11 @@ impl fmt::Display for ModelError {
         match self {
             Self::Ojas(e) => write!(f, "{e}"),
             Self::MissingWeight(n) => write!(f, "weight {n:?} is not in the checkpoint group"),
-            Self::WeightShape { name, expected, found } => write!(f, "{name}: shape {found:?}, expected {expected:?}"),
+            Self::WeightShape {
+                name,
+                expected,
+                found,
+            } => write!(f, "{name}: shape {found:?}, expected {expected:?}"),
         }
     }
 }

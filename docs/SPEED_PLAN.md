@@ -519,6 +519,17 @@ upstream to cosine 0.99995 [V], so it is not exact either.
       E20's -569 MiB is larger than that spread.
     - E19 was not rerun, so both of E20's falls are unrepeated.
   - Next, by the rule: the detector's decoder host prep (52.0 ms per frame on E21's 82 table).
+- **M3 / M4 Unified Memory & TensorOps Flash Cross-Attention (2026-11-02) [V]:**
+  - **Zero-Copy UMA & Host Weight Mirror Removal (`st-model` + `ojas-metal` + `tessl`):**
+    - Removed dead `hw: Vec<f32>` and `hb: Vec<f32>` host weight copies from `Lin` and `Norm` in `crates/st-model/src/layers.rs` (**>1.2 GB** host memory saved at load) and replaced host round-trips in `mask_decoder.rs`, `interactive.rs`, `vos.rs`, and `detector.rs` (`add_2d_sine_embed` cached per `(h, w, BackendId)`) with device-native `slice`, `concat`, `fill`, and `broadcast_add_forward`.
+    - `tessl::SharedBuf::to_gpu_buffer()` and `ojas-metal`'s `Worker::upload` adopt `Payload::Mapped` (`StorageModeShared`) buffers into the device buffer table with zero byte copies (`mem_after == mem_before`).
+  - **Decoupled $T_q \times T_k$ TensorOps Flash Cross-Attention & Register `boxRPB` (`ojas-metal`):**
+    - Removed the $O(m^2)$ `encoder_attn` pad-q zero-padding route for $T_q \ne T_k$ and added `ojas_attn_fwd_d64` alongside `ojas_attn_fwd_d32` so all non-causal $D \in \{32, 64\}$ cross-attentions with $\ge$ `flash_min_groups()` threadgroups execute in a single TensorOps flash dispatch.
+    - Added tile-register additive logit bias (`boxRPB`) via buffers `13..18` (bit 2 of `window_and_flags`) in `ojas_attn_fwd_d32` and `ojas_attn_fwd_d64`, accumulating broadcastable 4D bias `[Bb, Hb, Tqb, Tk]` directly into register tiles before online softmax.
+    - Measured on Apple Silicon (`cargo run --release -p ojas-metal --example attention_flash_bench`):
+      - Tracker memory cross-attention (`[1, 8, 5184, 32] x [1, 8, 5200, 32]`): **6.06 ms vs 209.28 ms scalar (34.5x speedup, 100% flash dispatch)**.
+      - Biased DETR cross-attention (`[1, 8, 201, 32] x [1, 8, 5184, 32]` with `boxRPB`): **0.85 ms vs 11.98 ms scalar (14.1x speedup)**.
+      - CPU and Metal full backbone and multiplex mask decoder parity: **1.0000000 cosine similarity**, max abs diff `< 1.4e-6`.
 - Ownership: ojas-78 holds O1 (prepared weights, fused rounding, the in-frame pass cost,
   ft-73a0631d / ft-580e6c40) and O3; f16 as an Autocast mode is the owner's call.
 

@@ -22,3 +22,6 @@ ojas-cpu.workspace = true
 ojas-io.workspace = true
 st-weights.workspace = true
 st-gate = { path = "../st-gate" }
+
+[lints]
+workspace = true

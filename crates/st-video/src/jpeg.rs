@@ -102,8 +102,9 @@ const MAX_DIMENSION: usize = 65500;
 /// Position in the 8x8 block (row-major) of the i'th coefficient in zigzag
 /// order (`jpeg_natural_order` in `jutils.c`).
 const NATURAL_ORDER: [usize; 64] = [
-    0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40, 48, 41, 34, 27, 20, 13, 6, 7, 14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51, 58, 59, 52, 45, 38, 31,
-    39, 46, 53, 60, 61, 54, 47, 55, 62, 63,
+    0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40, 48, 41, 34, 27, 20,
+    13, 6, 7, 14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51, 58, 59,
+    52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63,
 ];
 
 // ---------------------------------------------------------------------------
@@ -168,7 +169,9 @@ impl fmt::Display for JpegError {
         match self {
             Self::NotJpeg => write!(f, "not a JPEG (no SOI marker)"),
             Self::Unsupported(u) => write!(f, "unsupported: {u}"),
-            Self::TooLarge { width, height } => write!(f, "{width}x{height} exceeds {MAX_PIXELS} pixels"),
+            Self::TooLarge { width, height } => {
+                write!(f, "{width}x{height} exceeds {MAX_PIXELS} pixels")
+            }
             Self::Truncated(what) => write!(f, "truncated: {what}"),
             Self::Malformed(what) => write!(f, "malformed: {what}"),
         }
@@ -244,7 +247,12 @@ impl HuffTable {
             code <<= 1;
             si += 1;
         }
-        let mut t = HuffTable { maxcode: [-1; 18], valoffset: [0; 18], vals: spec.vals, lookup: [0; 1 << LOOKAHEAD] };
+        let mut t = HuffTable {
+            maxcode: [-1; 18],
+            valoffset: [0; 18],
+            vals: spec.vals,
+            lookup: [0; 1 << LOOKAHEAD],
+        };
         let mut p = 0usize;
         for l in 1..=16usize {
             let n = usize::from(spec.bits[l]);
@@ -288,7 +296,14 @@ struct BitReader<'a> {
 
 impl<'a> BitReader<'a> {
     fn new(data: &'a [u8], pos: usize) -> Self {
-        BitReader { data, pos, buf: 0, nbits: 0, pad: 0, ended: false }
+        BitReader {
+            data,
+            pos,
+            buf: 0,
+            nbits: 0,
+            pad: 0,
+            ended: false,
+        }
     }
 
     /// Discard every buffered bit (a restart boundary).
@@ -368,13 +383,17 @@ impl<'a> BitReader<'a> {
                 return Ok(t.vals[((code + t.valoffset[l]) & 0xff) as usize]);
             }
         }
-        Err(malformed("entropy data holds a Huffman code that is not in the table"))
+        Err(malformed(
+            "entropy data holds a Huffman code that is not in the table",
+        ))
     }
 
     /// A block that consumed padding bits ran past the end of its segment.
     fn check_not_overrun(&self) -> Result<(), JpegError> {
         if self.nbits < self.pad {
-            Err(JpegError::Truncated("the entropy-coded data ends before the scan does"))
+            Err(JpegError::Truncated(
+                "the entropy-coded data ends before the scan does",
+            ))
         } else {
             Ok(())
         }
@@ -393,7 +412,13 @@ fn extend(r: u32, s: u32) -> i32 {
 
 /// Decode one block's 64 coefficients into natural (row-major) order,
 /// not dequantised. `decode_mcu_slow` in `jdhuff.c`.
-fn decode_block(br: &mut BitReader<'_>, dc: &HuffTable, ac: &HuffTable, last_dc: &mut i32, out: &mut [i16; 64]) -> Result<(), JpegError> {
+fn decode_block(
+    br: &mut BitReader<'_>,
+    dc: &HuffTable,
+    ac: &HuffTable,
+    last_dc: &mut i32,
+    out: &mut [i16; 64],
+) -> Result<(), JpegError> {
     *out = [0; 64];
     let s = u32::from(br.decode(dc)?);
     let mut diff = 0i32;
@@ -485,8 +510,18 @@ fn idct_islow(coef: &[i16; 64], quant: &[i32; 64], out: &mut [u8], stride: usize
         let (t0, t1, t2, t3) = (dq(7), dq(5), dq(3), dq(1));
         let (z1, z2, z3, z4) = (t0 + t3, t1 + t2, t0 + t2, t1 + t3);
         let z5 = (z3 + z4) * FIX_1_175875602;
-        let (t0, t1, t2, t3) = (t0 * FIX_0_298631336, t1 * FIX_2_053119869, t2 * FIX_3_072711026, t3 * FIX_1_501321110);
-        let (z1, z2, z3, z4) = (z1 * -FIX_0_899976223, z2 * -FIX_2_562915447, z3 * -FIX_1_961570560 + z5, z4 * -FIX_0_390180644 + z5);
+        let (t0, t1, t2, t3) = (
+            t0 * FIX_0_298631336,
+            t1 * FIX_2_053119869,
+            t2 * FIX_3_072711026,
+            t3 * FIX_1_501321110,
+        );
+        let (z1, z2, z3, z4) = (
+            z1 * -FIX_0_899976223,
+            z2 * -FIX_2_562915447,
+            z3 * -FIX_1_961570560 + z5,
+            z4 * -FIX_0_390180644 + z5,
+        );
         let (t0, t1, t2, t3) = (t0 + z1 + z3, t1 + z2 + z4, t2 + z2 + z3, t3 + z1 + z4);
         let sh = CONST_BITS - PASS1_BITS;
         ws[col] = descale(tmp10 + t3, sh) as i32;
@@ -517,8 +552,18 @@ fn idct_islow(coef: &[i16; 64], quant: &[i32; 64], out: &mut [u8], stride: usize
         let (t0, t1, t2, t3) = (w(7), w(5), w(3), w(1));
         let (z1, z2, z3, z4) = (t0 + t3, t1 + t2, t0 + t2, t1 + t3);
         let z5 = (z3 + z4) * FIX_1_175875602;
-        let (t0, t1, t2, t3) = (t0 * FIX_0_298631336, t1 * FIX_2_053119869, t2 * FIX_3_072711026, t3 * FIX_1_501321110);
-        let (z1, z2, z3, z4) = (z1 * -FIX_0_899976223, z2 * -FIX_2_562915447, z3 * -FIX_1_961570560 + z5, z4 * -FIX_0_390180644 + z5);
+        let (t0, t1, t2, t3) = (
+            t0 * FIX_0_298631336,
+            t1 * FIX_2_053119869,
+            t2 * FIX_3_072711026,
+            t3 * FIX_1_501321110,
+        );
+        let (z1, z2, z3, z4) = (
+            z1 * -FIX_0_899976223,
+            z2 * -FIX_2_562915447,
+            z3 * -FIX_1_961570560 + z5,
+            z4 * -FIX_0_390180644 + z5,
+        );
         let (t0, t1, t2, t3) = (t0 + z1 + z3, t1 + z2 + z4, t2 + z2 + z3, t3 + z1 + z4);
         let sh = CONST_BITS + PASS1_BITS + 3;
         o[0] = range_limit_idct(descale(tmp10 + t3, sh) as i32);
@@ -547,22 +592,42 @@ enum Upsample {
     H2V2Fancy,
     H2V2Box,
     /// `int_upsample`: replicate by whole factors.
-    Int { h: usize, v: usize },
+    Int {
+        h: usize,
+        v: usize,
+    },
 }
 
 /// `_jinit_upsampler`'s dispatch, with `do_fancy_upsampling` TRUE and the
 /// DCT scale 8 for every component. `None` is `JERR_FRACT_SAMPLE_NOTIMPL`.
-fn choose_upsampler(h_in: usize, v_in: usize, h_out: usize, v_out: usize, downsampled_width: usize) -> Option<Upsample> {
+fn choose_upsampler(
+    h_in: usize,
+    v_in: usize,
+    h_out: usize,
+    v_out: usize,
+    downsampled_width: usize,
+) -> Option<Upsample> {
     if h_in == h_out && v_in == v_out {
         Some(Upsample::Full)
     } else if h_in * 2 == h_out && v_in == v_out {
-        Some(if downsampled_width > 2 { Upsample::H2V1Fancy } else { Upsample::H2V1Box })
+        Some(if downsampled_width > 2 {
+            Upsample::H2V1Fancy
+        } else {
+            Upsample::H2V1Box
+        })
     } else if h_in == h_out && v_in * 2 == v_out {
         Some(Upsample::H1V2Fancy)
     } else if h_in * 2 == h_out && v_in * 2 == v_out {
-        Some(if downsampled_width > 2 { Upsample::H2V2Fancy } else { Upsample::H2V2Box })
+        Some(if downsampled_width > 2 {
+            Upsample::H2V2Fancy
+        } else {
+            Upsample::H2V2Box
+        })
     } else if h_out % h_in == 0 && v_out % v_in == 0 {
-        Some(Upsample::Int { h: h_out / h_in, v: v_out / v_in })
+        Some(Upsample::Int {
+            h: h_out / h_in,
+            v: v_out / v_in,
+        })
     } else {
         None
     }
@@ -625,7 +690,12 @@ struct YccTables {
 
 impl YccTables {
     fn new() -> Self {
-        let mut t = YccTables { cr_r: [0; 256], cb_b: [0; 256], cr_g: [0; 256], cb_g: [0; 256] };
+        let mut t = YccTables {
+            cr_r: [0; 256],
+            cb_b: [0; 256],
+            cr_g: [0; 256],
+            cb_g: [0; 256],
+        };
         for i in 0..256usize {
             let x = i as i32 - 128;
             t.cr_r[i] = (FIX_1_40200 * x + (1 << 15)) >> 16;
@@ -652,7 +722,11 @@ impl Component {
         match self.up {
             Upsample::Full => out[..width].copy_from_slice(&row(y)[..width]),
             Upsample::H2V1Box | Upsample::H2V2Box => {
-                let src = row(if self.up == Upsample::H2V1Box { y } else { y / 2 });
+                let src = row(if self.up == Upsample::H2V1Box {
+                    y
+                } else {
+                    y / 2
+                });
                 for x in 0..width {
                     out[x] = src[x / 2];
                 }
@@ -668,7 +742,11 @@ impl Component {
                 // output row, below for the lower) weighs 1; the context rows
                 // at the image edges are the edge rows themselves.
                 let r = y / 2;
-                let (nr, bias) = if y % 2 == 0 { (r.saturating_sub(1), 1) } else { ((r + 1).min(self.dh - 1), 2) };
+                let (nr, bias) = if y % 2 == 0 {
+                    (r.saturating_sub(1), 1)
+                } else {
+                    ((r + 1).min(self.dh - 1), 2)
+                };
                 let (a, b) = (row(r), row(nr));
                 for x in 0..width {
                     out[x] = ((i32::from(a[x]) * 3 + i32::from(b[x]) + bias) >> 2) as u8;
@@ -691,7 +769,11 @@ impl Component {
             }
             Upsample::H2V2Fancy => {
                 let r = y / 2;
-                let nr = if y % 2 == 0 { r.saturating_sub(1) } else { (r + 1).min(self.dh - 1) };
+                let nr = if y % 2 == 0 {
+                    r.saturating_sub(1)
+                } else {
+                    (r + 1).min(self.dh - 1)
+                };
                 let (a, b) = (row(r), row(nr));
                 let sum = &mut tmp[..dw];
                 for i in 0..dw {
@@ -739,7 +821,11 @@ impl Frame {
                 }
                 ColorSpace::YCbCr => {
                     for (x, px) in line.chunks_exact_mut(3).enumerate() {
-                        let (y, cb, cr) = (i32::from(rows[0][x]), usize::from(rows[1][x]), usize::from(rows[2][x]));
+                        let (y, cb, cr) = (
+                            i32::from(rows[0][x]),
+                            usize::from(rows[1][x]),
+                            usize::from(rows[2][x]),
+                        );
                         px[0] = clamp_u8(y + tables.cr_r[cr]);
                         px[1] = clamp_u8(y + ((tables.cb_g[cb] + tables.cr_g[cr]) >> 16));
                         px[2] = clamp_u8(y + tables.cb_b[cb]);
@@ -799,13 +885,19 @@ pub fn decode_jpeg(bytes: &[u8]) -> Result<Rgb8, JpegError> {
 /// (a stuffed zero) is not a marker. `*pos` ends just after the marker code.
 fn next_marker(data: &[u8], pos: &mut usize) -> Result<u8, JpegError> {
     loop {
-        while *data.get(*pos).ok_or(JpegError::Truncated("no end-of-image marker"))? != 0xff {
+        while *data
+            .get(*pos)
+            .ok_or(JpegError::Truncated("no end-of-image marker"))?
+            != 0xff
+        {
             *pos += 1;
         }
         while data.get(*pos) == Some(&0xff) {
             *pos += 1;
         }
-        let c = *data.get(*pos).ok_or(JpegError::Truncated("the data ends inside a marker"))?;
+        let c = *data
+            .get(*pos)
+            .ok_or(JpegError::Truncated("the data ends inside a marker"))?;
         *pos += 1;
         if c != 0 {
             return Ok(c);
@@ -815,7 +907,12 @@ fn next_marker(data: &[u8], pos: &mut usize) -> Result<u8, JpegError> {
 
 /// `default_decompress_parms` in `jdapimin.c`, evaluated at the first scan
 /// header (a JFIF or Adobe marker after that point is not seen by libjpeg).
-fn guess_color(saw_jfif: bool, saw_adobe: bool, adobe_transform: u8, comps: &[Component]) -> ColorSpace {
+fn guess_color(
+    saw_jfif: bool,
+    saw_adobe: bool,
+    adobe_transform: u8,
+    comps: &[Component],
+) -> ColorSpace {
     if comps.len() == 1 {
         ColorSpace::Gray
     } else if saw_jfif {
@@ -837,12 +934,21 @@ impl<'a> Decoder<'a> {
     /// The parameters of the segment whose marker was just read: the bytes
     /// after its two-byte length field.
     fn segment(&mut self) -> Result<&'a [u8], JpegError> {
-        let len = self.data.get(self.pos..self.pos + 2).map(|l| usize::from(u16::from_be_bytes([l[0], l[1]]))).ok_or(JpegError::Truncated("the data ends inside a segment header"))?;
+        let len = self
+            .data
+            .get(self.pos..self.pos + 2)
+            .map(|l| usize::from(u16::from_be_bytes([l[0], l[1]])))
+            .ok_or(JpegError::Truncated(
+                "the data ends inside a segment header",
+            ))?;
         if len < 2 {
             return Err(malformed(format!("segment length {len} is below 2")));
         }
         let end = self.pos + len;
-        let payload = self.data.get(self.pos + 2..end).ok_or(JpegError::Truncated("a segment is longer than the data"))?;
+        let payload = self
+            .data
+            .get(self.pos + 2..end)
+            .ok_or(JpegError::Truncated("a segment is longer than the data"))?;
         self.pos = end;
         Ok(payload)
     }
@@ -859,7 +965,9 @@ impl<'a> Decoder<'a> {
                 0xc2 => return Err(JpegError::Unsupported(Unsupported::Progressive)),
                 0xc3 => return Err(JpegError::Unsupported(Unsupported::Lossless)),
                 0xc9..=0xcb => return Err(JpegError::Unsupported(Unsupported::Arithmetic)),
-                0xc5..=0xc7 | 0xcd..=0xcf | 0xde => return Err(JpegError::Unsupported(Unsupported::Hierarchical)),
+                0xc5..=0xc7 | 0xcd..=0xcf | 0xde => {
+                    return Err(JpegError::Unsupported(Unsupported::Hierarchical))
+                }
                 0xc8 => return Err(JpegError::Unsupported(Unsupported::ReservedMarker(marker))),
                 0xc4 => {
                     let p = self.segment()?;
@@ -915,12 +1023,19 @@ impl<'a> Decoder<'a> {
         if p.len() < 6 {
             return Err(malformed("SOF segment is too short"));
         }
-        let (precision, height, width, n) = (p[0], usize::from(u16::from_be_bytes([p[1], p[2]])), usize::from(u16::from_be_bytes([p[3], p[4]])), usize::from(p[5]));
+        let (precision, height, width, n) = (
+            p[0],
+            usize::from(u16::from_be_bytes([p[1], p[2]])),
+            usize::from(u16::from_be_bytes([p[3], p[4]])),
+            usize::from(p[5]),
+        );
         if height == 0 || width == 0 || n == 0 {
             return Err(malformed("the image has no pixels (a height of 0 is DNL-defined, which is not supported either)"));
         }
         if p.len() != 6 + 3 * n {
-            return Err(malformed("SOF segment length does not match its component count"));
+            return Err(malformed(
+                "SOF segment length does not match its component count",
+            ));
         }
         if precision != 8 {
             return Err(JpegError::Unsupported(Unsupported::Precision(precision)));
@@ -929,7 +1044,9 @@ impl<'a> Decoder<'a> {
             return Err(JpegError::Unsupported(Unsupported::Components(n as u8)));
         }
         if width > MAX_DIMENSION || height > MAX_DIMENSION {
-            return Err(malformed(format!("{width}x{height} exceeds {MAX_DIMENSION} in a dimension")));
+            return Err(malformed(format!(
+                "{width}x{height} exceeds {MAX_DIMENSION} in a dimension"
+            )));
         }
         if width * height > MAX_PIXELS {
             return Err(JpegError::TooLarge { width, height });
@@ -948,7 +1065,8 @@ impl<'a> Decoder<'a> {
         let mut out = Vec::with_capacity(n);
         for (id, h, v, tq) in comps {
             let dw = div_ceil(width * h, max_h);
-            let up = choose_upsampler(h, v, max_h, max_v, dw).ok_or(JpegError::Unsupported(Unsupported::FractionalSampling))?;
+            let up = choose_upsampler(h, v, max_h, max_v, dw)
+                .ok_or(JpegError::Unsupported(Unsupported::FractionalSampling))?;
             out.push(Component {
                 id,
                 h,
@@ -966,7 +1084,13 @@ impl<'a> Decoder<'a> {
                 scanned: false,
             });
         }
-        self.frame = Some(Frame { width, height, mcus_x, mcus_y, comps: out });
+        self.frame = Some(Frame {
+            width,
+            height,
+            mcus_x,
+            mcus_y,
+            comps: out,
+        });
         Ok(())
     }
 
@@ -984,9 +1108,15 @@ impl<'a> Decoder<'a> {
             vals[..count].copy_from_slice(&p[..count]);
             p = &p[count..];
             let spec = HuffSpec { bits, vals };
-            let (is_ac, i) = if index & 0x10 != 0 { (true, index - 0x10) } else { (false, index) };
+            let (is_ac, i) = if index & 0x10 != 0 {
+                (true, index - 0x10)
+            } else {
+                (false, index)
+            };
             if i >= 4 {
-                return Err(malformed(format!("DHT table index {index:#x} is out of range")));
+                return Err(malformed(format!(
+                    "DHT table index {index:#x} is out of range"
+                )));
             }
             if is_ac {
                 self.ac_specs[i] = Some(spec);
@@ -1012,7 +1142,11 @@ impl<'a> Decoder<'a> {
             }
             let mut table = [0u16; 64];
             for (i, &pos) in NATURAL_ORDER.iter().enumerate() {
-                table[pos] = if wide { u16::from_be_bytes([p[1 + 2 * i], p[2 + 2 * i]]) } else { u16::from(p[1 + i]) };
+                table[pos] = if wide {
+                    u16::from_be_bytes([p[1 + 2 * i], p[2 + 2 * i]])
+                } else {
+                    u16::from(p[1 + i])
+                };
             }
             self.quant[id] = Some(table);
             p = &p[need..];
@@ -1022,18 +1156,35 @@ impl<'a> Decoder<'a> {
 
     /// One scan: its header, then the entropy-coded data up to the next marker.
     fn scan(&mut self, p: &[u8]) -> Result<(), JpegError> {
-        let frame = self.frame.as_mut().ok_or_else(|| malformed("a scan before any frame header"))?;
+        let frame = self
+            .frame
+            .as_mut()
+            .ok_or_else(|| malformed("a scan before any frame header"))?;
         let n = usize::from(*p.first().ok_or_else(|| malformed("empty SOS segment"))?);
         if !(1..=4).contains(&n) || p.len() != 1 + 2 * n + 3 {
-            return Err(malformed("SOS segment length does not match its component count"));
+            return Err(malformed(
+                "SOS segment length does not match its component count",
+            ));
         }
         let mut members: Vec<(usize, usize, usize)> = Vec::with_capacity(n); // (component, dc table, ac table)
         for s in p[1..1 + 2 * n].chunks_exact(2) {
-            let ci = frame.comps.iter().enumerate().position(|(i, c)| c.id == s[0] && !members.iter().any(|m| m.0 == i)).ok_or_else(|| malformed(format!("scan names component {} twice or not at all", s[0])))?;
+            let ci = frame
+                .comps
+                .iter()
+                .enumerate()
+                .position(|(i, c)| c.id == s[0] && !members.iter().any(|m| m.0 == i))
+                .ok_or_else(|| {
+                    malformed(format!("scan names component {} twice or not at all", s[0]))
+                })?;
             members.push((ci, usize::from(s[1] >> 4), usize::from(s[1] & 15)));
         }
         if self.color.is_none() {
-            self.color = Some(guess_color(self.saw_jfif, self.saw_adobe, self.adobe_transform, &frame.comps));
+            self.color = Some(guess_color(
+                self.saw_jfif,
+                self.saw_adobe,
+                self.adobe_transform,
+                &frame.comps,
+            ));
         }
         // Planes are allocated here, once, after checking that the data left
         // could hold the image: two bits at least per block.
@@ -1041,7 +1192,9 @@ impl<'a> Decoder<'a> {
             let blocks: usize = frame.comps.iter().map(|c| c.wib * c.hib).sum();
             let left = self.data.len().saturating_sub(self.pos);
             if blocks.saturating_mul(2) > left.saturating_mul(8) {
-                return Err(JpegError::Truncated("the data after the first scan header is too short for the declared image"));
+                return Err(JpegError::Truncated(
+                    "the data after the first scan header is too short for the declared image",
+                ));
             }
             for c in &mut frame.comps {
                 c.plane = vec![0u8; c.stride * c.rows];
@@ -1054,7 +1207,12 @@ impl<'a> Decoder<'a> {
             let latched = match c.quant {
                 Some(t) => t,
                 None => {
-                    let q = self.quant.get(c.tq).copied().flatten().ok_or_else(|| malformed(format!("component {} has no quantisation table {}", c.id, c.tq)))?;
+                    let q = self.quant.get(c.tq).copied().flatten().ok_or_else(|| {
+                        malformed(format!(
+                            "component {} has no quantisation table {}",
+                            c.id, c.tq
+                        ))
+                    })?;
                     let mut t = [0i32; 64];
                     for (d, &s) in t.iter_mut().zip(q.iter()) {
                         *d = i32::from(s);
@@ -1067,17 +1225,37 @@ impl<'a> Decoder<'a> {
         }
         let mut tables: Vec<(HuffTable, HuffTable)> = Vec::with_capacity(n);
         for &(_, dc, ac) in &members {
-            let dcs = self.dc_specs.get(dc).copied().flatten().ok_or_else(|| malformed(format!("scan uses DC Huffman table {dc}, which no DHT defined")))?;
-            let acs = self.ac_specs.get(ac).copied().flatten().ok_or_else(|| malformed(format!("scan uses AC Huffman table {ac}, which no DHT defined")))?;
-            tables.push((HuffTable::build(&dcs, true)?, HuffTable::build(&acs, false)?));
+            let dcs = self.dc_specs.get(dc).copied().flatten().ok_or_else(|| {
+                malformed(format!(
+                    "scan uses DC Huffman table {dc}, which no DHT defined"
+                ))
+            })?;
+            let acs = self.ac_specs.get(ac).copied().flatten().ok_or_else(|| {
+                malformed(format!(
+                    "scan uses AC Huffman table {ac}, which no DHT defined"
+                ))
+            })?;
+            tables.push((
+                HuffTable::build(&dcs, true)?,
+                HuffTable::build(&acs, false)?,
+            ));
         }
         // MCU layout (`per_scan_setup` in jdinput.c).
         let interleaved = n > 1;
-        let (mcu_cols, mcu_rows) = if interleaved { (frame.mcus_x, frame.mcus_y) } else { (frame.comps[members[0].0].wib, frame.comps[members[0].0].hib) };
+        let (mcu_cols, mcu_rows) = if interleaved {
+            (frame.mcus_x, frame.mcus_y)
+        } else {
+            (frame.comps[members[0].0].wib, frame.comps[members[0].0].hib)
+        };
         if interleaved {
-            let blocks: usize = members.iter().map(|m| frame.comps[m.0].h * frame.comps[m.0].v).sum();
+            let blocks: usize = members
+                .iter()
+                .map(|m| frame.comps[m.0].h * frame.comps[m.0].v)
+                .sum();
             if blocks > 10 {
-                return Err(malformed(format!("an MCU of {blocks} blocks (the limit is 10)")));
+                return Err(malformed(format!(
+                    "an MCU of {blocks} blocks (the limit is 10)"
+                )));
             }
         }
         let mut br = BitReader::new(self.data, self.pos);
@@ -1092,7 +1270,9 @@ impl<'a> Decoder<'a> {
                         br.reset();
                         let m = next_marker(self.data, &mut br.pos)?;
                         if m != 0xd0 + next_rst {
-                            return Err(malformed(format!("expected restart marker RST{next_rst}, found ff{m:02x}")));
+                            return Err(malformed(format!(
+                                "expected restart marker RST{next_rst}, found ff{m:02x}"
+                            )));
                         }
                         next_rst = (next_rst + 1) & 7;
                         last_dc = [0; 4];
@@ -1106,7 +1286,13 @@ impl<'a> Decoder<'a> {
                     let q = &quants[mi];
                     for by in 0..bh {
                         for bx in 0..bw {
-                            decode_block(&mut br, &tables[mi].0, &tables[mi].1, &mut last_dc[mi], &mut coef)?;
+                            decode_block(
+                                &mut br,
+                                &tables[mi].0,
+                                &tables[mi].1,
+                                &mut last_dc[mi],
+                                &mut coef,
+                            )?;
                             let (x, y) = ((mx * bw + bx) * 8, (my * bh + by) * 8);
                             idct_islow(&coef, q, &mut c.plane[y * c.stride + x..], c.stride);
                         }
@@ -1124,14 +1310,19 @@ impl<'a> Decoder<'a> {
 
     /// EOI reached: the picture must be complete.
     fn finish(&mut self) -> Result<Rgb8, JpegError> {
-        let frame = self.frame.as_ref().ok_or_else(|| malformed("end of image before any frame header"))?;
+        let frame = self
+            .frame
+            .as_ref()
+            .ok_or_else(|| malformed("end of image before any frame header"))?;
         if self.scans == 0 {
             return Err(malformed("end of image before any scan"));
         }
         if let Some(c) = frame.comps.iter().find(|c| !c.scanned) {
             return Err(malformed(format!("no scan covers component {}", c.id)));
         }
-        let color = self.color.ok_or_else(|| malformed("end of image before any scan"))?;
+        let color = self
+            .color
+            .ok_or_else(|| malformed("end of image before any scan"))?;
         Ok(frame.to_rgb(color))
     }
 }
@@ -1143,7 +1334,10 @@ mod tests {
     // ---- Huffman -------------------------------------------------------
 
     fn spec(counts: &[(usize, u8)], vals: &[u8]) -> HuffSpec {
-        let mut s = HuffSpec { bits: [0; 17], vals: [0; 256] };
+        let mut s = HuffSpec {
+            bits: [0; 17],
+            vals: [0; 256],
+        };
         for &(l, n) in counts {
             s.bits[l] = n;
         }
@@ -1177,13 +1371,22 @@ mod tests {
     fn huffman_table_validation() {
         // All-ones code: two codes of length 1 leave no room (code 1 = all ones is
         // legal for the second, but a third code of length 1 overflows).
-        assert!(HuffTable::build(&spec(&[(1, 3)], &[0, 1, 2]), false).is_err(), "three 1-bit codes");
+        assert!(
+            HuffTable::build(&spec(&[(1, 3)], &[0, 1, 2]), false).is_err(),
+            "three 1-bit codes"
+        );
         // Two 1-bit codes use '0' and '1', and '1' is all ones: refused.
-        assert!(HuffTable::build(&spec(&[(1, 2)], &[0, 1]), false).is_err(), "a code of all ones");
+        assert!(
+            HuffTable::build(&spec(&[(1, 2)], &[0, 1]), false).is_err(),
+            "a code of all ones"
+        );
         assert!(HuffTable::build(&spec(&[(2, 3)], &[0, 1, 2]), false).is_ok());
         // A DC symbol above 15.
         assert!(HuffTable::build(&spec(&[(2, 2)], &[3, 16]), true).is_err());
-        assert!(HuffTable::build(&spec(&[(2, 2)], &[3, 16]), false).is_ok(), "AC symbols are not range checked");
+        assert!(
+            HuffTable::build(&spec(&[(2, 2)], &[3, 16]), false).is_ok(),
+            "AC symbols are not range checked"
+        );
     }
 
     #[test]
@@ -1214,7 +1417,10 @@ mod tests {
         assert!(br.check_not_overrun().is_ok());
         assert_eq!(br.pos, 4, "the reader stays at the marker's ff");
         assert_eq!(br.get_bits(8), 0, "zero bits follow a marker");
-        assert!(matches!(br.check_not_overrun(), Err(JpegError::Truncated(_))));
+        assert!(matches!(
+            br.check_not_overrun(),
+            Err(JpegError::Truncated(_))
+        ));
     }
 
     // ---- IDCT ----------------------------------------------------------
@@ -1241,10 +1447,22 @@ mod tests {
                 let mut s = 0f64;
                 for v in 0..8 {
                     for u in 0..8 {
-                        let cu = if u == 0 { std::f64::consts::FRAC_1_SQRT_2 } else { 1.0 };
-                        let cv = if v == 0 { std::f64::consts::FRAC_1_SQRT_2 } else { 1.0 };
+                        let cu = if u == 0 {
+                            std::f64::consts::FRAC_1_SQRT_2
+                        } else {
+                            1.0
+                        };
+                        let cv = if v == 0 {
+                            std::f64::consts::FRAC_1_SQRT_2
+                        } else {
+                            1.0
+                        };
                         let f = f64::from(coef[v * 8 + u]) * f64::from(quant[v * 8 + u]);
-                        s += cu * cv * f * ((2 * x + 1) as f64 * u as f64 * std::f64::consts::PI / 16.0).cos() * ((2 * y + 1) as f64 * v as f64 * std::f64::consts::PI / 16.0).cos();
+                        s += cu
+                            * cv
+                            * f
+                            * ((2 * x + 1) as f64 * u as f64 * std::f64::consts::PI / 16.0).cos()
+                            * ((2 * y + 1) as f64 * v as f64 * std::f64::consts::PI / 16.0).cos();
                     }
                 }
                 out[y * 8 + x] = s / 4.0 + 128.0;
@@ -1286,10 +1504,18 @@ mod tests {
                 let exact = want[i].round().clamp(0.0, 255.0) as i32;
                 let d = (i32::from(out[i]) - exact).abs();
                 worst = worst.max(d);
-                assert!(d <= 1, "case {case}: sample {i}: islow {} vs exact {}", out[i], want[i]);
+                assert!(
+                    d <= 1,
+                    "case {case}: sample {i}: islow {} vs exact {}",
+                    out[i],
+                    want[i]
+                );
             }
         }
-        assert!(compared > 100_000 && inside * 2 > compared, "{inside} of {compared} samples are unsaturated");
+        assert!(
+            compared > 100_000 && inside * 2 > compared,
+            "{inside} of {compared} samples are unsaturated"
+        );
         assert!(worst <= 1);
     }
 
@@ -1303,7 +1529,9 @@ mod tests {
             let mut out = [0u8; 64];
             idct_islow(&coef, &quant, &mut out, 8);
             // libjpeg rounds ties upward (a biased arithmetic shift), not away from zero.
-            let want = (f64::from(dc) * 3.0 / 8.0 + 128.5).floor().clamp(0.0, 255.0) as u8;
+            let want = (f64::from(dc) * 3.0 / 8.0 + 128.5)
+                .floor()
+                .clamp(0.0, 255.0) as u8;
             assert!(out.iter().all(|&v| v == want), "dc {dc}: {out:?} vs {want}");
         }
     }
@@ -1346,19 +1574,35 @@ mod tests {
     #[test]
     fn ycc_constants_are_fix_of_the_stated_coefficients() {
         let fix = |x: f64| (x * 65536.0 + 0.5) as i32;
-        assert_eq!((FIX_1_40200, FIX_1_77200, FIX_0_71414, FIX_0_34414), (fix(1.40200), fix(1.77200), fix(0.71414), fix(0.34414)));
+        assert_eq!(
+            (FIX_1_40200, FIX_1_77200, FIX_0_71414, FIX_0_34414),
+            (fix(1.40200), fix(1.77200), fix(0.71414), fix(0.34414))
+        );
         let t = YccTables::new();
         // Neutral chroma maps to no change; Cr = 255 adds 1.402 * 127 = 178.05 to R.
-        assert_eq!((t.cr_r[128], t.cb_b[128], t.cr_g[128], t.cb_g[128]), (0, 0, 0, 1 << 15));
+        assert_eq!(
+            (t.cr_r[128], t.cb_b[128], t.cr_g[128], t.cb_g[128]),
+            (0, 0, 0, 1 << 15)
+        );
         assert_eq!(t.cr_r[255], 178);
         assert_eq!(t.cb_b[255], 225);
     }
 
     #[test]
     fn colour_space_guess_follows_default_decompress_parms() {
-        let c = |ids: [u8; 3]| -> Vec<Component> { ids.iter().map(|&id| Component { id, ..comp(Upsample::Full, &[&[0]]) }).collect() };
+        let c = |ids: [u8; 3]| -> Vec<Component> {
+            ids.iter()
+                .map(|&id| Component {
+                    id,
+                    ..comp(Upsample::Full, &[&[0]])
+                })
+                .collect()
+        };
         let g = |jfif, adobe, t, ids| guess_color(jfif, adobe, t, &c(ids));
-        assert_eq!(guess_color(false, false, 0, &c([1, 2, 3])[..1]), ColorSpace::Gray);
+        assert_eq!(
+            guess_color(false, false, 0, &c([1, 2, 3])[..1]),
+            ColorSpace::Gray
+        );
         // JFIF wins over everything, including an Adobe transform of 0.
         assert_eq!(g(true, true, 0, [b'R', b'G', b'B']), ColorSpace::YCbCr);
         // Adobe: transform 0 is RGB, 1 and anything else YCbCr.
@@ -1377,7 +1621,22 @@ mod tests {
     /// A component over a small hand-written plane (`rows` of `dw` samples).
     fn comp(up: Upsample, rows: &[&[u8]]) -> Component {
         let (dw, dh) = (rows[0].len(), rows.len());
-        Component { id: 1, h: 1, v: 1, tq: 0, wib: 1, hib: 1, dw, dh, stride: dw, rows: dh, up, plane: rows.concat(), quant: None, scanned: true }
+        Component {
+            id: 1,
+            h: 1,
+            v: 1,
+            tq: 0,
+            wib: 1,
+            hib: 1,
+            dw,
+            dh,
+            stride: dw,
+            rows: dh,
+            up,
+            plane: rows.concat(),
+            quant: None,
+            scanned: true,
+        }
     }
 
     fn row_of(c: &Component, y: usize, width: usize) -> Vec<u8> {
@@ -1412,9 +1671,31 @@ mod tests {
         // o3 = (80*3+88+7)>>4 = 20; o4 = (88*3+80+8)>>4 = 22; o5 = (88*4+7)>>4 = 22.
         assert_eq!(row_of(&c, 1, 6), [16, 17, 19, 20, 22, 22]);
         // y = 2: nearest b, next nearest a (above): sums 3b+a = 128 112 72.
-        assert_eq!(row_of(&c, 2, 6), [(128 * 4 + 8) >> 4, (128 * 3 + 112 + 7) >> 4, (112 * 3 + 128 + 8) >> 4, (112 * 3 + 72 + 7) >> 4, (72 * 3 + 112 + 8) >> 4, (72 * 4 + 7) >> 4].map(|v| v as u8));
+        assert_eq!(
+            row_of(&c, 2, 6),
+            [
+                (128 * 4 + 8) >> 4,
+                (128 * 3 + 112 + 7) >> 4,
+                (112 * 3 + 128 + 8) >> 4,
+                (112 * 3 + 72 + 7) >> 4,
+                (72 * 3 + 112 + 8) >> 4,
+                (72 * 4 + 7) >> 4
+            ]
+            .map(|v| v as u8)
+        );
         // y = 3: nearest b, below is the replicated last row (= b): 4b = 160 128 64.
-        assert_eq!(row_of(&c, 3, 6), [(160 * 4 + 8) >> 4, (160 * 3 + 128 + 7) >> 4, (128 * 3 + 160 + 8) >> 4, (128 * 3 + 64 + 7) >> 4, (64 * 3 + 128 + 8) >> 4, (64 * 4 + 7) >> 4].map(|v| v as u8));
+        assert_eq!(
+            row_of(&c, 3, 6),
+            [
+                (160 * 4 + 8) >> 4,
+                (160 * 3 + 128 + 7) >> 4,
+                (128 * 3 + 160 + 8) >> 4,
+                (128 * 3 + 64 + 7) >> 4,
+                (64 * 3 + 128 + 8) >> 4,
+                (64 * 4 + 7) >> 4
+            ]
+            .map(|v| v as u8)
+        );
     }
 
     #[test]
@@ -1447,9 +1728,19 @@ mod tests {
     fn upsampler_dispatch_follows_jinit_upsampler() {
         assert_eq!(choose_upsampler(2, 2, 2, 2, 100), Some(Upsample::Full));
         assert_eq!(choose_upsampler(1, 2, 1, 4, 100), Some(Upsample::H1V2Fancy));
-        assert_eq!(choose_upsampler(1, 1, 4, 1, 100), Some(Upsample::Int { h: 4, v: 1 }));
-        assert_eq!(choose_upsampler(1, 1, 3, 3, 100), Some(Upsample::Int { h: 3, v: 3 }));
-        assert_eq!(choose_upsampler(2, 1, 3, 1, 100), None, "a 3:2 ratio is fractional");
+        assert_eq!(
+            choose_upsampler(1, 1, 4, 1, 100),
+            Some(Upsample::Int { h: 4, v: 1 })
+        );
+        assert_eq!(
+            choose_upsampler(1, 1, 3, 3, 100),
+            Some(Upsample::Int { h: 3, v: 3 })
+        );
+        assert_eq!(
+            choose_upsampler(2, 1, 3, 1, 100),
+            None,
+            "a 3:2 ratio is fractional"
+        );
         // 4x2 against 2x1 is still a factor-of-two pair after dividing out.
         assert_eq!(choose_upsampler(2, 1, 4, 2, 100), Some(Upsample::H2V2Fancy));
     }
@@ -1494,20 +1785,46 @@ mod tests {
         assert_eq!(refused(&stream(&[(0xc2, &p)])), Unsupported::Progressive);
         assert_eq!(refused(&stream(&[(0xc3, &p)])), Unsupported::Lossless);
         for m in [0xc9, 0xca, 0xcb] {
-            assert_eq!(refused(&stream(&[(m, &p)])), Unsupported::Arithmetic, "SOF marker {m:#x}");
+            assert_eq!(
+                refused(&stream(&[(m, &p)])),
+                Unsupported::Arithmetic,
+                "SOF marker {m:#x}"
+            );
         }
         for m in [0xc5, 0xc6, 0xc7, 0xcd, 0xce, 0xcf, 0xde] {
-            assert_eq!(refused(&stream(&[(m, &p)])), Unsupported::Hierarchical, "marker {m:#x}");
+            assert_eq!(
+                refused(&stream(&[(m, &p)])),
+                Unsupported::Hierarchical,
+                "marker {m:#x}"
+            );
         }
-        assert_eq!(refused(&stream(&[(0xc8, &p)])), Unsupported::ReservedMarker(0xc8));
-        assert_eq!(refused(&stream(&[(0xc0, &sof(12, 16, 16, &YCC))])), Unsupported::Precision(12));
-        assert_eq!(refused(&stream(&[(0xc1, &sof(16, 16, 16, &YCC))])), Unsupported::Precision(16));
+        assert_eq!(
+            refused(&stream(&[(0xc8, &p)])),
+            Unsupported::ReservedMarker(0xc8)
+        );
+        assert_eq!(
+            refused(&stream(&[(0xc0, &sof(12, 16, 16, &YCC))])),
+            Unsupported::Precision(12)
+        );
+        assert_eq!(
+            refused(&stream(&[(0xc1, &sof(16, 16, 16, &YCC))])),
+            Unsupported::Precision(16)
+        );
         let cmyk = [(1, 0x11, 0), (2, 0x11, 0), (3, 0x11, 0), (4, 0x11, 0)];
-        assert_eq!(refused(&stream(&[(0xc0, &sof(8, 16, 16, &cmyk))])), Unsupported::Components(4));
-        assert_eq!(refused(&stream(&[(0xc0, &sof(8, 16, 16, &cmyk[..2]))])), Unsupported::Components(2));
+        assert_eq!(
+            refused(&stream(&[(0xc0, &sof(8, 16, 16, &cmyk))])),
+            Unsupported::Components(4)
+        );
+        assert_eq!(
+            refused(&stream(&[(0xc0, &sof(8, 16, 16, &cmyk[..2]))])),
+            Unsupported::Components(2)
+        );
         // Sampling 3x1 against 2x1: not a whole ratio.
         let frac = [(1, 0x31, 0), (2, 0x21, 1), (3, 0x21, 1)];
-        assert_eq!(refused(&stream(&[(0xc0, &sof(8, 16, 16, &frac))])), Unsupported::FractionalSampling);
+        assert_eq!(
+            refused(&stream(&[(0xc0, &sof(8, 16, 16, &frac))])),
+            Unsupported::FractionalSampling
+        );
         // Each name has words a person can read.
         assert!(Unsupported::Components(4).to_string().contains("CMYK"));
     }
@@ -1521,41 +1838,92 @@ mod tests {
         assert_eq!(malformed_kind(&[]), JpegError::NotJpeg);
         assert_eq!(malformed_kind(&[0xff]), JpegError::NotJpeg);
         assert_eq!(malformed_kind(b"GIF89a"), JpegError::NotJpeg);
-        assert!(matches!(malformed_kind(&[0xff, 0xd8]), JpegError::Truncated(_)), "SOI alone");
-        assert!(matches!(malformed_kind(&[0xff, 0xd8, 0xff, 0xd9]), JpegError::Malformed(_)), "EOI before any frame");
+        assert!(
+            matches!(malformed_kind(&[0xff, 0xd8]), JpegError::Truncated(_)),
+            "SOI alone"
+        );
+        assert!(
+            matches!(
+                malformed_kind(&[0xff, 0xd8, 0xff, 0xd9]),
+                JpegError::Malformed(_)
+            ),
+            "EOI before any frame"
+        );
         // Zero dimensions, zero components.
-        assert!(matches!(malformed_kind(&stream(&[(0xc0, &sof(8, 0, 16, &YCC))])), JpegError::Malformed(_)));
-        assert!(matches!(malformed_kind(&stream(&[(0xc0, &sof(8, 16, 0, &YCC))])), JpegError::Malformed(_)));
-        assert!(matches!(malformed_kind(&stream(&[(0xc0, &sof(8, 16, 16, &[]))])), JpegError::Malformed(_)));
+        assert!(matches!(
+            malformed_kind(&stream(&[(0xc0, &sof(8, 0, 16, &YCC))])),
+            JpegError::Malformed(_)
+        ));
+        assert!(matches!(
+            malformed_kind(&stream(&[(0xc0, &sof(8, 16, 0, &YCC))])),
+            JpegError::Malformed(_)
+        ));
+        assert!(matches!(
+            malformed_kind(&stream(&[(0xc0, &sof(8, 16, 16, &[]))])),
+            JpegError::Malformed(_)
+        ));
         // Sampling factors out of range (0 and 5), and a length that disagrees.
         for s in [0x00u8, 0x05, 0x50, 0x10, 0x01] {
             let comps = [(1, s, 0), (2, 0x11, 1), (3, 0x11, 1)];
-            assert!(matches!(malformed_kind(&stream(&[(0xc0, &sof(8, 16, 16, &comps))])), JpegError::Malformed(_)), "sampling {s:#x}");
+            assert!(
+                matches!(
+                    malformed_kind(&stream(&[(0xc0, &sof(8, 16, 16, &comps))])),
+                    JpegError::Malformed(_)
+                ),
+                "sampling {s:#x}"
+            );
         }
         let mut bad = sof(8, 16, 16, &YCC);
         bad.pop();
-        assert!(matches!(malformed_kind(&stream(&[(0xc0, &bad)])), JpegError::Malformed(_)), "short SOF");
+        assert!(
+            matches!(
+                malformed_kind(&stream(&[(0xc0, &bad)])),
+                JpegError::Malformed(_)
+            ),
+            "short SOF"
+        );
         // Two frames.
         let p = sof(8, 16, 16, &YCC);
-        assert!(matches!(malformed_kind(&stream(&[(0xc0, &p), (0xc0, &p)])), JpegError::Malformed(_)));
+        assert!(matches!(
+            malformed_kind(&stream(&[(0xc0, &p), (0xc0, &p)])),
+            JpegError::Malformed(_)
+        ));
         // A scan before a frame; an unknown marker; a segment longer than the data.
-        assert!(matches!(malformed_kind(&stream(&[(0xda, &[1, 1, 0, 0, 63, 0])])), JpegError::Malformed(_)));
-        assert!(matches!(malformed_kind(&stream(&[(0x02, &[0, 0])])), JpegError::Malformed(_)));
+        assert!(matches!(
+            malformed_kind(&stream(&[(0xda, &[1, 1, 0, 0, 63, 0])])),
+            JpegError::Malformed(_)
+        ));
+        assert!(matches!(
+            malformed_kind(&stream(&[(0x02, &[0, 0])])),
+            JpegError::Malformed(_)
+        ));
         let mut long = stream(&[(0xe0, &[0u8; 4])]);
         long[5] = 200;
         assert!(matches!(malformed_kind(&long), JpegError::Truncated(_)));
         let mut tiny = stream(&[(0xe0, &[0u8; 4])]);
         tiny[4] = 0;
         tiny[5] = 1;
-        assert!(matches!(malformed_kind(&tiny), JpegError::Malformed(_)), "segment length below 2");
+        assert!(
+            matches!(malformed_kind(&tiny), JpegError::Malformed(_)),
+            "segment length below 2"
+        );
     }
 
     #[test]
     fn absurd_sizes_are_refused_before_anything_is_allocated() {
         // 65535 x 65535 = 2^32 pixels: over the dimension limit.
-        assert!(matches!(malformed_kind(&stream(&[(0xc0, &sof(8, 65535, 65535, &YCC))])), JpegError::Malformed(_)));
+        assert!(matches!(
+            malformed_kind(&stream(&[(0xc0, &sof(8, 65535, 65535, &YCC))])),
+            JpegError::Malformed(_)
+        ));
         // 20000 x 20000 = 4e8 > 2^27 within the dimension limit.
-        assert_eq!(malformed_kind(&stream(&[(0xc0, &sof(8, 20000, 20000, &YCC))])), JpegError::TooLarge { width: 20000, height: 20000 });
+        assert_eq!(
+            malformed_kind(&stream(&[(0xc0, &sof(8, 20000, 20000, &YCC))])),
+            JpegError::TooLarge {
+                width: 20000,
+                height: 20000
+            }
+        );
         // A 8000 x 8000 header (6.4e7 pixels, under the cap) over a few bytes of
         // data: the scan header is reached and the image is refused as truncated
         // before any plane exists.
@@ -1564,8 +1932,17 @@ mod tests {
         let mut dht = vec![0x00u8, 0, 1];
         dht.extend_from_slice(&[0; 14]);
         dht.push(0);
-        let s = stream(&[(0xdb, &q), (0xc0, &sof(8, 8000, 8000, &YCC)), (0xc4, &dht), (0xda, &[3, 1, 0, 2, 0, 3, 0, 0, 63, 0])]);
-        assert!(matches!(malformed_kind(&s), JpegError::Truncated(_)), "{:?}", malformed_kind(&s));
+        let s = stream(&[
+            (0xdb, &q),
+            (0xc0, &sof(8, 8000, 8000, &YCC)),
+            (0xc4, &dht),
+            (0xda, &[3, 1, 0, 2, 0, 3, 0, 0, 63, 0]),
+        ]);
+        assert!(
+            matches!(malformed_kind(&s), JpegError::Truncated(_)),
+            "{:?}",
+            malformed_kind(&s)
+        );
     }
 
     #[test]
@@ -1574,13 +1951,28 @@ mod tests {
         dqt.extend_from_slice(&[1u8; 64]);
         let sos = [3u8, 1, 0, 2, 0x11, 3, 0x11, 0, 63, 0];
         // No DHT at all: the scan is refused (after the plane-size check, so pad the data).
-        let mut s = stream(&[(0xdb, &dqt), (0xc0, &sof(8, 8, 8, &[(1, 0x11, 0), (2, 0x11, 0), (3, 0x11, 0)])), (0xda, &sos)]);
+        let mut s = stream(&[
+            (0xdb, &dqt),
+            (
+                0xc0,
+                &sof(8, 8, 8, &[(1, 0x11, 0), (2, 0x11, 0), (3, 0x11, 0)]),
+            ),
+            (0xda, &sos),
+        ]);
         s.extend_from_slice(&[0u8; 64]);
         assert!(matches!(malformed_kind(&s), JpegError::Malformed(m) if m.contains("Huffman")));
         // No DQT: the quantisation table is missing.
-        let mut s = stream(&[(0xc0, &sof(8, 8, 8, &[(1, 0x11, 0), (2, 0x11, 0), (3, 0x11, 0)])), (0xda, &sos)]);
+        let mut s = stream(&[
+            (
+                0xc0,
+                &sof(8, 8, 8, &[(1, 0x11, 0), (2, 0x11, 0), (3, 0x11, 0)]),
+            ),
+            (0xda, &sos),
+        ]);
         s.extend_from_slice(&[0u8; 64]);
-        assert!(matches!(malformed_kind(&s), JpegError::Malformed(m) if m.contains("quantisation")));
+        assert!(
+            matches!(malformed_kind(&s), JpegError::Malformed(m) if m.contains("quantisation"))
+        );
     }
 
     #[test]
@@ -1588,24 +1980,42 @@ mod tests {
         // DHT whose counts run past the segment, a leftover tail, a bad index.
         let mut over = vec![0x00u8];
         over.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 200]);
-        assert!(matches!(malformed_kind(&stream(&[(0xc4, &over)])), JpegError::Malformed(_)));
+        assert!(matches!(
+            malformed_kind(&stream(&[(0xc4, &over)])),
+            JpegError::Malformed(_)
+        ));
         let mut tail = vec![0x00u8, 0, 1];
         tail.extend_from_slice(&[0; 14]);
         tail.push(0); // the one symbol
         tail.push(9); // a stray byte
-        assert!(matches!(malformed_kind(&stream(&[(0xc4, &tail)])), JpegError::Malformed(_)));
+        assert!(matches!(
+            malformed_kind(&stream(&[(0xc4, &tail)])),
+            JpegError::Malformed(_)
+        ));
         let mut idx = vec![0x04u8];
         idx.extend_from_slice(&[0; 16]);
-        assert!(matches!(malformed_kind(&stream(&[(0xc4, &idx)])), JpegError::Malformed(_)));
+        assert!(matches!(
+            malformed_kind(&stream(&[(0xc4, &idx)])),
+            JpegError::Malformed(_)
+        ));
         // DQT: a table id of 4, and a table cut short.
         let mut q = vec![4u8];
         q.extend_from_slice(&[1; 64]);
-        assert!(matches!(malformed_kind(&stream(&[(0xdb, &q)])), JpegError::Malformed(_)));
+        assert!(matches!(
+            malformed_kind(&stream(&[(0xdb, &q)])),
+            JpegError::Malformed(_)
+        ));
         let mut q = vec![0u8];
         q.extend_from_slice(&[1; 40]);
-        assert!(matches!(malformed_kind(&stream(&[(0xdb, &q)])), JpegError::Malformed(_)));
+        assert!(matches!(
+            malformed_kind(&stream(&[(0xdb, &q)])),
+            JpegError::Malformed(_)
+        ));
         // DRI of the wrong size.
-        assert!(matches!(malformed_kind(&stream(&[(0xdd, &[0, 1, 2])])), JpegError::Malformed(_)));
+        assert!(matches!(
+            malformed_kind(&stream(&[(0xdd, &[0, 1, 2])])),
+            JpegError::Malformed(_)
+        ));
     }
 
     // ---- A hand-assembled 8x8 grayscale file ----------------------------
@@ -1626,7 +2036,13 @@ mod tests {
         dht_ac.extend_from_slice(&[0x00, 0xf0]);
         let mut dqt = vec![0u8];
         dqt.extend_from_slice(&[1u8; 64]);
-        let mut v = stream(&[(0xdb, &dqt), (0xc0, &sof(8, 8, 8, &[(1, 0x11, 0)])), (0xc4, &dht_dc), (0xc4, &dht_ac), (0xda, &[1, 1, 0x00, 0, 63, 0])]);
+        let mut v = stream(&[
+            (0xdb, &dqt),
+            (0xc0, &sof(8, 8, 8, &[(1, 0x11, 0)])),
+            (0xc4, &dht_dc),
+            (0xc4, &dht_ac),
+            (0xda, &[1, 1, 0x00, 0, 63, 0]),
+        ]);
         // Bits: DC code '00', then `size` magnitude bits, then EOB '00'.
         let mut bits = String::from("00");
         for i in (0..size).rev() {
@@ -1662,7 +2078,10 @@ mod tests {
         let whole = gray_8x8(5, 0b10000);
         assert!(decode_jpeg(&whole).is_ok());
         for cut in 2..whole.len() {
-            assert!(decode_jpeg(&whole[..cut]).is_err(), "prefix of {cut} bytes decoded");
+            assert!(
+                decode_jpeg(&whole[..cut]).is_err(),
+                "prefix of {cut} bytes decoded"
+            );
         }
         // Trailing bytes after EOI are not an error (libjpeg stops at EOI).
         let mut more = whole.clone();
@@ -1671,7 +2090,10 @@ mod tests {
         // A DC size category of 12 against a DC table that allows at most 15 is fine,
         // but 16 in the table is refused.
         let mut bad = gray_8x8(5, 0b10000);
-        let at = bad.windows(2).position(|w| w == [5, 0]).expect("the DC symbols");
+        let at = bad
+            .windows(2)
+            .position(|w| w == [5, 0])
+            .expect("the DC symbols");
         bad[at] = 16;
         assert!(matches!(decode_jpeg(&bad), Err(JpegError::Malformed(_))));
     }

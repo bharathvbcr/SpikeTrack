@@ -25,7 +25,13 @@ use st_model::backbone::TrunkCache;
 use st_model::{Backbone, Neck, Taps};
 use st_weights::{Checkpoint, VisionBackbone};
 
-const IMAGES: [&str; 5] = ["visem_22_f0", "visem_47_f300", "visem_82_f600", "sam3_truck", "sam3_groceries"];
+const IMAGES: [&str; 5] = [
+    "visem_22_f0",
+    "visem_47_f300",
+    "visem_82_f600",
+    "sam3_truck",
+    "sam3_groceries",
+];
 const COS_GATE: f64 = 0.999;
 const FP32_REL_L2_GATE: f64 = 1e-4;
 
@@ -57,7 +63,11 @@ fn compare(got: &[f32], want: &[f32]) -> Stat {
         dd += (g - w) * (g - w);
         max_abs = max_abs.max((g - w).abs());
     }
-    Stat { cos: dot / (gg.sqrt() * ww.sqrt()), rel_l2: (dd / ww).sqrt(), max_abs }
+    Stat {
+        cos: dot / (gg.sqrt() * ww.sqrt()),
+        rel_l2: (dd / ww).sqrt(),
+        max_abs,
+    }
 }
 
 fn host<B: Backend>(be: &B, t: &Tensor) -> Vec<f32> {
@@ -65,12 +75,16 @@ fn host<B: Backend>(be: &B, t: &Tensor) -> Vec<f32> {
 }
 
 fn fixture(st: &SafeTensors<'_>, name: &str) -> (Vec<usize>, Vec<f32>) {
-    let (shape, data) = st.read_f32(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
+    let (shape, data) = st
+        .read_f32(name)
+        .unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
     (shape.into_iter().map(|d| d as usize).collect(), data)
 }
 
 fn package(precision: &str) -> PathBuf {
-    env_path("SPIKETRACK_MODEL_DIR").join("coreml").join(format!("sam3.1_trunk_{precision}.mlpackage"))
+    env_path("SPIKETRACK_MODEL_DIR")
+        .join("coreml")
+        .join(format!("sam3.1_trunk_{precision}.mlpackage"))
 }
 
 #[test]
@@ -91,7 +105,8 @@ fn run(precision: &str, rel_l2_gate: Option<f64>) {
     let fixtures = env_path("SPIKETRACK_FIXTURES");
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("open checkpoint");
     let vision = VisionBackbone::load(&ck).expect("vision weights");
-    let trunk = CoremlTrunk::load(&package(precision), Units::CpuAndGpu).expect("load CoreML trunk");
+    let trunk =
+        CoremlTrunk::load(&package(precision), Units::CpuAndGpu).expect("load CoreML trunk");
     println!(
         "[{label}] loaded in {:.2} s (compiled this run: {}; hash {:.2} s, hashed in full: {}, compile {:.2} s, model load {:.2} s), sha256 {}",
         trunk.load_seconds,
@@ -102,26 +117,43 @@ fn run(precision: &str, rel_l2_gate: Option<f64>) {
         trunk.model_seconds,
         trunk.sha256()
     );
-    let model = Backbone::with_external_trunk(&be, &vision, Box::new(trunk)).expect("backbone with external trunk");
-    let described = model.external_trunk().expect("the backbone reports its external trunk");
+    let model = Backbone::with_external_trunk(&be, &vision, Box::new(trunk))
+        .expect("backbone with external trunk");
+    let described = model
+        .external_trunk()
+        .expect("the backbone reports its external trunk");
     assert!(described.starts_with("coreml "), "{described}");
 
     let mut worst_cos = f64::INFINITY;
     let mut worst_rel = 0f64;
     println!("\n| image | stage | cosine | rel L2 | max abs |\n|---|---|---|---|---|");
     for name in IMAGES {
-        let st = SafeTensors::open(&Path::new(&fixtures).join(format!("{name}.safetensors"))).expect("fixture file");
+        let st = SafeTensors::open(&Path::new(&fixtures).join(format!("{name}.safetensors")))
+            .expect("fixture file");
         let (shape, img) = fixture(&st, "input.image");
-        let image = be.upload(&Tensor::from_f32(&img, &shape, be.budget()).expect("image")).expect("upload image");
+        let image = be
+            .upload(&Tensor::from_f32(&img, &shape, be.budget()).expect("image"))
+            .expect("upload image");
         let mut taps = Taps::default();
         taps.ln_pre = Some(image.clone());
         let t0 = Instant::now();
         let out = model.trunk(&image, &[], &mut taps).expect("trunk");
         let secs = t0.elapsed().as_secs_f64();
-        assert!(taps.ln_pre.is_none() && taps.patch_embed.is_none() && taps.blocks.is_empty(), "an external trunk leaves no Ojas taps");
+        assert!(
+            taps.ln_pre.is_none() && taps.patch_embed.is_none() && taps.blocks.is_empty(),
+            "an external trunk leaves no Ojas taps"
+        );
         assert_eq!(out.shape(), &[1, 72, 72, 1024]);
-        let mut stages = vec![("trunk".to_string(), host(&be, &out), fixture(&st, "trunk.blocks.31.out").1)];
-        for (neck, key) in [(Neck::Detector, "convs"), (Neck::Interactive, "interactive_convs"), (Neck::Propagation, "propagation_convs")] {
+        let mut stages = vec![(
+            "trunk".to_string(),
+            host(&be, &out),
+            fixture(&st, "trunk.blocks.31.out").1,
+        )];
+        for (neck, key) in [
+            (Neck::Detector, "convs"),
+            (Neck::Interactive, "interactive_convs"),
+            (Neck::Propagation, "propagation_convs"),
+        ] {
             let levels = model.neck(neck, &out).expect("neck");
             for (l, t) in levels.iter().enumerate() {
                 let fx = format!("neck.{key}.{l}.out");
@@ -130,29 +162,56 @@ fn run(precision: &str, rel_l2_gate: Option<f64>) {
         }
         for (stage, got, want) in &stages {
             let s = compare(got, want);
-            println!("| {name} | {stage} | {:.7} | {:.3e} | {:.3e} |", s.cos, s.rel_l2, s.max_abs);
+            println!(
+                "| {name} | {stage} | {:.7} | {:.3e} | {:.3e} |",
+                s.cos, s.rel_l2, s.max_abs
+            );
             worst_cos = worst_cos.min(s.cos);
             worst_rel = worst_rel.max(s.rel_l2);
         }
-        println!("[{label}] {name}: trunk call {secs:.3} s (in-process, incl. download and upload)");
+        println!(
+            "[{label}] {name}: trunk call {secs:.3} s (in-process, incl. download and upload)"
+        );
     }
     println!("\n[{label}] worst cosine {worst_cos:.7}, worst rel L2 {worst_rel:.3e} over {} images x 10 stages", IMAGES.len());
-    assert!(worst_cos > COS_GATE, "worst cosine {worst_cos} <= {COS_GATE}");
+    assert!(
+        worst_cos > COS_GATE,
+        "worst cosine {worst_cos} <= {COS_GATE}"
+    );
     if let Some(gate) = rel_l2_gate {
-        assert!(worst_rel < gate, "worst rel L2 {worst_rel:.3e} >= {gate:.0e}");
+        assert!(
+            worst_rel < gate,
+            "worst rel L2 {worst_rel:.3e} >= {gate:.0e}"
+        );
     }
 
     // The paths that need the Ojas blocks refuse an external trunk instead of running without them.
-    let st = SafeTensors::open(&Path::new(&fixtures).join(format!("{}.safetensors", IMAGES[0]))).expect("fixture file");
+    let st = SafeTensors::open(&Path::new(&fixtures).join(format!("{}.safetensors", IMAGES[0])))
+        .expect("fixture file");
     let (shape, img) = fixture(&st, "input.image");
-    let image = be.upload(&Tensor::from_f32(&img, &shape, be.budget()).expect("image")).expect("upload image");
-    let e = model.trunk(&image, &[31], &mut Taps::default()).err().expect("block taps refused");
+    let image = be
+        .upload(&Tensor::from_f32(&img, &shape, be.budget()).expect("image"))
+        .expect("upload image");
+    let e = model
+        .trunk(&image, &[31], &mut Taps::default())
+        .err()
+        .expect("block taps refused");
     assert!(e.to_string().contains("block taps"), "{e}");
     let e = model
-        .trunk_gated(&image, &mut TrunkCache::default(), &WindowSet::full(3), GatePolicy::Off, &[], &mut Taps::default())
+        .trunk_gated(
+            &image,
+            &mut TrunkCache::default(),
+            &WindowSet::full(3),
+            GatePolicy::Off,
+            &[],
+            &mut Taps::default(),
+        )
         .err()
         .expect("gated trunk refused");
     assert!(e.to_string().contains("Ojas trunk blocks"), "{e}");
-    let e = model.with_trunk_linears_bf16().err().expect("bf16 linears refused");
+    let e = model
+        .with_trunk_linears_bf16()
+        .err()
+        .expect("bf16 linears refused");
     assert!(e.to_string().contains("Ojas trunk blocks"), "{e}");
 }

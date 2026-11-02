@@ -20,3 +20,23 @@ ojas-metal = { path = "../ojas/ojas-metal" }
 st-weights = { path = "crates/st-weights" }
 st-eval = { path = "crates/st-eval" }
 st-video = { path = "crates/st-video" }
+
+[workspace.lints.clippy]
+chunks_exact_to_as_chunks = "allow"
+manual_is_multiple_of = "allow"
+manual_range_contains = "allow"
+cloned_ref_to_slice_refs = "allow"
+assertions_on_constants = "allow"
+too_many_arguments = "allow"
+type_complexity = "allow"
+doc_overindented_list_items = "allow"
+doc_lazy_continuation = "allow"
+needless_range_loop = "allow"
+neg_cmp_op_on_partial_ord = "allow"
+byte_char_slices = "allow"
+approx_constant = "allow"
+useless_format = "allow"
+needless_lifetimes = "allow"
+if_same_then_else = "allow"
+field_reassign_with_default = "allow"
+err_expect = "allow"

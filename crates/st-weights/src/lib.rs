@@ -47,13 +47,29 @@ impl Weight {
 #[derive(Debug)]
 pub enum WeightsError {
     Io(IoError),
-    Missing { name: String },
-    Shape { name: String, expected: Vec<usize>, found: Vec<usize> },
-    Dtype { name: String, found: StDtype },
+    Missing {
+        name: String,
+    },
+    Shape {
+        name: String,
+        expected: Vec<usize>,
+        found: Vec<usize>,
+    },
+    Dtype {
+        name: String,
+        found: StDtype,
+    },
     /// A RoPE table the converter did not mark as a complex pair, or the reverse.
-    ComplexPair { name: String, detail: String },
-    ClaimedTwice { name: String },
-    Unclaimed { names: Vec<String> },
+    ComplexPair {
+        name: String,
+        detail: String,
+    },
+    ClaimedTwice {
+        name: String,
+    },
+    Unclaimed {
+        names: Vec<String>,
+    },
 }
 
 impl fmt::Display for WeightsError {
@@ -61,7 +77,11 @@ impl fmt::Display for WeightsError {
         match self {
             Self::Io(e) => write!(f, "checkpoint I/O: {}", e.detail()),
             Self::Missing { name } => write!(f, "checkpoint has no tensor {name:?}"),
-            Self::Shape { name, expected, found } => {
+            Self::Shape {
+                name,
+                expected,
+                found,
+            } => {
                 write!(f, "{name}: shape {found:?}, expected {expected:?}")
             }
             Self::Dtype { name, found } => write!(f, "{name}: dtype {found:?}, expected F32"),
@@ -69,7 +89,11 @@ impl fmt::Display for WeightsError {
             Self::ClaimedTwice { name } => write!(f, "{name} is claimed by two fields"),
             Self::Unclaimed { names } => {
                 let shown: Vec<&str> = names.iter().take(8).map(String::as_str).collect();
-                write!(f, "{} checkpoint tensors claimed by no field: {shown:?}", names.len())
+                write!(
+                    f,
+                    "{} checkpoint tensors claimed by no field: {shown:?}",
+                    names.len()
+                )
             }
         }
     }
@@ -111,7 +135,11 @@ impl Checkpoint {
             })?,
             None => BTreeSet::new(),
         };
-        Ok(Self { st, complex, claimed: RefCell::new(BTreeSet::new()) })
+        Ok(Self {
+            st,
+            complex,
+            claimed: RefCell::new(BTreeSet::new()),
+        })
     }
 
     /// Load the whole model and refuse any tensor left unclaimed.
@@ -125,7 +153,11 @@ impl Checkpoint {
     /// Names in the file that no field has claimed yet.
     pub fn unclaimed(&self) -> Vec<String> {
         let claimed = self.claimed.borrow();
-        self.st.names().filter(|n| !claimed.contains(*n)).map(str::to_string).collect()
+        self.st
+            .names()
+            .filter(|n| !claimed.contains(*n))
+            .map(str::to_string)
+            .collect()
     }
 
     /// Succeeds only when every tensor in the file was claimed.
@@ -140,27 +172,44 @@ impl Checkpoint {
 
     fn claim(&self, name: &str) -> Result<(), WeightsError> {
         if !self.claimed.borrow_mut().insert(name.to_string()) {
-            return Err(WeightsError::ClaimedTwice { name: name.to_string() });
+            return Err(WeightsError::ClaimedTwice {
+                name: name.to_string(),
+            });
         }
         Ok(())
     }
 
     fn read(&self, name: &str) -> Result<Weight, WeightsError> {
-        let info = self.st.info(name).map_err(|_| WeightsError::Missing { name: name.to_string() })?;
+        let info = self.st.info(name).map_err(|_| WeightsError::Missing {
+            name: name.to_string(),
+        })?;
         if info.dtype != StDtype::F32 {
-            return Err(WeightsError::Dtype { name: name.to_string(), found: info.dtype });
+            return Err(WeightsError::Dtype {
+                name: name.to_string(),
+                found: info.dtype,
+            });
         }
         let (shape, data) = self.st.read_f32(name)?;
         let shape = shape.into_iter().map(|d| d as usize).collect();
-        Ok(Weight { name: name.to_string(), shape, data })
+        Ok(Weight {
+            name: name.to_string(),
+            shape,
+            data,
+        })
     }
 
     fn read_shaped(&self, name: &str, shape: &[usize]) -> Result<Weight, WeightsError> {
         // Check the header before reading the bytes or claiming the name.
-        let info = self.st.info(name).map_err(|_| WeightsError::Missing { name: name.to_string() })?;
+        let info = self.st.info(name).map_err(|_| WeightsError::Missing {
+            name: name.to_string(),
+        })?;
         let found: Vec<usize> = info.shape.iter().map(|&d| d as usize).collect();
         if found != shape {
-            return Err(WeightsError::Shape { name: name.to_string(), expected: shape.to_vec(), found });
+            return Err(WeightsError::Shape {
+                name: name.to_string(),
+                expected: shape.to_vec(),
+                found,
+            });
         }
         self.claim(name)?;
         self.read(name)
@@ -200,7 +249,9 @@ impl Source for Checkpoint {
                 .collect()
         };
         if names.is_empty() {
-            return Err(WeightsError::Missing { name: format!("{prefix}*") });
+            return Err(WeightsError::Missing {
+                name: format!("{prefix}*"),
+            });
         }
         let mut tensors = BTreeMap::new();
         for name in names {
@@ -214,17 +265,28 @@ impl Source for Checkpoint {
             let w = self.read(&name)?;
             tensors.insert(name, w);
         }
-        Ok(TensorGroup { prefix: prefix.to_string(), tensors })
+        Ok(TensorGroup {
+            prefix: prefix.to_string(),
+            tensors,
+        })
     }
 }
 
 /// One expected tensor, as the typed structs request it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Expected {
-    Tensor { name: String, shape: Vec<usize> },
+    Tensor {
+        name: String,
+        shape: Vec<usize>,
+    },
     /// Complex upstream; the file holds f32 `shape ++ [2]`.
-    ComplexPairs { name: String, shape: Vec<usize> },
-    Group { prefix: String },
+    ComplexPairs {
+        name: String,
+        shape: Vec<usize>,
+    },
+    Group {
+        prefix: String,
+    },
 }
 
 /// A [`Source`] that loads nothing and records what was asked for.
@@ -235,22 +297,39 @@ pub struct SchemaRecorder {
 
 impl Source for SchemaRecorder {
     fn tensor(&self, name: &str, shape: &[usize]) -> Result<Weight, WeightsError> {
-        self.expected.borrow_mut().push(Expected::Tensor { name: name.to_string(), shape: shape.to_vec() });
-        Ok(Weight { name: name.to_string(), shape: shape.to_vec(), data: Vec::new() })
+        self.expected.borrow_mut().push(Expected::Tensor {
+            name: name.to_string(),
+            shape: shape.to_vec(),
+        });
+        Ok(Weight {
+            name: name.to_string(),
+            shape: shape.to_vec(),
+            data: Vec::new(),
+        })
     }
 
     fn complex_pairs(&self, name: &str, shape: &[usize]) -> Result<Weight, WeightsError> {
-        self.expected
-            .borrow_mut()
-            .push(Expected::ComplexPairs { name: name.to_string(), shape: shape.to_vec() });
+        self.expected.borrow_mut().push(Expected::ComplexPairs {
+            name: name.to_string(),
+            shape: shape.to_vec(),
+        });
         let mut full = shape.to_vec();
         full.push(2);
-        Ok(Weight { name: name.to_string(), shape: full, data: Vec::new() })
+        Ok(Weight {
+            name: name.to_string(),
+            shape: full,
+            data: Vec::new(),
+        })
     }
 
     fn group(&self, prefix: &str) -> Result<TensorGroup, WeightsError> {
-        self.expected.borrow_mut().push(Expected::Group { prefix: prefix.to_string() });
-        Ok(TensorGroup { prefix: prefix.to_string(), tensors: BTreeMap::new() })
+        self.expected.borrow_mut().push(Expected::Group {
+            prefix: prefix.to_string(),
+        });
+        Ok(TensorGroup {
+            prefix: prefix.to_string(),
+            tensors: BTreeMap::new(),
+        })
     }
 }
 

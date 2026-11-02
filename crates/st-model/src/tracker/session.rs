@@ -72,8 +72,12 @@ use crate::host;
 use crate::layers::{host_of, up};
 use crate::text::Text;
 use crate::tokenizer::Tokenizer;
-use crate::tracker::associate::{associate, nms_iom, not_close_to_boundary, track_detections, AssocParams, Association, Bitmask};
-use crate::tracker::bookkeeping::{BookParams, FrameInput, FramePlan, HideLog, TrackBook, YieldBuffer};
+use crate::tracker::associate::{
+    associate, nms_iom, not_close_to_boundary, track_detections, AssocParams, Association, Bitmask,
+};
+use crate::tracker::bookkeeping::{
+    BookParams, FrameInput, FramePlan, HideLog, TrackBook, YieldBuffer,
+};
 use crate::tracker::mask_decoder::MUX;
 use crate::tracker::state::{err, FrameCtx, TrackerState};
 use crate::tracker::vos::Vos;
@@ -99,7 +103,15 @@ pub struct SessionConfig {
 
 impl SessionConfig {
     pub fn new(num_frames: usize, height: usize, width: usize) -> Self {
-        Self { num_frames, video_hw: (height, width), book: BookParams::default(), assoc: AssocParams::default(), score_threshold: 0.4, nms_iom: 0.1, boundary_margin: 0.025 }
+        Self {
+            num_frames,
+            video_hw: (height, width),
+            book: BookParams::default(),
+            assoc: AssocParams::default(),
+            score_threshold: 0.4,
+            nms_iom: 0.1,
+            boundary_margin: 0.025,
+        }
     }
 }
 
@@ -277,19 +289,28 @@ fn suppress_area_shrinkage(hr: &mut [f32], n: usize, px: usize) -> Vec<f32> {
         });
         winner
     });
-    let mut planes: Vec<(&mut [f32], f32)> = hr.chunks_exact_mut(px).take(n).map(|p| (p, 0.0)).collect();
+    let mut planes: Vec<(&mut [f32], f32)> =
+        hr.chunks_exact_mut(px).take(n).map(|p| (p, 0.0)).collect();
     host::for_each_chunk_mut(&mut planes, 1, |start, piece| {
         for (j, (plane, score)) in piece.iter_mut().enumerate() {
             if let Some(winner) = &winner {
                 let o = start + j;
                 let before = plane.iter().filter(|&&v| v > 0.0).count();
-                let after = plane.iter().zip(winner).filter(|&(&v, &w)| w == o && v > 0.0).count();
+                let after = plane
+                    .iter()
+                    .zip(winner)
+                    .filter(|&(&v, &w)| w == o && v > 0.0)
+                    .count();
                 let ratio = after as f32 / before.max(1) as f32;
                 if !(ratio >= 0.3) {
                     plane.iter_mut().for_each(|v| *v = v.min(-10.0));
                 }
             }
-            *score = if plane.iter().any(|&v| v > 0.0) { 10.0 } else { -10.0 };
+            *score = if plane.iter().any(|&v| v > 0.0) {
+                10.0
+            } else {
+                -10.0
+            };
         }
     });
     planes.into_iter().map(|(_, s)| s).collect()
@@ -311,7 +332,11 @@ fn round_bf16<B: Backend + ?Sized>(be: &B, t: &Tensor) -> Result<Tensor, ModelEr
 
 fn round_neck<B: Backend + ?Sized>(be: &B, neck: [Tensor; 3]) -> Result<[Tensor; 3], ModelError> {
     let [a, b, c] = neck;
-    Ok([round_bf16(be, &a)?, round_bf16(be, &b)?, round_bf16(be, &c)?])
+    Ok([
+        round_bf16(be, &a)?,
+        round_bf16(be, &b)?,
+        round_bf16(be, &c)?,
+    ])
 }
 
 /// Mask logits of query `q`: one of `QUERIES` equal rows (`step_frame` checks the count against
@@ -335,25 +360,59 @@ fn mask_box_xywh(m: &Bitmask, h: usize, w: usize) -> [f32; 4] {
         }
     }
     let (x0, y0, x1, y1) = (x0 as f32, y0 as f32, x1 as f32, y1 as f32);
-    [x0 / w as f32, y0 / h as f32, (x1 - x0) / w as f32, (y1 - y0) / h as f32]
+    [
+        x0 / w as f32,
+        y0 / h as f32,
+        (x1 - x0) / w as f32,
+        (y1 - y0) / h as f32,
+    ]
 }
 
 impl<'a, B: Backend + ?Sized> Session<'a, B> {
     /// Tokenize and encode the prompt, keeping its valid (non-padding) tokens `[1, L, 256]`.
-    pub fn encode_prompt(be: &B, text: &Text<'_, B>, tokenizer: &Tokenizer, prompt: &str) -> Result<Tensor, ModelError> {
-        let ids = tokenizer.tokenize(prompt).map_err(|e| err(format!("tokenizer: {e}")))?;
+    pub fn encode_prompt(
+        be: &B,
+        text: &Text<'_, B>,
+        tokenizer: &Tokenizer,
+        prompt: &str,
+    ) -> Result<Tensor, ModelError> {
+        let ids = tokenizer
+            .tokenize(prompt)
+            .map_err(|e| err(format!("tokenizer: {e}")))?;
         let tf = text.encode(&[ids])?;
         let resized = host_of(&tf.resized, be)?;
-        let valid: Vec<f32> = (0..tf.padding.len()).filter(|&t| !tf.padding[t]).flat_map(|t| resized[t * DET_D..(t + 1) * DET_D].to_vec()).collect();
+        let valid: Vec<f32> = (0..tf.padding.len())
+            .filter(|&t| !tf.padding[t])
+            .flat_map(|t| resized[t * DET_D..(t + 1) * DET_D].to_vec())
+            .collect();
         Ok(up(be, &valid, &[1, valid.len() / DET_D, DET_D])?)
     }
 
     /// `prompt`: from [`Self::encode_prompt`]. The tracker `vos` brings the backbone.
-    pub fn new(vos: &'a Vos<'a, B>, detector: &'a Detector<'a, B>, prompt: Tensor, cfg: SessionConfig) -> Self {
+    pub fn new(
+        vos: &'a Vos<'a, B>,
+        detector: &'a Detector<'a, B>,
+        prompt: Tensor,
+        cfg: SessionConfig,
+    ) -> Self {
         let book = TrackBook::new(cfg.book);
         let yield_buf = YieldBuffer::new(cfg.book.hotstart_delay.max(0) as usize);
         let hide = HideLog::new(cfg.book.confirm_consecutive, cfg.num_frames as i64);
-        Self { vos, detector, prompt, cfg, states: Vec::new(), book, next_frame: 0, yield_buf, hide, buffered: BTreeMap::new(), trace: false, traces: Vec::new(), marker: None }
+        Self {
+            vos,
+            detector,
+            prompt,
+            cfg,
+            states: Vec::new(),
+            book,
+            next_frame: 0,
+            yield_buf,
+            hide,
+            buffered: BTreeMap::new(),
+            trace: false,
+            traces: Vec::new(),
+            marker: None,
+        }
     }
 
     /// Call `marker` with the stage name as each phase of a frame begins ([`STAGES`]), for
@@ -392,14 +451,27 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         mark(&mut self.marker, STAGES[1]);
         let fpn = self.vos.backbone.neck(Neck::Detector, &trunk)?;
         let marker = &mut self.marker;
-        let out = self.detector.forward_marked(&fpn, &self.prompt, &mut DetectorTaps::default(), &mut |s| mark(marker, s))?;
+        let out = self.detector.forward_marked(
+            &fpn,
+            &self.prompt,
+            &mut DetectorTaps::default(),
+            &mut |s| mark(marker, s),
+        )?;
         mark(&mut self.marker, STAGES[2]);
-        let det = Detections { logits: out.pred_logits, boxes_cxcywh: out.pred_boxes, masks: host_of(&out.pred_masks, self.vos.be)? };
+        let det = Detections {
+            logits: out.pred_logits,
+            boxes_cxcywh: out.pred_boxes,
+            masks: host_of(&out.pred_masks, self.vos.be)?,
+        };
         self.step_frame(&trunk, &det)
     }
 
     /// As [`Self::push_frame`] with the detector's output supplied (for isolating the tracker).
-    pub fn push_frame_with_detections(&mut self, frame: &Tensor, det: &Detections) -> Result<Vec<YieldedFrame>, ModelError> {
+    pub fn push_frame_with_detections(
+        &mut self,
+        frame: &Tensor,
+        det: &Detections,
+    ) -> Result<Vec<YieldedFrame>, ModelError> {
         let trunk = self.vos.backbone.trunk(frame, &[], &mut Taps::default())?;
         self.step_frame(&trunk, det)
     }
@@ -411,17 +483,30 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         frames.into_iter().map(|f| self.release(f)).collect()
     }
 
-    fn step_frame(&mut self, trunk: &Tensor, det: &Detections) -> Result<Vec<YieldedFrame>, ModelError> {
+    fn step_frame(
+        &mut self,
+        trunk: &Tensor,
+        det: &Detections,
+    ) -> Result<Vec<YieldedFrame>, ModelError> {
         let t = self.next_frame;
         if t >= self.cfg.num_frames {
-            return Err(err(format!("frame {t} is past the {} frames the session was built for", self.cfg.num_frames)));
+            return Err(err(format!(
+                "frame {t} is past the {} frames the session was built for",
+                self.cfg.num_frames
+            )));
         }
         let mask = self.vos.geo.low_res();
-        if det.logits.len() != QUERIES || det.boxes_cxcywh.len() != QUERIES * 4 || det.masks.len() != QUERIES * mask * mask {
+        if det.logits.len() != QUERIES
+            || det.boxes_cxcywh.len() != QUERIES * 4
+            || det.masks.len() != QUERIES * mask * mask
+        {
             return Err(err(format!("detections do not hold {QUERIES} queries of {mask}x{mask} masks (the tracker's geometry is {} pixels; was the detector built for the same size?)", self.vos.geo.pixels())));
         }
         mark(&mut self.marker, STAGES[3]);
-        let prop = round_neck(self.vos.be, self.vos.backbone.neck(Neck::Propagation, trunk)?)?;
+        let prop = round_neck(
+            self.vos.be,
+            self.vos.backbone.neck(Neck::Propagation, trunk)?,
+        )?;
         let mut ctx = self.vos.frame_ctx(t, &prop)?;
         // The prompt frame: `add_prompt`'s visit, then `propagate_in_video`'s.
         let visits = if t == 0 { 2 } else { 1 };
@@ -443,12 +528,26 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
 
     /// `_postprocess_output` for one released frame.
     fn release(&mut self, frame: i64) -> YieldedFrame {
-        let buf = self.buffered.remove(&frame).expect("a released frame is buffered");
+        let buf = self
+            .buffered
+            .remove(&frame)
+            .expect("a released frame is buffered");
         let (h, w) = self.cfg.video_hw;
         let hw = h * w;
-        let hidden: Vec<i64> = self.hide.hidden_for(frame).map(|v| v.to_vec()).unwrap_or_default();
-        let kept: Vec<&(i64, Bitmask, f32, f32, Option<[f32; 4]>)> = buf.items.iter().filter(|(id, m, _, _, _)| m.area() > 0 && !hidden.contains(id)).collect();
-        let boxes: Vec<f32> = kept.iter().flat_map(|(_, m, _, _, _)| mask_box_xywh(m, h, w)).collect();
+        let hidden: Vec<i64> = self
+            .hide
+            .hidden_for(frame)
+            .map(|v| v.to_vec())
+            .unwrap_or_default();
+        let kept: Vec<&(i64, Bitmask, f32, f32, Option<[f32; 4]>)> = buf
+            .items
+            .iter()
+            .filter(|(id, m, _, _, _)| m.area() > 0 && !hidden.contains(id))
+            .collect();
+        let boxes: Vec<f32> = kept
+            .iter()
+            .flat_map(|(_, m, _, _, _)| mask_box_xywh(m, h, w))
+            .collect();
         // Object-wise non-overlap: at each pixel only the covering object with the highest
         // tracker score keeps it (first index on ties), and only if that score is positive.
         let masks: Vec<Bitmask> = if kept.len() > 1 {
@@ -463,7 +562,12 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
                     }
                 }
             }
-            kept.iter().enumerate().map(|(o, item)| Bitmask::from_fn(hw, |p| item.1.get(p) && winner[p] == o && item.3 > 0.0)).collect()
+            kept.iter()
+                .enumerate()
+                .map(|(o, item)| {
+                    Bitmask::from_fn(hw, |p| item.1.get(p) && winner[p] == o && item.3 > 0.0)
+                })
+                .collect()
         } else {
             kept.iter().map(|item| item.1.clone()).collect()
         };
@@ -478,10 +582,18 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
     }
 
     /// The frame's interactive neck, computed once (marked as its own stage), then `next` marked.
-    fn ensure_inter_marked(&mut self, trunk: &Tensor, ctx: &mut FrameCtx, next: &str) -> Result<(), ModelError> {
+    fn ensure_inter_marked(
+        &mut self,
+        trunk: &Tensor,
+        ctx: &mut FrameCtx,
+        next: &str,
+    ) -> Result<(), ModelError> {
         if ctx.inter.is_none() {
             mark(&mut self.marker, STAGES[6]);
-            let inter = round_neck(self.vos.be, self.vos.backbone.neck(Neck::Interactive, trunk)?)?;
+            let inter = round_neck(
+                self.vos.be,
+                self.vos.backbone.neck(Neck::Interactive, trunk)?,
+            )?;
             ctx.inter = Some(self.vos.interactive_pix(&inter)?);
         }
         mark(&mut self.marker, next);
@@ -492,18 +604,34 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
     fn process_detections(&self, det: &Detections) -> DetStage {
         let px = det.masks.len() / QUERIES;
         let probs0: Vec<f32> = det.logits.iter().map(|&l| host::sigmoid(l)).collect();
-        let bits0: Vec<Bitmask> = (0..QUERIES).map(|q| Bitmask::from_logits(&det.masks[q * px..(q + 1) * px])).collect();
+        let bits0: Vec<Bitmask> = (0..QUERIES)
+            .map(|q| Bitmask::from_logits(&det.masks[q * px..(q + 1) * px]))
+            .collect();
         let nms_keep = nms_iom(&probs0, &bits0, self.cfg.score_threshold, self.cfg.nms_iom);
         // Queries NMS did not keep (including those at or under the threshold) lose 1e4 of logit.
-        let probs: Vec<f32> = (0..QUERIES).map(|q| host::sigmoid(det.logits[q] - 1e4 * if nms_keep[q] { 0.0 } else { 1.0 })).collect();
+        let probs: Vec<f32> = (0..QUERIES)
+            .map(|q| host::sigmoid(det.logits[q] - 1e4 * if nms_keep[q] { 0.0 } else { 1.0 }))
+            .collect();
         let boxes_xyxy: Vec<f32> = det
             .boxes_cxcywh
             .chunks_exact(4)
-            .flat_map(|b| [b[0] - 0.5 * b[2], b[1] - 0.5 * b[3], b[0] + 0.5 * b[2], b[1] + 0.5 * b[3]])
+            .flat_map(|b| {
+                [
+                    b[0] - 0.5 * b[2],
+                    b[1] - 0.5 * b[3],
+                    b[0] + 0.5 * b[2],
+                    b[1] + 0.5 * b[3],
+                ]
+            })
             .collect();
-        let corners: Vec<[f32; 4]> = boxes_xyxy.chunks_exact(4).map(|b| [b[0], b[1], b[2], b[3]]).collect();
+        let corners: Vec<[f32; 4]> = boxes_xyxy
+            .chunks_exact(4)
+            .map(|b| [b[0], b[1], b[2], b[3]])
+            .collect();
         let inside = not_close_to_boundary(&corners, self.cfg.boundary_margin);
-        let keep: Vec<bool> = (0..QUERIES).map(|q| probs[q] > self.cfg.score_threshold && inside[q]).collect();
+        let keep: Vec<bool> = (0..QUERIES)
+            .map(|q| probs[q] > self.cfg.score_threshold && inside[q])
+            .collect();
         let mut order: Vec<usize> = (0..QUERIES).filter(|&q| keep[q]).collect();
         order.extend((0..QUERIES).filter(|&q| !keep[q]));
         DetStage {
@@ -518,7 +646,14 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
     }
 
     /// One visit of `_det_track_one_frame_impl`.
-    fn visit(&mut self, t: usize, visit: usize, trunk: &Tensor, ctx: &mut FrameCtx, det: &Detections) -> Result<VisitOut, ModelError> {
+    fn visit(
+        &mut self,
+        t: usize,
+        visit: usize,
+        trunk: &Tensor,
+        ctx: &mut FrameCtx,
+        det: &Detections,
+    ) -> Result<VisitOut, ModelError> {
         let vos = self.vos;
         let be = vos.be;
         let (h, w) = self.cfg.video_hw;
@@ -548,7 +683,10 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         }
         entries.sort_by_key(|e| e.0);
         if entries.iter().map(|e| e.0).collect::<Vec<_>>() != prev_ids {
-            return Err(err(format!("tracker states hold ids {:?} but the book lists {prev_ids:?}", entries.iter().map(|e| e.0).collect::<Vec<_>>())));
+            return Err(err(format!(
+                "tracker states hold ids {:?} but the book lists {prev_ids:?}",
+                entries.iter().map(|e| e.0).collect::<Vec<_>>()
+            )));
         }
         let mut trk: Vec<f32> = Vec::with_capacity(n * px);
         let mut trk_scores: Vec<f32> = Vec::with_capacity(n);
@@ -563,8 +701,16 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         let ds = self.process_detections(det);
 
         // 4. Plan.
-        let trk_bits: Vec<Bitmask> = (0..n).map(|i| Bitmask::from_logits(&trk[i * px..(i + 1) * px])).collect();
-        let association = associate(&ds.bits, &ds.scores, &ds.keep_re, &trk_bits, &self.cfg.assoc);
+        let trk_bits: Vec<Bitmask> = (0..n)
+            .map(|i| Bitmask::from_logits(&trk[i * px..(i + 1) * px]))
+            .collect();
+        let association = associate(
+            &ds.bits,
+            &ds.scores,
+            &ds.keep_re,
+            &trk_bits,
+            &self.cfg.assoc,
+        );
         let trk_det = track_detections(&association, &ds.scores, &ds.keep_re, n);
         let plan = self.book.plan_frame(&FrameInput {
             frame_idx: t as i64,
@@ -579,14 +725,21 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         // 4a. Recondition.
         let mut per_state: Vec<(usize, Vec<i64>, Vec<usize>)> = Vec::new();
         for &(id, d) in &plan.recondition {
-            let row = prev_ids.iter().position(|&x| x == id).ok_or_else(|| err(format!("reconditioned id {id} is not a track")))?;
+            let row = prev_ids
+                .iter()
+                .position(|&x| x == id)
+                .ok_or_else(|| err(format!("reconditioned id {id} is not a track")))?;
             let dl = det_row(det, ds.order[d]);
             for (p, &dv) in dl.iter().enumerate() {
                 if (dv > 0.0) != (trk[row * px + p] > 0.0) {
                     trk[row * px + p] = dv;
                 }
             }
-            let si = self.states.iter().position(|s| s.obj_ids().contains(&id)).ok_or_else(|| err(format!("reconditioned id {id} is in no tracker state")))?;
+            let si = self
+                .states
+                .iter()
+                .position(|s| s.obj_ids().contains(&id))
+                .ok_or_else(|| err(format!("reconditioned id {id} is in no tracker state")))?;
             match per_state.iter_mut().find(|e| e.0 == si) {
                 Some(e) => {
                     e.1.push(id);
@@ -598,7 +751,10 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         if !per_state.is_empty() {
             self.ensure_inter_marked(trunk, ctx, STAGES[7])?;
             for (si, ids, ds_idx) in &per_state {
-                let dl: Vec<f32> = ds_idx.iter().flat_map(|&d| det_row(det, ds.order[d]).iter().copied()).collect();
+                let dl: Vec<f32> = ds_idx
+                    .iter()
+                    .flat_map(|&d| det_row(det, ds.order[d]).iter().copied())
+                    .collect();
                 let masks = self.binary_input_masks(&dl, ds_idx.len())?;
                 self.states[*si].add_new_masks(vos, ctx, ids, &masks, (h, w), true)?;
             }
@@ -610,16 +766,22 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
 
         // 4b. Occlusion suppression.
         for &r in &plan.suppressed {
-            trk[r * px..(r + 1) * px].iter_mut().for_each(|v| *v = -10.0);
+            trk[r * px..(r + 1) * px]
+                .iter_mut()
+                .for_each(|v| *v = -10.0);
         }
 
         // 4c. Memory update for every existing track.
         mark(&mut self.marker, STAGES[8]);
         let (mem_masks, mem_scores) = if n > 0 {
             let low = up(be, &trk, &[n, 1, low_res, low_res])?;
-            let upsampled = be.interpolate_bilinear_forward(&low, [input_mask, input_mask], false)?;
+            let upsampled =
+                be.interpolate_bilinear_forward(&low, [input_mask, input_mask], false)?;
             if self.marker.is_some() {
-                mark(&mut self.marker, &format!("{}: {}", STAGES[8], MEMORY_UPDATE_STAGES[0]));
+                mark(
+                    &mut self.marker,
+                    &format!("{}: {}", STAGES[8], MEMORY_UPDATE_STAGES[0]),
+                );
             }
             // The host tensor the readback made is the working copy: no second copy into a Vec. On a
             // host backend `to_host` is a clone sharing `upsampled`'s storage, so `upsampled` is
@@ -628,7 +790,10 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
             drop(upsampled);
             let hr = hr_host.f32_slice_mut()?;
             if self.marker.is_some() {
-                mark(&mut self.marker, &format!("{}: {}", STAGES[8], MEMORY_UPDATE_STAGES[1]));
+                mark(
+                    &mut self.marker,
+                    &format!("{}: {}", STAGES[8], MEMORY_UPDATE_STAGES[1]),
+                );
             }
             let proxy = suppress_area_shrinkage(hr, n, input_mask * input_mask);
             mark(&mut self.marker, STAGES[9]);
@@ -639,7 +804,11 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
                 let rows = st
                     .obj_ids()
                     .iter()
-                    .map(|id| prev_ids.binary_search(id).map_err(|_| err(format!("state object {id} is not a track"))))
+                    .map(|id| {
+                        prev_ids
+                            .binary_search(id)
+                            .map_err(|_| err(format!("state object {id} is not a track")))
+                    })
                     .collect::<Result<Vec<usize>, ModelError>>()?;
                 let local_scores: Vec<f32> = rows.iter().map(|&r| proxy[r]).collect();
                 let marker = &mut self.marker;
@@ -658,7 +827,11 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         let k = plan.births.len();
         if k > 0 {
             self.ensure_inter_marked(trunk, ctx, STAGES[10])?;
-            let dl: Vec<f32> = plan.births.iter().flat_map(|b| det_row(det, ds.order[b.det]).iter().copied()).collect();
+            let dl: Vec<f32> = plan
+                .births
+                .iter()
+                .flat_map(|b| det_row(det, ds.order[b.det]).iter().copied())
+                .collect();
             let masks = self.binary_input_masks(&dl, k)?;
             let ids: Vec<i64> = plan.births.iter().map(|b| b.id).collect();
             // At most MUX births fit one state (one 16-slot bucket). Under upstream's builder cap
@@ -706,13 +879,20 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         for b in &plan.births {
             all.extend_from_slice(det_row(det, ds.order[b.det]));
         }
-        let mut sam2_scores: Vec<(i64, f32)> = prev_ids.iter().zip(&trk_scores).map(|(&id, &s)| (id, host::sigmoid(s))).collect();
+        let mut sam2_scores: Vec<(i64, f32)> = prev_ids
+            .iter()
+            .zip(&trk_scores)
+            .map(|(&id, &s)| (id, host::sigmoid(s)))
+            .collect();
         sam2_scores.extend(plan.births.iter().map(|b| (b.id, ds.scores[b.det])));
         let mut outputs: Vec<(i64, Bitmask)> = Vec::with_capacity(total);
         if total > 0 {
             let src = up(be, &all, &[total, 1, low_res, low_res])?;
             let video = host_of(&be.interpolate_bilinear_forward(&src, [h, w], false)?, be)?;
-            let ids = prev_ids.iter().copied().chain(plan.births.iter().map(|b| b.id));
+            let ids = prev_ids
+                .iter()
+                .copied()
+                .chain(plan.births.iter().map(|b| b.id));
             for (i, id) in ids.enumerate() {
                 outputs.push((id, Bitmask::from_logits(&video[i * h * w..(i + 1) * h * w])));
             }
@@ -720,13 +900,30 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         // The detection box each output id reports under `--boxes detector` (reordered index -> query).
         let det_box = |d: usize| -> [f32; 4] {
             let q = ds.order[d];
-            [ds.boxes_xyxy[q * 4], ds.boxes_xyxy[q * 4 + 1], ds.boxes_xyxy[q * 4 + 2], ds.boxes_xyxy[q * 4 + 3]]
+            [
+                ds.boxes_xyxy[q * 4],
+                ds.boxes_xyxy[q * 4 + 1],
+                ds.boxes_xyxy[q * 4 + 2],
+                ds.boxes_xyxy[q * 4 + 3],
+            ]
         };
-        let det_boxes: Vec<Option<[f32; 4]>> = trk_det.iter().map(|d| d.map(det_box)).chain(plan.births.iter().map(|b| Some(det_box(b.det)))).collect();
+        let det_boxes: Vec<Option<[f32; 4]>> = trk_det
+            .iter()
+            .map(|d| d.map(det_box))
+            .chain(plan.births.iter().map(|b| Some(det_box(b.det))))
+            .collect();
         let mut items: Vec<(i64, Bitmask, f32, f32, Option<[f32; 4]>)> = Vec::with_capacity(total);
         for (i, (id, mask)) in outputs.iter().enumerate() {
-            let birth = *self.book.scores().get(id).ok_or_else(|| err(format!("no score for id {id}")))?;
-            let sam2 = sam2_scores.iter().find(|(i, _)| i == id).map(|s| s.1).unwrap_or(0.0);
+            let birth = *self
+                .book
+                .scores()
+                .get(id)
+                .ok_or_else(|| err(format!("no score for id {id}")))?;
+            let sam2 = sam2_scores
+                .iter()
+                .find(|(i, _)| i == id)
+                .map(|s| s.1)
+                .unwrap_or(0.0);
             items.push((*id, mask.clone(), birth, sam2, det_boxes[i]));
         }
         items.sort_by_key(|i| i.0);
@@ -736,7 +933,10 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
             self.traces.push(VisitTrace {
                 frame: t,
                 visit,
-                det_kept_masks: kept_q.iter().flat_map(|&q| det_row(det, q).iter().copied()).collect(),
+                det_kept_masks: kept_q
+                    .iter()
+                    .flat_map(|&q| det_row(det, q).iter().copied())
+                    .collect(),
                 det_probs: ds.probs.clone(),
                 det_keep: ds.keep.clone(),
                 det_boxes_xyxy: ds.boxes_xyxy.clone(),
@@ -756,9 +956,12 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
                         StateTrace {
                             obj_ids: st.obj_ids().to_vec(),
                             slots: st.slots().to_vec(),
-                            maskmem: stored.and_then(|s| s.maskmem.as_ref().map(|m| m.nchw.clone())),
+                            maskmem: stored
+                                .and_then(|s| s.maskmem.as_ref().map(|m| m.nchw.clone())),
                             obj_ptr: stored.map(|s| s.obj_ptr.clone()).unwrap_or_default(),
-                            cond_objs: stored.map(|s| s.cond_objs.iter().copied().collect()).unwrap_or_default(),
+                            cond_objs: stored
+                                .map(|s| s.cond_objs.iter().copied().collect())
+                                .unwrap_or_default(),
                         }
                     })
                     .collect(),
@@ -766,7 +969,10 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
                 sam2_scores: sam2_scores.clone(),
             });
         }
-        Ok(VisitOut { buffered: Buffered { frame: t, items }, unconfirmed: plan.unconfirmed_ids.clone() })
+        Ok(VisitOut {
+            buffered: Buffered { frame: t, items },
+            unconfirmed: plan.unconfirmed_ids.clone(),
+        })
     }
 
     /// Detector mask logits `[k, M * M]` to the tracker's input masks: bilinear to `I = 16 * grid`
@@ -775,8 +981,14 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         let be = self.vos.be;
         let (low_res, input_mask) = (self.vos.geo.low_res(), self.vos.geo.input_mask());
         let src = up(be, logits, &[k, 1, low_res, low_res])?;
-        let hi = host_of(&be.interpolate_bilinear_forward(&src, [input_mask, input_mask], false)?, be)?;
-        Ok(hi.iter().map(|&v| if v > 0.0 { 1.0 } else { 0.0 }).collect())
+        let hi = host_of(
+            &be.interpolate_bilinear_forward(&src, [input_mask, input_mask], false)?,
+            be,
+        )?;
+        Ok(hi
+            .iter()
+            .map(|&v| if v > 0.0 { 1.0 } else { 0.0 })
+            .collect())
     }
 }
 
@@ -808,16 +1020,42 @@ mod tests {
             }
         }
         for hi in [0x3f80u32, 0x3f81, 0x0001, 0x7f7f, 0x807f, 0xff7f] {
-            v.extend([0x0000u32, 0x7fff, 0x8000, 0x8001, 0xffff].map(|lo| f32::from_bits((hi << 16) | lo)));
+            v.extend(
+                [0x0000u32, 0x7fff, 0x8000, 0x8001, 0xffff]
+                    .map(|lo| f32::from_bits((hi << 16) | lo)),
+            );
         }
-        v.extend([f32::MAX, f32::MIN, f32::MIN_POSITIVE, f32::INFINITY, f32::NEG_INFINITY, 0.0, -0.0, 1e-40, -1e-40]);
+        v.extend([
+            f32::MAX,
+            f32::MIN,
+            f32::MIN_POSITIVE,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            0.0,
+            -0.0,
+            1e-40,
+            -1e-40,
+        ]);
         let n = v.len();
         let t = Tensor::from_f32(&v, &[n], be.budget()).expect("tensor");
-        let ours = round_bf16(&be, &t).expect("round").to_f32_vec().expect("f32");
+        let ours = round_bf16(&be, &t)
+            .expect("round")
+            .to_f32_vec()
+            .expect("f32");
         let mut want = v.clone();
         bf16_round(&mut want);
-        let differ: Vec<(f32, u32, u32)> = v.iter().zip(&ours).zip(&want).filter(|((_, a), b)| a.to_bits() != b.to_bits()).map(|((x, a), b)| (*x, a.to_bits(), b.to_bits())).take(5).collect();
-        assert!(differ.is_empty(), "cast_bf16 differs from bf16_round: {differ:?}");
+        let differ: Vec<(f32, u32, u32)> = v
+            .iter()
+            .zip(&ours)
+            .zip(&want)
+            .filter(|((_, a), b)| a.to_bits() != b.to_bits())
+            .map(|((x, a), b)| (*x, a.to_bits(), b.to_bits()))
+            .take(5)
+            .collect();
+        assert!(
+            differ.is_empty(),
+            "cast_bf16 differs from bf16_round: {differ:?}"
+        );
     }
 
     #[test]
@@ -857,14 +1095,26 @@ mod tests {
             for o in 0..n {
                 let plane = &mut hr[o * px..(o + 1) * px];
                 let before = plane.iter().filter(|&&v| v > 0.0).count();
-                let after = plane.iter().enumerate().filter(|&(i, &v)| winner[i] == o && v > 0.0).count();
+                let after = plane
+                    .iter()
+                    .enumerate()
+                    .filter(|&(i, &v)| winner[i] == o && v > 0.0)
+                    .count();
                 let ratio = after as f32 / before.max(1) as f32;
                 if !(ratio >= 0.3) {
                     plane.iter_mut().for_each(|v| *v = v.min(-10.0));
                 }
             }
         }
-        (0..n).map(|o| if hr[o * px..(o + 1) * px].iter().any(|&v| v > 0.0) { 10.0 } else { -10.0 }).collect()
+        (0..n)
+            .map(|o| {
+                if hr[o * px..(o + 1) * px].iter().any(|&v| v > 0.0) {
+                    10.0
+                } else {
+                    -10.0
+                }
+            })
+            .collect()
     }
 
     #[test]
@@ -883,7 +1133,13 @@ mod tests {
             s ^= s << 5;
             s
         };
-        for &(n, px) in &[(1usize, 70_001usize), (2, 70_001), (18, 1152 * 1152 / 16 + 3), (5, 13), (3, 1)] {
+        for &(n, px) in &[
+            (1usize, 70_001usize),
+            (2, 70_001),
+            (18, 1152 * 1152 / 16 + 3),
+            (5, 13),
+            (3, 1),
+        ] {
             let mut hr: Vec<f32> = (0..n * px)
                 .map(|_| match next() % 17 {
                     16 => -0.0,
@@ -891,24 +1147,39 @@ mod tests {
                 })
                 .collect();
             if n > 1 {
-                hr[..px].iter_mut().for_each(|v| *v = if next() % 2 == 0 { 4.0 } else { -1.0 });
+                hr[..px]
+                    .iter_mut()
+                    .for_each(|v| *v = if next() % 2 == 0 { 4.0 } else { -1.0 });
             }
             for o in (1..n).step_by(3) {
                 for i in 0..px {
-                    hr[o * px + i] = if next() % 4 == 0 { hr[(o - 1) * px + i] } else { -1.0 };
+                    hr[o * px + i] = if next() % 4 == 0 {
+                        hr[(o - 1) * px + i]
+                    } else {
+                        -1.0
+                    };
                 }
             }
             let mut want_hr = hr.clone();
             let want = suppress_area_shrinkage_serial(&mut want_hr, n, px);
             let got = suppress_area_shrinkage(&mut hr, n, px);
             assert_eq!(got, want, "scores, n {n} px {px}");
-            let differ = hr.iter().zip(&want_hr).position(|(a, b)| a.to_bits() != b.to_bits());
+            let differ = hr
+                .iter()
+                .zip(&want_hr)
+                .position(|(a, b)| a.to_bits() != b.to_bits());
             assert_eq!(differ, None, "logits, n {n} px {px}");
             if n > 1 && px > 1000 {
-                assert!(want.contains(&-10.0) && want.contains(&10.0), "n {n} px {px}: both outcomes are exercised");
+                assert!(
+                    want.contains(&-10.0) && want.contains(&10.0),
+                    "n {n} px {px}: both outcomes are exercised"
+                );
             }
         }
-        assert!(70_001 >= 2 * AREA_MIN_PIXELS_PER_THREAD, "the threaded winner pass is exercised");
+        assert!(
+            70_001 >= 2 * AREA_MIN_PIXELS_PER_THREAD,
+            "the threaded winner pass is exercised"
+        );
     }
 
     #[test]
@@ -926,6 +1197,9 @@ mod tests {
             let (x, y) = (i % 8, i / 8);
             (2..=5).contains(&x) && (1..=2).contains(&y)
         });
-        assert_eq!(mask_box_xywh(&m, 4, 8), [2.0 / 8.0, 1.0 / 4.0, 3.0 / 8.0, 1.0 / 4.0]);
+        assert_eq!(
+            mask_box_xywh(&m, 4, 8),
+            [2.0 / 8.0, 1.0 / 4.0, 3.0 / 8.0, 1.0 / 4.0]
+        );
     }
 }

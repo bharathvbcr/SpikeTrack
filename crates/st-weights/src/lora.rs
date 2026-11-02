@@ -64,11 +64,18 @@ pub enum LoraError {
     /// The adapter file is malformed or inconsistent with itself.
     Format(String),
     /// A target names a tensor the checkpoint (its adaptable groups) does not have.
-    UnknownTarget { param: String },
+    UnknownTarget {
+        param: String,
+    },
     /// A target does not fit the tensor it names.
-    Shape { param: String, detail: String },
+    Shape {
+        param: String,
+        detail: String,
+    },
     /// The merge produced a NaN or infinity.
-    NonFinite { param: String },
+    NonFinite {
+        param: String,
+    },
 }
 
 impl fmt::Display for LoraError {
@@ -77,7 +84,9 @@ impl fmt::Display for LoraError {
             Self::Io(e) => write!(f, "lora adapter I/O: {}", e.detail()),
             Self::Weights(e) => write!(f, "lora: {e}"),
             Self::Format(detail) => write!(f, "lora adapter: {detail}"),
-            Self::UnknownTarget { param } => write!(f, "lora target {param:?} is not a tensor of the checkpoint"),
+            Self::UnknownTarget { param } => {
+                write!(f, "lora target {param:?} is not a tensor of the checkpoint")
+            }
             Self::Shape { param, detail } => write!(f, "lora target {param}: {detail}"),
             Self::NonFinite { param } => write!(f, "lora merge into {param} is not finite"),
         }
@@ -166,24 +175,32 @@ fn fmt_err<T>(detail: impl Into<String>) -> Result<T, LoraError> {
 }
 
 fn json_usize(v: &JsonValue, what: &str) -> Result<usize, LoraError> {
-    let n = v.as_u64().map_err(|e| LoraError::Format(format!("{what}: {}", e.detail())))?;
+    let n = v
+        .as_u64()
+        .map_err(|e| LoraError::Format(format!("{what}: {}", e.detail())))?;
     usize::try_from(n).map_err(|_| LoraError::Format(format!("{what}: {n} does not fit usize")))
 }
 
 fn read_f32_2d(st: &SafeTensors<'_>, name: &str) -> Result<Weight, LoraError> {
-    let info = st.info(name).map_err(|_| LoraError::Format(format!("tensor {name:?} is missing")))?;
+    let info = st
+        .info(name)
+        .map_err(|_| LoraError::Format(format!("tensor {name:?} is missing")))?;
     if info.dtype != StDtype::F32 {
         return fmt_err(format!("{name}: dtype {:?}, expected F32", info.dtype));
     }
     let (shape, data) = st.read_f32(name)?;
-    if shape.len() != 2 || shape.iter().any(|&d| d == 0) {
+    if shape.len() != 2 || shape.contains(&0) {
         return fmt_err(format!("{name}: shape {shape:?}, expected non-empty 2-D"));
     }
     if data.iter().any(|v| !v.is_finite()) {
         return fmt_err(format!("{name}: holds a non-finite value"));
     }
     let shape = shape.into_iter().map(|d| d as usize).collect();
-    Ok(Weight { name: name.to_string(), shape, data })
+    Ok(Weight {
+        name: name.to_string(),
+        shape,
+        data,
+    })
 }
 
 impl LoraAdapter {
@@ -202,14 +219,25 @@ impl LoraAdapter {
             .metadata()
             .get(LORA_METADATA_KEY)
             .ok_or_else(|| LoraError::Format(format!("no {LORA_METADATA_KEY:?} metadata")))?;
-        let meta = parse_json(text).map_err(|e| LoraError::Format(format!("metadata is not JSON: {}", e.detail())))?;
+        let meta = parse_json(text)
+            .map_err(|e| LoraError::Format(format!("metadata is not JSON: {}", e.detail())))?;
         let as_fmt = |e: IoError| LoraError::Format(e.detail().to_string());
         let format = meta.get_str("format").map_err(as_fmt)?;
         if format != LORA_FORMAT {
             return fmt_err(format!("format {format:?}, expected {LORA_FORMAT:?}"));
         }
-        let base_sha256 = meta.field_opt("base_sha256").map_err(as_fmt)?.map(|v| v.as_str().map(str::to_string)).transpose().map_err(as_fmt)?;
-        let dropout = meta.field_opt("dropout").map_err(as_fmt)?.map(|v| v.as_f64()).transpose().map_err(as_fmt)?;
+        let base_sha256 = meta
+            .field_opt("base_sha256")
+            .map_err(as_fmt)?
+            .map(|v| v.as_str().map(str::to_string))
+            .transpose()
+            .map_err(as_fmt)?;
+        let dropout = meta
+            .field_opt("dropout")
+            .map_err(as_fmt)?
+            .map(|v| v.as_f64())
+            .transpose()
+            .map_err(as_fmt)?;
         let modules = meta.get_array("modules").map_err(as_fmt)?;
         if modules.is_empty() {
             return fmt_err("no modules");
@@ -233,7 +261,9 @@ impl LoraAdapter {
             };
             let (row_start, row_end) = (json_usize(rs, "rows[0]")?, json_usize(re, "rows[1]")?);
             if row_start >= row_end {
-                return fmt_err(format!("{module}: empty or reversed rows [{row_start}, {row_end}]"));
+                return fmt_err(format!(
+                    "{module}: empty or reversed rows [{row_start}, {row_end}]"
+                ));
             }
             let rank = json_usize(m.field("rank").map_err(as_fmt)?, "rank")?;
             if rank == 0 {
@@ -241,7 +271,9 @@ impl LoraAdapter {
             }
             let alpha = m.get_f64("alpha").map_err(as_fmt)?;
             if !alpha.is_finite() || alpha < 0.0 || alpha > f64::from(f32::MAX) {
-                return fmt_err(format!("{module}: alpha {alpha} is not a finite non-negative f32"));
+                return fmt_err(format!(
+                    "{module}: alpha {alpha} is not a finite non-negative f32"
+                ));
             }
             let a_name = format!("{module}.lora_A.weight");
             let b_name = format!("{module}.lora_B.weight");
@@ -254,19 +286,37 @@ impl LoraAdapter {
                 return fmt_err(format!("{module}: A {:?} but rank {rank}", a.shape));
             }
             if b.shape != [rows_n, rank] {
-                return fmt_err(format!("{module}: B {:?}, expected [{rows_n}, {rank}]", b.shape));
+                return fmt_err(format!(
+                    "{module}: B {:?}, expected [{rows_n}, {rank}]",
+                    b.shape
+                ));
             }
             if rank > a.shape[1].min(rows_n) {
-                return fmt_err(format!("{module}: rank {rank} exceeds min(in {}, rows {rows_n})", a.shape[1]));
+                return fmt_err(format!(
+                    "{module}: rank {rank} exceeds min(in {}, rows {rows_n})",
+                    a.shape[1]
+                ));
             }
-            targets.push(LoraTarget { module, param, row_start, row_end, rank, alpha: alpha as f32, a, b });
+            targets.push(LoraTarget {
+                module,
+                param,
+                row_start,
+                row_end,
+                rank,
+                alpha: alpha as f32,
+                a,
+                b,
+            });
         }
         if let Some(stray) = st.names().find(|n| !claimed.contains(*n)) {
             return fmt_err(format!("tensor {stray:?} belongs to no module"));
         }
         let mut by_param: BTreeMap<&str, Vec<(usize, usize, &str)>> = BTreeMap::new();
         for t in &targets {
-            by_param.entry(&t.param).or_default().push((t.row_start, t.row_end, &t.module));
+            by_param
+                .entry(&t.param)
+                .or_default()
+                .push((t.row_start, t.row_end, &t.module));
         }
         for (param, ranges) in &mut by_param {
             ranges.sort();
@@ -279,30 +329,50 @@ impl LoraAdapter {
                 }
             }
         }
-        Ok(Self { base_sha256, dropout, targets })
+        Ok(Self {
+            base_sha256,
+            dropout,
+            targets,
+        })
     }
 
     /// Fold the adapter into `maps` (tensors by checkpoint name). All targets are checked first;
     /// on any refusal no tensor is changed.
-    pub fn merge_into(&self, maps: &mut [&mut BTreeMap<String, Weight>]) -> Result<MergeReport, LoraError> {
+    pub fn merge_into(
+        &self,
+        maps: &mut [&mut BTreeMap<String, Weight>],
+    ) -> Result<MergeReport, LoraError> {
         let mut plan: Vec<(usize, &LoraTarget)> = Vec::with_capacity(self.targets.len());
         for t in &self.targets {
             let Some(mi) = maps.iter().position(|m| m.contains_key(&t.param)) else {
-                return Err(LoraError::UnknownTarget { param: t.param.clone() });
+                return Err(LoraError::UnknownTarget {
+                    param: t.param.clone(),
+                });
             };
             let w = &maps[mi][&t.param];
-            let shape_err = |detail: String| LoraError::Shape { param: t.param.clone(), detail };
+            let shape_err = |detail: String| LoraError::Shape {
+                param: t.param.clone(),
+                detail,
+            };
             let &[rows, cols] = w.shape.as_slice() else {
                 return Err(shape_err(format!("weight shape {:?} is not 2-D", w.shape)));
             };
             if t.row_end > rows {
-                return Err(shape_err(format!("rows [{}, {}) past the weight's {rows} rows", t.row_start, t.row_end)));
+                return Err(shape_err(format!(
+                    "rows [{}, {}) past the weight's {rows} rows",
+                    t.row_start, t.row_end
+                )));
             }
             if t.in_features() != cols {
-                return Err(shape_err(format!("A is {} wide, the weight {cols}", t.in_features())));
+                return Err(shape_err(format!(
+                    "A is {} wide, the weight {cols}",
+                    t.in_features()
+                )));
             }
             if w.data.len() != rows * cols {
-                return Err(shape_err("weight data length disagrees with its shape".to_string()));
+                return Err(shape_err(
+                    "weight data length disagrees with its shape".to_string(),
+                ));
             }
             plan.push((mi, t));
         }
@@ -310,15 +380,22 @@ impl LoraAdapter {
         let mut merged: BTreeMap<(usize, String), Vec<f32>> = BTreeMap::new();
         for &(mi, t) in &plan {
             let cols = t.in_features();
-            let buf = merged.entry((mi, t.param.clone())).or_insert_with(|| maps[mi][&t.param].data.clone());
+            let buf = merged
+                .entry((mi, t.param.clone()))
+                .or_insert_with(|| maps[mi][&t.param].data.clone());
             t.add_into(buf, cols);
         }
         for ((_, param), data) in &merged {
             if data.iter().any(|v| !v.is_finite()) {
-                return Err(LoraError::NonFinite { param: param.clone() });
+                return Err(LoraError::NonFinite {
+                    param: param.clone(),
+                });
             }
         }
-        let mut report = MergeReport { targets: plan.len(), tensors: BTreeSet::new() };
+        let mut report = MergeReport {
+            targets: plan.len(),
+            tensors: BTreeSet::new(),
+        };
         for ((mi, param), data) in merged {
             if let Some(w) = maps[mi].get_mut(&param) {
                 w.data = data;
@@ -376,21 +453,50 @@ mod tests {
             .collect()
     }
 
-    fn spec(module: &'static str, param: &'static str, rows: [usize; 2], rank: usize, alpha: f64, cols: usize, seed: u32) -> Spec {
-        Spec { module, param, rows, rank, alpha, a: pseudo(rank * cols, seed), b: pseudo((rows[1] - rows[0]) * rank, seed + 1), cols }
+    fn spec(
+        module: &'static str,
+        param: &'static str,
+        rows: [usize; 2],
+        rank: usize,
+        alpha: f64,
+        cols: usize,
+        seed: u32,
+    ) -> Spec {
+        Spec {
+            module,
+            param,
+            rows,
+            rank,
+            alpha,
+            a: pseudo(rank * cols, seed),
+            b: pseudo((rows[1] - rows[0]) * rank, seed + 1),
+            cols,
+        }
     }
 
-    fn bytes(specs: &[Spec], mutate_meta: impl Fn(String) -> String, extra: &[(&str, Vec<u64>, Vec<f32>)]) -> Vec<u8> {
+    fn bytes(
+        specs: &[Spec],
+        mutate_meta: impl Fn(String) -> String,
+        extra: &[(&str, Vec<u64>, Vec<f32>)],
+    ) -> Vec<u8> {
         let mut names = Vec::new();
         let mut shapes = Vec::new();
         let mut datas = Vec::new();
         for s in specs {
             names.push(format!("{}.lora_A.weight", s.module));
             shapes.push(vec![s.rank as u64, s.cols as u64]);
-            datas.push(s.a.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>());
+            datas.push(
+                s.a.iter()
+                    .flat_map(|v| v.to_le_bytes())
+                    .collect::<Vec<u8>>(),
+            );
             names.push(format!("{}.lora_B.weight", s.module));
             shapes.push(vec![(s.rows[1] - s.rows[0]) as u64, s.rank as u64]);
-            datas.push(s.b.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>());
+            datas.push(
+                s.b.iter()
+                    .flat_map(|v| v.to_le_bytes())
+                    .collect::<Vec<u8>>(),
+            );
         }
         for (n, sh, d) in extra {
             names.push((*n).to_string());
@@ -398,7 +504,12 @@ mod tests {
             datas.push(d.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>());
         }
         let items: Vec<TensorOut<'_>> = (0..names.len())
-            .map(|i| TensorOut { name: &names[i], dtype: StDtype::F32, shape: &shapes[i], data: &datas[i] })
+            .map(|i| TensorOut {
+                name: &names[i],
+                dtype: StDtype::F32,
+                shape: &shapes[i],
+                data: &datas[i],
+            })
             .collect();
         let modules: Vec<String> = specs
             .iter()
@@ -415,7 +526,11 @@ mod tests {
     }
 
     fn weight(name: &str, rows: usize, cols: usize, seed: u32) -> Weight {
-        Weight { name: name.to_string(), shape: vec![rows, cols], data: pseudo(rows * cols, seed) }
+        Weight {
+            name: name.to_string(),
+            shape: vec![rows, cols],
+            data: pseudo(rows * cols, seed),
+        }
     }
 
     fn map(ws: Vec<Weight>) -> BTreeMap<String, Weight> {
@@ -430,7 +545,9 @@ mod tests {
         let mut out: Vec<f64> = w.data.iter().map(|&v| f64::from(v)).collect();
         for i in 0..(t.rows[1] - t.rows[0]) {
             for j in 0..t.cols {
-                let d: f64 = (0..t.rank).map(|k| f64::from(t.b[i * t.rank + k]) * f64::from(t.a[k * t.cols + j])).sum();
+                let d: f64 = (0..t.rank)
+                    .map(|k| f64::from(t.b[i * t.rank + k]) * f64::from(t.a[k * t.cols + j]))
+                    .sum();
                 out[(t.rows[0] + i) * t.cols + j] += s * d;
             }
         }
@@ -439,7 +556,10 @@ mod tests {
 
     #[test]
     fn merge_matches_an_f64_reference_and_leaves_other_rows_alone() {
-        let specs = [spec("q", P, [0, 8], 4, 8.0, 16, 1), spec("v", P, [16, 24], 4, 2.0, 16, 7)];
+        let specs = [
+            spec("q", P, [0, 8], 4, 8.0, 16, 1),
+            spec("v", P, [16, 24], 4, 2.0, 16, 7),
+        ];
         let ad = LoraAdapter::parse(&bytes(&specs, |m| m, &[])).unwrap();
         assert_eq!(ad.base_sha256.as_deref(), Some("abc"));
         assert_eq!(ad.dropout, Some(0.1));
@@ -457,7 +577,10 @@ mod tests {
         }
         let got = &m[P].data;
         for (i, (&g, &e)) in got.iter().zip(&want).enumerate() {
-            assert!((f64::from(g) - e).abs() <= 1e-6 + 1e-6 * e.abs(), "element {i}: {g} vs {e}");
+            assert!(
+                (f64::from(g) - e).abs() <= 1e-6 + 1e-6 * e.abs(),
+                "element {i}: {g} vs {e}"
+            );
         }
         // Rows 8..16 (the "k" slice) carry no module: bit for bit unchanged.
         assert_eq!(got[8 * 16..16 * 16], base.data[8 * 16..16 * 16]);
@@ -470,8 +593,14 @@ mod tests {
         let s2 = spec("q", P, [0, 4], 4, 8.0, 8, 3);
         let base = weight(P, 4, 8, 5);
         let (mut m1, mut m2) = (map(vec![base.clone()]), map(vec![base.clone()]));
-        LoraAdapter::parse(&bytes(&[s1], |m| m, &[])).unwrap().merge_into(&mut [&mut m1]).unwrap();
-        LoraAdapter::parse(&bytes(&[s2], |m| m, &[])).unwrap().merge_into(&mut [&mut m2]).unwrap();
+        LoraAdapter::parse(&bytes(&[s1], |m| m, &[]))
+            .unwrap()
+            .merge_into(&mut [&mut m1])
+            .unwrap();
+        LoraAdapter::parse(&bytes(&[s2], |m| m, &[]))
+            .unwrap()
+            .merge_into(&mut [&mut m2])
+            .unwrap();
         for ((a, b), w) in m1[P].data.iter().zip(&m2[P].data).zip(&base.data) {
             // alpha 8 / r 4 = 2, twice the alpha 4 / r 4 = 1 delta.
             assert!(((b - w) - 2.0 * (a - w)).abs() <= 1e-6, "{a} {b} {w}");
@@ -484,41 +613,75 @@ mod tests {
         s.b = vec![0.0; s.b.len()];
         let base = weight(O, 8, 8, 6);
         let mut m = map(vec![base.clone()]);
-        LoraAdapter::parse(&bytes(&[s], |m| m, &[])).unwrap().merge_into(&mut [&mut m]).unwrap();
+        LoraAdapter::parse(&bytes(&[s], |m| m, &[]))
+            .unwrap()
+            .merge_into(&mut [&mut m])
+            .unwrap();
         assert_eq!(m[O].data, base.data);
     }
 
     #[test]
     fn unknown_target_is_refused_and_nothing_changes() {
-        let specs = [spec("q", P, [0, 8], 4, 8.0, 16, 1), spec("x", "detector.transformer.nope.in_proj_weight", [0, 8], 4, 8.0, 16, 2)];
+        let specs = [
+            spec("q", P, [0, 8], 4, 8.0, 16, 1),
+            spec(
+                "x",
+                "detector.transformer.nope.in_proj_weight",
+                [0, 8],
+                4,
+                8.0,
+                16,
+                2,
+            ),
+        ];
         let ad = LoraAdapter::parse(&bytes(&specs, |m| m, &[])).unwrap();
         let base = weight(P, 24, 16, 99);
         let mut m = map(vec![base.clone()]);
         let err = ad.merge_into(&mut [&mut m]).unwrap_err();
-        assert!(matches!(err, LoraError::UnknownTarget { ref param } if param.ends_with("nope.in_proj_weight")), "{err}");
+        assert!(
+            matches!(err, LoraError::UnknownTarget { ref param } if param.ends_with("nope.in_proj_weight")),
+            "{err}"
+        );
         assert_eq!(m[P].data, base.data);
     }
 
     #[test]
     fn targets_found_across_several_maps() {
-        let specs = [spec("q", P, [0, 8], 4, 8.0, 16, 1), spec("o", O, [0, 8], 2, 2.0, 8, 2)];
+        let specs = [
+            spec("q", P, [0, 8], 4, 8.0, 16, 1),
+            spec("o", O, [0, 8], 2, 2.0, 8, 2),
+        ];
         let ad = LoraAdapter::parse(&bytes(&specs, |m| m, &[])).unwrap();
-        let (mut m1, mut m2) = (map(vec![weight(P, 24, 16, 1)]), map(vec![weight(O, 8, 8, 2)]));
+        let (mut m1, mut m2) = (
+            map(vec![weight(P, 24, 16, 1)]),
+            map(vec![weight(O, 8, 8, 2)]),
+        );
         let rep = ad.merge_into(&mut [&mut m1, &mut m2]).unwrap();
         assert_eq!(rep.tensors.len(), 2);
     }
 
     #[test]
     fn shape_mismatches_are_refused_without_changes() {
-        let ad = LoraAdapter::parse(&bytes(&[spec("q", P, [0, 8], 4, 8.0, 16, 1)], |m| m, &[])).unwrap();
+        let ad =
+            LoraAdapter::parse(&bytes(&[spec("q", P, [0, 8], 4, 8.0, 16, 1)], |m| m, &[])).unwrap();
         for (rows, cols) in [(4usize, 16usize), (24, 12), (24, 17)] {
             let base = weight(P, rows, cols, 9);
             let mut m = map(vec![base.clone()]);
-            assert!(matches!(ad.merge_into(&mut [&mut m]), Err(LoraError::Shape { .. })), "{rows}x{cols}");
+            assert!(
+                matches!(ad.merge_into(&mut [&mut m]), Err(LoraError::Shape { .. })),
+                "{rows}x{cols}"
+            );
             assert_eq!(m[P].data, base.data);
         }
-        let mut one_d = map(vec![Weight { name: P.to_string(), shape: vec![24], data: vec![0.0; 24] }]);
-        assert!(matches!(ad.merge_into(&mut [&mut one_d]), Err(LoraError::Shape { .. })));
+        let mut one_d = map(vec![Weight {
+            name: P.to_string(),
+            shape: vec![24],
+            data: vec![0.0; 24],
+        }]);
+        assert!(matches!(
+            ad.merge_into(&mut [&mut one_d]),
+            Err(LoraError::Shape { .. })
+        ));
     }
 
     #[test]
@@ -529,11 +692,19 @@ mod tests {
         let ad = LoraAdapter::parse(&bytes(&[s], |m| m, &[])).unwrap();
         let base = weight(P, 4, 4, 1);
         let mut m = map(vec![base.clone()]);
-        assert!(matches!(ad.merge_into(&mut [&mut m]), Err(LoraError::NonFinite { .. })));
+        assert!(matches!(
+            ad.merge_into(&mut [&mut m]),
+            Err(LoraError::NonFinite { .. })
+        ));
         assert_eq!(m[P].data, base.data);
     }
 
-    fn refuses(specs: &[Spec], meta: impl Fn(String) -> String, extra: &[(&str, Vec<u64>, Vec<f32>)], needle: &str) {
+    fn refuses(
+        specs: &[Spec],
+        meta: impl Fn(String) -> String,
+        extra: &[(&str, Vec<u64>, Vec<f32>)],
+        needle: &str,
+    ) {
         let err = LoraAdapter::parse(&bytes(specs, meta, extra)).unwrap_err();
         let text = err.to_string();
         assert!(text.contains(needle), "{text:?} lacks {needle:?}");
@@ -542,15 +713,60 @@ mod tests {
     #[test]
     fn malformed_adapters_are_refused() {
         let ok = || spec("q", P, [0, 8], 4, 8.0, 16, 1);
-        refuses(&[ok()], |m| m.replace(LORA_FORMAT, "other-v9"), &[], "format");
-        refuses(&[ok()], |m| m.replace("\"rank\":4", "\"rank\":0"), &[], "rank 0");
-        refuses(&[ok()], |m| m.replace("\"rank\":4", "\"rank\":3"), &[], "rank 3");
-        refuses(&[ok()], |m| m.replace("\"rows\":[0,8]", "\"rows\":[0,6]"), &[], "expected [6, 4]");
-        refuses(&[ok()], |m| m.replace("\"rows\":[0,8]", "\"rows\":[8,8]"), &[], "empty or reversed");
-        refuses(&[ok()], |m| m.replace("\"alpha\":8.0", "\"alpha\":-1.0"), &[], "alpha");
-        refuses(&[ok()], |m| m.replace("\"module\":\"q\"", "\"module\":\"z\""), &[], "missing");
-        refuses(&[ok()], |m| m, &[("stray", vec![1, 1], vec![0.0])], "belongs to no module");
-        refuses(&[ok(), spec("k", P, [4, 12], 4, 8.0, 16, 3)], |m| m, &[], "overlap");
+        refuses(
+            &[ok()],
+            |m| m.replace(LORA_FORMAT, "other-v9"),
+            &[],
+            "format",
+        );
+        refuses(
+            &[ok()],
+            |m| m.replace("\"rank\":4", "\"rank\":0"),
+            &[],
+            "rank 0",
+        );
+        refuses(
+            &[ok()],
+            |m| m.replace("\"rank\":4", "\"rank\":3"),
+            &[],
+            "rank 3",
+        );
+        refuses(
+            &[ok()],
+            |m| m.replace("\"rows\":[0,8]", "\"rows\":[0,6]"),
+            &[],
+            "expected [6, 4]",
+        );
+        refuses(
+            &[ok()],
+            |m| m.replace("\"rows\":[0,8]", "\"rows\":[8,8]"),
+            &[],
+            "empty or reversed",
+        );
+        refuses(
+            &[ok()],
+            |m| m.replace("\"alpha\":8.0", "\"alpha\":-1.0"),
+            &[],
+            "alpha",
+        );
+        refuses(
+            &[ok()],
+            |m| m.replace("\"module\":\"q\"", "\"module\":\"z\""),
+            &[],
+            "missing",
+        );
+        refuses(
+            &[ok()],
+            |m| m,
+            &[("stray", vec![1, 1], vec![0.0])],
+            "belongs to no module",
+        );
+        refuses(
+            &[ok(), spec("k", P, [4, 12], 4, 8.0, 16, 3)],
+            |m| m,
+            &[],
+            "overlap",
+        );
         refuses(
             &[ok(), spec("k", P, [8, 16], 4, 8.0, 16, 3)],
             |m| m.replace("\"module\":\"k\"", "\"module\":\"q\""),
@@ -560,16 +776,32 @@ mod tests {
         let mut nan = ok();
         nan.a[3] = f32::NAN;
         refuses(&[nan], |m| m, &[], "non-finite");
-        refuses(&[ok()], |m| m.replace("\"modules\":[", "\"modules\":[],\"unused\":["), &[], "no modules");
+        refuses(
+            &[ok()],
+            |m| m.replace("\"modules\":[", "\"modules\":[],\"unused\":["),
+            &[],
+            "no modules",
+        );
     }
 
     #[test]
     fn missing_metadata_and_non_f32_are_refused() {
-        let items = [TensorOut { name: "x", dtype: StDtype::F32, shape: &[1], data: &0f32.to_le_bytes() }];
+        let items = [TensorOut {
+            name: "x",
+            dtype: StDtype::F32,
+            shape: &[1],
+            data: &0f32.to_le_bytes(),
+        }];
         let no_meta = encode_safetensors(&items, &[]).unwrap();
-        assert!(LoraAdapter::parse(&no_meta).unwrap_err().to_string().contains(LORA_METADATA_KEY));
+        assert!(LoraAdapter::parse(&no_meta)
+            .unwrap_err()
+            .to_string()
+            .contains(LORA_METADATA_KEY));
         let bad_json = encode_safetensors(&items, &[(LORA_METADATA_KEY, "{")]).unwrap();
-        assert!(LoraAdapter::parse(&bad_json).unwrap_err().to_string().contains("JSON"));
+        assert!(LoraAdapter::parse(&bad_json)
+            .unwrap_err()
+            .to_string()
+            .contains("JSON"));
         // A bf16 A tensor under a valid module description.
         let meta = format!(
             "{{\"format\":\"{LORA_FORMAT}\",\"modules\":[{{\"module\":\"q\",\"param\":\"{P}\",\"rows\":[0,2],\"rank\":1,\"alpha\":1.0}}]}}"
@@ -577,17 +809,33 @@ mod tests {
         let a = [0u8; 4];
         let b = [0u8; 8];
         let items = [
-            TensorOut { name: "q.lora_A.weight", dtype: StDtype::BF16, shape: &[1, 2], data: &a },
-            TensorOut { name: "q.lora_B.weight", dtype: StDtype::F32, shape: &[2, 1], data: &b },
+            TensorOut {
+                name: "q.lora_A.weight",
+                dtype: StDtype::BF16,
+                shape: &[1, 2],
+                data: &a,
+            },
+            TensorOut {
+                name: "q.lora_B.weight",
+                dtype: StDtype::F32,
+                shape: &[2, 1],
+                data: &b,
+            },
         ];
         let bytes = encode_safetensors(&items, &[(LORA_METADATA_KEY, meta.as_str())]).unwrap();
-        assert!(LoraAdapter::parse(&bytes).unwrap_err().to_string().contains("dtype"));
+        assert!(LoraAdapter::parse(&bytes)
+            .unwrap_err()
+            .to_string()
+            .contains("dtype"));
     }
 
     #[test]
     fn open_reads_a_file() {
         let specs = [spec("q", P, [0, 8], 4, 8.0, 16, 1)];
-        let path = std::env::temp_dir().join(format!("st-weights-lora-{}.safetensors", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "st-weights-lora-{}.safetensors",
+            std::process::id()
+        ));
         std::fs::write(&path, bytes(&specs, |m| m, &[])).unwrap();
         let ad = LoraAdapter::open(&path);
         std::fs::remove_file(&path).unwrap();

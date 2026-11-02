@@ -13,7 +13,11 @@ use std::fmt;
 #[derive(Debug, PartialEq, Eq)]
 pub enum PngError {
     /// `data.len()` is not `width * height * 3`.
-    Size { width: usize, height: usize, len: usize },
+    Size {
+        width: usize,
+        height: usize,
+        len: usize,
+    },
     /// Width or height is zero or does not fit the format's 31 bits.
     Dimensions { width: usize, height: usize },
 }
@@ -21,8 +25,12 @@ pub enum PngError {
 impl fmt::Display for PngError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Size { width, height, len } => write!(f, "PNG: {len} bytes is not {width} x {height} x 3"),
-            Self::Dimensions { width, height } => write!(f, "PNG: {width} x {height} is not a valid size"),
+            Self::Size { width, height, len } => {
+                write!(f, "PNG: {len} bytes is not {width} x {height} x 3")
+            }
+            Self::Dimensions { width, height } => {
+                write!(f, "PNG: {width} x {height} is not a valid size")
+            }
         }
     }
 }
@@ -40,7 +48,11 @@ pub fn crc32(bytes: &[u8]) -> u32 {
     for &b in bytes {
         crc ^= u32::from(b);
         for _ in 0..8 {
-            crc = if crc & 1 != 0 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+            crc = if crc & 1 != 0 {
+                (crc >> 1) ^ 0xEDB8_8320
+            } else {
+                crc >> 1
+            };
         }
     }
     !crc
@@ -98,7 +110,11 @@ pub fn encode_rgb(width: usize, height: usize, rgb: &[u8]) -> Result<Vec<u8>, Pn
         return Err(PngError::Dimensions { width, height });
     }
     if width.checked_mul(height).and_then(|p| p.checked_mul(3)) != Some(rgb.len()) {
-        return Err(PngError::Size { width, height, len: rgb.len() });
+        return Err(PngError::Size {
+            width,
+            height,
+            len: rgb.len(),
+        });
     }
     let row = width * 3;
     let mut raw = Vec::with_capacity(height * (row + 1));
@@ -144,7 +160,10 @@ mod tests {
     fn the_empty_chunk_has_the_well_known_iend_crc() {
         let mut out = Vec::new();
         chunk(&mut out, b"IEND", &[]);
-        assert_eq!(out, [0, 0, 0, 0, b'I', b'E', b'N', b'D', 0xae, 0x42, 0x60, 0x82]);
+        assert_eq!(
+            out,
+            [0, 0, 0, 0, b'I', b'E', b'N', b'D', 0xae, 0x42, 0x60, 0x82]
+        );
     }
 
     #[test]
@@ -166,8 +185,21 @@ mod tests {
 
     #[test]
     fn bad_sizes_are_errors() {
-        assert_eq!(encode_rgb(2, 2, &[0; 11]), Err(PngError::Size { width: 2, height: 2, len: 11 }));
-        assert_eq!(encode_rgb(0, 2, &[]), Err(PngError::Dimensions { width: 0, height: 2 }));
+        assert_eq!(
+            encode_rgb(2, 2, &[0; 11]),
+            Err(PngError::Size {
+                width: 2,
+                height: 2,
+                len: 11
+            })
+        );
+        assert_eq!(
+            encode_rgb(0, 2, &[]),
+            Err(PngError::Dimensions {
+                width: 0,
+                height: 2
+            })
+        );
     }
 
     #[test]

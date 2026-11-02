@@ -39,33 +39,67 @@ pub struct TwoWay {
 }
 
 impl TwoWay {
-    pub(crate) fn load<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str) -> Result<Self, ModelError> {
+    pub(crate) fn load<B: Backend + ?Sized>(
+        be: &B,
+        g: &TensorGroup,
+        p: &str,
+    ) -> Result<Self, ModelError> {
         let blocks = (0..2)
             .map(|i| {
                 let b = format!("{p}.layers.{i}");
                 Ok(TwoWayBlock {
                     self_attn: Mha::load_split(be, g, &format!("{b}.self_attn"), D, D, 8)?,
                     norm1: Norm::load(be, g, &format!("{b}.norm1"))?,
-                    t2i: Mha::load_split(be, g, &format!("{b}.cross_attn_token_to_image"), D, D / 2, 8)?,
+                    t2i: Mha::load_split(
+                        be,
+                        g,
+                        &format!("{b}.cross_attn_token_to_image"),
+                        D,
+                        D / 2,
+                        8,
+                    )?,
                     norm2: Norm::load(be, g, &format!("{b}.norm2"))?,
-                    mlp: (Lin::load(be, g, &format!("{b}.mlp.lin1"), 2048, D)?, Lin::load(be, g, &format!("{b}.mlp.lin2"), D, 2048)?),
+                    mlp: (
+                        Lin::load(be, g, &format!("{b}.mlp.lin1"), 2048, D)?,
+                        Lin::load(be, g, &format!("{b}.mlp.lin2"), D, 2048)?,
+                    ),
                     norm3: Norm::load(be, g, &format!("{b}.norm3"))?,
                     norm4: Norm::load(be, g, &format!("{b}.norm4"))?,
-                    i2t: Mha::load_split(be, g, &format!("{b}.cross_attn_image_to_token"), D, D / 2, 8)?,
+                    i2t: Mha::load_split(
+                        be,
+                        g,
+                        &format!("{b}.cross_attn_image_to_token"),
+                        D,
+                        D / 2,
+                        8,
+                    )?,
                     skip_first_pe: i == 0,
                 })
             })
             .collect::<Result<_, ModelError>>()?;
         Ok(Self {
             blocks,
-            final_t2i: Mha::load_split(be, g, &format!("{p}.final_attn_token_to_image"), D, D / 2, 8)?,
+            final_t2i: Mha::load_split(
+                be,
+                g,
+                &format!("{p}.final_attn_token_to_image"),
+                D,
+                D / 2,
+                8,
+            )?,
             norm_final: Norm::load(be, g, &format!("{p}.norm_final_attn"))?,
         })
     }
 
     /// `image` and `image_pe` `[B, HW, D]` (tokens), `tokens` `[B, N, D]`.
     /// Returns `(queries [B, N, D], keys [B, HW, D])`.
-    pub(crate) fn fwd<B: Backend + ?Sized>(&self, be: &B, image: &Tensor, image_pe: &Tensor, tokens: &Tensor) -> Result<(Tensor, Tensor), OjasError> {
+    pub(crate) fn fwd<B: Backend + ?Sized>(
+        &self,
+        be: &B,
+        image: &Tensor,
+        image_pe: &Tensor,
+        tokens: &Tensor,
+    ) -> Result<(Tensor, Tensor), OjasError> {
         let add = |a: &Tensor, b: &Tensor| be.residual_add_forward(a, b);
         let (mut q, mut k) = (tokens.clone(), image.clone());
         for blk in &self.blocks {
@@ -77,14 +111,23 @@ impl TwoWay {
             };
             q = blk.norm1.fwd(be, &q)?;
             let (qp, kp) = (add(&q, tokens)?, add(&k, image_pe)?);
-            q = blk.norm2.fwd(be, &add(&q, &blk.t2i.fwd(be, &qp, &kp, &k, None)?)?)?;
-            let m = blk.mlp.1.fwd(be, &be.relu_forward(&blk.mlp.0.fwd(be, &q)?)?)?;
+            q = blk
+                .norm2
+                .fwd(be, &add(&q, &blk.t2i.fwd(be, &qp, &kp, &k, None)?)?)?;
+            let m = blk
+                .mlp
+                .1
+                .fwd(be, &be.relu_forward(&blk.mlp.0.fwd(be, &q)?)?)?;
             q = blk.norm3.fwd(be, &add(&q, &m)?)?;
             let (qp, kp) = (add(&q, tokens)?, add(&k, image_pe)?);
-            k = blk.norm4.fwd(be, &add(&k, &blk.i2t.fwd(be, &kp, &qp, &q, None)?)?)?;
+            k = blk
+                .norm4
+                .fwd(be, &add(&k, &blk.i2t.fwd(be, &kp, &qp, &q, None)?)?)?;
         }
         let (qp, kp) = (add(&q, tokens)?, add(&k, image_pe)?);
-        let q = self.norm_final.fwd(be, &add(&q, &self.final_t2i.fwd(be, &qp, &kp, &k, None)?)?)?;
+        let q = self
+            .norm_final
+            .fwd(be, &add(&q, &self.final_t2i.fwd(be, &qp, &kp, &k, None)?)?)?;
         Ok((q, k))
     }
 }
@@ -118,23 +161,65 @@ pub struct MuxMaskDecoder {
 
 impl MuxMaskDecoder {
     pub fn load<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str) -> Result<Self, ModelError> {
-        let t = |name: &str, shape: &[usize]| -> Result<Tensor, ModelError> { Ok(up(be, &get(g, &format!("{p}.{name}"), shape)?.data, shape)?) };
-        let host = |name: &str, shape: &[usize]| -> Result<Vec<f32>, ModelError> { Ok(get(g, &format!("{p}.{name}"), shape)?.data.clone()) };
+        let t = |name: &str, shape: &[usize]| -> Result<Tensor, ModelError> {
+            Ok(up(be, &get(g, &format!("{p}.{name}"), shape)?.data, shape)?)
+        };
+        let host = |name: &str, shape: &[usize]| -> Result<Vec<f32>, ModelError> {
+            Ok(get(g, &format!("{p}.{name}"), shape)?.data.clone())
+        };
         Ok(Self {
             transformer: TwoWay::load(be, g, &format!("{p}.transformer"))?,
             obj_score_token: host("obj_score_token.weight", &[MUX, D])?,
             iou_token: host("iou_token.weight", &[MUX, D])?,
             mask_tokens: host("mask_tokens.weight", &[MUX * MASKS_PER_OBJ, D])?,
-            dc1: (t("output_upscaling.0.weight", &[D, D / 4, 2, 2])?, t("output_upscaling.0.bias", &[D / 4])?),
-            ln1: (t("output_upscaling.1.weight", &[D / 4])?, t("output_upscaling.1.bias", &[D / 4])?),
-            dc2: (t("output_upscaling.3.weight", &[D / 4, D / 8, 2, 2])?, t("output_upscaling.3.bias", &[D / 8])?),
-            conv_s0: (t("conv_s0.weight", &[D / 8, D, 1, 1])?, t("conv_s0.bias", &[D / 8])?),
-            conv_s1: (t("conv_s1.weight", &[D / 4, D, 1, 1])?, t("conv_s1.bias", &[D / 4])?),
+            dc1: (
+                t("output_upscaling.0.weight", &[D, D / 4, 2, 2])?,
+                t("output_upscaling.0.bias", &[D / 4])?,
+            ),
+            ln1: (
+                t("output_upscaling.1.weight", &[D / 4])?,
+                t("output_upscaling.1.bias", &[D / 4])?,
+            ),
+            dc2: (
+                t("output_upscaling.3.weight", &[D / 4, D / 8, 2, 2])?,
+                t("output_upscaling.3.bias", &[D / 8])?,
+            ),
+            conv_s0: (
+                t("conv_s0.weight", &[D / 8, D, 1, 1])?,
+                t("conv_s0.bias", &[D / 8])?,
+            ),
+            conv_s1: (
+                t("conv_s1.weight", &[D / 4, D, 1, 1])?,
+                t("conv_s1.bias", &[D / 4])?,
+            ),
             hyper: (0..MASKS_PER_OBJ)
-                .map(|i| Mlp::load(be, g, &format!("{p}.output_hypernetworks_mlps.{i}"), &[D, D, D, D / 8], false, false))
+                .map(|i| {
+                    Mlp::load(
+                        be,
+                        g,
+                        &format!("{p}.output_hypernetworks_mlps.{i}"),
+                        &[D, D, D, D / 8],
+                        false,
+                        false,
+                    )
+                })
                 .collect::<Result<_, _>>()?,
-            iou_head: Mlp::load(be, g, &format!("{p}.iou_prediction_head"), &[D, D, D, MASKS_PER_OBJ], false, false)?,
-            obj_score_head: Mlp::load(be, g, &format!("{p}.pred_obj_score_head"), &[D, D, D, 1], false, false)?,
+            iou_head: Mlp::load(
+                be,
+                g,
+                &format!("{p}.iou_prediction_head"),
+                &[D, D, D, MASKS_PER_OBJ],
+                false,
+                false,
+            )?,
+            obj_score_head: Mlp::load(
+                be,
+                g,
+                &format!("{p}.pred_obj_score_head"),
+                &[D, D, D, 1],
+                false,
+                false,
+            )?,
         })
     }
 
@@ -143,7 +228,15 @@ impl MuxMaskDecoder {
     /// per-slot embeddings `[B, MUX, D]` (valid/invalid output embeddings) on the host.
     /// `G` is the token grid (72 at 1008) and is read from `image`; the decoder has no
     /// resolution of its own.
-    pub fn fwd<B: Backend + ?Sized>(&self, be: &B, image: &Tensor, image_pe: &Tensor, s0: &Tensor, s1: &Tensor, extra: &[f32]) -> Result<MuxDecoderOut, OjasError> {
+    pub fn fwd<B: Backend + ?Sized>(
+        &self,
+        be: &B,
+        image: &Tensor,
+        image_pe: &Tensor,
+        s0: &Tensor,
+        s1: &Tensor,
+        extra: &[f32],
+    ) -> Result<MuxDecoderOut, OjasError> {
         let b = image.shape()[0];
         let feat = checked_feat("st_model::MuxMaskDecoder::fwd", image, image_pe, s0, s1)?;
         let (hw, low_res) = (feat * feat, 4 * feat);
@@ -156,7 +249,8 @@ impl MuxMaskDecoder {
             for s in 0..MUX {
                 let e = &extra[(bi * MUX + s) * D..(bi * MUX + s + 1) * D];
                 for m in 0..MASKS_PER_OBJ {
-                    let mt = &self.mask_tokens[(s * MASKS_PER_OBJ + m) * D..(s * MASKS_PER_OBJ + m + 1) * D];
+                    let mt = &self.mask_tokens
+                        [(s * MASKS_PER_OBJ + m) * D..(s * MASKS_PER_OBJ + m + 1) * D];
                     tok.extend(mt.iter().zip(e).map(|(a, c)| a + c));
                 }
             }
@@ -164,8 +258,12 @@ impl MuxMaskDecoder {
         let tokens = up(be, &tok, &[b, ntok, D])?;
         let img_tok = be.permute(&image.reshape(&[b, D, hw])?, &[0, 2, 1])?;
         let pe1 = be.permute(&image_pe.reshape(&[1, D, hw])?, &[0, 2, 1])?;
-        let pe_host = pe1.to_host(be.budget())?.to_f32_vec()?;
-        let pe = up(be, &pe_host.repeat(b), &[b, hw, D])?;
+        let pe = if b == 1 {
+            pe1
+        } else {
+            let zeros = be.fill(&[b, 1, 1], ojas_core::DType::F32, 0.0)?;
+            be.broadcast_add_forward(&pe1, &zeros)?
+        };
         let (hs, src) = self.transformer.fwd(be, &img_tok, &pe, &tokens)?;
         let hs_host = hs.to_host(be.budget())?.to_f32_vec()?;
 
@@ -175,12 +273,18 @@ impl MuxMaskDecoder {
         up2.stride = [2, 2];
         let x = be.conv_transpose2d_forward(&src, &self.dc1.0, Some(&self.dc1.1), up2)?;
         let x = be.residual_add_forward(&x, s1)?;
-        let x = be.gelu_erf_forward(&be.channel_layer_norm_forward(&x, &self.ln1.0, &self.ln1.1, LN2D_EPS)?)?;
+        let x = be.gelu_erf_forward(&be.channel_layer_norm_forward(
+            &x,
+            &self.ln1.0,
+            &self.ln1.1,
+            LN2D_EPS,
+        )?)?;
         let x = be.conv_transpose2d_forward(&x, &self.dc2.0, Some(&self.dc2.1), up2)?;
         let upscaled = be.gelu_erf_forward(&be.residual_add_forward(&x, s0)?)?; // [B, 32, 4G, 4G]
 
         // Per-object hypernetwork vectors [B, MUX, 3, 32] from the mask tokens.
-        let row = |bi: usize, tidx: usize| &hs_host[(bi * ntok + tidx) * D..(bi * ntok + tidx + 1) * D];
+        let row =
+            |bi: usize, tidx: usize| &hs_host[(bi * ntok + tidx) * D..(bi * ntok + tidx + 1) * D];
         let mut hyper_in = Vec::with_capacity(b * MUX * MASKS_PER_OBJ * (D / 8));
         let mut sam_tokens = Vec::with_capacity(b * MUX * MASKS_PER_OBJ * D);
         for bi in 0..b {
@@ -193,15 +297,25 @@ impl MuxMaskDecoder {
             }
         }
         let n = low_res * low_res;
-        let mut masks = Vec::with_capacity(b * MUX * MASKS_PER_OBJ * n);
+        let mut mask_tensors = Vec::with_capacity(b);
         for bi in 0..b {
-            let hyper = Tensor::from_f32(&hyper_in[bi * MUX * MASKS_PER_OBJ * (D / 8)..(bi + 1) * MUX * MASKS_PER_OBJ * (D / 8)], &[MUX * MASKS_PER_OBJ, D / 8], be.budget())?;
+            let hyper = Tensor::from_f32(
+                &hyper_in
+                    [bi * MUX * MASKS_PER_OBJ * (D / 8)..(bi + 1) * MUX * MASKS_PER_OBJ * (D / 8)],
+                &[MUX * MASKS_PER_OBJ, D / 8],
+                be.budget(),
+            )?;
             let hyper = be.upload(&hyper)?;
             let emb = be.permute(&upscaled.narrow_batch(bi)?.reshape(&[D / 8, n])?, &[1, 0])?; // [n, 32]
             let m = be.linear_forward(&hyper, &emb)?; // [48, n]
-            masks.extend(m.to_host(be.budget())?.to_f32_vec()?);
+            mask_tensors.push(m.reshape(&[1, MUX, MASKS_PER_OBJ, low_res, low_res])?);
         }
-        let masks = up(be, &masks, &[b, MUX, MASKS_PER_OBJ, low_res, low_res])?;
+        let masks = if b == 1 {
+            mask_tensors.pop().expect("mask tensor")
+        } else {
+            let refs: Vec<&Tensor> = mask_tensors.iter().collect();
+            be.concat(&refs, 0)?
+        };
         let mut iou_pred = Vec::with_capacity(b * MUX * MASKS_PER_OBJ);
         let mut object_score_logits = Vec::with_capacity(b * MUX);
         for bi in 0..b {
@@ -210,7 +324,12 @@ impl MuxMaskDecoder {
                 object_score_logits.extend(self.obj_score_head.host(row(bi, s), 1));
             }
         }
-        Ok(MuxDecoderOut { masks, iou_pred, object_score_logits, sam_tokens })
+        Ok(MuxDecoderOut {
+            masks,
+            iou_pred,
+            object_score_logits,
+            sam_tokens,
+        })
     }
 }
 
@@ -218,7 +337,13 @@ impl MuxMaskDecoder {
 /// the positions `[1, 256, G, G]` and the two high-resolution skips (`4G` and `2G` squared):
 /// the transformer's two upsampling steps are fixed 2x each, so any other pairing would only
 /// fail later as an opaque shape error, or not at all.
-pub(crate) fn checked_feat(op: &'static str, image: &Tensor, image_pe: &Tensor, s0: &Tensor, s1: &Tensor) -> Result<usize, OjasError> {
+pub(crate) fn checked_feat(
+    op: &'static str,
+    image: &Tensor,
+    image_pe: &Tensor,
+    s0: &Tensor,
+    s1: &Tensor,
+) -> Result<usize, OjasError> {
     let feat = image.shape().get(2).copied().unwrap_or(0);
     let ok = feat > 0
         && [image.shape().len(), s0.shape().len(), s1.shape().len()] == [4, 4, 4]
@@ -256,7 +381,12 @@ impl NarrowBatch for Tensor {
 
 /// `conv_s0`/`conv_s1` on the propagation neck's 288 and 144 levels (upstream
 /// applies them in `forward_image` before tracking).
-pub fn high_res<B: Backend + ?Sized>(be: &B, dec: &MuxMaskDecoder, fpn0: &Tensor, fpn1: &Tensor) -> Result<(Tensor, Tensor), OjasError> {
+pub fn high_res<B: Backend + ?Sized>(
+    be: &B,
+    dec: &MuxMaskDecoder,
+    fpn0: &Tensor,
+    fpn1: &Tensor,
+) -> Result<(Tensor, Tensor), OjasError> {
     let p = ojas_core::Conv2dParams::new();
     Ok((
         be.conv2d_forward(fpn0, &dec.conv_s0.0, Some(&dec.conv_s0.1), p)?,

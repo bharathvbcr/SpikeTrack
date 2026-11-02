@@ -31,7 +31,9 @@ impl ProfileMode {
         match s {
             "stages" => Ok(Self::Stages),
             "ops" => Ok(Self::Ops),
-            other => Err(CliError::usage(format!("--profile: {other:?} is not stages or ops"))),
+            other => Err(CliError::usage(format!(
+                "--profile: {other:?} is not stages or ops"
+            ))),
         }
     }
 
@@ -75,12 +77,16 @@ pub struct StageClock {
 
 impl StageClock {
     pub fn new(metal: &MetalBackend) -> Self {
-        Self { metal: metal.clone(), clock: RefCell::new(Clock::default()) }
+        Self {
+            metal: metal.clone(),
+            clock: RefCell::new(Clock::default()),
+        }
     }
 
     fn close(&self, c: &mut Clock) {
         if let Err(e) = self.metal.sync() {
-            c.error.get_or_insert_with(|| format!("--profile stages: sync: {e}"));
+            c.error
+                .get_or_insert_with(|| format!("--profile stages: sync: {e}"));
         }
         if let Some((stage, t0)) = c.open.take() {
             c.rows.push((c.frame, stage, t0.elapsed().as_secs_f64()));
@@ -119,13 +125,20 @@ pub struct OpsLabels<'p> {
 
 impl<'p> OpsLabels<'p> {
     pub fn new(profiled: &'p Profiled<MetalBackend>) -> Self {
-        Self { profiled, frame: RefCell::new(0) }
+        Self {
+            profiled,
+            frame: RefCell::new(0),
+        }
     }
 }
 
 impl StageSink for OpsLabels<'_> {
     fn enter(&self, stage: &str) {
-        let label = if *self.frame.borrow() == 0 { format!("frame 0: {stage}") } else { stage.to_string() };
+        let label = if *self.frame.borrow() == 0 {
+            format!("frame 0: {stage}")
+        } else {
+            stage.to_string()
+        };
         self.profiled.set_stage(&label);
     }
 
@@ -153,17 +166,39 @@ pub fn stage_report(rows: &[StageRow], frame_seconds: &[f64]) -> String {
     let frames = rows.iter().map(|r| r.0 + 1).max().unwrap_or(0);
     let steady = frames.saturating_sub(1);
     // `+ 0.0`: an empty f64 sum is -0.0, which would print as "-0.0".
-    let sum = |stage: &str, first: bool| -> f64 { rows.iter().filter(|r| r.1 == stage && (r.0 == 0) == first).map(|r| r.2).sum::<f64>() + 0.0 };
+    let sum = |stage: &str, first: bool| -> f64 {
+        rows.iter()
+            .filter(|r| r.1 == stage && (r.0 == 0) == first)
+            .map(|r| r.2)
+            .sum::<f64>()
+            + 0.0
+    };
     let total_steady: f64 = rows.iter().filter(|r| r.0 > 0).map(|r| r.2).sum();
     let mut out = format!("{frames} frame(s): frame 0 apart (two visits, every birth), then {steady} steady frame(s).\n\n");
     out.push_str("| stage | frame 0 ms | frames 1.. total ms | mean ms / frame | share |\n|---|---|---|---|---|\n");
     for s in &order {
         let st = sum(s, false);
-        let share = if total_steady > 0.0 { 100.0 * st / total_steady } else { 0.0 };
-        let mean = if steady > 0 { 1e3 * st / steady as f64 } else { 0.0 };
-        out.push_str(&format!("| {s} | {:.1} | {:.1} | {mean:.1} | {share:.1}% |\n", 1e3 * sum(s, true), 1e3 * st));
+        let share = if total_steady > 0.0 {
+            100.0 * st / total_steady
+        } else {
+            0.0
+        };
+        let mean = if steady > 0 {
+            1e3 * st / steady as f64
+        } else {
+            0.0
+        };
+        out.push_str(&format!(
+            "| {s} | {:.1} | {:.1} | {mean:.1} | {share:.1}% |\n",
+            1e3 * sum(s, true),
+            1e3 * st
+        ));
     }
-    let in_session: f64 = rows.iter().filter(|r| r.0 > 0 && r.1 != DECODE && r.1 != COLLECTOR).map(|r| r.2).sum();
+    let in_session: f64 = rows
+        .iter()
+        .filter(|r| r.0 > 0 && r.1 != DECODE && r.1 != COLLECTOR)
+        .map(|r| r.2)
+        .sum();
     let measured: f64 = frame_seconds.iter().skip(1).sum();
     if steady > 0 {
         out.push_str(&format!(
@@ -205,11 +240,32 @@ mod tests {
         ];
         let rep = stage_report(&rows, &[5.0, 1.1, 0.7]);
         assert!(rep.starts_with("3 frame(s): frame 0 apart"), "{rep}");
-        assert!(rep.contains("| trunk | 2000.0 | 1600.0 | 800.0 | 80.0% |"), "{rep}");
-        assert!(rep.contains("| births | 3000.0 | 0.0 | 0.0 | 0.0% |"), "{rep}");
-        assert!(rep.contains("| decode + upload | 500.0 | 200.0 | 100.0 | 10.0% |"), "{rep}");
+        assert!(
+            rep.contains("| trunk | 2000.0 | 1600.0 | 800.0 | 80.0% |"),
+            "{rep}"
+        );
+        assert!(
+            rep.contains("| births | 3000.0 | 0.0 | 0.0 | 0.0% |"),
+            "{rep}"
+        );
+        assert!(
+            rep.contains("| decode + upload | 500.0 | 200.0 | 100.0 | 10.0% |"),
+            "{rep}"
+        );
         assert!(rep.contains("stage sum 1000.0 ms / frame (800.0 ms inside the Session), push_frame measured 900.0 ms / frame"), "{rep}");
-        let order: Vec<&str> = rep.lines().filter(|l| l.starts_with("| ") && !l.starts_with("| stage")).map(|l| l.split(" | ").next().unwrap()).collect();
-        assert_eq!(order, ["| decode + upload", "| trunk", "| births", "| progress line + collector"]);
+        let order: Vec<&str> = rep
+            .lines()
+            .filter(|l| l.starts_with("| ") && !l.starts_with("| stage"))
+            .map(|l| l.split(" | ").next().unwrap())
+            .collect();
+        assert_eq!(
+            order,
+            [
+                "| decode + upload",
+                "| trunk",
+                "| births",
+                "| progress line + collector"
+            ]
+        );
     }
 }

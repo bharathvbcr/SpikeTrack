@@ -8,8 +8,8 @@ use std::path::PathBuf;
 
 use ojas_core::{Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
-use ojas_metal::MetalBackend;
 use ojas_io::SafeTensors;
+use ojas_metal::MetalBackend;
 use st_model::tracker::mask_decoder::{MuxMaskDecoder, D, MUX};
 use st_weights::{Checkpoint, Sam31Weights};
 
@@ -34,34 +34,52 @@ fn stats(got: &[f32], want: &[f32]) -> (f64, f64, f64) {
         max_abs = max_abs.max((g - w).abs());
         ref_max = ref_max.max(w.abs());
     }
-    let cos = if gg == 0.0 && ww == 0.0 { 1.0 } else { dot / (gg.sqrt() * ww.sqrt()) };
+    let cos = if gg == 0.0 && ww == 0.0 {
+        1.0
+    } else {
+        dot / (gg.sqrt() * ww.sqrt())
+    };
     (cos, max_abs, max_abs / ref_max.max(1e-30))
 }
 
 #[test]
 #[ignore = "needs the gated checkpoint and tracker fixtures"]
 fn multiplex_mask_decoder_matches_upstream() {
-    multiplex_mask_decoder_matches_upstream_on(&CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"), "CPU");
+    multiplex_mask_decoder_matches_upstream_on(
+        &CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"),
+        "CPU",
+    );
 }
 
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint and tracker fixtures"]
 fn multiplex_mask_decoder_matches_upstream_on_metal() {
-    multiplex_mask_decoder_matches_upstream_on(&MetalBackend::new(Budget::new(24 << 30)).expect("metal"), "Metal");
+    multiplex_mask_decoder_matches_upstream_on(
+        &MetalBackend::new(Budget::new(24 << 30)).expect("metal"),
+        "Metal",
+    );
 }
 
 fn multiplex_mask_decoder_matches_upstream_on<B: Backend>(be: &B, label: &str) {
     println!("[{label}]");
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = Sam31Weights::load(&ck).expect("weights");
-    let dec = MuxMaskDecoder::load(be, &w.tracker, "tracker.model.sam_mask_decoder").expect("decoder");
+    let dec =
+        MuxMaskDecoder::load(be, &w.tracker, "tracker.model.sam_mask_decoder").expect("decoder");
     let fx = SafeTensors::open(&env_path("SPIKETRACK_TRACKER_FIXTURES")).expect("fixtures");
     let t = |name: &str| -> Tensor {
-        let (shape, data) = fx.read_f32(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
+        let (shape, data) = fx
+            .read_f32(name)
+            .unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
         let shape: Vec<usize> = shape.into_iter().map(|d| d as usize).collect();
-        be.upload(&Tensor::from_f32(&data, &shape, be.budget()).expect("t")).expect("up")
+        be.upload(&Tensor::from_f32(&data, &shape, be.budget()).expect("t"))
+            .expect("up")
     };
-    let h = |name: &str| fx.read_f32(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail())).1;
+    let h = |name: &str| {
+        fx.read_f32(name)
+            .unwrap_or_else(|e| panic!("{name}: {}", e.detail()))
+            .1
+    };
     let mut worst = f64::INFINITY;
     println!("| frame | output | cosine | max abs | max abs / max ref |\n|---|---|---|---|---|");
     for f in 1..8 {
@@ -69,13 +87,29 @@ fn multiplex_mask_decoder_matches_upstream_on<B: Backend>(be: &B, label: &str) {
         let extra = h(&format!("{p}.kw.extra_per_object_embeddings"));
         assert_eq!(extra.len(), MUX * D);
         let out = dec
-            .fwd(be, &t(&format!("{p}.kw.image_embeddings")), &t(&format!("{p}.kw.image_pe")), &t(&format!("{p}.kw.high_res_features.0")), &t(&format!("{p}.kw.high_res_features.1")), &extra)
+            .fwd(
+                be,
+                &t(&format!("{p}.kw.image_embeddings")),
+                &t(&format!("{p}.kw.image_pe")),
+                &t(&format!("{p}.kw.high_res_features.0")),
+                &t(&format!("{p}.kw.high_res_features.1")),
+                &extra,
+            )
             .expect("decode");
-        let masks = out.masks.to_host(be.budget()).expect("host").to_f32_vec().expect("f32");
+        let masks = out
+            .masks
+            .to_host(be.budget())
+            .expect("host")
+            .to_f32_vec()
+            .expect("f32");
         for (name, got, key) in [
             ("masks", masks.as_slice(), "masks"),
             ("iou_pred", out.iou_pred.as_slice(), "iou_pred"),
-            ("object_score_logits", out.object_score_logits.as_slice(), "object_score_logits"),
+            (
+                "object_score_logits",
+                out.object_score_logits.as_slice(),
+                "object_score_logits",
+            ),
             ("sam_tokens", out.sam_tokens.as_slice(), "sam_tokens_out"),
         ] {
             let (cos, ma, rel) = stats(got, &h(&format!("{p}.out.{key}")));
@@ -90,34 +124,58 @@ fn multiplex_mask_decoder_matches_upstream_on<B: Backend>(be: &B, label: &str) {
 #[test]
 #[ignore = "needs the gated checkpoint and tracker fixtures"]
 fn memory_encoder_matches_upstream() {
-    memory_encoder_matches_upstream_on(&CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"), "CPU");
+    memory_encoder_matches_upstream_on(
+        &CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"),
+        "CPU",
+    );
 }
 
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint and tracker fixtures"]
 fn memory_encoder_matches_upstream_on_metal() {
-    memory_encoder_matches_upstream_on(&MetalBackend::new(Budget::new(24 << 30)).expect("metal"), "Metal");
+    memory_encoder_matches_upstream_on(
+        &MetalBackend::new(Budget::new(24 << 30)).expect("metal"),
+        "Metal",
+    );
 }
 
 fn memory_encoder_matches_upstream_on<B: Backend>(be: &B, label: &str) {
     println!("[{label}]");
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = Sam31Weights::load(&ck).expect("weights");
-    let enc = st_model::tracker::MemoryEncoder::load(be, &w.tracker, "tracker.model.maskmem_backbone").expect("encoder");
+    let enc =
+        st_model::tracker::MemoryEncoder::load(be, &w.tracker, "tracker.model.maskmem_backbone")
+            .expect("encoder");
     let fx = SafeTensors::open(&env_path("SPIKETRACK_TRACKER_FIXTURES")).expect("fixtures");
     let t = |name: &str| -> Tensor {
-        let (shape, data) = fx.read_f32(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
+        let (shape, data) = fx
+            .read_f32(name)
+            .unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
         let shape: Vec<usize> = shape.into_iter().map(|d| d as usize).collect();
-        be.upload(&Tensor::from_f32(&data, &shape, be.budget()).expect("t")).expect("up")
+        be.upload(&Tensor::from_f32(&data, &shape, be.budget()).expect("t"))
+            .expect("up")
     };
-    let h = |name: &str| fx.read_f32(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail())).1;
+    let h = |name: &str| {
+        fx.read_f32(name)
+            .unwrap_or_else(|e| panic!("{name}: {}", e.detail()))
+            .1
+    };
     let mut worst = f64::INFINITY;
     println!("| frame | output | cosine | max abs | max abs / max ref |\n|---|---|---|---|---|");
     for f in 0..8 {
         let p = format!("f{f}.memenc.call{f}");
-        let out = enc.fwd(be, &t(&format!("{p}.arg.0")), &t(&format!("{p}.arg.1"))).expect("encode");
-        for (name, got, key) in [("features", &out.features, "vision_features"), ("pos", &out.pos, "vision_pos_enc.0")] {
-            let g = got.to_host(be.budget()).expect("host").to_f32_vec().expect("f32");
+        let out = enc
+            .fwd(be, &t(&format!("{p}.arg.0")), &t(&format!("{p}.arg.1")))
+            .expect("encode");
+        for (name, got, key) in [
+            ("features", &out.features, "vision_features"),
+            ("pos", &out.pos, "vision_pos_enc.0"),
+        ] {
+            let g = got
+                .to_host(be.budget())
+                .expect("host")
+                .to_f32_vec()
+                .expect("f32");
             let (cos, ma, rel) = stats(&g, &h(&format!("{p}.out.{key}")));
             worst = worst.min(cos);
             println!("| {f} | {name} | {cos:.7} | {ma:.3e} | {rel:.3e} |");
@@ -130,36 +188,71 @@ fn memory_encoder_matches_upstream_on<B: Backend>(be: &B, label: &str) {
 #[test]
 #[ignore = "needs the gated checkpoint and tracker fixtures"]
 fn memory_attention_matches_upstream() {
-    memory_attention_matches_upstream_on(&CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"), "CPU");
+    memory_attention_matches_upstream_on(
+        &CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"),
+        "CPU",
+    );
 }
 
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint and tracker fixtures"]
 fn memory_attention_matches_upstream_on_metal() {
-    memory_attention_matches_upstream_on(&MetalBackend::new(Budget::new(24 << 30)).expect("metal"), "Metal");
+    memory_attention_matches_upstream_on(
+        &MetalBackend::new(Budget::new(24 << 30)).expect("metal"),
+        "Metal",
+    );
 }
 
 fn memory_attention_matches_upstream_on<B: Backend>(be: &B, label: &str) {
     println!("[{label}]");
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = Sam31Weights::load(&ck).expect("weights");
-    let attn = st_model::tracker::MemoryAttention::load(be, &w.tracker, "tracker.model.transformer.encoder").expect("attention");
+    let attn = st_model::tracker::MemoryAttention::load(
+        be,
+        &w.tracker,
+        "tracker.model.transformer.encoder",
+    )
+    .expect("attention");
     let fx = SafeTensors::open(&env_path("SPIKETRACK_TRACKER_FIXTURES")).expect("fixtures");
     // Seq-first [T, 1, C] fixtures are [1, T, C] in memory for one bucket.
     let t = |name: &str| -> Tensor {
-        let (shape, data) = fx.read_f32(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
+        let (shape, data) = fx
+            .read_f32(name)
+            .unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
         assert_eq!(shape[1], 1, "{name}: one bucket expected");
-        be.upload(&Tensor::from_f32(&data, &[1, shape[0] as usize, shape[2] as usize], be.budget()).expect("t")).expect("up")
+        be.upload(
+            &Tensor::from_f32(
+                &data,
+                &[1, shape[0] as usize, shape[2] as usize],
+                be.budget(),
+            )
+            .expect("t"),
+        )
+        .expect("up")
     };
-    let h = |name: &str| fx.read_f32(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail())).1;
+    let h = |name: &str| {
+        fx.read_f32(name)
+            .unwrap_or_else(|e| panic!("{name}: {}", e.detail()))
+            .1
+    };
     let mut worst = f64::INFINITY;
     println!("| frame | memory frames | pointer tokens | cosine | max abs | max abs / max ref |\n|---|---|---|---|---|---|");
     for f in 1..8 {
         let p = format!("f{f}.memattn.call{}", f - 1);
-        let (memory, memory_image) = (t(&format!("{p}.kw.memory")), t(&format!("{p}.kw.memory_image")));
+        let (memory, memory_image) = (
+            t(&format!("{p}.kw.memory")),
+            t(&format!("{p}.kw.memory_image")),
+        );
         let ptrs = memory.shape()[1] - memory_image.shape()[1];
-        let (image, src, src_pos) = (t(&format!("{p}.kw.image")), t(&format!("{p}.kw.src")), t(&format!("{p}.kw.src_pos")));
-        let (memory_image_pos, memory_pos) = (t(&format!("{p}.kw.memory_image_pos")), t(&format!("{p}.kw.memory_pos")));
+        let (image, src, src_pos) = (
+            t(&format!("{p}.kw.image")),
+            t(&format!("{p}.kw.src")),
+            t(&format!("{p}.kw.src_pos")),
+        );
+        let (memory_image_pos, memory_pos) = (
+            t(&format!("{p}.kw.memory_image_pos")),
+            t(&format!("{p}.kw.memory_pos")),
+        );
         let inputs = st_model::tracker::MemoryInputs {
             image: &image,
             src: &src,
@@ -171,10 +264,17 @@ fn memory_attention_matches_upstream_on<B: Backend>(be: &B, label: &str) {
             num_obj_ptr_tokens: ptrs,
         };
         let out = attn.fwd(be, &inputs).expect("attention");
-        let got = out.to_host(be.budget()).expect("host").to_f32_vec().expect("f32");
+        let got = out
+            .to_host(be.budget())
+            .expect("host")
+            .to_f32_vec()
+            .expect("f32");
         let (cos, ma, rel) = stats(&got, &h(&format!("{p}.out.memory")));
         worst = worst.min(cos);
-        println!("| {f} | {} | {ptrs} | {cos:.7} | {ma:.3e} | {rel:.3e} |", memory_image.shape()[1] / 5184);
+        println!(
+            "| {f} | {} | {ptrs} | {cos:.7} | {ma:.3e} | {rel:.3e} |",
+            memory_image.shape()[1] / 5184
+        );
     }
     println!("\nmemory attention worst cosine {worst:.7}");
     assert!(worst > 0.999, "memory attention worst cosine {worst}");
@@ -183,37 +283,78 @@ fn memory_attention_matches_upstream_on<B: Backend>(be: &B, label: &str) {
 #[test]
 #[ignore = "needs the gated checkpoint and tracker fixtures"]
 fn interactive_decoder_matches_upstream_on_the_conditioning_frame() {
-    interactive_decoder_matches_upstream_on_the_conditioning_frame_on(&CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"), "CPU");
+    interactive_decoder_matches_upstream_on_the_conditioning_frame_on(
+        &CpuBackend::with_threads(Budget::new(24 << 30), 8).expect("cpu"),
+        "CPU",
+    );
 }
 
 #[test]
 #[ignore = "needs a Metal GPU, the gated checkpoint and tracker fixtures"]
 fn interactive_decoder_matches_upstream_on_the_conditioning_frame_on_metal() {
-    interactive_decoder_matches_upstream_on_the_conditioning_frame_on(&MetalBackend::new(Budget::new(24 << 30)).expect("metal"), "Metal");
+    interactive_decoder_matches_upstream_on_the_conditioning_frame_on(
+        &MetalBackend::new(Budget::new(24 << 30)).expect("metal"),
+        "Metal",
+    );
 }
 
-fn interactive_decoder_matches_upstream_on_the_conditioning_frame_on<B: Backend>(be: &B, label: &str) {
+fn interactive_decoder_matches_upstream_on_the_conditioning_frame_on<B: Backend>(
+    be: &B,
+    label: &str,
+) {
     println!("[{label}]");
     let ck = Checkpoint::open(&env_path("SPIKETRACK_WEIGHTS")).expect("checkpoint");
     let w = Sam31Weights::load(&ck).expect("weights");
-    let dec = st_model::tracker::InteractiveDecoder::load(be, &w.tracker, "tracker.model.interactive_sam_mask_decoder").expect("decoder");
+    let dec = st_model::tracker::InteractiveDecoder::load(
+        be,
+        &w.tracker,
+        "tracker.model.interactive_sam_mask_decoder",
+    )
+    .expect("decoder");
     let fx = SafeTensors::open(&env_path("SPIKETRACK_TRACKER_FIXTURES")).expect("fixtures");
     let t = |name: &str| -> Tensor {
-        let (shape, data) = fx.read_f32(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
+        let (shape, data) = fx
+            .read_f32(name)
+            .unwrap_or_else(|e| panic!("{name}: {}", e.detail()));
         let shape: Vec<usize> = shape.into_iter().map(|d| d as usize).collect();
-        be.upload(&Tensor::from_f32(&data, &shape, be.budget()).expect("t")).expect("up")
+        be.upload(&Tensor::from_f32(&data, &shape, be.budget()).expect("t"))
+            .expect("up")
     };
-    let h = |name: &str| fx.read_f32(name).unwrap_or_else(|e| panic!("{name}: {}", e.detail())).1;
+    let h = |name: &str| {
+        fx.read_f32(name)
+            .unwrap_or_else(|e| panic!("{name}: {}", e.detail()))
+            .1
+    };
     let p = "f0.interactive_mask_decoder.call0";
-    let (sshape, sparse) = fx.read_f32(&format!("{p}.kw.sparse_prompt_embeddings")).expect("sparse");
+    let (sshape, sparse) = fx
+        .read_f32(&format!("{p}.kw.sparse_prompt_embeddings"))
+        .expect("sparse");
     let out = dec
-        .fwd(be, &t(&format!("{p}.kw.image_embeddings")), &t(&format!("{p}.kw.image_pe")), &sparse, sshape[1] as usize, &t(&format!("{p}.kw.dense_prompt_embeddings")), &t(&format!("{p}.kw.high_res_features.0")), &t(&format!("{p}.kw.high_res_features.1")))
+        .fwd(
+            be,
+            &t(&format!("{p}.kw.image_embeddings")),
+            &t(&format!("{p}.kw.image_pe")),
+            &sparse,
+            sshape[1] as usize,
+            &t(&format!("{p}.kw.dense_prompt_embeddings")),
+            &t(&format!("{p}.kw.high_res_features.0")),
+            &t(&format!("{p}.kw.high_res_features.1")),
+        )
         .expect("decode");
     let n = sshape[0] as usize;
     let px = 288 * 288;
-    let masks = out.masks.to_host(be.budget()).expect("host").to_f32_vec().expect("f32");
+    let masks = out
+        .masks
+        .to_host(be.budget())
+        .expect("host")
+        .to_f32_vec()
+        .expect("f32");
     // multimask_output=False: upstream returns mask/token/IoU 0 of the 4.
-    let first = |v: &[f32], per: usize, width: usize| -> Vec<f32> { (0..n).flat_map(|i| v[i * per * width..i * per * width + width].to_vec()).collect() };
+    let first = |v: &[f32], per: usize, width: usize| -> Vec<f32> {
+        (0..n)
+            .flat_map(|i| v[i * per * width..i * per * width + width].to_vec())
+            .collect()
+    };
     let mut worst = f64::INFINITY;
     for (name, got, key) in [
         ("mask 0", first(&masks, 4, px), "out.0"),

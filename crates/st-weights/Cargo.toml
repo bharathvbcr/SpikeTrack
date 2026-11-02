@@ -9,3 +9,6 @@ description = "SAM 3.1 multiplex checkpoint (safetensors) mapped to typed Rust s
 
 [dependencies]
 ojas-io.workspace = true
+
+[lints]
+workspace = true

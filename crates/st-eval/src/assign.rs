@@ -6,15 +6,30 @@
 /// Returns `(row, col)` pairs, `min(rows, cols)` of them, sorted by row.
 /// Costs must be finite.
 pub fn linear_sum_assignment(cost: &[f64], rows: usize, cols: usize) -> Vec<(usize, usize)> {
-    assert_eq!(cost.len(), rows * cols, "cost matrix is {} long, not {rows} x {cols}", cost.len());
+    assert_eq!(
+        cost.len(),
+        rows * cols,
+        "cost matrix is {} long, not {rows} x {cols}",
+        cost.len()
+    );
     assert!(cost.iter().all(|c| c.is_finite()), "non-finite cost");
     if rows == 0 || cols == 0 {
         return Vec::new();
     }
     // The solver below needs n <= m; transpose otherwise.
     let transposed = rows > cols;
-    let (n, m) = if transposed { (cols, rows) } else { (rows, cols) };
-    let a = |i: usize, j: usize| if transposed { cost[j * cols + i] } else { cost[i * cols + j] };
+    let (n, m) = if transposed {
+        (cols, rows)
+    } else {
+        (rows, cols)
+    };
+    let a = |i: usize, j: usize| {
+        if transposed {
+            cost[j * cols + i]
+        } else {
+            cost[i * cols + j]
+        }
+    };
 
     // 1-based arrays as in the classic formulation; index 0 is the virtual column.
     let mut u = vec![0.0f64; n + 1];
@@ -68,7 +83,13 @@ pub fn linear_sum_assignment(cost: &[f64], rows: usize, cols: usize) -> Vec<(usi
     }
     let mut out: Vec<(usize, usize)> = (1..=m)
         .filter(|&j| p[j] != 0)
-        .map(|j| if transposed { (j - 1, p[j] - 1) } else { (p[j] - 1, j - 1) })
+        .map(|j| {
+            if transposed {
+                (j - 1, p[j] - 1)
+            } else {
+                (p[j] - 1, j - 1)
+            }
+        })
         .collect();
     out.sort_unstable();
     out
@@ -84,7 +105,15 @@ mod tests {
 
     /// Exhaustive minimum over all injections of the smaller side, for small sizes.
     fn brute(cost: &[f64], rows: usize, cols: usize) -> f64 {
-        fn go(cost: &[f64], rows: usize, cols: usize, r: usize, used: &mut Vec<bool>, acc: f64, best: &mut f64) {
+        fn go(
+            cost: &[f64],
+            rows: usize,
+            cols: usize,
+            r: usize,
+            used: &mut Vec<bool>,
+            acc: f64,
+            best: &mut f64,
+        ) {
             if r == rows {
                 *best = best.min(acc);
                 return;
@@ -92,7 +121,15 @@ mod tests {
             for c in 0..cols {
                 if !used[c] {
                     used[c] = true;
-                    go(cost, rows, cols, r + 1, used, acc + cost[r * cols + c], best);
+                    go(
+                        cost,
+                        rows,
+                        cols,
+                        r + 1,
+                        used,
+                        acc + cost[r * cols + c],
+                        best,
+                    );
                     used[c] = false;
                 }
             }
@@ -102,7 +139,10 @@ mod tests {
             go(cost, rows, cols, 0, &mut vec![false; cols], 0.0, &mut best);
             best
         } else {
-            let t: Vec<f64> = (0..cols).flat_map(|c| (0..rows).map(move |r| (r, c))).map(|(r, c)| cost[r * cols + c]).collect();
+            let t: Vec<f64> = (0..cols)
+                .flat_map(|c| (0..rows).map(move |r| (r, c)))
+                .map(|(r, c)| cost[r * cols + c])
+                .collect();
             brute(&t, cols, rows)
         }
     }
@@ -120,7 +160,9 @@ mod tests {
             for cols in 0..6 {
                 for _ in 0..20 {
                     // Coarse values make ties common.
-                    let cost: Vec<f64> = (0..rows * cols).map(|_| (rnd() * 4.0).floor() - 2.0).collect();
+                    let cost: Vec<f64> = (0..rows * cols)
+                        .map(|_| (rnd() * 4.0).floor() - 2.0)
+                        .collect();
                     let pairs = linear_sum_assignment(&cost, rows, cols);
                     assert_eq!(pairs.len(), rows.min(cols));
                     let mut rs: Vec<_> = pairs.iter().map(|p| p.0).collect();
@@ -133,7 +175,10 @@ mod tests {
                     if rows.min(cols) > 0 {
                         let got = total(&cost, cols, &pairs);
                         let want = brute(&cost, rows, cols);
-                        assert!((got - want).abs() < 1e-9, "{rows}x{cols}: {got} != {want} for {cost:?}");
+                        assert!(
+                            (got - want).abs() < 1e-9,
+                            "{rows}x{cols}: {got} != {want} for {cost:?}"
+                        );
                     }
                 }
             }
