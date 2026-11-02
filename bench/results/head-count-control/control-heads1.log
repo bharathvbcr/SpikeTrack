@@ -1,0 +1,36 @@
+Sun Nov  1 17:50:20 CST 2026
+be9e31a
+cargo-slot-gate: waiting for a build slot (2/2 busy; holders: /Users/bharath/.cache/cargo-slots)
+cargo-slot-gate: all 2 build slots busy for 1801s; running ungated
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack-headctl/crates/st-model)
+    Finished `release` profile [optimized] target(s) in 20.44s
+     Running tests/tracker_parity.rs (target/release/deps/tracker_parity-cc3c5a886ff5f3f8)
+
+running 1 test
+test memory_attention_matches_upstream ... [CPU]
+| frame | memory frames | pointer tokens | cosine | max abs | max abs / max ref |
+|---|---|---|---|---|---|
+| 1 | 1 | 16 | 0.6517183 | 8.684e0 | 9.771e-1 |
+| 2 | 2 | 32 | 0.6158613 | 9.297e0 | 9.986e-1 |
+| 3 | 3 | 48 | 0.6070227 | 8.757e0 | 9.397e-1 |
+| 4 | 4 | 64 | 0.6082390 | 8.545e0 | 9.301e-1 |
+| 5 | 5 | 80 | 0.6113555 | 9.029e0 | 9.580e-1 |
+| 6 | 6 | 96 | 0.6194449 | 8.497e0 | 9.093e-1 |
+| 7 | 7 | 112 | 0.6134463 | 8.750e0 | 9.250e-1 |
+
+memory attention worst cosine 0.6070227
+
+thread 'memory_attention_matches_upstream' (6203429) panicked at crates/st-model/tests/tracker_parity.rs:180:5:
+memory attention worst cosine 0.6070227262402169
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    memory_attention_matches_upstream
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 7 filtered out; finished in 93.35s
+
+error: test failed, to rerun pass `-p st-model --test tracker_parity`
+exit=101
