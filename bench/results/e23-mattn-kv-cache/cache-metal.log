@@ -1,0 +1,11 @@
+    Finished `release` profile [optimized] target(s) in 1.21s
+     Running tests/memory_attention_cache.rs (target/release/deps/memory_attention_cache-345c59312851c8ad)
+
+running 1 test
+test cached_equals_uncached_on_metal ... [Metal] 1 frame(s), 0 pointer(s): 0 element(s) differ, max abs 0e0
+[Metal] 3 frame(s), 16 pointer(s): 0 element(s) differ, max abs 0e0
+[Metal] 7 frame(s), 32 pointer(s): 0 element(s) differ, max abs 0e0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.18s
+

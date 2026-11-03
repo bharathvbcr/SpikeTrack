@@ -1,0 +1,13 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 2.5 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 2.54 s)
+model loaded in 2.9 s on metal; tracking 8 frame(s) of "14"
+frame 0 (1/8): 2.02 s, 3 active track(s), 0 frame(s) released; waits +20 (upload 3, read 17), dispatches +3191, metal allocated 3780 MiB (frame peak 7103 MiB), footprint 3956 MiB, pageouts +0, swapins +0
+frame 1 (2/8): 1.54 s, 3 active track(s), 0 frame(s) released; waits +15 (upload 3, read 12), dispatches +3007, metal allocated 3808 MiB (frame peak 5912 MiB), footprint 4377 MiB, pageouts +0, swapins +0
+frame 2 (3/8): 1.63 s, 3 active track(s), 0 frame(s) released; waits +15 (upload 3, read 12), dispatches +3018, metal allocated 3854 MiB (frame peak 6067 MiB), footprint 4011 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 1.68 s, 3 active track(s), 0 frame(s) released; waits +15 (upload 3, read 12), dispatches +3029, metal allocated 3910 MiB (frame peak 6214 MiB), footprint 4089 MiB, pageouts +0, swapins +112
+frame 4 (5/8): 1.72 s, 3 active track(s), 0 frame(s) released; waits +15 (upload 3, read 12), dispatches +3040, metal allocated 3963 MiB (frame peak 6283 MiB), footprint 4272 MiB, pageouts +0, swapins +4
+frame 5 (6/8): 1.77 s, 3 active track(s), 0 frame(s) released; waits +16 (upload 4, read 12), dispatches +3049, metal allocated 4012 MiB (frame peak 5786 MiB), footprint 4409 MiB, pageouts +0, swapins +0
+frame 6 (7/8): 1.82 s, 3 active track(s), 0 frame(s) released; waits +16 (upload 4, read 12), dispatches +3060, metal allocated 4064 MiB (frame peak 5832 MiB), footprint 4398 MiB, pageouts +0, swapins +0
+frame 7 (8/8): 1.87 s, 3 active track(s), 8 frame(s) released; waits +16 (upload 4, read 12), dispatches +3071, metal allocated 4114 MiB (frame peak 5886 MiB), footprint 3866 MiB, pageouts +0, swapins +4
+8 frame(s) of "14" tracked on metal: 3 track(s) born, 1.76 s/frame (model, mean), 17.2 s total
+  bench/results/weight-space/box-delta-train5/run-0c/14.json
+  bench/results/weight-space/box-delta-train5/run-0c/14.run.json

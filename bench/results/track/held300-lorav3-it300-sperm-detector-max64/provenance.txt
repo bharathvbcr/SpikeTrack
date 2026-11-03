@@ -1,0 +1,70 @@
+2026-11-03T14:00:44Z
+38e0a35dba004ef750b13c55ab9f13447bfe8fa4
+ M HANDOFF.md
+ M README.md
+ M bench/results/SUMMARY.md
+ M bench/results/lora/README.md
+ M bench/results/lora/merge-parity.log
+ M bench/results/packaging/run.txt
+ M bench/results/packaging/summary.txt
+ M bench/results/weight-space/README.md
+ M bench/results/weight-space/roc_pr_held_out_f0.json
+ M crates/spiketrack/src/image_cmd.rs
+ M crates/spiketrack/src/track_cmd.rs
+ M crates/st-model/src/detector.rs
+ M crates/st-model/src/tile.rs
+ M crates/st-model/src/tracker/associate.rs
+ M crates/st-model/src/tracker/session.rs
+ M crates/st-model/tests/memory_attention_cache.rs
+ M docs/EVALUATION.md
+ M docs/WRITEUP.md
+ M docs/figures/roc-pr-f1-gain-curves.png
+ M docs/figures/visem21-47-birth-calibration.png
+ M docs/figures/visem22-bbox-progression.png
+ D docs/figures/visem22-frame0-masks-ws240.png
+ M docs/figures/visem36-dense-birth-rescue.png
+ D docs/figures/visem36-frame0-masks-ws240.png
+ M tools/jobs/track_visem.sh
+ M tools/reference/lora_common.py
+ M tools/reference/lora_merge_fixture.py
+ M tools/reference/lora_selftest.py
+ M tools/reference/train_lora.py
+?? bench/results/e23-mattn-kv-cache/
+?? bench/results/lora/visem-lora-v2-step400/
+?? bench/results/lora/visem-lora-v2/
+?? bench/results/lora/visem-lora-v3/
+?? bench/results/track/held300-lorav3-it300-sperm-detector-max64/
+?? bench/results/weight-space/eval/held32_lorav2_s400_it320.json
+?? bench/results/weight-space/eval/held32_lorav2_s400_it320.txt
+?? bench/results/weight-space/eval/held32_lorav2_s400_raw.json
+?? bench/results/weight-space/eval/held32_lorav2_s400_raw.txt
+?? bench/results/weight-space/eval/held32_lorav3_it300.json
+?? bench/results/weight-space/eval/held32_lorav3_it300.txt
+?? bench/results/weight-space/eval/held32_lorav3_raw.json
+?? bench/results/weight-space/eval/held32_lorav3_raw.txt
+?? bench/results/weight-space/eval/held32_v1_ws240_p34.json
+?? bench/results/weight-space/eval/held32_v1_ws240_p34.txt
+?? bench/results/weight-space/eval/held8_lorav2_s400_it320.json
+?? bench/results/weight-space/eval/held8_lorav2_s400_it320.txt
+?? bench/results/weight-space/eval/held8_lorav2_s400_it320_pbd04.json
+?? bench/results/weight-space/eval/held8_lorav2_s400_it320_pbd04.txt
+?? bench/results/weight-space/eval/held8_lorav2_s400_raw.json
+?? bench/results/weight-space/eval/held8_lorav2_s400_raw.txt
+?? bench/results/weight-space/eval/held8_lorav3_it300.json
+?? bench/results/weight-space/eval/held8_lorav3_it300.txt
+?? bench/results/weight-space/eval/held8_lorav3_raw.json
+?? bench/results/weight-space/eval/held8_lorav3_raw.txt
+?? bench/results/weight-space/eval/held8_v1_ws240_p34.json
+?? bench/results/weight-space/eval/held8_v1_ws240_p34.txt
+?? bench/results/weight-space/eval/sample_22_lorav2_s400_it320.run.json
+?? bench/results/weight-space/eval/sample_22_lorav3_it300.run.json
+?? bench/results/weight-space/inspect/lorav2_prompt_cosines.txt
+?? bench/results/weight-space/inspect/lorav2_vs_base_spectrum.txt
+?? bench/results/weight-space/inspect/lorav3_prompt_cosines.txt
+?? bench/results/weight-space/lorav2_exact_it_3p20.json
+?? bench/results/weight-space/lorav3_exact_it_3p00.json
+?? docs/figures/visem22-frame0-masks-lorav3-tile2x2.png
+?? docs/figures/visem36-frame0-masks-lorav3-tile2x2.png
+?? tools/analysis/e23_summary.py
+2fd60f2f2f24c34b8ba36c6b6261834fe010e703d93e61da47de5524841a8d7a  -
+3a4fd0db260a75e9b1ce3ec368cb775039344a9f52eba586ec7dce275e4c20a2  target/release/spiketrack

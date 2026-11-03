@@ -1,0 +1,2 @@
+1t-new 596ae93d57261abf (38e0a35, /Users/bharath/Code/research/SpikeTrack-e23ctl/target), control e69a0a02fcecb4b8 (38e0a35 + control_tree.py, same target)
+ 7:19  up 1 day, 18:15, 1 user, load averages: 4.25 3.84 3.81

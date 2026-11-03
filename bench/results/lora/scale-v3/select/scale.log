@@ -1,0 +1,4 @@
+wrote fixtures/lora_runs/scale-v3/l0p8.safetensors: 135 modules, scale c=0.8 * visem-lora-v3@160 (alpha scaled, factors unchanged)
+wrote fixtures/lora_runs/scale-v3/l0p9.safetensors: 135 modules, scale c=0.9 * visem-lora-v3@160 (alpha scaled, factors unchanged)
+wrote fixtures/lora_runs/scale-v3/l1p1.safetensors: 135 modules, scale c=1.1 * visem-lora-v3@160 (alpha scaled, factors unchanged)
+wrote fixtures/lora_runs/scale-v3/l1p2.safetensors: 135 modules, scale c=1.2 * visem-lora-v3@160 (alpha scaled, factors unchanged)

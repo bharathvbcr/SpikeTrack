@@ -1,35 +1,20 @@
-warning: unused imports: `AttentionOpts` and `Conv2dParams`
-  --> crates/st-model/src/detector.rs:12:17
-   |
-12 | use ojas_core::{AttentionOpts, Backend, Conv2dParams, OjasError, Tensor};
-   |                 ^^^^^^^^^^^^^           ^^^^^^^^^^^^
-   |
-   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
-
-warning: unused import: `Weight`
-  --> crates/st-model/src/detector.rs:13:31
-   |
-13 | use st_weights::{TensorGroup, Weight};
-   |                               ^^^^^^
-
-warning: `st-model` (lib) generated 2 warnings (run `cargo fix --lib -p st-model` to apply 2 suggestions)
-    Finished `release` profile [optimized] target(s) in 1.05s
-     Running tests/tracker_parity.rs (target/release/deps/tracker_parity-1c522ef2770543e2)
+    Finished `release` profile [optimized] target(s) in 0.96s
+     Running tests/tracker_parity.rs (target/release/deps/tracker_parity-cc3c5a886ff5f3f8)
 
 running 1 test
 test memory_attention_matches_upstream_on_metal ... [Metal]
 | frame | memory frames | pointer tokens | cosine | max abs | max abs / max ref |
 |---|---|---|---|---|---|
-| 1 | 1 | 16 | 1.0000000 | 7.212e-5 | 8.115e-6 |
-| 2 | 2 | 32 | 1.0000000 | 1.893e-4 | 2.033e-5 |
-| 3 | 3 | 48 | 1.0000000 | 2.229e-4 | 2.391e-5 |
-| 4 | 4 | 64 | 1.0000000 | 2.437e-4 | 2.652e-5 |
-| 5 | 5 | 80 | 1.0000000 | 3.431e-4 | 3.640e-5 |
-| 6 | 6 | 96 | 1.0000000 | 5.755e-4 | 6.159e-5 |
-| 7 | 7 | 112 | 1.0000000 | 6.287e-4 | 6.647e-5 |
+| 1 | 1 | 16 | 1.0000000 | 2.575e-5 | 2.897e-6 |
+| 2 | 2 | 32 | 1.0000000 | 2.003e-5 | 2.151e-6 |
+| 3 | 3 | 48 | 1.0000000 | 1.097e-5 | 1.177e-6 |
+| 4 | 4 | 64 | 1.0000000 | 1.132e-5 | 1.233e-6 |
+| 5 | 5 | 80 | 1.0000000 | 2.050e-5 | 2.175e-6 |
+| 6 | 6 | 96 | 1.0000000 | 1.335e-5 | 1.429e-6 |
+| 7 | 7 | 112 | 1.0000000 | 1.502e-5 | 1.588e-6 |
 
 memory attention worst cosine 1.0000000
 ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 31.85s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 1.98s
 

@@ -1,0 +1,41 @@
+mac_heavy: 2026-11-03T04:13:49Z 'spiketrack-e23-ctl' holds the lock (waited 0s; load 13.63, 1168 processes); running: bash bench/results/e23-mattn-kv-cache/control-job.sh
+/Users/bharath/Code/research/Lappi-decision/tools/mac_heavy.sh: child setpgid (40860 to 40860): Operation not permitted
+== ctl-build load { 13.63 13.90 11.58 }
+new 596ae93d57261abf (38e0a35), control e69a0a02fcecb4b8 (38e0a35 + control_tree.py)
+22:13  up 1 day,  9:09, 1 user, load averages: 13.63 13.90 11.58
+== ctl-control load { 13.63 13.90 11.58 }
+== ctl-r1 load { 6.92 10.86 10.70 }
+== cnew-r1 load { 18.89 13.30 11.63 }
+== cnew-r2 load { 9.38 11.26 11.05 }
+== ctl-r2 load { 6.37 9.20 10.23 }
+== ctl-r3 load { 13.05 11.17 10.83 }
+== cnew-r3 load { 7.77 9.50 10.20 }
+ctl-control: byte-identical to new-control
+ctl-control: differs from old-control
+ctl-r1: byte-identical to new-control
+ctl-r1: differs from old-control
+cnew-r1: byte-identical to new-control
+cnew-r1: differs from old-control
+ctl-r2: byte-identical to new-control
+ctl-r2: differs from old-control
+cnew-r2: byte-identical to new-control
+cnew-r2: differs from old-control
+ctl-r3: byte-identical to new-control
+ctl-r3: differs from old-control
+cnew-r3: byte-identical to new-control
+cnew-r3: differs from old-control
+# E23 same-tree control (steady frames >= 8)
+
+| round | ctl tracker step ms | cnew | cnew / ctl |
+|---|---|---|---|
+| 1 | 1191.0 | 955.1 | 0.802 |
+| 2 | 1229.1 | 955.3 | 0.777 |
+| 3 | 1157.6 | 966.5 | 0.835 |
+
+Same-binary spread: ctl 6.2%, cnew 1.2%; noise 6.2%.
+Speed (pre-stated: every ratio < 1 - noise): SPEEDUP.
+
+
+22:30  up 1 day,  9:26, 1 user, load averages: 6.15 7.88 9.41
+E23 control status 0
+mac_heavy: 2026-11-03T04:30:57Z 'spiketrack-e23-ctl' finished with exit 0

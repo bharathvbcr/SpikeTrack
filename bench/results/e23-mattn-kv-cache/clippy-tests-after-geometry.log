@@ -1,0 +1,14 @@
+mac_heavy: 2026-11-03T04:32:24Z 'spiketrack-e23-lint' waits without the lock: no cargo slot free (all 2 held in /Users/bharath/.cache/cargo-slots)
+mac_heavy: 2026-11-03T04:32:44Z 'spiketrack-e23-lint' waiting 20s for the lock; holder: label=ojas-splitk-job3 pid=60974 start=2026-11-03T04:30:59Z cwd=/Users/bharath/Code/research/ojas 
+mac_heavy: 2026-11-03T04:36:05Z 'spiketrack-e23-lint' holds the lock (waited 220s; load 4.61, 1164 processes); running: cargo clippy -j 2 -p st-model --tests
+    Checking st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.70s
+mac_heavy: 2026-11-03T04:36:07Z 'spiketrack-e23-lint' finished with exit 0
+mac_heavy: 2026-11-03T04:36:12Z 'spiketrack-e23-lint' holds the lock (waited 0s; load 4.56, 1166 processes); running: cargo clippy -j 2 -p st-model --test memory_attention_cache -- -D warnings
+    Checking st-weights v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-weights)
+    Checking st-video v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-video)
+    Checking st-gate v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-gate)
+    Checking st-eval v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-eval)
+    Checking st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.84s
+mac_heavy: 2026-11-03T04:36:17Z 'spiketrack-e23-lint' finished with exit 0

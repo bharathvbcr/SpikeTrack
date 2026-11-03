@@ -1,0 +1,8 @@
+    Checking st-weights v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-weights)
+    Checking st-video v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-video)
+    Checking st-gate v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-gate)
+    Checking st-eval v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-eval)
+    Checking st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+    Checking st-coreml v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-coreml)
+    Checking spiketrack v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/spiketrack)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.08s

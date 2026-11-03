@@ -1,0 +1,36 @@
+mac_heavy: 2026-11-03T16:44:41Z 'spiketrack-box-delta' waiting 0s for the lock; holder: label=spiketrack-lora-v4-cache pid=61120 start=2026-11-03T16:43:39Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T16:49:42Z 'spiketrack-box-delta' waiting 300s for the lock; holder: label=spiketrack-lora-v4-cache pid=61120 start=2026-11-03T16:43:39Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T16:54:44Z 'spiketrack-box-delta' waiting 600s for the lock; holder: label=spiketrack-lora-v4-cache pid=61120 start=2026-11-03T16:43:39Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T16:59:45Z 'spiketrack-box-delta' waiting 900s for the lock; holder: label=spiketrack-lora-v4-cache pid=61120 start=2026-11-03T16:43:39Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T17:04:46Z 'spiketrack-box-delta' waiting 1200s for the lock; holder: label=spiketrack-lora-v4-cache pid=61120 start=2026-11-03T16:43:39Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T17:08:07Z 'spiketrack-box-delta' waits without the lock: no cargo slot free (all 2 held in /Users/bharath/.cache/cargo-slots)
+mac_heavy: 2026-11-03T17:09:47Z 'spiketrack-box-delta' waiting 1500s for the lock; holder: label=spiketrack-lora-v4-cache pid=61120 start=2026-11-03T16:43:39Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T17:14:48Z 'spiketrack-box-delta' waiting 1800s for the lock; holder: label=spiketrack-lora-v4-cache pid=61120 start=2026-11-03T16:43:39Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T17:19:49Z 'spiketrack-box-delta' waiting 2100s for the lock; holder: label=spiketrack-lora-v4-cache pid=61120 start=2026-11-03T16:43:39Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T17:20:30Z 'spiketrack-box-delta' holds the lock (waited 2140s; load 7.08, 1465 processes); running: bash bench/results/weight-space/box-delta-train5/job.sh
+    Finished `release` profile [optimized] target(s) in 1.63s
+== d=0a
+13           8       350         342        0  0.6256 0.5633 0.7530 0.7234
+all         40       838         772        0  0.5802 0.4800 0.7642 0.7258
+wrote bench/results/weight-space/box-delta-train5/eval-0a.json
+== d=0.08
+13           8       350         342        0  0.6522 0.5948 0.7615 0.7380
+all         40       838         772        0  0.5892 0.4946 0.7465 0.7305
+wrote bench/results/weight-space/box-delta-train5/eval-0.08.json
+== d=0.16
+13           8       350         342        0  0.6646 0.6052 0.7792 0.7409
+all         40       838         772        0  0.5913 0.4923 0.7609 0.7291
+wrote bench/results/weight-space/box-delta-train5/eval-0.16.json
+== d=0.24
+13           8       350         342        0  0.6458 0.5892 0.7418 0.7338
+all         40       838         772        0  0.5753 0.4716 0.7443 0.7228
+wrote bench/results/weight-space/box-delta-train5/eval-0.24.json
+== d=0.32
+13           8       350         340        0  0.6133 0.5507 0.7150 0.7156
+all         40       838         772        0  0.5561 0.4397 0.7686 0.7145
+wrote bench/results/weight-space/box-delta-train5/eval-0.32.json
+== d=0b
+13           8       350         342        0  0.6256 0.5633 0.7530 0.7234
+all         40       838         772        0  0.5802 0.4800 0.7642 0.7258
+wrote bench/results/weight-space/box-delta-train5/eval-0b.json
+mac_heavy: 2026-11-03T17:29:18Z 'spiketrack-box-delta' finished with exit 0

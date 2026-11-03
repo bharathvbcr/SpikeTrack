@@ -1,0 +1,628 @@
+{
+ "zero_shot": {
+  "detection": {
+   "sperm": {
+    "proc": {
+     "0.3": {
+      "recall": 0.0,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.4": {
+      "recall": 0.0,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.5": {
+      "recall": 0.0,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 2603,
+      "frames": 120
+     }
+    },
+    "joint": {
+     "0.3": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "tp": 0,
+      "predictions": 10,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.4": {
+      "recall": 0.0,
+      "precision": 0.0,
+      "tp": 0,
+      "predictions": 3,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.5": {
+      "recall": 0.0,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 2603,
+      "frames": 120
+     }
+    }
+   },
+   "cell": {
+    "proc": {
+     "0.3": {
+      "recall": 0.4253,
+      "precision": 0.1168,
+      "tp": 1107,
+      "predictions": 9480,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.4": {
+      "recall": 0.3373,
+      "precision": 0.1274,
+      "tp": 878,
+      "predictions": 6894,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.5": {
+      "recall": 0.2124,
+      "precision": 0.122,
+      "tp": 553,
+      "predictions": 4532,
+      "gt": 2603,
+      "frames": 120
+     }
+    },
+    "joint": {
+     "0.3": {
+      "recall": 0.4291,
+      "precision": 0.1156,
+      "tp": 1117,
+      "predictions": 9660,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.4": {
+      "recall": 0.3434,
+      "precision": 0.1262,
+      "tp": 894,
+      "predictions": 7083,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.5": {
+      "recall": 0.2251,
+      "precision": 0.1229,
+      "tp": 586,
+      "predictions": 4768,
+      "gt": 2603,
+      "frames": 120
+     }
+    }
+   },
+   "sperm cluster": {
+    "proc": {
+     "0.3": {
+      "recall": null,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 0,
+      "frames": 0
+     },
+     "0.4": {
+      "recall": null,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 0,
+      "frames": 0
+     },
+     "0.5": {
+      "recall": null,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 0,
+      "frames": 0
+     }
+    },
+    "joint": {
+     "0.3": {
+      "recall": null,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 0,
+      "frames": 0
+     },
+     "0.4": {
+      "recall": null,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 0,
+      "frames": 0
+     },
+     "0.5": {
+      "recall": null,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 0,
+      "frames": 0
+     }
+    }
+   },
+   "pinhead sperm": {
+    "proc": {
+     "0.3": {
+      "recall": 0.0,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 129,
+      "frames": 84
+     },
+     "0.4": {
+      "recall": 0.0,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 129,
+      "frames": 84
+     },
+     "0.5": {
+      "recall": 0.0,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 129,
+      "frames": 84
+     }
+    },
+    "joint": {
+     "0.3": {
+      "recall": 0.0,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 129,
+      "frames": 84
+     },
+     "0.4": {
+      "recall": 0.0,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 129,
+      "frames": 84
+     },
+     "0.5": {
+      "recall": 0.0,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 129,
+      "frames": 84
+     }
+    }
+   }
+  },
+  "negatives": {
+   "absent_class": {
+    "items": 156,
+    "presence_above_0.5": 0.359,
+    "mean_presence": 0.4192,
+    "proc_any_detection_at_0.3": 0.0962,
+    "proc_any_detection_at_0.4": 0.0,
+    "proc_any_detection_at_0.5": 0.0,
+    "joint_any_detection_at_0.3": 0.4359,
+    "joint_any_detection_at_0.4": 0.2051,
+    "joint_any_detection_at_0.5": 0.0192
+   },
+   "seen_negative": {
+    "items": 360,
+    "presence_above_0.5": 0.0,
+    "mean_presence": 0.0042,
+    "proc_any_detection_at_0.3": 0.0,
+    "proc_any_detection_at_0.4": 0.0,
+    "proc_any_detection_at_0.5": 0.0,
+    "joint_any_detection_at_0.3": 0.0,
+    "joint_any_detection_at_0.4": 0.0,
+    "joint_any_detection_at_0.5": 0.0
+   },
+   "unseen_negative": {
+    "items": 240,
+    "presence_above_0.5": 0.0,
+    "mean_presence": 0.0184,
+    "proc_any_detection_at_0.3": 0.0,
+    "proc_any_detection_at_0.4": 0.0,
+    "proc_any_detection_at_0.5": 0.0,
+    "joint_any_detection_at_0.3": 0.0,
+    "joint_any_detection_at_0.4": 0.0,
+    "joint_any_detection_at_0.5": 0.0
+   }
+  },
+  "ece": {
+   "detection": {
+    "sperm": {
+     "proc": {
+      "ece": 0.0802,
+      "queries": 164
+     },
+     "joint": {
+      "ece": 0.0717,
+      "queries": 1939
+     }
+    },
+    "cell": {
+     "proc": {
+      "ece": 0.2425,
+      "queries": 22377
+     },
+     "joint": {
+      "ece": 0.2472,
+      "queries": 22466
+     }
+    },
+    "sperm cluster": {
+     "proc": {
+      "ece": null,
+      "queries": 0
+     },
+     "joint": {
+      "ece": null,
+      "queries": 0
+     }
+    },
+    "pinhead sperm": {
+     "proc": {
+      "ece": 0.073,
+      "queries": 283
+     },
+     "joint": {
+      "ece": 0.0867,
+      "queries": 3387
+     }
+    }
+   },
+   "presence": {
+    "ece": 0.1769,
+    "items": 1080,
+    "positives": 324
+   }
+  },
+  "seconds": 98.5
+ },
+ "lora": {
+  "detection": {
+   "sperm": {
+    "proc": {
+     "0.3": {
+      "recall": 0.7564,
+      "precision": 0.5741,
+      "tp": 1969,
+      "predictions": 3430,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.4": {
+      "recall": 0.7457,
+      "precision": 0.6542,
+      "tp": 1941,
+      "predictions": 2967,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.5": {
+      "recall": 0.6957,
+      "precision": 0.7099,
+      "tp": 1811,
+      "predictions": 2551,
+      "gt": 2603,
+      "frames": 120
+     }
+    },
+    "joint": {
+     "0.3": {
+      "recall": 0.7564,
+      "precision": 0.5741,
+      "tp": 1969,
+      "predictions": 3430,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.4": {
+      "recall": 0.7457,
+      "precision": 0.6542,
+      "tp": 1941,
+      "predictions": 2967,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.5": {
+      "recall": 0.6957,
+      "precision": 0.7099,
+      "tp": 1811,
+      "predictions": 2551,
+      "gt": 2603,
+      "frames": 120
+     }
+    }
+   },
+   "cell": {
+    "proc": {
+     "0.3": {
+      "recall": 0.4802,
+      "precision": 0.1623,
+      "tp": 1250,
+      "predictions": 7704,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.4": {
+      "recall": 0.4771,
+      "precision": 0.2131,
+      "tp": 1242,
+      "predictions": 5828,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.5": {
+      "recall": 0.4714,
+      "precision": 0.2882,
+      "tp": 1227,
+      "predictions": 4258,
+      "gt": 2603,
+      "frames": 120
+     }
+    },
+    "joint": {
+     "0.3": {
+      "recall": 0.4802,
+      "precision": 0.1622,
+      "tp": 1250,
+      "predictions": 7705,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.4": {
+      "recall": 0.4771,
+      "precision": 0.213,
+      "tp": 1242,
+      "predictions": 5830,
+      "gt": 2603,
+      "frames": 120
+     },
+     "0.5": {
+      "recall": 0.4714,
+      "precision": 0.288,
+      "tp": 1227,
+      "predictions": 4260,
+      "gt": 2603,
+      "frames": 120
+     }
+    }
+   },
+   "sperm cluster": {
+    "proc": {
+     "0.3": {
+      "recall": null,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 0,
+      "frames": 0
+     },
+     "0.4": {
+      "recall": null,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 0,
+      "frames": 0
+     },
+     "0.5": {
+      "recall": null,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 0,
+      "frames": 0
+     }
+    },
+    "joint": {
+     "0.3": {
+      "recall": null,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 0,
+      "frames": 0
+     },
+     "0.4": {
+      "recall": null,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 0,
+      "frames": 0
+     },
+     "0.5": {
+      "recall": null,
+      "precision": null,
+      "tp": 0,
+      "predictions": 0,
+      "gt": 0,
+      "frames": 0
+     }
+    }
+   },
+   "pinhead sperm": {
+    "proc": {
+     "0.3": {
+      "recall": 0.2558,
+      "precision": 0.1908,
+      "tp": 33,
+      "predictions": 173,
+      "gt": 129,
+      "frames": 84
+     },
+     "0.4": {
+      "recall": 0.186,
+      "precision": 0.3934,
+      "tp": 24,
+      "predictions": 61,
+      "gt": 129,
+      "frames": 84
+     },
+     "0.5": {
+      "recall": 0.1163,
+      "precision": 0.625,
+      "tp": 15,
+      "predictions": 24,
+      "gt": 129,
+      "frames": 84
+     }
+    },
+    "joint": {
+     "0.3": {
+      "recall": 0.2558,
+      "precision": 0.115,
+      "tp": 33,
+      "predictions": 287,
+      "gt": 129,
+      "frames": 84
+     },
+     "0.4": {
+      "recall": 0.2403,
+      "precision": 0.3039,
+      "tp": 31,
+      "predictions": 102,
+      "gt": 129,
+      "frames": 84
+     },
+     "0.5": {
+      "recall": 0.1783,
+      "precision": 0.5111,
+      "tp": 23,
+      "predictions": 45,
+      "gt": 129,
+      "frames": 84
+     }
+    }
+   }
+  },
+  "negatives": {
+   "absent_class": {
+    "items": 156,
+    "presence_above_0.5": 0.3526,
+    "mean_presence": 0.3855,
+    "proc_any_detection_at_0.3": 0.3205,
+    "proc_any_detection_at_0.4": 0.2949,
+    "proc_any_detection_at_0.5": 0.2628,
+    "joint_any_detection_at_0.3": 0.3526,
+    "joint_any_detection_at_0.4": 0.3397,
+    "joint_any_detection_at_0.5": 0.3013
+   },
+   "seen_negative": {
+    "items": 360,
+    "presence_above_0.5": 0.0,
+    "mean_presence": 0.0,
+    "proc_any_detection_at_0.3": 0.0,
+    "proc_any_detection_at_0.4": 0.0,
+    "proc_any_detection_at_0.5": 0.0,
+    "joint_any_detection_at_0.3": 0.0,
+    "joint_any_detection_at_0.4": 0.0,
+    "joint_any_detection_at_0.5": 0.0
+   },
+   "unseen_negative": {
+    "items": 240,
+    "presence_above_0.5": 0.0,
+    "mean_presence": 0.0073,
+    "proc_any_detection_at_0.3": 0.0,
+    "proc_any_detection_at_0.4": 0.0,
+    "proc_any_detection_at_0.5": 0.0,
+    "joint_any_detection_at_0.3": 0.0,
+    "joint_any_detection_at_0.4": 0.0,
+    "joint_any_detection_at_0.5": 0.0
+   }
+  },
+  "ece": {
+   "detection": {
+    "sperm": {
+     "proc": {
+      "ece": 0.1004,
+      "queries": 13919
+     },
+     "joint": {
+      "ece": 0.1004,
+      "queries": 13919
+     }
+    },
+    "cell": {
+     "proc": {
+      "ece": 0.2106,
+      "queries": 22039
+     },
+     "joint": {
+      "ece": 0.2106,
+      "queries": 22040
+     }
+    },
+    "sperm cluster": {
+     "proc": {
+      "ece": null,
+      "queries": 0
+     },
+     "joint": {
+      "ece": null,
+      "queries": 0
+     }
+    },
+    "pinhead sperm": {
+     "proc": {
+      "ece": 0.1058,
+      "queries": 5885
+     },
+     "joint": {
+      "ece": 0.1102,
+      "queries": 8496
+     }
+    }
+   },
+   "presence": {
+    "ece": 0.0529,
+    "items": 1080,
+    "positives": 324
+   }
+  },
+  "seconds": 114.8
+ },
+ "frames": 120,
+ "videos": [
+  "21",
+  "22",
+  "36",
+  "47",
+  "82"
+ ],
+ "items_per_frame": 9,
+ "merged_vs_wrapped": {
+  "max_abs_logit": 0.00011777877807617188,
+  "max_abs_box": 5.131959915161133e-05,
+  "max_abs_presence_logit": 9.5367431640625e-07
+ },
+ "adapter": "fixtures/lora_runs/visem-lora-v2/adapter.safetensors",
+ "split_file": "tools/reference/visem_split.json"
+}

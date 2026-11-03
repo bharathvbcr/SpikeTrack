@@ -12,7 +12,7 @@ commands:
                    0  average shared memory size
                    0  average unshared data size
                    0  average unshared stack size
-                 656  page reclaims
+                 657  page reclaims
                   32  page faults
                    0  swaps
                    0  block input operations
@@ -21,7 +21,7 @@ commands:
                    0  messages received
                    0  signals received
                    0  voluntary context switches
-                  99  involuntary context switches
-            43096106  instructions retired
-            42311124  cycles elapsed
-             2146832  peak memory footprint
+                  50  involuntary context switches
+            42386245  instructions retired
+            19640113  cycles elapsed
+             2163240  peak memory footprint

@@ -1,0 +1,9 @@
+mac_heavy: 2026-11-03T18:27:48Z 'spiketrack-lora-v4-select' waits without the lock: no cargo slot free (all 2 held in /Users/bharath/.cache/cargo-slots)
+mac_heavy: 2026-11-03T18:29:48Z 'spiketrack-lora-v4-select' waiting 120s for the lock; holder: label=spiketrack-flash-fwd-4 pid=72382 start=2026-11-03T18:27:47Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T18:33:49Z 'spiketrack-lora-v4-select' waits without the lock: no cargo slot free (all 2 held in /Users/bharath/.cache/cargo-slots)
+mac_heavy: 2026-11-03T18:37:10Z 'spiketrack-lora-v4-select' waiting 560s for the lock; holder: label=spiketrack-flash-fwd-4 pid=72382 start=2026-11-03T18:27:47Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T18:38:50Z 'spiketrack-lora-v4-select' waits without the lock: no cargo slot free (all 2 held in /Users/bharath/.cache/cargo-slots)
+mac_heavy: 2026-11-03T18:42:31Z 'spiketrack-lora-v4-select' holds the lock (waited 880s; load 9.92, 1358 processes); running: bash bench/results/lora/visem-lora-v4/select-job.sh 300:4.2
+    Finished `release` profile [optimized] target(s) in 1.87s
+== 300:4.2 all         40       838         780        0  0.5927 0.4963 0.7604 0.7326
+mac_heavy: 2026-11-03T18:44:26Z 'spiketrack-lora-v4-select' finished with exit 0

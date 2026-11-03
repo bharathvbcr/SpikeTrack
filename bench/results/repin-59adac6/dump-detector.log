@@ -1,0 +1,43 @@
+/Users/bharath/Code/research/external/sam3/sam3/model_builder.py:9: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+/Users/bharath/Code/research/SpikeTrack/tools/reference/.venv/lib/python3.12/site-packages/torch/jit/_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+/Users/bharath/Code/research/external/sam3/sam3/model/sam3_video_inference.py:801: UserWarning: CUDA is not available or torch_xla is imported. Disabling autocast.
+  @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+/Users/bharath/Code/research/external/sam3/sam3/model/sam3_video_inference.py:909: UserWarning: CUDA is not available or torch_xla is imported. Disabling autocast.
+  @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+/Users/bharath/Code/research/SpikeTrack/tools/reference/.venv/lib/python3.12/site-packages/timm/models/layers/__init__.py:49: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+/Users/bharath/Code/research/external/sam3/sam3/model/sam3_multiplex_tracking.py:1617: UserWarning: CUDA is not available or torch_xla is imported. Disabling autocast.
+  @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+/Users/bharath/Code/research/external/sam3/sam3/model/sam3_multiplex_tracking.py:1756: UserWarning: CUDA is not available or torch_xla is imported. Disabling autocast.
+  @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+/Users/bharath/Code/research/external/sam3/sam3/model/video_tracking_multiplex_demo.py:3206: UserWarning: CUDA is not available or torch_xla is imported. Disabling autocast.
+  @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+/Users/bharath/Code/research/external/sam3/sam3/model/sam3_multiplex_base.py:2938: UserWarning: CUDA is not available or torch_xla is imported. Disabling autocast.
+  self.bf16_context = torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+[0m[32mINFO 2026-11-03 13:10:40,102 91071 sam3_multiplex_base.py: 337:[0m `setting max_num_objects` to 16 -- creating num_obj_for_compile=1 objects for torch.compile cache
+dynamic_multimask_via_stability is reset to False in the multiplex model
+visem22_cell: 50 tensors, 519 MB, 28 detections at 0.5
+testimage_shoe: 50 tensors, 507 MB, 12 detections at 0.5
+truck_wheel: 50 tensors, 505 MB, 4 detections at 0.5
+gate 0: 11_frame_128.jpg, 33 queries above 0.3
+gate 1: 12_frame_109.jpg, 67 queries above 0.3
+gate 2: 13_frame_1236.jpg, 66 queries above 0.3
+gate 3: 14_frame_1349.jpg, 34 queries above 0.3
+gate 4: 15_frame_779.jpg, 97 queries above 0.3
+gate 5: 19_frame_1343.jpg, 122 queries above 0.3
+gate 6: 21_frame_428.jpg, 68 queries above 0.3
+gate 7: 22_frame_1184.jpg, 51 queries above 0.3
+gate 8: 23_frame_1416.jpg, 51 queries above 0.3
+gate 9: 24_frame_1044.jpg, 121 queries above 0.3
+gate 10: 29_frame_1048.jpg, 28 queries above 0.3
+gate 11: 30_frame_583.jpg, 71 queries above 0.3
+gate 12: 35_frame_48.jpg, 107 queries above 0.3
+gate 13: 36_frame_45.jpg, 113 queries above 0.3
+gate 14: 38_frame_698.jpg, 60 queries above 0.3
+gate 15: 47_frame_1072.jpg, 60 queries above 0.3
+gate 16: 52_frame_1141.jpg, 97 queries above 0.3
+gate 17: 54_frame_473.jpg, 95 queries above 0.3
+gate 18: 60_frame_1426.jpg, 50 queries above 0.3
+gate 19: 82_frame_560.jpg, 93 queries above 0.3

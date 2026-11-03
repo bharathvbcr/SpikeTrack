@@ -1,0 +1,124 @@
+    Finished `release` profile [optimized] target(s) in 0.95s
+     Running tests/backbone_parity.rs (target/release/deps/backbone_parity-3f7936cdd95b0fc4)
+
+running 1 test
+test backbone_matches_pytorch_fp32_on_five_images_on_metal_bf16 ... [metal-bf16] weights loaded and uploaded in 0.4 s
+[metal-bf16] visem_22_f0: trunk + 3 necks 1.5 s (one run, not a benchmark)
+[metal-bf16] visem_47_f300: trunk + 3 necks 1.5 s (one run, not a benchmark)
+[metal-bf16] visem_82_f600: trunk + 3 necks 1.5 s (one run, not a benchmark)
+[metal-bf16] sam3_truck: trunk + 3 necks 1.5 s (one run, not a benchmark)
+[metal-bf16] sam3_groceries: trunk + 3 necks 1.5 s (one run, not a benchmark)
+
+| image | stage | cosine | max abs | max abs / max ref | gate |
+|---|---|---|---|---|---|
+| visem_22_f0 | patch_embed | 0.9999895 | 2.153e-2 | 4.175e-3 | pass |
+| visem_22_f0 | ln_pre | 0.9999276 | 9.362e-2 | 4.271e-3 | pass |
+| visem_22_f0 | block 0 | 0.9999818 | 8.486e-2 | 4.929e-3 | pass |
+| visem_22_f0 | block 1 | 0.9999879 | 1.016e-1 | 4.139e-3 | pass |
+| visem_22_f0 | block 2 | 0.9999904 | 1.109e-1 | 3.195e-3 | pass |
+| visem_22_f0 | block 3 | 0.9999908 | 1.161e-1 | 2.846e-3 | pass |
+| visem_22_f0 | block 4 | 0.9999898 | 1.079e-1 | 2.554e-3 | pass |
+| visem_22_f0 | block 5 | 0.9999896 | 1.128e-1 | 2.444e-3 | pass |
+| visem_22_f0 | block 6 | 0.9999877 | 1.060e-1 | 2.143e-3 | pass |
+| visem_22_f0 | block 7 | 0.9999882 | 1.229e-1 | 2.486e-3 | pass |
+| visem_22_f0 | block 8 | 0.9999852 | 1.703e-1 | 2.904e-3 | pass |
+| visem_22_f0 | block 9 | 0.9999803 | 4.296e-1 | 5.518e-3 | pass |
+| visem_22_f0 | block 10 | 0.9999778 | 5.777e-1 | 7.103e-3 | pass |
+| visem_22_f0 | block 11 | 0.9999750 | 8.928e-1 | 1.107e-2 | pass |
+| visem_22_f0 | block 12 | 0.9999630 | 1.303e0 | 1.405e-2 | pass |
+| visem_22_f0 | block 13 | 0.9999489 | 2.356e0 | 2.036e-2 | pass |
+| visem_22_f0 | block 14 | 0.9999108 | 5.372e0 | 4.031e-2 | pass |
+| visem_22_f0 | block 15 | 0.9998740 | 1.045e1 | 6.824e-2 | pass |
+| visem_22_f0 | block 16 | 0.9996876 | 4.074e1 | 1.905e-1 | pass |
+| visem_22_f0 | block 17 | 0.9994958 | 6.471e1 | 2.550e-1 | pass |
+| visem_22_f0 | block 18 | 0.9992801 | 8.696e1 | 3.070e-1 | pass |
+| visem_22_f0 | block 19 | 0.9992483 | 8.907e1 | 3.135e-1 | pass |
+| visem_22_f0 | block 20 | 0.9992432 | 9.044e1 | 3.151e-1 | pass |
+| visem_22_f0 | block 21 | 0.9992475 | 8.987e1 | 3.113e-1 | pass |
+| visem_22_f0 | block 22 | 0.9992344 | 8.978e1 | 3.110e-1 | pass |
+| visem_22_f0 | block 23 | 0.9992697 | 8.899e1 | 3.064e-1 | pass |
+| visem_22_f0 | block 24 | 0.9992788 | 8.806e1 | 3.034e-1 | pass |
+| visem_22_f0 | block 25 | 0.9993001 | 8.672e1 | 2.995e-1 | pass |
+| visem_22_f0 | block 26 | 0.9993281 | 8.604e1 | 2.946e-1 | pass |
+| visem_22_f0 | block 27 | 0.9993513 | 8.494e1 | 2.922e-1 | pass |
+| visem_22_f0 | block 28 | 0.9993995 | 8.263e1 | 2.880e-1 | pass |
+| visem_22_f0 | block 29 | 0.9994218 | 8.029e1 | 2.899e-1 | pass |
+| visem_22_f0 | block 30 | 0.9993960 | 7.775e1 | 2.905e-1 | pass |
+| visem_22_f0 | block 31 | 0.9993810 | 6.520e1 | 3.052e-1 | pass |
+| visem_22_f0 | convs[0] | 0.9999478 | 1.867e-2 | 9.808e-2 | pass |
+| visem_22_f0 | convs[1] | 0.9997964 | 1.414e0 | 1.442e-1 | pass |
+| visem_22_f0 | convs[2] | 0.9997662 | 7.675e-1 | 1.256e-1 | pass |
+| visem_22_f0 | interactive_convs[0] | 0.9998881 | 1.419e-1 | 1.788e-1 | pass |
+| visem_22_f0 | interactive_convs[1] | 0.9997303 | 3.383e-1 | 1.102e-1 | pass |
+| visem_22_f0 | interactive_convs[2] | 0.9997739 | 4.702e-1 | 1.760e-1 | pass |
+| visem_22_f0 | propagation_convs[0] | 0.9999374 | 7.676e-2 | 7.929e-2 | pass |
+| visem_22_f0 | propagation_convs[1] | 0.9998737 | 2.099e-1 | 7.001e-2 | pass |
+| visem_22_f0 | propagation_convs[2] | 0.9997956 | 4.356e-1 | 7.780e-2 | pass |
+| visem_47_f300 | block 7 | 0.9999805 | 2.244e-1 | 4.325e-3 | pass |
+| visem_47_f300 | block 15 | 0.9998415 | 7.024e0 | 4.045e-2 | pass |
+| visem_47_f300 | block 23 | 0.9996120 | 7.255e1 | 2.321e-1 | pass |
+| visem_47_f300 | block 31 | 0.9995803 | 5.085e1 | 2.168e-1 | pass |
+| visem_47_f300 | convs[0] | 0.9999346 | 2.023e-2 | 8.968e-2 | pass |
+| visem_47_f300 | convs[1] | 0.9997128 | 1.788e0 | 1.884e-1 | pass |
+| visem_47_f300 | convs[2] | 0.9996948 | 9.925e-1 | 1.700e-1 | pass |
+| visem_47_f300 | interactive_convs[0] | 0.9998546 | 1.135e-1 | 1.413e-1 | pass |
+| visem_47_f300 | interactive_convs[1] | 0.9996329 | 3.618e-1 | 1.229e-1 | pass |
+| visem_47_f300 | interactive_convs[2] | 0.9997111 | 4.827e-1 | 1.670e-1 | pass |
+| visem_47_f300 | propagation_convs[0] | 0.9999171 | 1.268e-1 | 1.417e-1 | pass |
+| visem_47_f300 | propagation_convs[1] | 0.9998298 | 2.980e-1 | 9.905e-2 | pass |
+| visem_47_f300 | propagation_convs[2] | 0.9997168 | 9.984e-1 | 1.680e-1 | pass |
+| visem_82_f600 | block 7 | 0.9999809 | 2.162e-1 | 4.052e-3 | pass |
+| visem_82_f600 | block 15 | 0.9998275 | 2.281e1 | 1.340e-1 | pass |
+| visem_82_f600 | block 23 | 0.9991979 | 6.457e1 | 2.064e-1 | pass |
+| visem_82_f600 | block 31 | 0.9992992 | 5.473e1 | 2.331e-1 | pass |
+| visem_82_f600 | convs[0] | 0.9999281 | 2.545e-2 | 1.185e-1 | pass |
+| visem_82_f600 | convs[1] | 0.9997520 | 1.325e0 | 1.262e-1 | pass |
+| visem_82_f600 | convs[2] | 0.9997098 | 9.739e-1 | 1.750e-1 | pass |
+| visem_82_f600 | interactive_convs[0] | 0.9998563 | 1.035e-1 | 1.226e-1 | pass |
+| visem_82_f600 | interactive_convs[1] | 0.9996669 | 3.215e-1 | 1.010e-1 | pass |
+| visem_82_f600 | interactive_convs[2] | 0.9997288 | 4.395e-1 | 1.731e-1 | pass |
+| visem_82_f600 | propagation_convs[0] | 0.9999096 | 7.368e-2 | 9.858e-2 | pass |
+| visem_82_f600 | propagation_convs[1] | 0.9998432 | 2.103e-1 | 7.240e-2 | pass |
+| visem_82_f600 | propagation_convs[2] | 0.9997471 | 6.683e-1 | 1.218e-1 | pass |
+| sam3_truck | block 7 | 0.9999605 | 4.355e-1 | 8.212e-3 | pass |
+| sam3_truck | block 15 | 0.9995018 | 2.853e1 | 1.978e-1 | pass |
+| sam3_truck | block 23 | 0.9982092 | 1.396e2 | 4.924e-1 | FAIL |
+| sam3_truck | block 31 | 0.9981223 | 1.083e2 | 5.127e-1 | FAIL |
+| sam3_truck | convs[0] | 0.9998714 | 3.054e-2 | 1.269e-1 | pass |
+| sam3_truck | convs[1] | 0.9993880 | 3.023e0 | 2.535e-1 | pass |
+| sam3_truck | convs[2] | 0.9990990 | 1.409e0 | 2.292e-1 | pass |
+| sam3_truck | interactive_convs[0] | 0.9996464 | 2.040e-1 | 2.276e-1 | pass |
+| sam3_truck | interactive_convs[1] | 0.9990516 | 6.811e-1 | 1.945e-1 | pass |
+| sam3_truck | interactive_convs[2] | 0.9992251 | 7.546e-1 | 2.891e-1 | pass |
+| sam3_truck | propagation_convs[0] | 0.9998450 | 1.013e-1 | 7.485e-2 | pass |
+| sam3_truck | propagation_convs[1] | 0.9994931 | 4.045e-1 | 1.119e-1 | pass |
+| sam3_truck | propagation_convs[2] | 0.9993066 | 8.874e-1 | 2.001e-1 | pass |
+| sam3_groceries | block 7 | 0.9999765 | 2.961e-1 | 5.958e-3 | pass |
+| sam3_groceries | block 15 | 0.9997596 | 1.438e1 | 8.742e-2 | pass |
+| sam3_groceries | block 23 | 0.9988768 | 1.248e2 | 4.090e-1 | FAIL |
+| sam3_groceries | block 31 | 0.9988070 | 9.236e1 | 4.014e-1 | FAIL |
+| sam3_groceries | convs[0] | 0.9998771 | 2.222e-2 | 1.130e-1 | pass |
+| sam3_groceries | convs[1] | 0.9996004 | 1.789e0 | 1.504e-1 | pass |
+| sam3_groceries | convs[2] | 0.9994533 | 1.801e0 | 3.313e-1 | pass |
+| sam3_groceries | interactive_convs[0] | 0.9996822 | 2.218e-1 | 2.571e-1 | pass |
+| sam3_groceries | interactive_convs[1] | 0.9993885 | 5.328e-1 | 1.506e-1 | pass |
+| sam3_groceries | interactive_convs[2] | 0.9995006 | 8.112e-1 | 3.188e-1 | pass |
+| sam3_groceries | propagation_convs[0] | 0.9998311 | 1.208e-1 | 1.352e-1 | pass |
+| sam3_groceries | propagation_convs[1] | 0.9996312 | 2.816e-1 | 9.161e-2 | pass |
+| sam3_groceries | propagation_convs[2] | 0.9995504 | 1.246e0 | 3.134e-1 | pass |
+
+[metal-bf16] worst cosine 0.9981223 over 95 stages (gate > 0.999)
+
+thread 'backbone_matches_pytorch_fp32_on_five_images_on_metal_bf16' (87984187) panicked at crates/st-model/tests/backbone_parity.rs:282:5:
+worst cosine 0.9981222722016398 <= 0.999
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    backbone_matches_pytorch_fp32_on_five_images_on_metal_bf16
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 9.29s
+
+error: test failed, to rerun pass `-p st-model --test backbone_parity`

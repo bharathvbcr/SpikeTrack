@@ -1,0 +1,8 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+21           8       153         175        0  0.6638 0.5764 0.7915 0.7719
+22           8       101         102        0  0.6479 0.6021 0.7235 0.7610
+36           8       353         299        0  0.5564 0.4500 0.7469 0.7172
+47           8        64          79        0  0.6270 0.5455 0.7242 0.7727
+82           8       208         216        0  0.5278 0.3986 0.8468 0.6895
+all         40       879         871        0  0.5867 0.4774 0.7725 0.7288
+wrote bench/results/weight-space/eval/held8_lorav2_s400_it320_pbd04.json

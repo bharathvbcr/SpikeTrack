@@ -1,0 +1,12 @@
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+    Finished `release` profile [optimized] target(s) in 5.93s
+     Running tests/memory_attention_cache.rs (target/release/deps/memory_attention_cache-345c59312851c8ad)
+
+running 4 tests
+test cached_equals_uncached_on_metal ... ignored, needs a Metal GPU
+test fwd_frames_refuses_malformed_inputs ... ok
+test fwd_is_unchanged ... ok
+test cached_equals_uncached ... ok
+
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.26s
+

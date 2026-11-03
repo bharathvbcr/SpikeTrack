@@ -1,0 +1,8 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+21           8       153         144        0  0.6980 0.6414 0.7874 0.7820
+22           8       101         102        0  0.6501 0.6034 0.7274 0.7676
+36           8       353         181        0  0.4715 0.3203 0.7250 0.7326
+47           8        64          62        0  0.6170 0.5356 0.7162 0.7669
+82           8       208         161        0  0.5098 0.3473 0.8967 0.7125
+all         40       879         650        0  0.5618 0.4274 0.7951 0.7454
+wrote bench/results/weight-space/eval/held8_lorav3_raw.json

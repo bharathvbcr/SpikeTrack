@@ -1,0 +1,4 @@
+wrote fixtures/lora_runs/soup-v3v4/c1p0.safetensors: 135 modules, c=1, worst rel error 4.38e-08
+wrote fixtures/lora_runs/soup-v3v4/c0p75.safetensors: 135 modules, c=0.75, worst rel error 5.03e-08
+wrote fixtures/lora_runs/soup-v3v4/c0p5.safetensors: 135 modules, c=0.5, worst rel error 5.66e-08
+wrote fixtures/lora_runs/soup-v3v4/c0p25.safetensors: 135 modules, c=0.25, worst rel error 4.47e-08

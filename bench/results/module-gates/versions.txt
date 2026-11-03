@@ -1,3 +1,3 @@
-SpikeTrack: 76d9b91 tools/jobs/module_gates.sh: every module parity gate on CPU and Metal, with the ojas/tessl commits recorded
-ojas-st:    d5d33cc Merge gp/78-metal: Metal rope, D=64 routing to tessl, strided/padded and depthwise conv, bilinear, relu, SAM fixtures
-tessl:      789a132 ci: keep MSRV and the comparator lanes on the toolchains they need (dirty files: 0)
+SpikeTrack: 38e0a35 feat: add weight-space programming, E22 host optimizations, and 2x2 tiling
+ojas:       59adac6 Merge branch 'claude/flash-fwd-specialize-1103': in-place f32 bias for linear_bias_forward (bit-identical, 11-13% faster per op) and the flash forward A/B negative
+tessl:      52bdd19 Merge fix/hosted-lib-device-check (PR #5): validate the hosted manifest's entries instead of assuming them (dirty files: 0)

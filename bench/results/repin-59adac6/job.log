@@ -1,0 +1,16 @@
+mac_heavy: 2026-11-03T19:07:45Z 'spiketrack-repin-check' holds the lock (waited 0s; load 11.27, 1367 processes); running: bash bench/results/repin-59adac6/job.sh
+== A: /Users/bharath/Code/repin-check/SpikeTrack, ojas 286a444
+exit 101
+[metal-bf16] worst cosine 0.9981223 over 95 stages (gate > 0.999)
+worst cosine 0.9981222722016398 <= 0.999
+== B: /Users/bharath/Code/research/SpikeTrack, ojas 59adac6
+exit 101
+[metal-bf16] worst cosine 0.9981223 over 95 stages (gate > 0.999)
+worst cosine 0.9981222722016398 <= 0.999
+train5 0c exit 0
+14 predictions identical
+30 predictions identical
+19 predictions identical
+54 predictions identical
+13 predictions identical
+mac_heavy: 2026-11-03T19:10:26Z 'spiketrack-repin-check' finished with exit 0

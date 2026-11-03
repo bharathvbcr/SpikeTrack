@@ -1,0 +1,31 @@
+mac_heavy: 2026-11-03T04:08:52Z 'spiketrack-e23-geo' waiting 0s for the lock; holder: label=ojas-splitk-job1b pid=92018 start=2026-11-03T04:05:37Z cwd=/Users/bharath/Code/research/ojas 
+mac_heavy: 2026-11-03T04:09:52Z 'spiketrack-e23-geo' holds the lock (waited 60s; load 6.75, 1140 processes); running: bash -c cargo test --release -j 2 -p st-model --test memory_attention_cache -- --test-threads=2 && cargo test --release -j 2 -p st-model --test memory_attention_cache cached_equals_uncached_on_metal -- --ignored --nocapture --test-threads=1
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+    Finished `release` profile [optimized] target(s) in 3.23s
+     Running tests/memory_attention_cache.rs (target/release/deps/memory_attention_cache-345c59312851c8ad)
+
+running 5 tests
+test cached_equals_uncached_on_metal ... ignored, needs a Metal GPU
+test cached_equals_uncached_on_metal_at_tracker_size ... ignored, needs a Metal GPU
+test fwd_frames_refuses_malformed_inputs ... ok
+test fwd_is_unchanged ... ok
+test cached_equals_uncached ... ok
+
+test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+    Finished `release` profile [optimized] target(s) in 1.47s
+     Running tests/memory_attention_cache.rs (target/release/deps/memory_attention_cache-345c59312851c8ad)
+
+running 2 tests
+test cached_equals_uncached_on_metal ... [Metal] 1 frame(s), 0 pointer(s): 0 element(s) differ, max abs 0e0
+[Metal] 3 frame(s), 16 pointer(s): 0 element(s) differ, max abs 0e0
+[Metal] 7 frame(s), 32 pointer(s): 0 element(s) differ, max abs 0e0
+ok
+test cached_equals_uncached_on_metal_at_tracker_size ... [Metal 72x72] 1 frame(s), 0 pointer(s): 0 element(s) differ, max abs 0e0
+[Metal 72x72] 2 frame(s), 0 pointer(s): 0 element(s) differ, max abs 0e0
+[Metal 72x72] 2 frame(s), 16 pointer(s): 0 element(s) differ, max abs 0e0
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 2.30s
+
+mac_heavy: 2026-11-03T04:10:01Z 'spiketrack-e23-geo' finished with exit 0

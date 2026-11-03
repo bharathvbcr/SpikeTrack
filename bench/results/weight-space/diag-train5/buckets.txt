@@ -1,0 +1,30 @@
+== frames >= 0
+video 14: TP 106  FP {'background': 1, 'localization': 6}  FN {'missed': 1, 'near-miss': 6}
+video 30: TP 383  FP {'background': 32, 'localization': 1}  FN {'near-miss': 1}
+video 19: TP 396  FP {'background': 65, 'duplicate': 3, 'concept': 46, 'localization': 42}  FN {'missed': 146, 'near-miss': 45}
+video 54: TP 452  FP {'localization': 228, 'concept': 64, 'duplicate': 33, 'background': 24}  FN {'missed': 135, 'near-miss': 277}
+video 13: TP 1140  FP {'localization': 218, 'duplicate': 7, 'background': 22}  FN {'near-miss': 221, 'missed': 31}
+all: TP 2477, FP 792, FN 863; precision 0.758, recall 0.742
+  FP localization    495  62.5%
+  FP background      144  18.2%
+  FP concept         110  13.9%
+  FP duplicate        43  5.4%
+  FN near-miss       550  63.7%
+  FN missed          313  36.3%
+  geom matched   n  2477  median [IQR]  ln(gt_w/pred_w) +0.061 [-0.071,+0.198]  ln(gt_h/pred_h) +0.054 [-0.120,+0.205]  dcx/gt_w -0.023  dcy/gt_h -0.021
+  geom near-miss n   550  median [IQR]  ln(gt_w/pred_w) +0.335 [+0.217,+0.433]  ln(gt_h/pred_h) +0.385 [+0.194,+0.472]  dcx/gt_w -0.026  dcy/gt_h -0.030
+== frames >= 15
+video 14: TP 62  FP {'localization': 6}  FN {'near-miss': 6}
+video 30: TP 204  FP {'background': 17}  FN {}
+video 19: TP 219  FP {'background': 37, 'localization': 33, 'concept': 31}  FN {'missed': 54, 'near-miss': 33}
+video 54: TP 241  FP {'localization': 115, 'duplicate': 20, 'concept': 34, 'background': 17}  FN {'near-miss': 146, 'missed': 72}
+video 13: TP 596  FP {'localization': 121, 'background': 14, 'duplicate': 6}  FN {'near-miss': 121, 'missed': 17}
+all: TP 1322, FP 451, FN 449; precision 0.746, recall 0.746
+  FP localization    275  61.0%
+  FP background       85  18.8%
+  FP concept          65  14.4%
+  FP duplicate        26  5.8%
+  FN near-miss       306  68.2%
+  FN missed          143  31.8%
+  geom matched   n  1322  median [IQR]  ln(gt_w/pred_w) +0.061 [-0.068,+0.199]  ln(gt_h/pred_h) +0.053 [-0.113,+0.206]  dcx/gt_w -0.020  dcy/gt_h -0.022
+  geom near-miss n   306  median [IQR]  ln(gt_w/pred_w) +0.326 [+0.119,+0.403]  ln(gt_h/pred_h) +0.362 [+0.131,+0.475]  dcx/gt_w -0.021  dcy/gt_h -0.023

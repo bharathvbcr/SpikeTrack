@@ -1,0 +1,125 @@
+mac_heavy: 2026-11-03T14:04:28Z 'spiketrack-e23-paired' waiting 0s for the lock; holder: label=spiketrack-held300-lorav3 pid=57341 start=2026-11-03T14:00:44Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T14:09:29Z 'spiketrack-e23-paired' waiting 300s for the lock; holder: label=spiketrack-held300-lorav3 pid=57341 start=2026-11-03T14:00:44Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T14:14:30Z 'spiketrack-e23-paired' waiting 600s for the lock; holder: label=spiketrack-held300-lorav3 pid=57341 start=2026-11-03T14:00:44Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T14:19:31Z 'spiketrack-e23-paired' waiting 900s for the lock; holder: label=spiketrack-held300-lorav3 pid=57341 start=2026-11-03T14:00:44Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T14:24:32Z 'spiketrack-e23-paired' waiting 1200s for the lock; holder: label=spiketrack-held300-lorav3 pid=57341 start=2026-11-03T14:00:44Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T14:29:33Z 'spiketrack-e23-paired' waiting 1500s for the lock; holder: label=spiketrack-held300-lorav3 pid=57341 start=2026-11-03T14:00:44Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T14:34:34Z 'spiketrack-e23-paired' waiting 1800s for the lock; holder: label=spiketrack-held300-lorav3 pid=57341 start=2026-11-03T14:00:44Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T14:39:35Z 'spiketrack-e23-paired' waiting 2100s for the lock; holder: label=spiketrack-held300-lorav3 pid=57341 start=2026-11-03T14:00:44Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T14:44:36Z 'spiketrack-e23-paired' waiting 2400s for the lock; holder: label=spiketrack-held300-lorav3 pid=57341 start=2026-11-03T14:00:44Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T14:49:37Z 'spiketrack-e23-paired' waiting 2700s for the lock; holder: label=spiketrack-held300-lorav3 pid=57341 start=2026-11-03T14:00:44Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T14:54:39Z 'spiketrack-e23-paired' waiting 3000s for the lock; holder: label=spiketrack-held300-lorav3 pid=57341 start=2026-11-03T14:00:44Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T14:59:40Z 'spiketrack-e23-paired' waiting 3300s for the lock; holder: label=spiketrack-held300-lorav3 pid=57341 start=2026-11-03T14:00:44Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T15:04:41Z 'spiketrack-e23-paired' waiting 3600s for the lock; holder: label=spiketrack-held300-lorav3 pid=57341 start=2026-11-03T14:00:44Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T15:09:43Z 'spiketrack-e23-paired' waiting 3900s for the lock; holder: label=spiketrack-demo-v3 pid=60101 start=2026-11-03T15:05:43Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T15:14:44Z 'spiketrack-e23-paired' waiting 4200s for the lock; holder: label=spiketrack-demo-v3 pid=60101 start=2026-11-03T15:05:43Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T15:17:04Z 'spiketrack-e23-paired' waits without the lock: no cargo slot free (all 2 held in /Users/bharath/.cache/cargo-slots)
+mac_heavy: 2026-11-03T15:19:47Z 'spiketrack-e23-paired' waiting 4500s for the lock; holder: label=spiketrack-demo-v3 pid=60101 start=2026-11-03T15:05:43Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T15:24:48Z 'spiketrack-e23-paired' waiting 4800s for the lock; holder: label=spiketrack-demo-v3 pid=60101 start=2026-11-03T15:05:43Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T15:27:48Z 'spiketrack-e23-paired' holds the lock (waited 4980s; load 6.49, 1402 processes); running: bash bench/results/e23-mattn-kv-cache/paired-job.sh
+A e69a0a02fcecb4b8, B 596ae93d57261abf
+ 9:27  up 1 day, 20:23, 1 user, load averages: 6.49 8.98 9.26
+== ops-1-ctl load { 6.49 8.98 9.26 }
+== ops-2-new load { 5.76 8.38 9.02 }
+== ops-3-new load { 5.27 7.92 8.81 }
+== ops-4-ctl load { 4.37 7.35 8.56 }
+== pair 01 starts at load 4.69 after 15s
+== p01-1-ctl load { 4.69 6.91 8.32 }
+== p01-2-new load { 5.18 6.74 8.15 }
+== pair 02 starts at load 4.60 after 135s
+== p02-1-ctl load { 4.60 5.99 7.55 }
+== p02-2-ctl load { 5.04 5.69 7.30 }
+== pair 03 starts at load 4.51 after 0s
+== p03-1-new load { 4.51 5.43 7.07 }
+== p03-2-ctl load { 3.52 4.97 6.78 }
+== pair 04 starts at load 4.60 after 60s
+== p04-1-new load { 4.60 5.23 6.65 }
+== p04-2-new load { 3.98 4.92 6.42 }
+== pair 05 starts at load 4.65 after 0s
+== p05-1-ctl load { 4.65 4.92 6.30 }
+== p05-2-new load { 5.43 5.19 6.31 }
+== pair 06 starts at load 4.82 after 435s
+== p06-1-new load { 4.82 7.57 7.47 }
+== p06-2-ctl load { 7.05 7.64 7.50 }
+== pair 07 starts at load 4.92 after 150s
+== p07-1-ctl load { 4.92 6.56 7.08 }
+== p07-2-ctl load { 6.92 6.85 7.15 }
+== pair 08 starts at load 4.82 after 240s
+== p08-1-ctl load { 4.82 6.42 6.95 }
+== p08-2-new load { 5.03 6.13 6.80 }
+== pair 09 starts at load 4.31 after 60s
+== p09-1-new load { 4.31 5.81 6.60 }
+== p09-2-new load { 3.08 5.19 6.31 }
+== pair 10 starts at load 4.76 after 0s
+== p10-1-new load { 4.76 5.19 6.22 }
+== p10-2-ctl load { 4.41 5.01 6.08 }
+== pair 11 starts at load 4.92 after 0s
+== p11-1-ctl load { 4.92 5.08 6.03 }
+== p11-2-new load { 4.70 4.96 5.92 }
+== pair 12 starts at load 4.75 after 15s
+== p12-1-ctl load { 4.75 5.03 5.86 }
+== p12-2-ctl load { 5.30 5.08 5.82 }
+== pair 13 starts at load 5.00 after 0s
+== p13-1-new load { 5.00 4.97 5.72 }
+== p13-2-ctl load { 5.15 5.08 5.70 }
+== pair 14 starts at load 4.46 after 0s
+== p14-1-new load { 4.46 4.88 5.58 }
+== p14-2-new load { 5.10 4.98 5.57 }
+== pair 15 starts at load 4.78 after 0s
+== p15-1-ctl load { 4.78 4.94 5.51 }
+== p15-2-new load { 5.67 5.17 5.55 }
+== pair 16 flagged: load 8.43 after 600s
+== p16-1-new load { 8.43 16.83 14.36 }
+== p16-2-ctl load { 9.49 15.56 14.07 }
+34-frame predictions checked against new-control
+20-frame ops predictions checked against each other
+# E23 paired speed run
+
+## Mechanism (`--profile ops`, each op synced)
+
+| run | memory attention ms / frame | linears over 5,184 rows ms / frame |
+|---|---|---|
+| ops-1-ctl | 298.8 | 28.3 |
+| ops-2-new | 277.1 | 0.0 |
+| ops-3-new | 272.0 | 0.0 |
+| ops-4-ctl | 299.9 | 28.3 |
+
+Mean A − B, memory attention: 24.8 ms / frame; A's big linears: 28.3 ms / frame; B's: 0.0.
+
+## Wall clock (median tracker step, frames >= 8)
+
+| pair | kind | order | first ms | second ms | value | mean load | flagged |
+|---|---|---|---|---|---|---|---|
+| 1 | A/B | ctl,new | 435.0 | 404.9 | -0.0717 | 5.6 |  |
+| 2 | ctl/ctl | ctl,ctl | 443.8 | 433.1 | -0.0245 | 4.5 |  |
+| 3 | A/B | new,ctl | 390.1 | 435.9 | -0.1110 | 4.2 |  |
+| 4 | new/new | new,new | 401.7 | 400.5 | -0.0031 | 4.3 |  |
+| 5 | A/B | ctl,new | 435.1 | 403.9 | -0.0746 | 6.1 |  |
+| 6 | A/B | new,ctl | 418.7 | 445.0 | -0.0608 | 6.5 |  |
+| 7 | ctl/ctl | ctl,ctl | 454.1 | 439.7 | -0.0321 | 6.7 |  |
+| 8 | A/B | ctl,new | 441.5 | 389.1 | -0.1264 | 5.5 |  |
+| 9 | new/new | new,new | 382.8 | 401.8 | +0.0485 | 3.6 |  |
+| 10 | A/B | new,ctl | 380.5 | 411.0 | -0.0772 | 4.8 |  |
+| 11 | A/B | ctl,new | 411.5 | 406.1 | -0.0132 | 5.0 |  |
+| 12 | ctl/ctl | ctl,ctl | 425.2 | 421.2 | -0.0096 | 4.7 |  |
+| 13 | A/B | new,ctl | 383.8 | 420.3 | -0.0910 | 5.1 |  |
+| 14 | new/new | new,new | 383.7 | 383.3 | -0.0010 | 5.0 |  |
+| 15 | A/B | ctl,new | 427.7 | 436.3 | +0.0201 | 6.8 |  |
+| 16 | A/B | new,ctl | 402.9 | 426.8 | -0.0574 | 8.8 | yes |
+
+### all pairs (decides): 10 A/B pairs, 6 same-binary pairs
+- Same-binary mean ln ratio -0.0037, 95% CI [-0.0334, +0.0260] (-3.3% to +2.6%).
+- A/B mean ln(B/A) -0.0663, 95% CI [-0.0973, -0.0354]: B/A -6.4% (-9.3% to -3.5%); 9 of 10 pairs below 0 (needed 8).
+- Verdict: **SPEEDUP**.
+
+### unflagged pairs only: 9 A/B pairs, 6 same-binary pairs
+- Same-binary mean ln ratio -0.0037, 95% CI [-0.0334, +0.0260] (-3.3% to +2.6%).
+- A/B mean ln(B/A) -0.0673, 95% CI [-0.1025, -0.0321]: B/A -6.5% (-9.7% to -3.2%); 8 of 9 pairs below 0 (needed 7).
+- Verdict: **SPEEDUP**.
+
+Descriptive: Spearman rho of A/B ln ratio against mean load = +0.59 (n = 10).
+
+10:34  up 1 day, 21:30, 1 user, load averages: 11.41 14.46 13.75
+E23 paired status 0
+mac_heavy: 2026-11-03T16:34:39Z 'spiketrack-e23-paired': the job's root exited with 1 process(es) left behind (pids 17750); stopping them (SIGTERM, then SIGKILL after 10 s)
+mac_heavy: 2026-11-03T16:34:39Z 'spiketrack-e23-paired' finished with exit 0

@@ -1,0 +1,6 @@
+SpikeTrack 38e0a35 feat: add weight-space programming, E22 host optimizations, and 2x2 tiling, dirty 0
+old binary 061fc4326821803d (ab-coreml-tracker/run2), new 596ae93d57261abf
+ojas 286a444 Merge branch 'claude/docs-match-code-2026-11-01-eb0573': docs corrected against the code (dirty files: 3)
+tessl 52bdd19 Merge fix/hosted-lib-device-check (PR #5): validate the hosted manifest's entries instead of assuming them (dirty files: 0)
+metal bitwise (gate 3): 1
+21:45  up 1 day,  8:41, 1 user, load averages: 12.04 14.06 14.74

@@ -1,0 +1,3 @@
+mac_heavy: 2026-11-03T19:05:58Z 'spiketrack-dt-parity' holds the lock (waited 0s; load 6.23, 1330 processes); running: bash tools/jobs/detect_track_parity.sh
+missing /Users/bharath/Code/research/SpikeTrack/fixtures/detect_track/11.safetensors: run tools/locked.sh dt-ref bash tools/jobs/detect_track_ref.sh first
+mac_heavy: 2026-11-03T19:06:00Z 'spiketrack-dt-parity' finished with exit 2

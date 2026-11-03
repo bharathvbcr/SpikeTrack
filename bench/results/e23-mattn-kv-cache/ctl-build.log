@@ -1,0 +1,21 @@
+warning: unused import: `FramesInputs`
+  --> crates/st-model/src/tracker/state.rs:52:49
+   |
+52 | use crate::tracker::memory_attention::{FrameKv, FramesInputs, MemoryInputs};
+   |                                                 ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `kv` is never used
+   --> crates/st-model/src/tracker/state.rs:115:8
+    |
+112 | impl MaskMem {
+    | ------------ method in this implementation
+...
+115 |     fn kv<B: Backend + ?Sized>(
+    |        ^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `st-model` (lib) generated 2 warnings (run `cargo fix --lib -p st-model` to apply 1 suggestion)
+    Finished `release` profile [optimized] target(s) in 1.12s

@@ -1,0 +1,5 @@
+    Finished `release` profile [optimized] target(s) in 1.04s
+== d=0c
+13           8       350         342        0  0.6256 0.5633 0.7530 0.7234
+all         40       838         772        0  0.5802 0.4800 0.7642 0.7258
+wrote bench/results/weight-space/box-delta-train5/eval-0c.json

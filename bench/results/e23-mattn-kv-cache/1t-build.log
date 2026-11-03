@@ -1,0 +1,4 @@
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e23ctl/crates/st-model)
+   Compiling st-coreml v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e23ctl/crates/st-coreml)
+   Compiling spiketrack v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e23ctl/crates/spiketrack)
+    Finished `release` profile [optimized] target(s) in 17.46s

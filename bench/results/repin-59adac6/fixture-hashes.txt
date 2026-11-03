@@ -1,0 +1,4 @@
+match fixtures/detector/visem22_cell.safetensors
+match fixtures/detector/testimage_shoe.safetensors
+match fixtures/detector/truck_wheel.safetensors
+match fixtures/detector/gate.safetensors

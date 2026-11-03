@@ -1,0 +1,197 @@
+mac_heavy: 2026-11-03T04:11:58Z 'spiketrack-e23-ctl' holds the lock (waited 0s; load 24.32, 1173 processes); running: bash bench/results/e23-mattn-kv-cache/control-job.sh
+== ctl-build load { 24.32 15.23 11.70 }
+new 596ae93d57261abf (38e0a35), control e69a0a02fcecb4b8 (38e0a35 + control_tree.py)
+22:13  up 1 day,  9:09, 1 user, load averages: 15.96 14.33 11.68
+== ctl-control load { 15.96 14.33 11.68 }
+== FAILED (2): ctl-control
+                    Program (CPU and GPU) from <model-dir>/coreml/sam3.1_trunk_<fp32|fp16>.mlpackage,
+                    exported by tools/baselines/coreml_trunk.py (a missing package is an error,
+                    never a fallback); the necks, detector and tracker stay on --backend.
+                    coreml-fp32 matches upstream's trunk to relative L2 ~1e-5, coreml-fp16 to ~1e-2
+                    (bench/results/coreml-trunk). The first run of a package compiles it beside
+                    itself, and loading it adds ~3-13 s to the model load. f32: the Ojas trunk,
+                    upstream's numerics. bf16-linears (an experiment: the trunk's linears in bf16
+                    through an Ojas Autocast region, everything else f32; not upstream, see
+                    Backbone::with_trunk_linears_bf16).
+
+  Each frame's progress line ends with this process's physical footprint, the machine's pages
+  paged out and swapped in during the frame and, on Metal, the frame's change in Ojas's wait
+  counts (by cause) and dispatches and the device memory Metal reports (allocated after the
+  frame, peak during it): Ojas telemetry, not a stable interface.
+
+  Preprocessing: every frame is resized with Pillow-style bilinear and normalised in
+  float16, as upstream's video loader stores frames (float16 -> f32 for the model;
+  `image` keeps f32). That is what upstream does for a folder of JPEG frames. For mp4 input it is NOT what
+  upstream does: upstream decodes mp4 with OpenCV and resizes with INTER_CUBIC, so mp4
+  results do not match upstream's mp4 preprocessing (GAP-MP4-PREPROCESSING).
+== ctl-r1 load { 15.96 14.33 11.68 }
+== FAILED (2): ctl-r1
+                    Program (CPU and GPU) from <model-dir>/coreml/sam3.1_trunk_<fp32|fp16>.mlpackage,
+                    exported by tools/baselines/coreml_trunk.py (a missing package is an error,
+                    never a fallback); the necks, detector and tracker stay on --backend.
+                    coreml-fp32 matches upstream's trunk to relative L2 ~1e-5, coreml-fp16 to ~1e-2
+                    (bench/results/coreml-trunk). The first run of a package compiles it beside
+                    itself, and loading it adds ~3-13 s to the model load. f32: the Ojas trunk,
+                    upstream's numerics. bf16-linears (an experiment: the trunk's linears in bf16
+                    through an Ojas Autocast region, everything else f32; not upstream, see
+                    Backbone::with_trunk_linears_bf16).
+
+  Each frame's progress line ends with this process's physical footprint, the machine's pages
+  paged out and swapped in during the frame and, on Metal, the frame's change in Ojas's wait
+  counts (by cause) and dispatches and the device memory Metal reports (allocated after the
+  frame, peak during it): Ojas telemetry, not a stable interface.
+
+  Preprocessing: every frame is resized with Pillow-style bilinear and normalised in
+  float16, as upstream's video loader stores frames (float16 -> f32 for the model;
+  `image` keeps f32). That is what upstream does for a folder of JPEG frames. For mp4 input it is NOT what
+  upstream does: upstream decodes mp4 with OpenCV and resizes with INTER_CUBIC, so mp4
+  results do not match upstream's mp4 preprocessing (GAP-MP4-PREPROCESSING).
+== cnew-r1 load { 15.96 14.33 11.68 }
+== FAILED (2): cnew-r1
+                    Program (CPU and GPU) from <model-dir>/coreml/sam3.1_trunk_<fp32|fp16>.mlpackage,
+                    exported by tools/baselines/coreml_trunk.py (a missing package is an error,
+                    never a fallback); the necks, detector and tracker stay on --backend.
+                    coreml-fp32 matches upstream's trunk to relative L2 ~1e-5, coreml-fp16 to ~1e-2
+                    (bench/results/coreml-trunk). The first run of a package compiles it beside
+                    itself, and loading it adds ~3-13 s to the model load. f32: the Ojas trunk,
+                    upstream's numerics. bf16-linears (an experiment: the trunk's linears in bf16
+                    through an Ojas Autocast region, everything else f32; not upstream, see
+                    Backbone::with_trunk_linears_bf16).
+
+  Each frame's progress line ends with this process's physical footprint, the machine's pages
+  paged out and swapped in during the frame and, on Metal, the frame's change in Ojas's wait
+  counts (by cause) and dispatches and the device memory Metal reports (allocated after the
+  frame, peak during it): Ojas telemetry, not a stable interface.
+
+  Preprocessing: every frame is resized with Pillow-style bilinear and normalised in
+  float16, as upstream's video loader stores frames (float16 -> f32 for the model;
+  `image` keeps f32). That is what upstream does for a folder of JPEG frames. For mp4 input it is NOT what
+  upstream does: upstream decodes mp4 with OpenCV and resizes with INTER_CUBIC, so mp4
+  results do not match upstream's mp4 preprocessing (GAP-MP4-PREPROCESSING).
+== cnew-r2 load { 15.96 14.33 11.68 }
+== FAILED (2): cnew-r2
+                    Program (CPU and GPU) from <model-dir>/coreml/sam3.1_trunk_<fp32|fp16>.mlpackage,
+                    exported by tools/baselines/coreml_trunk.py (a missing package is an error,
+                    never a fallback); the necks, detector and tracker stay on --backend.
+                    coreml-fp32 matches upstream's trunk to relative L2 ~1e-5, coreml-fp16 to ~1e-2
+                    (bench/results/coreml-trunk). The first run of a package compiles it beside
+                    itself, and loading it adds ~3-13 s to the model load. f32: the Ojas trunk,
+                    upstream's numerics. bf16-linears (an experiment: the trunk's linears in bf16
+                    through an Ojas Autocast region, everything else f32; not upstream, see
+                    Backbone::with_trunk_linears_bf16).
+
+  Each frame's progress line ends with this process's physical footprint, the machine's pages
+  paged out and swapped in during the frame and, on Metal, the frame's change in Ojas's wait
+  counts (by cause) and dispatches and the device memory Metal reports (allocated after the
+  frame, peak during it): Ojas telemetry, not a stable interface.
+
+  Preprocessing: every frame is resized with Pillow-style bilinear and normalised in
+  float16, as upstream's video loader stores frames (float16 -> f32 for the model;
+  `image` keeps f32). That is what upstream does for a folder of JPEG frames. For mp4 input it is NOT what
+  upstream does: upstream decodes mp4 with OpenCV and resizes with INTER_CUBIC, so mp4
+  results do not match upstream's mp4 preprocessing (GAP-MP4-PREPROCESSING).
+== ctl-r2 load { 15.96 14.33 11.68 }
+== FAILED (2): ctl-r2
+                    Program (CPU and GPU) from <model-dir>/coreml/sam3.1_trunk_<fp32|fp16>.mlpackage,
+                    exported by tools/baselines/coreml_trunk.py (a missing package is an error,
+                    never a fallback); the necks, detector and tracker stay on --backend.
+                    coreml-fp32 matches upstream's trunk to relative L2 ~1e-5, coreml-fp16 to ~1e-2
+                    (bench/results/coreml-trunk). The first run of a package compiles it beside
+                    itself, and loading it adds ~3-13 s to the model load. f32: the Ojas trunk,
+                    upstream's numerics. bf16-linears (an experiment: the trunk's linears in bf16
+                    through an Ojas Autocast region, everything else f32; not upstream, see
+                    Backbone::with_trunk_linears_bf16).
+
+  Each frame's progress line ends with this process's physical footprint, the machine's pages
+  paged out and swapped in during the frame and, on Metal, the frame's change in Ojas's wait
+  counts (by cause) and dispatches and the device memory Metal reports (allocated after the
+  frame, peak during it): Ojas telemetry, not a stable interface.
+
+  Preprocessing: every frame is resized with Pillow-style bilinear and normalised in
+  float16, as upstream's video loader stores frames (float16 -> f32 for the model;
+  `image` keeps f32). That is what upstream does for a folder of JPEG frames. For mp4 input it is NOT what
+  upstream does: upstream decodes mp4 with OpenCV and resizes with INTER_CUBIC, so mp4
+  results do not match upstream's mp4 preprocessing (GAP-MP4-PREPROCESSING).
+== ctl-r3 load { 15.96 14.33 11.68 }
+== FAILED (2): ctl-r3
+                    Program (CPU and GPU) from <model-dir>/coreml/sam3.1_trunk_<fp32|fp16>.mlpackage,
+                    exported by tools/baselines/coreml_trunk.py (a missing package is an error,
+                    never a fallback); the necks, detector and tracker stay on --backend.
+                    coreml-fp32 matches upstream's trunk to relative L2 ~1e-5, coreml-fp16 to ~1e-2
+                    (bench/results/coreml-trunk). The first run of a package compiles it beside
+                    itself, and loading it adds ~3-13 s to the model load. f32: the Ojas trunk,
+                    upstream's numerics. bf16-linears (an experiment: the trunk's linears in bf16
+                    through an Ojas Autocast region, everything else f32; not upstream, see
+                    Backbone::with_trunk_linears_bf16).
+
+  Each frame's progress line ends with this process's physical footprint, the machine's pages
+  paged out and swapped in during the frame and, on Metal, the frame's change in Ojas's wait
+  counts (by cause) and dispatches and the device memory Metal reports (allocated after the
+  frame, peak during it): Ojas telemetry, not a stable interface.
+
+  Preprocessing: every frame is resized with Pillow-style bilinear and normalised in
+  float16, as upstream's video loader stores frames (float16 -> f32 for the model;
+  `image` keeps f32). That is what upstream does for a folder of JPEG frames. For mp4 input it is NOT what
+  upstream does: upstream decodes mp4 with OpenCV and resizes with INTER_CUBIC, so mp4
+  results do not match upstream's mp4 preprocessing (GAP-MP4-PREPROCESSING).
+== cnew-r3 load { 15.96 14.33 11.68 }
+== FAILED (2): cnew-r3
+                    Program (CPU and GPU) from <model-dir>/coreml/sam3.1_trunk_<fp32|fp16>.mlpackage,
+                    exported by tools/baselines/coreml_trunk.py (a missing package is an error,
+                    never a fallback); the necks, detector and tracker stay on --backend.
+                    coreml-fp32 matches upstream's trunk to relative L2 ~1e-5, coreml-fp16 to ~1e-2
+                    (bench/results/coreml-trunk). The first run of a package compiles it beside
+                    itself, and loading it adds ~3-13 s to the model load. f32: the Ojas trunk,
+                    upstream's numerics. bf16-linears (an experiment: the trunk's linears in bf16
+                    through an Ojas Autocast region, everything else f32; not upstream, see
+                    Backbone::with_trunk_linears_bf16).
+
+  Each frame's progress line ends with this process's physical footprint, the machine's pages
+  paged out and swapped in during the frame and, on Metal, the frame's change in Ojas's wait
+  counts (by cause) and dispatches and the device memory Metal reports (allocated after the
+  frame, peak during it): Ojas telemetry, not a stable interface.
+
+  Preprocessing: every frame is resized with Pillow-style bilinear and normalised in
+  float16, as upstream's video loader stores frames (float16 -> f32 for the model;
+  `image` keeps f32). That is what upstream does for a folder of JPEG frames. For mp4 input it is NOT what
+  upstream does: upstream decodes mp4 with OpenCV and resizes with INTER_CUBIC, so mp4
+  results do not match upstream's mp4 preprocessing (GAP-MP4-PREPROCESSING).
+ctl-control: differs from new-control
+ctl-control: differs from old-control
+ctl-r1: differs from new-control
+ctl-r1: differs from old-control
+cnew-r1: differs from new-control
+cnew-r1: differs from old-control
+ctl-r2: differs from new-control
+ctl-r2: differs from old-control
+cnew-r2: differs from new-control
+cnew-r2: differs from old-control
+ctl-r3: differs from new-control
+ctl-r3: differs from old-control
+cnew-r3: differs from new-control
+cnew-r3: differs from old-control
+Traceback (most recent call last):
+  File "/Users/bharath/Code/research/SpikeTrack/tools/analysis/e23_summary.py", line 92, in <module>
+    main()
+    ~~~~^^
+  File "/Users/bharath/Code/research/SpikeTrack/tools/analysis/e23_summary.py", line 67, in main
+    text = "\n".join(speed(out, "ctl", "cnew", "E23 same-tree control")) + "\n"
+                     ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bharath/Code/research/SpikeTrack/tools/analysis/e23_summary.py", line 49, in speed
+    arms = {a: {r: spiketrack_round(out / f"{a}-r{r}") for r in ROUNDS} for a in (old, new)}
+                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/bharath/Code/research/SpikeTrack/tools/analysis/ab_coreml_tracker.py", line 39, in spiketrack_round
+    rows = stage_rows(d / "82.profile-stages.md")
+  File "/Users/bharath/Code/research/SpikeTrack/tools/analysis/ab_coreml_tracker.py", line 24, in stage_rows
+    for line in md.read_text().splitlines():
+                ~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.15/3.15.2/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py", line 986, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.15/3.15.2/Frameworks/Python.framework/Versions/3.15/lib/python3.15/pathlib/__init__.py", line 970, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/bharath/Code/research/SpikeTrack/bench/results/e23-mattn-kv-cache/ctl-r1/82.profile-stages.md'
+22:13  up 1 day,  9:09, 1 user, load averages: 15.96 14.33 11.68
+E23 control status 1
+mac_heavy: 2026-11-03T04:13:32Z 'spiketrack-e23-ctl' finished with exit 1

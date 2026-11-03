@@ -1,4 +1,4 @@
-binary: /Users/bharath/Code/research/SpikeTrack/target/release/spiketrack (11904432 bytes)
+binary: /Users/bharath/Code/research/SpikeTrack/target/release/spiketrack (11953136 bytes)
 command: --help
 exit: 0
 wall s: 0.01; peak RSS bytes: 7471104

@@ -1,0 +1,8 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+14           8        24          24        0  0.6430 0.5891 0.7427 0.7619
+30           8        96         104        0  0.5930 0.5139 0.7462 0.7075
+19           8       152         116        0  0.4263 0.2854 0.7047 0.6886
+54           8       216         186        0  0.5624 0.4619 0.7021 0.7440
+13           8       350         342        0  0.6646 0.6052 0.7792 0.7409
+all         40       838         772        0  0.5913 0.4923 0.7609 0.7291
+wrote bench/results/weight-space/box-delta-train5/eval-0.16.json

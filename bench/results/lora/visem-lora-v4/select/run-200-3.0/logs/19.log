@@ -1,0 +1,13 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 0.3 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 0.26 s)
+model loaded in 0.6 s on metal; tracking 8 frame(s) of "19"
+frame 0 (1/8): 2.18 s, 12 active track(s), 0 frame(s) released; waits +21 (upload 4, read 17), dispatches +3185, metal allocated 3745 MiB (frame peak 7245 MiB), footprint 4279 MiB, pageouts +0, swapins +0
+frame 1 (2/8): 1.48 s, 12 active track(s), 0 frame(s) released; waits +15 (upload 3, read 12), dispatches +2998, metal allocated 3822 MiB (frame peak 6023 MiB), footprint 4486 MiB, pageouts +0, swapins +0
+frame 2 (3/8): 1.72 s, 13 active track(s), 0 frame(s) released; waits +20 (upload 4, read 16), dispatches +3657, metal allocated 3897 MiB (frame peak 6188 MiB), footprint 4444 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 1.54 s, 13 active track(s), 0 frame(s) released; waits +15 (upload 3, read 12), dispatches +3019, metal allocated 3922 MiB (frame peak 6296 MiB), footprint 4380 MiB, pageouts +0, swapins +0
+frame 4 (5/8): 1.56 s, 13 active track(s), 0 frame(s) released; waits +15 (upload 3, read 12), dispatches +3030, metal allocated 3975 MiB (frame peak 6365 MiB), footprint 4389 MiB, pageouts +0, swapins +0
+frame 5 (6/8): 1.81 s, 14 active track(s), 0 frame(s) released; waits +21 (upload 5, read 16), dispatches +3686, metal allocated 4054 MiB (frame peak 5851 MiB), footprint 4423 MiB, pageouts +0, swapins +0
+frame 6 (7/8): 1.86 s, 15 active track(s), 0 frame(s) released; waits +21 (upload 5, read 16), dispatches +3695, metal allocated 4106 MiB (frame peak 5901 MiB), footprint 4237 MiB, pageouts +0, swapins +0
+frame 7 (8/8): 1.72 s, 15 active track(s), 8 frame(s) released; waits +16 (upload 4, read 12), dispatches +3059, metal allocated 4126 MiB (frame peak 5895 MiB), footprint 3929 MiB, pageouts +0, swapins +0
+8 frame(s) of "19" tracked on metal: 13 track(s) born, 1.73 s/frame (model, mean), 14.6 s total
+  bench/results/lora/visem-lora-v4/select/run-200-3.0/19.json
+  bench/results/lora/visem-lora-v4/select/run-200-3.0/19.run.json

@@ -1,0 +1,106 @@
+checkpoint: /Users/bharath/Code/research/models/sam3.1/sam3.1_multiplex.safetensors (1623 tensors, 875545324 parameters)
+lora: fixtures/lora_runs/visem-lora-v2/adapter.safetensors (131 targets across 71 tensors)
+
+diff vs base: 71 modified tensor(s), 9522939 scalar(s) changed (1.087658%)
+  detector.dot_prod_scoring.prompt_mlp.layers.0.weight                 changed= 488702/524288 delta_l2=  1.8654 rel_l2= 0.1238 max_abs= 0.0258 sv=[1.7310, 0.4230, 0.3267, 0.2288] top_rows=[1290:0.1593, 284:0.1574, 1367:0.1509, 675:0.1490]
+  detector.transformer.decoder.layers.5.ca_text.in_proj_weight         changed= 196608/196608 delta_l2=  1.5222 rel_l2= 0.1236 max_abs= 0.0283 sv=[1.0176, 0.5611, 0.5311, 0.4368] top_rows=[509:0.1630, 759:0.1613, 499:0.1586, 736:0.1427]
+  detector.transformer.decoder.layers.4.ca_text.in_proj_weight         changed= 196608/196608 delta_l2=  1.3178 rel_l2= 0.0983 max_abs= 0.0224 sv=[0.8869, 0.5865, 0.5145, 0.3935] top_rows=[748:0.1333, 742:0.1314, 372:0.1304, 623:0.1284]
+  detector.transformer.decoder.layers.0.self_attn.in_proj_weight       changed= 196608/196608 delta_l2=  1.0950 rel_l2= 0.1384 max_abs= 0.0152 sv=[0.7838, 0.5635, 0.3539, 0.2209] top_rows=[254:0.0846, 227:0.0795, 231:0.0767, 252:0.0758]
+  detector.transformer.encoder.layers.3.cross_attn_image.in_proj_weight changed= 196608/196608 delta_l2=  1.0923 rel_l2= 0.0836 max_abs= 0.0238 sv=[0.7312, 0.5261, 0.3050, 0.2719] top_rows=[257:0.1283, 26:0.1273, 16:0.1235, 17:0.1207]
+  detector.transformer.decoder.layers.1.ca_text.in_proj_weight         changed= 196608/196608 delta_l2=  1.0381 rel_l2= 0.1069 max_abs= 0.0223 sv=[0.6282, 0.4906, 0.3938, 0.3563] top_rows=[542:0.1018, 620:0.0911, 740:0.0892, 431:0.0886]
+  detector.transformer.decoder.layers.5.ca_text.out_proj.weight        changed=  65536/65536 delta_l2=  0.9949 rel_l2= 0.1721 max_abs= 0.0260 sv=[0.9656, 0.1432, 0.1100, 0.1017] top_rows=[126:0.1592, 20:0.1471, 211:0.1453, 224:0.1426]
+  detector.transformer.decoder.layers.5.cross_attn.in_proj_weight      changed= 196608/196608 delta_l2=  0.9711 rel_l2= 0.0791 max_abs= 0.0177 sv=[0.5458, 0.5096, 0.3601, 0.1733] top_rows=[90:0.0940, 5:0.0927, 213:0.0923, 28:0.0899]
+  detector.transformer.decoder.layers.3.ca_text.in_proj_weight         changed= 196608/196608 delta_l2=  0.9482 rel_l2= 0.0747 max_abs= 0.0210 sv=[0.6804, 0.4405, 0.2444, 0.2054] top_rows=[657:0.1145, 507:0.1024, 619:0.1015, 385:0.1001]
+  detector.transformer.decoder.layers.2.ca_text.in_proj_weight         changed= 196608/196608 delta_l2=  0.9396 rel_l2= 0.0832 max_abs= 0.0163 sv=[0.5805, 0.4758, 0.3272, 0.2215] top_rows=[276:0.0935, 258:0.0926, 268:0.0886, 280:0.0870]
+  detector.dot_prod_scoring.prompt_mlp.layers.1.weight                 changed= 524288/524288 delta_l2=  0.9393 rel_l2= 0.0702 max_abs= 0.0140 sv=[0.9366, 0.0461, 0.0366, 0.0241] top_rows=[131:0.1707, 231:0.1616, 156:0.1599, 114:0.1518]
+  detector.transformer.encoder.layers.4.cross_attn_image.in_proj_weight changed= 196608/196608 delta_l2=  0.8625 rel_l2= 0.0612 max_abs= 0.0244 sv=[0.4702, 0.3870, 0.3158, 0.2666] top_rows=[404:0.1389, 410:0.0962, 753:0.0882, 154:0.0851]
+  detector.transformer.decoder.layers.0.ca_text.in_proj_weight         changed= 196608/196608 delta_l2=  0.8564 rel_l2= 0.1032 max_abs= 0.0160 sv=[0.5656, 0.3656, 0.3424, 0.2062] top_rows=[583:0.0925, 639:0.0890, 464:0.0877, 596:0.0870]
+  detector.transformer.encoder.layers.3.self_attn.in_proj_weight       changed= 196608/196608 delta_l2=  0.8420 rel_l2= 0.0590 max_abs= 0.0276 sv=[0.6047, 0.3288, 0.2447, 0.1660] top_rows=[267:0.1529, 281:0.1446, 283:0.1355, 291:0.1265]
+  detector.transformer.encoder.layers.5.cross_attn_image.in_proj_weight changed= 196608/196608 delta_l2=  0.7833 rel_l2= 0.0621 max_abs= 0.0155 sv=[0.3919, 0.3323, 0.2504, 0.2117] top_rows=[679:0.0832, 419:0.0754, 686:0.0646, 700:0.0621]
+  detector.transformer.decoder.layers.3.cross_attn.in_proj_weight      changed= 196608/196608 delta_l2=  0.7760 rel_l2= 0.0610 max_abs= 0.0123 sv=[0.3204, 0.3170, 0.2364, 0.2247] top_rows=[163:0.0644, 332:0.0623, 346:0.0607, 419:0.0599]
+  detector.transformer.decoder.layers.1.self_attn.in_proj_weight       changed= 196608/196608 delta_l2=  0.7547 rel_l2= 0.0715 max_abs= 0.0177 sv=[0.5844, 0.1968, 0.1828, 0.1569] top_rows=[570:0.0927, 668:0.0880, 697:0.0878, 648:0.0860]
+  detector.transformer.encoder.layers.2.cross_attn_image.in_proj_weight changed= 196608/196608 delta_l2=  0.7360 rel_l2= 0.0544 max_abs= 0.0113 sv=[0.3683, 0.2829, 0.2407, 0.2258] top_rows=[614:0.0682, 594:0.0606, 553:0.0592, 654:0.0580]
+  detector.dot_prod_scoring.prompt_proj.weight                         changed=  65536/65536 delta_l2=  0.7081 rel_l2= 0.1318 max_abs= 0.0255 sv=[0.7036, 0.0713, 0.0232, 0.0161] top_rows=[72:0.1389, 237:0.1250, 52:0.1181, 11:0.1090]
+  detector.transformer.decoder.layers.4.cross_attn.in_proj_weight      changed= 196608/196608 delta_l2=  0.6608 rel_l2= 0.0551 max_abs= 0.0117 sv=[0.3150, 0.3026, 0.2164, 0.1491] top_rows=[446:0.0691, 81:0.0644, 91:0.0603, 437:0.0584]
+  detector.transformer.encoder.layers.5.self_attn.in_proj_weight       changed= 196608/196608 delta_l2=  0.6399 rel_l2= 0.0443 max_abs= 0.0105 sv=[0.2940, 0.2279, 0.2159, 0.1777] top_rows=[200:0.0557, 129:0.0556, 503:0.0502, 193:0.0479]
+  detector.transformer.decoder.layers.0.cross_attn.in_proj_weight      changed= 196608/196608 delta_l2=  0.6359 rel_l2= 0.0498 max_abs= 0.0253 sv=[0.3204, 0.2191, 0.1924, 0.1667] top_rows=[338:0.1003, 322:0.0681, 439:0.0674, 327:0.0566]
+  detector.transformer.encoder.layers.1.self_attn.in_proj_weight       changed= 196608/196608 delta_l2=  0.6339 rel_l2= 0.0494 max_abs= 0.0117 sv=[0.3250, 0.2640, 0.1996, 0.1773] top_rows=[111:0.0676, 268:0.0590, 59:0.0567, 97:0.0563]
+  detector.transformer.decoder.layers.5.self_attn.in_proj_weight       changed= 196608/196608 delta_l2=  0.6273 rel_l2= 0.0413 max_abs= 0.0128 sv=[0.3845, 0.2637, 0.1790, 0.1584] top_rows=[247:0.0749, 128:0.0731, 501:0.0709, 240:0.0705]
+  detector.transformer.decoder.layers.1.cross_attn.in_proj_weight      changed= 196608/196608 delta_l2=  0.6225 rel_l2= 0.0542 max_abs= 0.0128 sv=[0.2694, 0.2338, 0.1836, 0.1710] top_rows=[679:0.0608, 346:0.0588, 350:0.0560, 601:0.0558]
+  detector.transformer.decoder.layers.2.cross_attn.in_proj_weight      changed= 196608/196608 delta_l2=  0.6220 rel_l2= 0.0523 max_abs= 0.0096 sv=[0.2684, 0.2191, 0.2021, 0.1951] top_rows=[214:0.0504, 181:0.0489, 348:0.0458, 260:0.0449]
+  detector.transformer.encoder.layers.3.cross_attn_image.out_proj.weight changed=  65536/65536 delta_l2=  0.6049 rel_l2= 0.1068 max_abs= 0.0181 sv=[0.5396, 0.2058, 0.1049, 0.0829] top_rows=[222:0.0944, 112:0.0836, 141:0.0799, 242:0.0753]
+  detector.transformer.encoder.layers.4.self_attn.in_proj_weight       changed= 196608/196608 delta_l2=  0.5864 rel_l2= 0.0384 max_abs= 0.0094 sv=[0.2553, 0.2403, 0.2145, 0.1865] top_rows=[684:0.0511, 378:0.0509, 622:0.0478, 102:0.0474]
+  detector.transformer.decoder.layers.2.self_attn.in_proj_weight       changed= 196608/196608 delta_l2=  0.5860 rel_l2= 0.0419 max_abs= 0.0116 sv=[0.3570, 0.2410, 0.1588, 0.1188] top_rows=[553:0.0604, 653:0.0560, 522:0.0549, 561:0.0531]
+  detector.transformer.encoder.layers.0.cross_attn_image.in_proj_weight changed= 196608/196608 delta_l2=  0.5791 rel_l2= 0.0469 max_abs= 0.0114 sv=[0.2586, 0.2287, 0.2073, 0.1827] top_rows=[476:0.0564, 416:0.0558, 429:0.0548, 470:0.0510]
+  detector.transformer.encoder.layers.2.self_attn.in_proj_weight       changed= 196608/196608 delta_l2=  0.5739 rel_l2= 0.0423 max_abs= 0.0134 sv=[0.2192, 0.2025, 0.1975, 0.1582] top_rows=[348:0.0704, 337:0.0549, 331:0.0513, 338:0.0503]
+  detector.transformer.decoder.layers.4.ca_text.out_proj.weight        changed=  65536/65536 delta_l2=  0.5703 rel_l2= 0.0965 max_abs= 0.0118 sv=[0.3900, 0.3237, 0.1419, 0.1271] top_rows=[211:0.0726, 59:0.0688, 204:0.0652, 50:0.0631]
+  detector.transformer.encoder.layers.1.cross_attn_image.in_proj_weight changed= 196608/196608 delta_l2=  0.5694 rel_l2= 0.0437 max_abs= 0.0113 sv=[0.2749, 0.2063, 0.1996, 0.1721] top_rows=[299:0.0557, 626:0.0509, 731:0.0497, 539:0.0490]
+  detector.dot_prod_scoring.hs_proj.weight                             changed=  65536/65536 delta_l2=  0.5541 rel_l2= 0.1225 max_abs= 0.0103 sv=[0.4920, 0.1921, 0.1309, 0.0722] top_rows=[141:0.0513, 91:0.0486, 142:0.0485, 105:0.0465]
+  detector.transformer.decoder.layers.0.self_attn.out_proj.weight      changed=  65536/65536 delta_l2=  0.5446 rel_l2= 0.1293 max_abs= 0.0215 sv=[0.5302, 0.0776, 0.0706, 0.0406] top_rows=[169:0.1340, 99:0.1172, 10:0.1039, 155:0.0875]
+  detector.transformer.decoder.layers.3.self_attn.in_proj_weight       changed= 196608/196608 delta_l2=  0.5248 rel_l2= 0.0338 max_abs= 0.0086 sv=[0.2235, 0.2129, 0.1949, 0.1558] top_rows=[520:0.0457, 719:0.0434, 281:0.0432, 691:0.0393]
+  detector.transformer.decoder.layers.3.ca_text.out_proj.weight        changed=  65536/65536 delta_l2=  0.5104 rel_l2= 0.0892 max_abs= 0.0160 sv=[0.4208, 0.1959, 0.1221, 0.1047] top_rows=[65:0.0822, 59:0.0725, 161:0.0690, 134:0.0667]
+  detector.transformer.encoder.layers.0.self_attn.in_proj_weight       changed= 196608/196608 delta_l2=  0.4962 rel_l2= 0.0492 max_abs= 0.0100 sv=[0.2183, 0.1834, 0.1756, 0.1462] top_rows=[636:0.0541, 749:0.0506, 182:0.0486, 730:0.0457]
+  detector.transformer.decoder.bbox_embed.layers.1.weight              changed=  57344/65536 delta_l2=  0.4852 rel_l2= 0.0377 max_abs= 0.0182 sv=[0.4296, 0.1384, 0.0881, 0.0817] top_rows=[61:0.1194, 231:0.0882, 11:0.0874, 13:0.0782]
+  detector.transformer.decoder.layers.4.self_attn.in_proj_weight       changed= 196608/196608 delta_l2=  0.4703 rel_l2= 0.0306 max_abs= 0.0127 sv=[0.1969, 0.1913, 0.1524, 0.1226] top_rows=[288:0.0479, 295:0.0457, 294:0.0447, 316:0.0400]
+  detector.backbone.language_backbone.resizer.weight                   changed= 262143/262144 delta_l2=  0.4565 rel_l2= 0.0575 max_abs= 0.0078 sv=[0.3540, 0.2305, 0.1241, 0.0715] top_rows=[64:0.0737, 126:0.0688, 60:0.0672, 164:0.0594]
+  detector.transformer.encoder.layers.2.cross_attn_image.out_proj.weight changed=  65536/65536 delta_l2=  0.4485 rel_l2= 0.0769 max_abs= 0.0115 sv=[0.3429, 0.1773, 0.1308, 0.1152] top_rows=[41:0.0705, 164:0.0562, 119:0.0559, 13:0.0553]
+  detector.transformer.decoder.layers.5.cross_attn.out_proj.weight     changed=  65535/65536 delta_l2=  0.4419 rel_l2= 0.0636 max_abs= 0.0115 sv=[0.3603, 0.1377, 0.1332, 0.1004] top_rows=[198:0.0603, 157:0.0589, 174:0.0562, 188:0.0558]
+  detector.transformer.encoder.layers.1.cross_attn_image.out_proj.weight changed=  65536/65536 delta_l2=  0.4397 rel_l2= 0.0749 max_abs= 0.0105 sv=[0.3406, 0.1743, 0.1161, 0.0996] top_rows=[46:0.0609, 177:0.0577, 215:0.0558, 41:0.0553]
+  detector.transformer.decoder.bbox_embed.layers.0.weight              changed=  65536/65536 delta_l2=  0.4368 rel_l2= 0.0632 max_abs= 0.0144 sv=[0.3150, 0.1988, 0.1103, 0.0994] top_rows=[78:0.0725, 159:0.0705, 19:0.0702, 213:0.0684]
+  detector.transformer.encoder.layers.2.self_attn.out_proj.weight      changed=  65536/65536 delta_l2=  0.4070 rel_l2= 0.0545 max_abs= 0.0109 sv=[0.2772, 0.2102, 0.1293, 0.0842] top_rows=[41:0.0566, 55:0.0501, 215:0.0494, 113:0.0473]
+  detector.transformer.decoder.layers.0.ca_text.out_proj.weight        changed=  65536/65536 delta_l2=  0.3932 rel_l2= 0.0854 max_abs= 0.0106 sv=[0.3319, 0.1128, 0.1109, 0.0843] top_rows=[116:0.0658, 110:0.0577, 153:0.0537, 31:0.0529]
+  detector.transformer.encoder.layers.1.self_attn.out_proj.weight      changed=  65536/65536 delta_l2=  0.3923 rel_l2= 0.0618 max_abs= 0.0100 sv=[0.3343, 0.1333, 0.1037, 0.0665] top_rows=[119:0.0534, 207:0.0525, 160:0.0515, 150:0.0500]
+  detector.transformer.decoder.layers.2.ca_text.out_proj.weight        changed=  65536/65536 delta_l2=  0.3865 rel_l2= 0.0728 max_abs= 0.0087 sv=[0.2232, 0.1955, 0.1534, 0.1089] top_rows=[249:0.0434, 9:0.0401, 0:0.0391, 91:0.0381]
+  detector.transformer.encoder.layers.4.cross_attn_image.out_proj.weight changed=  65536/65536 delta_l2=  0.3851 rel_l2= 0.0666 max_abs= 0.0104 sv=[0.2846, 0.1562, 0.1365, 0.0960] top_rows=[163:0.0581, 39:0.0532, 237:0.0491, 18:0.0486]
+  detector.transformer.encoder.layers.5.cross_attn_image.out_proj.weight changed=  65536/65536 delta_l2=  0.3848 rel_l2= 0.0728 max_abs= 0.0093 sv=[0.2417, 0.1969, 0.1400, 0.1051] top_rows=[41:0.0495, 151:0.0450, 222:0.0448, 110:0.0444]
+  detector.transformer.encoder.layers.4.self_attn.out_proj.weight      changed=  65536/65536 delta_l2=  0.3796 rel_l2= 0.0449 max_abs= 0.0088 sv=[0.2586, 0.1744, 0.1170, 0.0881] top_rows=[39:0.0469, 215:0.0432, 30:0.0418, 98:0.0411]
+  detector.transformer.encoder.layers.3.self_attn.out_proj.weight      changed=  65536/65536 delta_l2=  0.3740 rel_l2= 0.0480 max_abs= 0.0102 sv=[0.2693, 0.1371, 0.1096, 0.1036] top_rows=[98:0.0615, 77:0.0503, 27:0.0495, 222:0.0484]
+  detector.transformer.decoder.presence_token_head.layers.0.weight     changed=  64768/65536 delta_l2=  0.3659 rel_l2= 0.0231 max_abs= 0.0245 sv=[0.2736, 0.1797, 0.1069, 0.0650] top_rows=[109:0.1398, 247:0.0964, 94:0.0943, 17:0.0912]
+  detector.transformer.decoder.layers.1.ca_text.out_proj.weight        changed=  65536/65536 delta_l2=  0.3534 rel_l2= 0.0699 max_abs= 0.0084 sv=[0.2246, 0.1799, 0.1193, 0.1092] top_rows=[200:0.0459, 99:0.0445, 90:0.0422, 218:0.0406]
+  detector.transformer.decoder.layers.1.cross_attn.out_proj.weight     changed=  65536/65536 delta_l2=  0.3361 rel_l2= 0.0475 max_abs= 0.0086 sv=[0.2474, 0.1094, 0.1033, 0.0844] top_rows=[66:0.0551, 217:0.0486, 244:0.0420, 191:0.0404]
+  detector.transformer.decoder.layers.4.self_attn.out_proj.weight      changed=  65536/65536 delta_l2=  0.3240 rel_l2= 0.0492 max_abs= 0.0078 sv=[0.2430, 0.1331, 0.0942, 0.0784] top_rows=[223:0.0449, 10:0.0413, 97:0.0398, 193:0.0397]
+  detector.transformer.encoder.layers.0.self_attn.out_proj.weight      changed=  65536/65536 delta_l2=  0.3230 rel_l2= 0.0583 max_abs= 0.0100 sv=[0.2591, 0.1331, 0.0896, 0.0578] top_rows=[126:0.0605, 40:0.0511, 134:0.0468, 215:0.0441]
+  detector.transformer.decoder.layers.0.cross_attn.out_proj.weight     changed=  65536/65536 delta_l2=  0.3080 rel_l2= 0.0492 max_abs= 0.0090 sv=[0.2070, 0.1180, 0.1114, 0.0805] top_rows=[147:0.0490, 223:0.0431, 99:0.0420, 113:0.0393]
+  detector.transformer.encoder.layers.0.cross_attn_image.out_proj.weight changed=  65536/65536 delta_l2=  0.3059 rel_l2= 0.0530 max_abs= 0.0094 sv=[0.2051, 0.1617, 0.0984, 0.0864] top_rows=[40:0.0494, 177:0.0420, 0:0.0367, 134:0.0343]
+  detector.transformer.encoder.layers.5.self_attn.out_proj.weight      changed=  65536/65536 delta_l2=  0.3024 rel_l2= 0.0367 max_abs= 0.0072 sv=[0.1615, 0.1315, 0.1061, 0.0986] top_rows=[41:0.0376, 229:0.0347, 17:0.0328, 200:0.0317]
+  detector.transformer.decoder.layers.3.self_attn.out_proj.weight      changed=  65536/65536 delta_l2=  0.3015 rel_l2= 0.0436 max_abs= 0.0072 sv=[0.1933, 0.1716, 0.0998, 0.0587] top_rows=[99:0.0439, 10:0.0374, 147:0.0346, 223:0.0335]
+  detector.transformer.decoder.layers.4.cross_attn.out_proj.weight     changed=  65535/65536 delta_l2=  0.2997 rel_l2= 0.0423 max_abs= 0.0077 sv=[0.2238, 0.1099, 0.0970, 0.0712] top_rows=[252:0.0447, 214:0.0371, 149:0.0367, 53:0.0355]
+  detector.transformer.decoder.layers.2.cross_attn.out_proj.weight     changed=  65536/65536 delta_l2=  0.2973 rel_l2= 0.0405 max_abs= 0.0100 sv=[0.2385, 0.1042, 0.0727, 0.0647] top_rows=[66:0.0436, 217:0.0430, 30:0.0430, 70:0.0418]
+  detector.transformer.decoder.layers.1.self_attn.out_proj.weight      changed=  65536/65536 delta_l2=  0.2969 rel_l2= 0.0619 max_abs= 0.0093 sv=[0.2428, 0.1049, 0.0667, 0.0613] top_rows=[189:0.0467, 208:0.0446, 251:0.0442, 154:0.0440]
+  detector.transformer.decoder.layers.3.cross_attn.out_proj.weight     changed=  65536/65536 delta_l2=  0.2919 rel_l2= 0.0389 max_abs= 0.0069 sv=[0.2181, 0.1117, 0.0841, 0.0697] top_rows=[70:0.0393, 247:0.0368, 38:0.0358, 65:0.0353]
+  detector.transformer.decoder.layers.2.self_attn.out_proj.weight      changed=  65536/65536 delta_l2=  0.2869 rel_l2= 0.0449 max_abs= 0.0073 sv=[0.2150, 0.1030, 0.0800, 0.0656] top_rows=[165:0.0384, 10:0.0357, 56:0.0353, 141:0.0339]
+  detector.transformer.decoder.layers.5.self_attn.out_proj.weight      changed=  65536/65536 delta_l2=  0.2798 rel_l2= 0.0440 max_abs= 0.0063 sv=[0.1815, 0.1483, 0.1121, 0.0477] top_rows=[153:0.0391, 83:0.0350, 45:0.0334, 165:0.0329]
+  detector.transformer.decoder.presence_token_head.layers.1.weight     changed=  63488/65536 delta_l2=  0.2144 rel_l2= 0.0136 max_abs= 0.0192 sv=[0.1288, 0.1117, 0.0743, 0.0622] top_rows=[46:0.0957, 96:0.0738, 160:0.0557, 192:0.0455]
+  detector.transformer.decoder.bbox_embed.layers.2.weight              changed=   1024/1024 delta_l2=  0.0215 rel_l2= 0.0107 max_abs= 0.0030 sv=[0.0205, 0.0065, 0.0006, 0.0001] top_rows=[3:0.0187, 2:0.0105, 1:0.0012, 0:0.0007]
+  detector.transformer.decoder.presence_token_head.layers.2.weight     changed=    256/256 delta_l2=  0.0006 rel_l2= 0.0004 max_abs= 0.0001 sv=[0.0006] top_rows=[0:0.0006]
+
+token & prompt weight-space probe (4 item(s)):
+  prompt "sperm": bpe=[35781:"sperm</w>"(l2=0.9363)] emb_l2=0.9363 resized_mean_l2=11.4701 resized_eot_l2=21.9497
+    nearest token_embedding rows: 35781:"sperm</w>"(1.000,l2=0.936), 39159:"ivf</w>"(0.185,l2=0.852), 23528:"fertility</w>"(0.169,l2=0.876), 16673:"hump"(0.160,l2=0.885), 16301:"mummy</w>"(0.157,l2=0.919), 35267:"embr"(0.154,l2=0.878), 31992:"budding</w>"(0.141,l2=0.895), 27119:"cum</w>"(0.140,l2=0.877), 44671:"microbes</w>"(0.139,l2=0.809), 32059:"sexism</w>"(0.139,l2=0.796)
+  prompt "cell": bpe=[5533:"cell</w>"(l2=0.9042)] emb_l2=0.9042 resized_mean_l2=9.5429 resized_eot_l2=21.5337
+    nearest token_embedding rows: 5533:"cell</w>"(1.000,l2=0.904), 8890:"cells</w>"(0.619,l2=0.898), 23268:"cellular</w>"(0.283,l2=0.913), 9316:"cell"(0.239,l2=0.893), 3451:"mobile</w>"(0.202,l2=0.901), 39029:"cellphone</w>"(0.170,l2=0.882), 805:"age</w>"(0.164,l2=0.847), 620:"out</w>"(0.163,l2=0.843), 3934:"camera</w>"(0.159,l2=0.913), 10004:"networks</w>"(0.158,l2=0.867)
+  prompt "pinhead sperm": bpe=[2629:"pin"(l2=0.8990), 1375:"head</w>"(l2=0.8619), 35781:"sperm</w>"(l2=0.9363)] emb_l2=0.5305 resized_mean_l2=9.8152 resized_eot_l2=21.9949
+    nearest token_embedding rows: 35781:"sperm</w>"(0.626,l2=0.936), 2629:"pin"(0.592,l2=0.899), 1375:"head</w>"(0.549,l2=0.862), 5174:"heads</w>"(0.376,l2=0.881), 1603:"head"(0.298,l2=0.879), 6153:"headed</w>"(0.207,l2=0.922), 5164:"pin</w>"(0.187,l2=0.871), 25259:"thead</w>"(0.161,l2=0.896), 4932:"mouth</w>"(0.156,l2=0.909), 1710:"face</w>"(0.153,l2=0.876)
+  prompt "sperm cluster": bpe=[35781:"sperm</w>"(l2=0.9363), 15595:"cluster</w>"(l2=0.9205)] emb_l2=0.6406 resized_mean_l2=11.4515 resized_eot_l2=23.2304
+    nearest token_embedding rows: 35781:"sperm</w>"(0.696,l2=0.936), 15595:"cluster</w>"(0.683,l2=0.920), 33217:"clusters</w>"(0.345,l2=0.827), 3304:"network</w>"(0.148,l2=0.891), 21389:"khalifa</w>"(0.147,l2=0.919), 28168:"cheque</w>"(0.141,l2=0.866), 16137:"yogur"(0.140,l2=0.694), 24990:"stacked</w>"(0.139,l2=0.858), 39341:"inheritance</w>"(0.138,l2=0.870), 23802:"cauliflower</w>"(0.137,l2=0.954)
+
+  pairwise cosine — raw token_embedding (1024-D):
+                          sperm           cell  pinhead sperm  sperm cluster
+           sperm         1.0000         0.0510         0.6262         0.6964
+            cell         0.0510         1.0000         0.0511         0.0684
+   pinhead sperm         0.6262         0.0511         1.0000         0.4564
+   sperm cluster         0.6964         0.0684         0.4564         1.0000
+
+  pairwise cosine — post-24-layer Text+resizer mean valid tokens (256-D):
+                          sperm           cell  pinhead sperm  sperm cluster
+           sperm         1.0000         0.3826         0.5797         0.5049
+            cell         0.3826         1.0000         0.3197         0.2479
+   pinhead sperm         0.5797         0.3197         1.0000         0.4760
+   sperm cluster         0.5049         0.2479         0.4760         1.0000
+
+  pairwise cosine — post-24-layer Text+resizer EOT token (256-D):
+                          sperm           cell  pinhead sperm  sperm cluster
+           sperm         1.0000         0.3506         0.5413         0.5327
+            cell         0.3506         1.0000         0.2024         0.1833
+   pinhead sperm         0.5413         0.2024         1.0000         0.3979
+   sperm cluster         0.5327         0.1833         0.3979         1.0000

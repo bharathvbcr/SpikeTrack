@@ -1,0 +1,13 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 0.3 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 0.31 s)
+model loaded in 0.7 s on metal; tracking 8 frame(s) of "54"
+frame 0 (1/8): 2.82 s, 20 active track(s), 0 frame(s) released; waits +28 (upload 5, read 23), dispatches +4350, metal allocated 3778 MiB (frame peak 7732 MiB), footprint 3902 MiB, pageouts +0, swapins +0
+frame 1 (2/8): 2.14 s, 23 active track(s), 0 frame(s) released; waits +24 (upload 5, read 19), dispatches +4726, metal allocated 3910 MiB (frame peak 5908 MiB), footprint 4170 MiB, pageouts +0, swapins +0
+frame 2 (3/8): 1.97 s, 23 active track(s), 0 frame(s) released; waits +19 (upload 4, read 15), dispatches +4081, metal allocated 3973 MiB (frame peak 6113 MiB), footprint 3897 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 2.29 s, 24 active track(s), 0 frame(s) released; waits +24 (upload 5, read 19), dispatches +4756, metal allocated 4104 MiB (frame peak 6301 MiB), footprint 4155 MiB, pageouts +0, swapins +0
+frame 4 (5/8): 2.08 s, 24 active track(s), 0 frame(s) released; waits +19 (upload 4, read 15), dispatches +4124, metal allocated 4164 MiB (frame peak 6421 MiB), footprint 4171 MiB, pageouts +0, swapins +0
+frame 5 (6/8): 2.18 s, 24 active track(s), 0 frame(s) released; waits +21 (upload 6, read 15), dispatches +4142, metal allocated 4260 MiB (frame peak 5969 MiB), footprint 4332 MiB, pageouts +0, swapins +0
+frame 6 (7/8): 2.55 s, 26 active track(s), 0 frame(s) released; waits +26 (upload 7, read 19), dispatches +4824, metal allocated 4397 MiB (frame peak 6165 MiB), footprint 4415 MiB, pageouts +0, swapins +0
+frame 7 (8/8): 2.43 s, 26 active track(s), 8 frame(s) released; waits +21 (upload 6, read 15), dispatches +4184, metal allocated 4472 MiB (frame peak 6165 MiB), footprint 4039 MiB, pageouts +0, swapins +0
+8 frame(s) of "54" tracked on metal: 23 track(s) born, 2.31 s/frame (model, mean), 19.4 s total
+  bench/results/lora/soup-v3v4/select/run-0.5-3.0/54.json
+  bench/results/lora/soup-v3v4/select/run-0.5-3.0/54.run.json

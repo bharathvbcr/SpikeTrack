@@ -1,0 +1,20 @@
+    Finished `release` profile [optimized] target(s) in 1.12s
+     Running unittests src/lib.rs (target/release/deps/st_model-bedc162a72cc6b5e)
+
+running 13 tests
+test tracker::session::tests::a_single_object_is_untouched_and_an_empty_mask_scores_minus_ten ... ok
+test tracker::session::tests::mask_boxes_are_inclusive_extents_normalized_with_no_plus_one ... ok
+test tracker::session::tests::device_bf16_rounding_equals_the_host_rounding_it_replaced ... ok
+test tracker::session::tests::shrinkage_suppression_clamps_an_object_that_keeps_under_30_percent_of_its_area ... ok
+test tracker::session::tests::process_detections_supports_head_box_nms_border_relaxation_and_extra_tile_queries ... ok
+test tracker::state::tests::mux_and_demux_are_inverse_on_valid_slots ... ok
+test tracker::state::tests::prune_drops_old_masks_and_frames_outside_the_window ... ok
+test tracker::state::tests::prune_drops_projections_before_the_next_frames_memory_only ... ok
+test tracker::state::tests::removal_marks_the_slot_removed_renumbers_and_slices_rows ... ok
+test tracker::state::tests::removing_every_object_empties_the_state ... ok
+test tracker::state::tests::removing_the_last_object_with_an_input_on_the_conditioning_frame_wipes_the_state ... ok
+test tracker::state::tests::threaded_sigmoid_fill_is_bit_identical_to_the_serial_one ... ok
+test tracker::session::tests::threaded_area_rule_is_bit_identical_to_the_serial_one ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 48 filtered out; finished in 0.01s
+

@@ -1,0 +1,33 @@
+{
+  "format": "spiketrack-weight-edit-v1",
+  "description": "visem-lora-v4 selection grid: exact inverse-temperature s'_q = 2.40 * s_q, the same 768 scalars as lorav3_exact_it_3p00.json (out_norm weight/bias and prompt_proj.bias scaled together, zero crossing kept).",
+  "edits": [
+    {
+      "op": "scale_1d",
+      "param": "detector.dot_prod_scoring.prompt_mlp.out_norm.weight",
+      "range": [
+        0,
+        256
+      ],
+      "scale": 2.4
+    },
+    {
+      "op": "scale_1d",
+      "param": "detector.dot_prod_scoring.prompt_mlp.out_norm.bias",
+      "range": [
+        0,
+        256
+      ],
+      "scale": 2.4
+    },
+    {
+      "op": "scale_1d",
+      "param": "detector.dot_prod_scoring.prompt_proj.bias",
+      "range": [
+        0,
+        256
+      ],
+      "scale": 2.4
+    }
+  ]
+}

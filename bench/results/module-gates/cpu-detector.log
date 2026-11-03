@@ -1,20 +1,5 @@
-warning: unused imports: `AttentionOpts` and `Conv2dParams`
-  --> crates/st-model/src/detector.rs:12:17
-   |
-12 | use ojas_core::{AttentionOpts, Backend, Conv2dParams, OjasError, Tensor};
-   |                 ^^^^^^^^^^^^^           ^^^^^^^^^^^^
-   |
-   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
-
-warning: unused import: `Weight`
-  --> crates/st-model/src/detector.rs:13:31
-   |
-13 | use st_weights::{TensorGroup, Weight};
-   |                               ^^^^^^
-
-warning: `st-model` (lib) generated 2 warnings (run `cargo fix --lib -p st-model` to apply 2 suggestions)
-    Finished `release` profile [optimized] target(s) in 1.50s
-     Running tests/detector_parity.rs (target/release/deps/detector_parity-a0075a39319bada9)
+    Finished `release` profile [optimized] target(s) in 0.98s
+     Running tests/detector_parity.rs (target/release/deps/detector_parity-14889e7e0ec1e68b)
 
 running 1 test
 test detector_matches_upstream_stage_by_stage ... 19 detector tensors not read on the text path (point/box/mask prompt encoders, pixel_decoder stage 3)
@@ -120,12 +105,12 @@ test detector_matches_upstream_stage_by_stage ... 19 detector tensors not read o
 
 | case | upstream kept @0.5 | ours kept | only upstream (q:ref/ours) | only ours | mean mask IoU (upstream's kept) | detector s (CPU) |
 |---|---|---|---|---|---|---|
-| visem22_cell | 28 | 28 |  |  | 1.0000 | 2.2 |
-| testimage_shoe | 12 | 12 |  |  | 1.0000 | 2.2 |
-| truck_wheel | 4 | 4 |  |  | 1.0000 | 2.2 |
+| visem22_cell | 28 | 28 |  |  | 1.0000 | 1.6 |
+| testimage_shoe | 12 | 12 |  |  | 1.0000 | 1.5 |
+| truck_wheel | 4 | 4 |  |  | 1.0000 | 1.5 |
 
 worst cosine 1.0000000
 ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 7.71s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 5.50s
 

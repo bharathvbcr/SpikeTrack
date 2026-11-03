@@ -1,0 +1,59 @@
+mac_heavy: 2026-11-03T03:26:07Z 'spiketrack-e23' waits without the lock: no cargo slot free (all 2 held in /Users/bharath/.cache/cargo-slots)
+mac_heavy: 2026-11-03T03:31:08Z 'spiketrack-e23' waits without the lock: no cargo slot free (all 2 held in /Users/bharath/.cache/cargo-slots)
+mac_heavy: 2026-11-03T03:36:10Z 'spiketrack-e23' waits without the lock: no cargo slot free (all 2 held in /Users/bharath/.cache/cargo-slots)
+mac_heavy: 2026-11-03T03:37:50Z 'spiketrack-e23' holds the lock (waited 700s; load 13.39, 1073 processes); running: bash bench/results/e23-mattn-kv-cache/job.sh
+== clippy load { 13.39 13.60 14.65 }
+clippy findings by location:
+== unit-tests load { 13.20 13.56 14.62 }
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.01s
+== cache-cpu load { 12.54 13.41 14.56 }
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.26s
+== cache-metal load { 12.02 13.28 14.51 }
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.18s
+== tracker-parity load { 12.02 13.28 14.51 }
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 105.86s
+== detect-track-parity-metal load { 21.07 15.89 15.35 }
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 283.02s
+== build load { 11.00 14.05 14.76 }
+SpikeTrack 38e0a35 feat: add weight-space programming, E22 host optimizations, and 2x2 tiling, dirty 0
+old binary 061fc4326821803d (ab-coreml-tracker/run2), new 596ae93d57261abf
+ojas 286a444 Merge branch 'claude/docs-match-code-2026-11-01-eb0573': docs corrected against the code (dirty files: 3)
+tessl 52bdd19 Merge fix/hosted-lib-device-check (PR #5): validate the hosted manifest's entries instead of assuming them (dirty files: 0)
+metal bitwise (gate 3): 1
+21:45  up 1 day,  8:41, 1 user, load averages: 12.04 14.06 14.74
+== old-control load { 12.04 14.06 14.74 }
+== new-control load { 8.36 11.22 13.44 }
+== old-r1 load { 5.97 9.52 12.44 }
+== new-r1 load { 5.33 7.95 11.36 }
+== new-r2 load { 4.59 6.63 10.30 }
+== old-r2 load { 6.59 6.86 9.86 }
+== old-r3 load { 8.15 7.24 9.53 }
+== new-r3 load { 5.00 6.25 8.77 }
+== new-ops load { 8.29 7.42 8.86 }
+== new-control: predictions DIFFER from old-control
+old-r1: predictions byte-identical to old-control
+== new-r1: predictions DIFFER from old-control
+old-r2: predictions byte-identical to old-control
+== new-r2: predictions DIFFER from old-control
+old-r3: predictions byte-identical to old-control
+== new-r3: predictions DIFFER from old-control
+# E23 summary (steady frames >= 8)
+
+| round | old tracker step ms | new | new / old |
+|---|---|---|---|
+| 1 | 1043.0 | 960.8 | 0.921 |
+| 2 | 1179.2 | 929.4 | 0.788 |
+| 3 | 1123.3 | 1001.8 | 0.892 |
+
+Same-binary spread: old 13.1%, new 7.8%; noise 13.1%.
+Speed (pre-stated: every ratio < 1 - noise): no speedup claimed.
+
+Unprofiled controls, steady push_frame mean: old 4032.3 ms, new 3847.3 ms
+- old: frame 8: metal allocated 3859 MiB, footprint 3660 MiB; frame 33: metal allocated 3950 MiB, footprint 3031 MiB
+- new: frame 8: metal allocated 4139 MiB, footprint 4675 MiB; frame 33: metal allocated 4230 MiB, footprint 3229 MiB
+
+Gate 7 (cached path ran): PASS, no tracker linear over more than one frame's rows
+
+22:05  up 1 day,  9:01, 1 user, load averages: 7.17 7.23 8.69
+E23 status 1
+mac_heavy: 2026-11-03T04:05:32Z 'spiketrack-e23' finished with exit 1

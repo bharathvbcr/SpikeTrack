@@ -1,0 +1,24 @@
+{
+  "format": "spiketrack-weight-edit-v1",
+  "description": "Post-LoRA-v3 exact inverse-temperature calibration s'_q = 3.00 * s_q across detector.dot_prod_scoring.prompt_mlp.out_norm.{weight,bias} and detector.dot_prod_scoring.prompt_proj.bias (768 of 875,545,324 params = 0.0000877%). Scaling prompt_proj.bias alongside out_norm preserves exact zero-crossing s_q = 0 (100% query rank-order invariance on positive frames). Selected strictly at the train-5 selection-grid peak and max DetA (G in {1.0, 2.8, 3.0, 3.2, 3.4}: HOTA 0.5228 -> 0.5770 -> 0.5802 -> 0.5771 -> 0.5771, DetA peaking at 0.4800; extended G=4.00 plateaus at 0.5810 / DetA 0.4799) before held-out evaluation.",
+  "edits": [
+    {
+      "op": "scale_1d",
+      "param": "detector.dot_prod_scoring.prompt_mlp.out_norm.weight",
+      "range": [0, 256],
+      "scale": 3.0
+    },
+    {
+      "op": "scale_1d",
+      "param": "detector.dot_prod_scoring.prompt_mlp.out_norm.bias",
+      "range": [0, 256],
+      "scale": 3.0
+    },
+    {
+      "op": "scale_1d",
+      "param": "detector.dot_prod_scoring.prompt_proj.bias",
+      "range": [0, 256],
+      "scale": 3.0
+    }
+  ]
+}

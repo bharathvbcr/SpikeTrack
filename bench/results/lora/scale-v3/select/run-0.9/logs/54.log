@@ -1,0 +1,13 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 0.3 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 0.27 s)
+model loaded in 0.6 s on metal; tracking 8 frame(s) of "54"
+frame 0 (1/8): 2.82 s, 20 active track(s), 0 frame(s) released; waits +28 (upload 5, read 23), dispatches +4349, metal allocated 3773 MiB (frame peak 7732 MiB), footprint 3849 MiB, pageouts +1, swapins +0
+frame 1 (2/8): 1.91 s, 23 active track(s), 0 frame(s) released; waits +24 (upload 5, read 19), dispatches +4726, metal allocated 3912 MiB (frame peak 5913 MiB), footprint 4267 MiB, pageouts +0, swapins +4
+frame 2 (3/8): 1.93 s, 24 active track(s), 0 frame(s) released; waits +24 (upload 5, read 19), dispatches +4734, metal allocated 4004 MiB (frame peak 6116 MiB), footprint 4085 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 2.00 s, 25 active track(s), 0 frame(s) released; waits +24 (upload 5, read 19), dispatches +4754, metal allocated 4099 MiB (frame peak 6310 MiB), footprint 4215 MiB, pageouts +0, swapins +0
+frame 4 (5/8): 1.84 s, 25 active track(s), 0 frame(s) released; waits +19 (upload 4, read 15), dispatches +4123, metal allocated 4178 MiB (frame peak 6425 MiB), footprint 4363 MiB, pageouts +0, swapins +0
+frame 5 (6/8): 1.95 s, 25 active track(s), 0 frame(s) released; waits +21 (upload 6, read 15), dispatches +4141, metal allocated 4277 MiB (frame peak 5973 MiB), footprint 4566 MiB, pageouts +0, swapins +8
+frame 6 (7/8): 2.25 s, 26 active track(s), 0 frame(s) released; waits +26 (upload 7, read 19), dispatches +4814, metal allocated 4397 MiB (frame peak 6173 MiB), footprint 4575 MiB, pageouts +0, swapins +0
+frame 7 (8/8): 2.19 s, 26 active track(s), 8 frame(s) released; waits +21 (upload 6, read 15), dispatches +4184, metal allocated 4467 MiB (frame peak 6160 MiB), footprint 4032 MiB, pageouts +0, swapins +83
+8 frame(s) of "54" tracked on metal: 24 track(s) born, 2.11 s/frame (model, mean), 17.7 s total
+  bench/results/lora/scale-v3/select/run-0.9/54.json
+  bench/results/lora/scale-v3/select/run-0.9/54.run.json

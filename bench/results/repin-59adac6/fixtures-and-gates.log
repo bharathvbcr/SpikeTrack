@@ -1,0 +1,11 @@
+mac_heavy: 2026-11-03T19:10:32Z 'spiketrack-repin-gates' holds the lock (waited 0s; load 5.73, 1318 processes); running: bash bench/results/repin-59adac6/fixtures-and-gates.sh
+match fixtures/detector/visem22_cell.safetensors
+match fixtures/detector/testimage_shoe.safetensors
+match fixtures/detector/truck_wheel.safetensors
+match fixtures/detector/gate.safetensors
+== cpu-detector exit 0
+== metal-detector exit 0
+== metal-d3 exit 0
+== metal-bf16-d3 exit 0
+== dt-parity-22 exit 0
+mac_heavy: 2026-11-03T19:35:14Z 'spiketrack-repin-gates' finished with exit 0

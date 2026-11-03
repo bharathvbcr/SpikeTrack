@@ -1,0 +1,34 @@
+mac_heavy: 2026-11-03T13:18:57Z 'spiketrack-e23-1t' holds the lock (waited 0s; load 3.69, 1255 processes); running: bash bench/results/e23-mattn-kv-cache/one-tree-job.sh
+== /Users/bharath/Code/research/SpikeTrack-e23ctl matches 38e0a35 (166 files)
+== 1t-build load { 3.69 3.73 3.77 }
+1t-new 596ae93d57261abf (38e0a35, /Users/bharath/Code/research/SpikeTrack-e23ctl/target), control e69a0a02fcecb4b8 (38e0a35 + control_tree.py, same target)
+ 7:19  up 1 day, 18:15, 1 user, load averages: 4.25 3.84 3.81
+== 1t-new-control load { 4.25 3.84 3.81 }
+== 1t-ctl-r1 load { 5.55 4.18 3.93 }
+== 1t-new-r1 load { 6.40 4.69 4.13 }
+== 1t-new-r2 load { 9.80 6.19 4.76 }
+== 1t-ctl-r2 load { 10.68 7.38 5.35 }
+== 1t-ctl-r3 load { 11.28 8.52 5.99 }
+== 1t-new-r3 load { 9.91 8.68 6.25 }
+1t-new-control: byte-identical to new-control
+1t-ctl-r1: byte-identical to new-control
+1t-new-r1: byte-identical to new-control
+1t-ctl-r2: byte-identical to new-control
+1t-new-r2: byte-identical to new-control
+1t-ctl-r3: byte-identical to new-control
+1t-new-r3: byte-identical to new-control
+# E23 one-tree confirmation (steady frames >= 8)
+
+| round | 1t-ctl tracker step ms | 1t-new | 1t-new / 1t-ctl |
+|---|---|---|---|
+| 1 | 435.2 | 489.0 | 1.124 |
+| 2 | 527.1 | 488.1 | 0.926 |
+| 3 | 459.1 | 420.9 | 0.917 |
+
+Same-binary spread: 1t-ctl 21.1%, 1t-new 16.2%; noise 21.1%.
+Speed (pre-stated: every ratio < 1 - noise): no speedup claimed.
+
+
+ 7:28  up 1 day, 18:24, 1 user, load averages: 7.53 8.15 6.23
+E23 one-tree status 0
+mac_heavy: 2026-11-03T13:28:09Z 'spiketrack-e23-1t' finished with exit 0

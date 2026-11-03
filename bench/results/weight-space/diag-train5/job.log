@@ -1,0 +1,12 @@
+mac_heavy: 2026-11-03T16:13:23Z 'spiketrack-ws-diag' waiting 0s for the lock; holder: label=spiketrack-e23-paired pid=61274 start=2026-11-03T15:27:48Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T16:18:24Z 'spiketrack-ws-diag' waiting 300s for the lock; holder: label=spiketrack-e23-paired pid=61274 start=2026-11-03T15:27:48Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T16:21:25Z 'spiketrack-ws-diag' waits without the lock: no cargo slot free (all 2 held in /Users/bharath/.cache/cargo-slots)
+mac_heavy: 2026-11-03T16:23:25Z 'spiketrack-ws-diag' waiting 600s for the lock; holder: label=spiketrack-e23-paired pid=61274 start=2026-11-03T15:27:48Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T16:28:27Z 'spiketrack-ws-diag' waiting 900s for the lock; holder: label=spiketrack-e23-paired pid=61274 start=2026-11-03T15:27:48Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T16:33:28Z 'spiketrack-ws-diag' waiting 1200s for the lock; holder: label=spiketrack-e23-paired pid=61274 start=2026-11-03T15:27:48Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-03T16:35:09Z 'spiketrack-ws-diag' waits without the lock: no cargo slot free (all 2 held in /Users/bharath/.cache/cargo-slots)
+mac_heavy: 2026-11-03T16:37:09Z 'spiketrack-ws-diag' holds the lock (waited 1420s; load 9.60, 1454 processes); running: bash /Users/bharath/Code/research/SpikeTrack/bench/results/weight-space/diag-train5/job.sh
+  Downloaded objc2-image-io v0.3.2
+  Downloaded objc2 v0.6.5
+    Finished `release` profile [optimized] target(s) in 1.50s
+mac_heavy: 2026-11-03T16:43:39Z 'spiketrack-ws-diag' finished with exit 0
