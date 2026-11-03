@@ -3,12 +3,33 @@
 SAM 3.1, Meta's Segment Anything with its Object Multiplex video tracker, built as one Rust binary
 with no Python at runtime, and adapted to track dozens of sperm cells in clinical microscope video.
 
-**Who it is for.** Sperm-motility analysis means following dozens of small, fast, look-alike cells
-through microscope video. Fertility labs often cannot send clinical video to a cloud service, and
-SAM 3.1's official code needs Python, PyTorch and CUDA. SpikeTrack runs the whole model, from the
-word "sperm" to tracked masks and ids, on a laptop.
+## Why it's needed
 
-**At a glance** (each line links to its evidence below):
+- **Infertility is common.** WHO estimates that about 1 in 6 adults (17.5%) experience infertility
+  in their lifetime ([WHO, 2023](https://www.paho.org/en/news/4-4-2023-1-6-people-globally-affected-infertility-who)).
+  Semen analysis is the cornerstone of the male workup.
+- **Motility is still judged largely by eye.** A technician watches the sample and estimates how
+  many sperm move, and how. A 2021 review calls manual analysis subjective, says best practice
+  does not remove technician variability, and finds that computer-aided analysers (CASA) need
+  constant supervision and calibration, which is costly
+  ([Douglas et al., World J Men's Health 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC7994658)).
+- **The hard part is tracking.** Each sperm has to be followed through the video: dozens of small,
+  fast, look-alike cells that cross paths. Per-sperm speed and path measures are computed from
+  those tracks.
+- **General vision models do not do this out of the box.** Zero-shot, SAM 3.1 finds no sperm for
+  the prompt "sperm" (HOTA 0.000 on five unseen videos, below). Its official code also needs
+  Python, PyTorch and CUDA, which a lab Mac does not have.
+- **Clinical video is patient data.** A tool that runs on the lab's own machine avoids sending it
+  to a cloud service.
+
+SpikeTrack runs the whole model, from the word "sperm" to tracked masks and ids, on a laptop, in
+one 12 MB binary. It produces the tracks, not a clinical motility report, and it is
+a research tool, not a medical device.
+
+## At a glance
+
+Each line links to its evidence below.
+
 - **The whole of SAM 3.1** (CLIP text encoder, DETR detector, PE ViT backbone, multiplex tracker
   with births) in a 12.0 MB binary that links only macOS system libraries. Every module matches the
   official code (worst cosine 1.0000000 on CPU and Metal); the full text-prompted tracking loop
