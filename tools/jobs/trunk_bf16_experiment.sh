@@ -17,7 +17,7 @@ export SPIKETRACK_MODEL_DIR="$HOME/Code/research/models/sam3.1"
 export SPIKETRACK_DT_FIXTURES="$PWD/fixtures/detect_track" SPIKETRACK_DT_VIDEO=22
 mkdir -p "$OUT"
 util() { ioreg -r -d 1 -c IOAccelerator | grep -o '"Device Utilization %"=[0-9]*' | head -1 | grep -o '[0-9]*$'; }
-{ echo "SpikeTrack $(git log --oneline -1)"; echo "ojas-st $(git -C ../ojas-st log --oneline -1)"; uptime; } | tee "$OUT/versions.txt"
+{ echo "SpikeTrack $(git log --oneline -1)"; echo "ojas $(git -C ../ojas log --oneline -1)"; uptime; } | tee "$OUT/versions.txt"
 cargo test --release -j 2 -p st-model --test detect_track_parity -- --ignored --nocapture --test-threads=1 --exact session_with_bf16_trunk_linears_matches_upstream_on_metal 2>&1 | tee "$OUT/session-parity-visem22.log"
 [ "${PIPESTATUS[0]}" -eq 0 ] || { echo "the bf16-linears session missed the gate; no timing" | tee -a "$OUT/session-parity-visem22.log"; exit 1; }
 cargo build --release -j 2 -p spiketrack 2>&1 | tail -2

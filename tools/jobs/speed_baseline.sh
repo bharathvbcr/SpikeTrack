@@ -21,7 +21,7 @@ idle() { for _ in 1 2 3 4 5; do printf '%s ' "$(util)"; sleep 1; done; }
 sample() { while :; do echo "$(date -u +%H:%M:%S) $(util)"; sleep 1; done; }
 {
   echo "SpikeTrack $(git log --oneline -1)"
-  echo "ojas-st $(git -C ../ojas-st log --oneline -1)"
+  echo "ojas $(git -C ../ojas log --oneline -1)"
   echo "tessl $(git -C ../tessl log --oneline -1)"
   sysctl -n machdep.cpu.brand_string; uptime
 } | tee "$OUT/versions.txt"

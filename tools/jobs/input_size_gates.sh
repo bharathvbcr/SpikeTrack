@@ -16,7 +16,7 @@ out=bench/results/input-size-gates
 mkdir -p "$out"
 {
   echo "SpikeTrack: $(git log --oneline -1)"
-  echo "ojas-st:    $(git -C ../ojas-st log --oneline -1)"
+  echo "ojas:       $(git -C ../ojas log --oneline -1)"
   echo "tessl:      $(git -C ../tessl log --oneline -1) (dirty files: $(git -C ../tessl status --short | wc -l | tr -d ' '))"
 } | tee "$out/versions.txt"
 uptime

@@ -14,7 +14,7 @@ export SPIKETRACK_FIXTURES="$MAIN/fixtures/backbone"
 out=bench/results/metal-smoke
 mkdir -p "$out"
 {
-  echo "ojas-st: $(git -C ../ojas-st log --oneline -1)"
+  echo "ojas: $(git -C ../ojas log --oneline -1)"
   echo "tessl:   $(git -C ../tessl log --oneline -1) (dirty files: $(git -C ../tessl status --short | wc -l | tr -d ' '))"
   echo "SpikeTrack: $(git log --oneline -1)"
 } | tee "$out/versions.txt"

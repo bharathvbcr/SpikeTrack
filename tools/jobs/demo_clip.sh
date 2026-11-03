@@ -4,7 +4,10 @@
 #   <id>-<prompt>[-lora].mp4, <id>.json, <id>.run.json, logs/<id>-<prompt>.log
 # usage: tools/locked.sh demo-clip bash tools/jobs/demo_clip.sh VIDEO [N=49] [PROMPT=sperm]
 # Env: SPIKETRACK_LORA=FILE (default: the step-600 VISEM adapter; set it empty for zero-shot),
-#      SPIKETRACK_BOXES=mask|detector (default detector with an adapter, mask without).
+#      SPIKETRACK_BOXES=mask|detector (default detector with an adapter, mask without),
+#      SPIKETRACK_WEIGHT_EDIT=FILE (a --weight-edit manifest; adds -edit to the name),
+#      SPIKETRACK_OVERLAY_FPS=N (--overlay-fps; default: the frame folder's 49 fps),
+#      SPIKETRACK_DEMO_TAG=S (appended to the output name, e.g. v3).
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 VID=${1:?usage: $0 VIDEO [N] [PROMPT]}
@@ -28,6 +31,13 @@ if [ -n "$LORA" ]; then
 else
   args+=(--boxes "${SPIKETRACK_BOXES:-mask}")
 fi
+if [ -n "${SPIKETRACK_WEIGHT_EDIT:-}" ]; then
+  [ -f "$SPIKETRACK_WEIGHT_EDIT" ] || { echo "missing weight edit $SPIKETRACK_WEIGHT_EDIT" >&2; exit 2; }
+  args+=(--weight-edit "$SPIKETRACK_WEIGHT_EDIT")
+  tag="$tag-edit"
+fi
+[ -n "${SPIKETRACK_OVERLAY_FPS:-}" ] && args+=(--overlay-fps "$SPIKETRACK_OVERLAY_FPS")
+[ -n "${SPIKETRACK_DEMO_TAG:-}" ] && tag="$tag-$SPIKETRACK_DEMO_TAG"
 mkdir -p "$OUT/logs"
 rm -f "$OUT/$tag.mp4"
 cargo build --release -p spiketrack 2>&1 | tail -3

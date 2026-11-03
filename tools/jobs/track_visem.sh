@@ -9,6 +9,8 @@
 # Frames are tracked as a clip of N frames (the session is told the clip ends there), so numbers
 # are for "the first N frames", not for the whole video. Zero-shot (no LoRA, no tuning) unless
 # SPIKETRACK_LORA=FILE names a detector adapter, which every video then runs with (`track --lora`).
+# SPIKETRACK_WEIGHT_EDIT=FILE passes `track --weight-edit FILE` (a spiketrack-weight-edit-v1 manifest).
+# SPIKETRACK_POST_BOX_DELTA=dx,dy,dw,dh passes `track --post-box-delta` (logit shift after the decoder).
 # SPIKETRACK_BOXES=mask|detector picks `track --boxes` (default mask, upstream's boxes).
 # SPIKETRACK_MAX_OBJECTS=N passes `track --max-objects N` (default 64, track's default; 16 is upstream's builder cap).
 # SPIKETRACK_TRUNK=P passes `track --trunk-precision P` (default: track's, coreml-fp32 on Metal since
@@ -51,6 +53,12 @@ if [ -n "${SPIKETRACK_LORA:-}" ]; then
 fi
 TRUNK_ARGS=()
 [ -n "${SPIKETRACK_TRUNK:-}" ] && TRUNK_ARGS=(--trunk-precision "$SPIKETRACK_TRUNK")
+EDIT_ARGS=()
+if [ -n "${SPIKETRACK_WEIGHT_EDIT:-}" ]; then
+  [ -f "$SPIKETRACK_WEIGHT_EDIT" ] || { echo "SPIKETRACK_WEIGHT_EDIT=$SPIKETRACK_WEIGHT_EDIT is not a file" >&2; exit 2; }
+  EDIT_ARGS=(--weight-edit "$SPIKETRACK_WEIGHT_EDIT")
+fi
+[ -n "${SPIKETRACK_POST_BOX_DELTA:-}" ] && EDIT_ARGS+=(--post-box-delta "$SPIKETRACK_POST_BOX_DELTA")
 
 for p in "$SPIKETRACK_WEIGHTS" "$SPIKETRACK_MODEL_DIR" "$VISEM" "$SPLIT"; do
   [ -e "$p" ] || { echo "missing $p" >&2; exit 2; }
@@ -98,9 +106,9 @@ cargo build --release -p spiketrack 2>&1 | tail -5
 uptime
 failed=""
 for id in $IDS; do
-  echo "== video $id: first $N frames on Metal, --boxes $BOXES, --max-objects $MAX_OBJECTS, prompt $PROMPT${SPIKETRACK_LORA:+, LoRA $SPIKETRACK_LORA}${SPIKETRACK_TRUNK:+, trunk $SPIKETRACK_TRUNK}"
+  echo "== video $id: first $N frames on Metal, --boxes $BOXES, --max-objects $MAX_OBJECTS, prompt $PROMPT${SPIKETRACK_LORA:+, LoRA $SPIKETRACK_LORA}${SPIKETRACK_WEIGHT_EDIT:+, weight edit $SPIKETRACK_WEIGHT_EDIT}${SPIKETRACK_POST_BOX_DELTA:+, post-box-delta $SPIKETRACK_POST_BOX_DELTA}${SPIKETRACK_TRUNK:+, trunk $SPIKETRACK_TRUNK}"
   # ${LORA_ARGS[@]+...}: bash 3.2 (macOS) treats an empty array as unbound under set -u.
-  /usr/bin/time -l "$BIN" track "$VISEM/$id/images" --prompt "$PROMPT" --backend metal --max-frames "$N" --boxes "$BOXES" --max-objects "$MAX_OBJECTS" --out "$OUT/run" ${LORA_ARGS[@]+"${LORA_ARGS[@]}"} ${TRUNK_ARGS[@]+"${TRUNK_ARGS[@]}"} 2>&1 | tee "$OUT/logs/$id.log"
+  /usr/bin/time -l "$BIN" track "$VISEM/$id/images" --prompt "$PROMPT" --backend metal --max-frames "$N" --boxes "$BOXES" --max-objects "$MAX_OBJECTS" --out "$OUT/run" ${LORA_ARGS[@]+"${LORA_ARGS[@]}"} ${EDIT_ARGS[@]+"${EDIT_ARGS[@]}"} ${TRUNK_ARGS[@]+"${TRUNK_ARGS[@]}"} 2>&1 | tee "$OUT/logs/$id.log"
   [ "${PIPESTATUS[0]}" -eq 0 ] || failed="$failed $id"
 done
 uptime
