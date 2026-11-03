@@ -648,7 +648,7 @@ impl HeadBoxTracker {
         width: usize,
         mask_xywh: &[f32],
     ) -> [f32; 4] {
-        if mask.area() == 0 || height == 0 || width == 0 {
+        if height == 0 || width == 0 {
             return [
                 mask_xywh[0],
                 mask_xywh[1],
@@ -656,38 +656,93 @@ impl HeadBoxTracker {
                 mask_xywh[1] + mask_xywh[3],
             ];
         }
+        if let Some(prev) = self.tracks.get(&id).copied() {
+            let dt_raw = frame.saturating_sub(prev.last_frame).min(8) as f32;
+            let pcx = (prev.cx + prev.vx * dt_raw).clamp(0.0, 1.0);
+            let pcy = (prev.cy + prev.vy * dt_raw).clamp(0.0, 1.0);
+            let hw = 0.5 * prev.ema_w.clamp(1.0 / width as f32, 1.0);
+            let hh = 0.5 * prev.ema_h.clamp(1.0 / height as f32, 1.0);
+            let kin = [
+                (pcx - hw).clamp(0.0, 1.0),
+                (pcy - hh).clamp(0.0, 1.0),
+                (pcx + hw).clamp(0.0, 1.0),
+                (pcy + hh).clamp(0.0, 1.0),
+            ];
+            let max_radius = (0.06 + 0.035 * dt_raw.max(1.0)).min(0.22);
+            let located = if mask.area() > 0 {
+                locate_head_bulb_bounded(
+                    mask,
+                    width,
+                    height,
+                    prev.ema_w,
+                    prev.ema_h,
+                    Some((pcx, pcy)),
+                    Some((max_radius, 0.16)),
+                )
+            } else {
+                None
+            };
+            return match located {
+                Some(b) => {
+                    let cx = 0.5 * (b[0] + b[2]);
+                    let cy = 0.5 * (b[1] + b[3]);
+                    if let Some(st) = self.tracks.get_mut(&id) {
+                        if frame > st.last_frame {
+                            let dt = (frame - st.last_frame) as f32;
+                            let ivx = ((cx - st.cx) / dt).clamp(-0.08, 0.08);
+                            let ivy = ((cy - st.cy) / dt).clamp(-0.08, 0.08);
+                            st.vx = 0.65 * st.vx + 0.35 * ivx;
+                            st.vy = 0.65 * st.vy + 0.35 * ivy;
+                            st.cx = cx;
+                            st.cy = cy;
+                            st.last_frame = frame;
+                        }
+                    }
+                    b
+                }
+                None => {
+                    if let Some(st) = self.tracks.get_mut(&id) {
+                        if frame > st.last_frame {
+                            st.vx *= 0.7;
+                            st.vy *= 0.7;
+                            st.cx = pcx;
+                            st.cy = pcy;
+                            st.last_frame = frame;
+                        }
+                    }
+                    kin
+                }
+            };
+        }
+
         let default_wh = self.scene_wh.unwrap_or((0.036, 0.045));
-        let (target_w, target_h, pred_center) = match self.tracks.get(&id).copied() {
-            Some(prev) => {
-                let dt = frame.saturating_sub(prev.last_frame).min(8) as f32;
-                let pcx = (prev.cx + prev.vx * dt).clamp(0.0, 1.0);
-                let pcy = (prev.cy + prev.vy * dt).clamp(0.0, 1.0);
-                (prev.ema_w, prev.ema_h, Some((pcx, pcy)))
-            }
-            None => (default_wh.0, default_wh.1, None),
-        };
-        let b = locate_head_bulb_xyxy(mask, width, height, target_w, target_h, pred_center)
-            .unwrap_or([
-                mask_xywh[0],
-                mask_xywh[1],
-                mask_xywh[0] + mask_xywh[2],
-                mask_xywh[1] + mask_xywh[3],
-            ]);
-        let cx = 0.5 * (b[0] + b[2]);
-        let cy = 0.5 * (b[1] + b[3]);
-        if let Some(prev) = self.tracks.get_mut(&id) {
-            if frame > prev.last_frame {
-                let dt = (frame - prev.last_frame) as f32;
-                let ivx = ((cx - prev.cx) / dt).clamp(-0.08, 0.08);
-                let ivy = ((cy - prev.cy) / dt).clamp(-0.08, 0.08);
-                prev.vx = 0.65 * prev.vx + 0.35 * ivx;
-                prev.vy = 0.65 * prev.vy + 0.35 * ivy;
-                prev.cx = cx;
-                prev.cy = cy;
-                prev.last_frame = frame;
+        if mask.area() > 0 {
+            if let Some(b) =
+                locate_head_bulb_xyxy(mask, width, height, default_wh.0, default_wh.1, None)
+            {
+                let cx = 0.5 * (b[0] + b[2]);
+                let cy = 0.5 * (b[1] + b[3]);
+                self.tracks.insert(
+                    id,
+                    HeadBoxState {
+                        last_frame: frame,
+                        cx,
+                        cy,
+                        vx: 0.0,
+                        vy: 0.0,
+                        ema_w: default_wh.0,
+                        ema_h: default_wh.1,
+                    },
+                );
+                return b;
             }
         }
-        b
+        [
+            mask_xywh[0].clamp(0.0, 1.0),
+            mask_xywh[1].clamp(0.0, 1.0),
+            (mask_xywh[0] + mask_xywh[2]).clamp(0.0, 1.0),
+            (mask_xywh[1] + mask_xywh[3]).clamp(0.0, 1.0),
+        ]
     }
 }
 
@@ -702,23 +757,47 @@ pub fn locate_head_bulb_xyxy(
     target_h_norm: f32,
     pred_center: Option<(f32, f32)>,
 ) -> Option<[f32; 4]> {
-    if width == 0 || height == 0 || mask.pixels() != width * height || mask.area() == 0 {
-        return None;
-    }
-    let (mut mx0, mut my0, mut mx1, mut my1) = (width, height, 0usize, 0usize);
-    for y in 0..height {
-        let row = y * width;
-        for x in 0..width {
-            if mask.get(row + x) {
-                mx0 = mx0.min(x);
-                mx1 = mx1.max(x);
-                my0 = my0.min(y);
-                my1 = my1.max(y);
-            }
+    locate_head_bulb_bounded(
+        mask,
+        width,
+        height,
+        target_w_norm,
+        target_h_norm,
+        pred_center,
+        None,
+    )
+}
+
+fn locate_head_bulb_bounded(
+    mask: &Bitmask,
+    width: usize,
+    height: usize,
+    target_w_norm: f32,
+    target_h_norm: f32,
+    pred_center: Option<(f32, f32)>,
+    gates: Option<(f32, f32)>,
+) -> Option<[f32; 4]> {
+    let [mut mx0, mut my0, mut mx1, mut my1] = mask.bbox_xyxy(width, height)?;
+    if let (Some((pcx, pcy)), Some((max_radius, _))) = (pred_center, gates) {
+        let rx0 = ((pcx - max_radius - 0.5 * target_w_norm) * width as f32)
+            .floor()
+            .max(0.0) as usize;
+        let rx1 = ((pcx + max_radius + 0.5 * target_w_norm) * width as f32)
+            .ceil()
+            .min((width - 1) as f32) as usize;
+        let ry0 = ((pcy - max_radius - 0.5 * target_h_norm) * height as f32)
+            .floor()
+            .max(0.0) as usize;
+        let ry1 = ((pcy + max_radius + 0.5 * target_h_norm) * height as f32)
+            .ceil()
+            .min((height - 1) as f32) as usize;
+        mx0 = mx0.max(rx0);
+        my0 = my0.max(ry0);
+        mx1 = mx1.min(rx1);
+        my1 = my1.min(ry1);
+        if mx0 > mx1 || my0 > my1 {
+            return None;
         }
-    }
-    if mx0 > mx1 || my0 > my1 {
-        return None;
     }
     let bw = mx1 - mx0 + 1;
     let bh = my1 - my0 + 1;
@@ -737,9 +816,13 @@ pub fn locate_head_bulb_xyxy(
         }
     }
 
-    let kw = ((target_w_norm * width as f32).round() as usize).clamp(1, bw);
-    let kh = ((target_h_norm * height as f32).round() as usize).clamp(1, bh);
-    let inv_area = 1.0 / (kw * kh).max(1) as f32;
+    let target_kw = ((target_w_norm * width as f32).round() as usize).max(1);
+    let target_kh = ((target_h_norm * height as f32).round() as usize).max(1);
+    let kw = target_kw.min(bw);
+    let kh = target_kh.min(bh);
+    let inv_area = 1.0 / (target_kw * target_kh).max(1) as f32;
+    let (max_radius, min_fill) = gates.unwrap_or((f32::INFINITY, 0.0));
+    let pen_weight = if gates.is_some() { 0.85 } else { 0.35 };
     let (mut best_wx, mut best_wy, mut best_score) = (0usize, 0usize, f32::NEG_INFINITY);
     for wy in 0..=(bh - kh) {
         let y_top = wy * stride;
@@ -752,10 +835,17 @@ pub fn locate_head_bulb_xyxy(
                 continue;
             }
             let fill = count as f32 * inv_area;
+            if fill < min_fill {
+                continue;
+            }
             let pen = match pred_center {
                 Some((pcx, pcy)) => {
                     let cand_cx = (mx0 as f32 + wx as f32 + 0.5 * kw as f32) / width as f32;
-                    0.35 * (cand_cx - pcx).hypot(cand_cy - pcy)
+                    let dist = (cand_cx - pcx).hypot(cand_cy - pcy);
+                    if dist > max_radius {
+                        continue;
+                    }
+                    pen_weight * dist
                 }
                 None => 0.0,
             };
@@ -766,6 +856,9 @@ pub fn locate_head_bulb_xyxy(
                 best_wy = wy;
             }
         }
+    }
+    if !best_score.is_finite() {
+        return None;
     }
 
     // Refine sub-window center via the foreground centroid inside the winning head-bulb window.
@@ -4012,5 +4105,107 @@ mod tests {
             assert!(check_trunk_lora(t, &det_lora).is_ok());
         }
         assert!(check_trunk_lora(TrunkPrecision::F32, &trunk_lora).is_ok());
+    }
+
+    #[test]
+    fn head_box_tracker_coasts_kinematic_head_when_post_winner_mask_is_empty_or_head_stolen() {
+        let (w, h) = (640usize, 480usize);
+        let mut ht = HeadBoxTracker::default();
+        let whole_xywh = [
+            200.0 / w as f32,
+            150.0 / h as f32,
+            98.0 / w as f32,
+            18.0 / h as f32,
+        ];
+        // Frame 0: matched detector head box [200..220, 150..170].
+        let full_mask = Bitmask::from_fn(h * w, |idx| {
+            let (x, y) = (idx % w, idx / w);
+            ((200..220).contains(&x) && (150..170).contains(&y))
+                || ((220..298).contains(&x) && (159..161).contains(&y))
+        });
+        let f0 = YieldedFrame {
+            frame: 0,
+            obj_ids: vec![11],
+            probs: vec![0.88],
+            boxes_xywh: whole_xywh.to_vec(),
+            masks: vec![full_mask],
+            det_boxes_xyxy: vec![Some([
+                200.0 / w as f32,
+                150.0 / h as f32,
+                220.0 / w as f32,
+                170.0 / h as f32,
+            ])],
+        };
+        objects_of_with_head_tracker(&f0, h, w, BoxSource::Detector, Some(&mut ht)).unwrap();
+
+        // Frame 1: unmatched AND post-winner mask is empty (`sam2_score <= 0` or crossing winner
+        // took all pixels), while `boxes_xywh` still holds the 98-px pre-winner whole-sperm box!
+        // Must emit the 20x20 kinematic head box near [200..220, 150..170], NOT the 98-px tail box!
+        let f1 = YieldedFrame {
+            frame: 1,
+            obj_ids: vec![11],
+            probs: vec![0.88],
+            boxes_xywh: whole_xywh.to_vec(),
+            masks: vec![Bitmask::empty(h * w)],
+            det_boxes_xyxy: vec![None],
+        };
+        let (objs1, _, _) =
+            objects_of_with_head_tracker(&f1, h, w, BoxSource::Detector, Some(&mut ht)).unwrap();
+        let b1 = objs1[0].box_xyxy_norm;
+        let b1_w_px = (b1[2] - b1[0]) * w as f32;
+        assert!(
+            (b1_w_px - 20.0).abs() < 1.0,
+            "empty post-winner mask must coast 20-px head box, got width {b1_w_px:.1} px ({b1:?})"
+        );
+
+        // Frame 2: unmatched AND crossing sperm stole the head pixels [200..220], leaving ONLY
+        // the distant 2-px-thick flagellum strand [245..298, 159..161] (fill < 0.15, >50 px away)
+        // plus a merged neighbor sperm head 180 px away at [380..400, 150..170]!
+        // Must NOT jump onto the distant flagellum or neighbor's head!
+        let stolen_head_mask = Bitmask::from_fn(h * w, |idx| {
+            let (x, y) = (idx % w, idx / w);
+            ((245..298).contains(&x) && (159..161).contains(&y))
+                || ((380..400).contains(&x) && (150..170).contains(&y))
+        });
+        let f2 = YieldedFrame {
+            frame: 2,
+            obj_ids: vec![11],
+            probs: vec![0.88],
+            boxes_xywh: whole_xywh.to_vec(),
+            masks: vec![stolen_head_mask],
+            det_boxes_xyxy: vec![None],
+        };
+        let (objs2, _, _) =
+            objects_of_with_head_tracker(&f2, h, w, BoxSource::Detector, Some(&mut ht)).unwrap();
+        let b2 = objs2[0].box_xyxy_norm;
+        let cx2_px = 0.5 * (b2[0] + b2[2]) * w as f32;
+        assert!(
+            (cx2_px - 210.0).abs() < 8.0,
+            "must coast near x=210 px instead of jumping onto tail/neighbor, got cx={cx2_px:.1} px ({b2:?})"
+        );
+
+        // Frame 3: ONLY the nearby 2-px horizontal flagellum [235..285, 159..161] (`bh = 2 < 20`):
+        // unclamped `target_kw * target_kh` normalization gives `fill = 40/400 = 0.10 < 0.16`,
+        // preventing the `bh`-clamped `40/40 = 1.0` false-bulb bug!
+        let thin_tail_only = Bitmask::from_fn(h * w, |idx| {
+            let (x, y) = (idx % w, idx / w);
+            (235..285).contains(&x) && (159..161).contains(&y)
+        });
+        let f3 = YieldedFrame {
+            frame: 3,
+            obj_ids: vec![11],
+            probs: vec![0.88],
+            boxes_xywh: whole_xywh.to_vec(),
+            masks: vec![thin_tail_only],
+            det_boxes_xyxy: vec![None],
+        };
+        let (objs3, _, _) =
+            objects_of_with_head_tracker(&f3, h, w, BoxSource::Detector, Some(&mut ht)).unwrap();
+        let b3 = objs3[0].box_xyxy_norm;
+        let cx3_px = 0.5 * (b3[0] + b3[2]) * w as f32;
+        assert!(
+            (cx3_px - 210.0).abs() < 8.0,
+            "thin 2-px flagellum (bh=2) must not fool head-bulb detector, got cx={cx3_px:.1} px ({b3:?})"
+        );
     }
 }

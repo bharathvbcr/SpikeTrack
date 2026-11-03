@@ -405,6 +405,67 @@ fn infer(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn append_tile_pass(
+    spec: &TileSpec,
+    tile_logits: &[f32],
+    tile_presence_logit: f32,
+    tile_boxes: &[f32],
+    tile_masks: &[f32],
+    mask_side: usize,
+    min_tile_prob: f32,
+    logits: &mut Vec<f32>,
+    probabilities: &mut Vec<f32>,
+    boxes: &mut Vec<f32>,
+    masks: &mut Vec<f32>,
+) {
+    let prob_scale = st_model::host::sigmoid(tile_presence_logit);
+    collect_tile_candidates(
+        spec,
+        tile_logits,
+        prob_scale,
+        tile_boxes,
+        tile_masks,
+        mask_side,
+        min_tile_prob,
+        DEFAULT_SEAM_MARGIN,
+        logits,
+        Some(probabilities),
+        boxes,
+        masks,
+    );
+}
+
+fn suppress_tiled_duplicates(
+    probabilities: &mut [f32],
+    boxes: &[f32],
+    masks: &[f32],
+    mask_side: usize,
+    min_tile_prob: f32,
+) {
+    let corners: Vec<[f32; 4]> = boxes
+        .chunks_exact(4)
+        .map(|b| {
+            [
+                b[0] - 0.5 * b[2],
+                b[1] - 0.5 * b[3],
+                b[0] + 0.5 * b[2],
+                b[1] + 0.5 * b[3],
+            ]
+        })
+        .collect();
+    let px = mask_side * mask_side;
+    let bits: Vec<Bitmask> = (0..probabilities.len())
+        .map(|q| Bitmask::from_logits(&masks[q * px..(q + 1) * px]))
+        .collect();
+    let nms_keep = nms_box_and_iom(probabilities, &corners, &bits, min_tile_prob, 0.35, 0.65);
+    for (p, keep) in probabilities.iter_mut().zip(nms_keep) {
+        if !keep {
+            *p = 0.0;
+        }
+    }
+}
+
 fn infer_on<B: Backend>(
     be: &B,
     w: Sam31Weights,
@@ -544,46 +605,22 @@ fn infer_on<B: Backend>(
                 .to_host(be.budget())
                 .map_err(CliError::from_err)?;
             let t_masks = t_masks_host.f32_slice().map_err(CliError::from_err)?;
-            let before = logits.len();
-            collect_tile_candidates(
+            append_tile_pass(
                 spec,
                 &t_out.pred_logits,
+                t_out.presence_logit,
                 &t_out.pred_boxes,
                 t_masks,
                 MASK,
                 min_tile_prob,
-                DEFAULT_SEAM_MARGIN,
                 &mut logits,
+                &mut probabilities,
                 &mut boxes,
                 &mut masks,
             );
             drop((t_out.pred_masks, t_masks_host));
-            for &l in &logits[before..] {
-                probabilities.push(st_model::host::sigmoid(l));
-            }
         }
-        // Cross-scale duplicate suppression between full-frame and zoomed 2x2 sub-tiles.
-        let corners: Vec<[f32; 4]> = boxes
-            .chunks_exact(4)
-            .map(|b| {
-                [
-                    b[0] - 0.5 * b[2],
-                    b[1] - 0.5 * b[3],
-                    b[0] + 0.5 * b[2],
-                    b[1] + 0.5 * b[3],
-                ]
-            })
-            .collect();
-        let px = MASK * MASK;
-        let bits: Vec<Bitmask> = (0..probabilities.len())
-            .map(|q| Bitmask::from_logits(&masks[q * px..(q + 1) * px]))
-            .collect();
-        let nms_keep = nms_box_and_iom(&probabilities, &corners, &bits, min_tile_prob, 0.35, 0.65);
-        for (p, keep) in probabilities.iter_mut().zip(nms_keep) {
-            if !keep {
-                *p = 0.0;
-            }
-        }
+        suppress_tiled_duplicates(&mut probabilities, &boxes, &masks, MASK, min_tile_prob);
     }
 
     be.sync().map_err(CliError::from_err)?;
@@ -956,5 +993,38 @@ mod tests {
         assert!((grid[3].norm_xyxy[0] - 3.0 / 7.0).abs() < 1e-6);
         assert!((grid[3].norm_xyxy[1] - 2.0 / 5.0).abs() < 1e-6);
         assert_eq!(&sub_br.data[0..3], &[3, 2, 5]);
+    }
+
+    #[test]
+    fn tile_candidates_apply_processor_presence_probability_scaling_just_like_full_frame() {
+        let grid = TileSpec::grid_2x2(640, 480, DEFAULT_TILE_SPAN).unwrap();
+        let tl = &grid[0];
+        // Suppose tile 0 has moderate/ambiguous presence (`logit = -0.405465`, `sigmoid = 0.40`)
+        // and one interior query with `pred_logit = 0.847298` (`sigmoid = 0.70`).
+        // Sam3Processor contract (`DetectorOut::probabilities`): `score = 0.70 * 0.40 = 0.28`,
+        // which MUST stay below a `0.50` threshold rather than firing as `0.70 > 0.50`!
+        let mut logits = Vec::new();
+        let mut probs = Vec::new();
+        let mut boxes = Vec::new();
+        let mut masks = Vec::new();
+        append_tile_pass(
+            tl,
+            &[0.84729785],
+            -0.4054651,
+            &[0.35, 0.35, 0.06, 0.08],
+            &[4.0f32; 4 * 4],
+            4,
+            0.05,
+            &mut logits,
+            &mut probs,
+            &mut boxes,
+            &mut masks,
+        );
+        assert_eq!(probs.len(), 1);
+        assert!(
+            (probs[0] - 0.28).abs() < 1e-4,
+            "tile candidate probability must be sigmoid(logit)*sigmoid(tile_presence)=0.28, got {}",
+            probs[0]
+        );
     }
 }

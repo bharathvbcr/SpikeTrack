@@ -159,17 +159,24 @@ impl TileSpec {
     }
 }
 
-/// Filter and project candidate queries (`sigmoid(logit) > min_prob`, not truncated on an interior
-/// tile seam) from one tile into full-frame `(logits, boxes_cxcywh, masks)`.
+/// Filter and project candidate queries (`sigmoid(logit) * prob_scale > min_prob`, not truncated
+/// on an interior tile seam) from one tile into full-frame `(logits, probs, boxes_cxcywh, masks)`.
+///
+/// Pass `prob_scale = 1.0` on the video-session path (where `pred_logits` already folds single
+/// `supervise_joint_box_scores` presence) and `prob_scale = sigmoid(tile_presence_logit)` on the
+/// `Sam3Processor` image path (`DetectorOut::probabilities()`).
+#[allow(clippy::too_many_arguments)]
 pub fn collect_tile_candidates(
     spec: &TileSpec,
     tile_logits: &[f32],
+    prob_scale: f32,
     tile_boxes_cxcywh: &[f32],
     tile_masks: &[f32],
     mask_side: usize,
     min_prob: f32,
     seam_margin: f32,
     out_logits: &mut Vec<f32>,
+    mut out_probs: Option<&mut Vec<f32>>,
     out_boxes_cxcywh: &mut Vec<f32>,
     out_masks: &mut Vec<f32>,
 ) {
@@ -179,7 +186,8 @@ pub fn collect_tile_candidates(
     assert_eq!(tile_masks.len(), q_count * px);
     for q in 0..q_count {
         let logit = tile_logits[q];
-        if !(host::sigmoid(logit) > min_prob) {
+        let prob = host::sigmoid(logit) * prob_scale;
+        if !(prob > min_prob) {
             continue;
         }
         let b = [
@@ -198,6 +206,9 @@ pub fn collect_tile_candidates(
             OUTSIDE_MASK_LOGIT,
         );
         out_logits.push(logit);
+        if let Some(op) = out_probs.as_deref_mut() {
+            op.push(prob);
+        }
         out_boxes_cxcywh.extend_from_slice(&fb);
         out_masks.extend_from_slice(&fm);
     }
@@ -262,5 +273,33 @@ mod tests {
                 assert_eq!(pasted[y * 10 + x], want, "at ({x}, {y})");
             }
         }
+    }
+
+    #[test]
+    fn collect_tile_candidates_respects_presence_scale_before_thresholding() {
+        let g = TileSpec::grid_2x2(100, 100, 0.60).unwrap();
+        // Query 0: logit 0.0 (sigmoid = 0.5), Query 1: logit 2.1972246 (sigmoid = 0.9).
+        // With prob_scale = 0.20 and min_prob = 0.15:
+        // Query 0 -> 0.5 * 0.20 = 0.10 <= 0.15 (filtered out!),
+        // Query 1 -> 0.9 * 0.20 = 0.18 > 0.15 (kept with prob = 0.18!).
+        let (mut logits, mut probs, mut boxes, mut masks) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        collect_tile_candidates(
+            &g[0],
+            &[0.0, 2.1972246],
+            0.20,
+            &[0.3, 0.3, 0.1, 0.1, 0.4, 0.4, 0.1, 0.1],
+            &[2.0f32; 2 * 16],
+            4,
+            0.15,
+            DEFAULT_SEAM_MARGIN,
+            &mut logits,
+            Some(&mut probs),
+            &mut boxes,
+            &mut masks,
+        );
+        assert_eq!(logits.len(), 1);
+        assert_eq!(probs.len(), 1);
+        assert!((probs[0] - 0.18).abs() < 1e-5);
     }
 }

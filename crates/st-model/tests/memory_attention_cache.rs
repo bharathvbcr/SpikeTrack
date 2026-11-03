@@ -10,6 +10,7 @@
 //!    pointers.
 //! 3. `cached_equals_uncached_on_metal` (ignored: needs a Metal GPU): the same on Metal, where
 //!    it holds only if Metal's linear gives a row the same bits at any row count.
+//!    `cached_equals_uncached_on_metal_at_tracker_size` repeats it at the tracker's 72 x 72 grid.
 //! 4. `fwd_frames_refuses_malformed_inputs`.
 //!
 //! `cargo test -p st-model --release --test memory_attention_cache [-- --ignored]`
@@ -108,8 +109,8 @@ struct Case {
     src_pos: Vec<f32>,
 }
 
-fn case(frames: usize, ptrs: usize, seed: u64) -> Case {
-    let t = GEO.tokens();
+fn case(geo: Geometry, frames: usize, ptrs: usize, seed: u64) -> Case {
+    let t = geo.tokens();
     let mut s = seed;
     Case {
         frames: (0..frames)
@@ -140,7 +141,7 @@ fn host<B: Backend>(be: &B, t: &Tensor) -> Vec<f32> {
 /// The uncached forward on the concatenated inputs, as `TrackerState::compute_propagation`
 /// built them before the cache.
 fn uncached<B: Backend>(be: &B, attn: &MemoryAttention, c: &Case) -> Vec<f32> {
-    let t = GEO.tokens();
+    let t = c.image.len() / D;
     let p = c.ptrs.len() / D;
     let cat = |i: usize| -> Vec<f32> { c.frames.iter().flat_map(|f| f[i].clone()).collect() };
     let (mimage, mmem, mpos) = (cat(0), cat(1), cat(2));
@@ -170,7 +171,7 @@ fn uncached<B: Backend>(be: &B, attn: &MemoryAttention, c: &Case) -> Vec<f32> {
 
 /// The cached forward: each stored frame projected once by `frame_kv`, then `fwd_frames`.
 fn cached<B: Backend>(be: &B, attn: &MemoryAttention, c: &Case) -> Vec<f32> {
-    let t = GEO.tokens();
+    let t = c.image.len() / D;
     let p = c.ptrs.len() / D;
     let dev: Vec<[Tensor; 3]> = c
         .frames
@@ -211,10 +212,15 @@ fn diff(got: &[f32], want: &[f32]) -> (usize, f32) {
     })
 }
 
-fn cached_equals_uncached_on<B: Backend>(be: &B, label: &str) {
-    let attn = MemoryAttention::load_at(be, &synthetic_group(), PREFIX, GEO).expect("load");
-    for (i, &(f, p)) in CASES.iter().enumerate() {
-        let c = case(f, p, 100 + i as u64);
+fn cached_equals_uncached_on<B: Backend>(
+    be: &B,
+    label: &str,
+    geo: Geometry,
+    cases: &[(usize, usize)],
+) {
+    let attn = MemoryAttention::load_at(be, &synthetic_group(), PREFIX, geo).expect("load");
+    for (i, &(f, p)) in cases.iter().enumerate() {
+        let c = case(geo, f, p, 100 + i as u64);
         let (n, max_abs) = diff(&cached(be, &attn, &c), &uncached(be, &attn, &c));
         println!(
             "[{label}] {f} frame(s), {p} pointer(s): {n} element(s) differ, max abs {max_abs:e}"
@@ -247,7 +253,7 @@ fn fwd_is_unchanged() {
         .iter()
         .enumerate()
         .map(|(i, &(f, p))| {
-            let out = uncached(&be, &attn, &case(f, p, 100 + i as u64));
+            let out = uncached(&be, &attn, &case(GEO, f, p, 100 + i as u64));
             assert!(
                 out.iter().all(|v| v.is_finite()),
                 "case {i}: non-finite output"
@@ -260,7 +266,7 @@ fn fwd_is_unchanged() {
 
 #[test]
 fn cached_equals_uncached() {
-    cached_equals_uncached_on(&cpu(), "CPU exact");
+    cached_equals_uncached_on(&cpu(), "CPU exact", GEO, &CASES);
 }
 
 #[test]
@@ -269,6 +275,22 @@ fn cached_equals_uncached_on_metal() {
     cached_equals_uncached_on(
         &MetalBackend::new(Budget::new(4 << 30)).expect("metal"),
         "Metal",
+        GEO,
+        &CASES,
+    );
+}
+
+/// The same at the tracker's own grid (72 x 72 = 5,184 tokens a frame), where Metal's linear
+/// may tile by row count: at one memory frame both paths project 5,184 rows, at two the uncached
+/// path projects 10,368 in one call. Production predictions first differ at two frames (E23).
+#[test]
+#[ignore = "needs a Metal GPU"]
+fn cached_equals_uncached_on_metal_at_tracker_size() {
+    cached_equals_uncached_on(
+        &MetalBackend::new(Budget::new(8 << 30)).expect("metal"),
+        "Metal 72x72",
+        Geometry::SAM3,
+        &[(1, 0), (2, 0), (2, 16)],
     );
 }
 
@@ -277,7 +299,7 @@ fn fwd_frames_refuses_malformed_inputs() {
     let be = cpu();
     let attn = MemoryAttention::load_at(&be, &synthetic_group(), PREFIX, GEO).expect("load");
     let t = GEO.tokens();
-    let c = case(1, 4, 7);
+    let c = case(GEO, 1, 4, 7);
     let f = [
         up(&be, &c.frames[0][0], t),
         up(&be, &c.frames[0][1], t),

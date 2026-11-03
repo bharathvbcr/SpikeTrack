@@ -68,6 +68,33 @@ impl Bitmask {
             .map(|(a, b)| (a & b).count_ones())
             .sum()
     }
+
+    /// Inclusive pixel bounds `[x0, y0, x1, y1]` of set bits in a `height * width` row-major mask,
+    /// scanning only non-zero `u64` words. Returns `None` when empty or dimensions disagree.
+    pub fn bbox_xyxy(&self, width: usize, height: usize) -> Option<[usize; 4]> {
+        if width == 0 || height == 0 || self.pixels != width * height || self.area == 0 {
+            return None;
+        }
+        let (mut x0, mut y0, mut x1, mut y1) = (width, height, 0usize, 0usize);
+        for (wi, &word) in self.words.iter().enumerate() {
+            let mut m = word;
+            while m != 0 {
+                let tz = m.trailing_zeros() as usize;
+                m &= m - 1;
+                let idx = wi * 64 + tz;
+                if idx >= self.pixels {
+                    break;
+                }
+                let y = idx / width;
+                let x = idx - y * width;
+                x0 = x0.min(x);
+                x1 = x1.max(x);
+                y0 = y0.min(y);
+                y1 = y1.max(y);
+            }
+        }
+        (x0 <= x1 && y0 <= y1).then_some([x0, y0, x1, y1])
+    }
 }
 
 /// `intersection / (min(area_a, area_b) + 1e-8)` in f32, row-major `[a.len(), b.len()]`.
@@ -610,5 +637,20 @@ mod tests {
             nms_box_iou(&[0.4, 0.8, 0.8], &[dup, dup, dup], 0.4, 0.5),
             vec![false, true, false]
         );
+    }
+
+    #[test]
+    fn bitmask_bbox_xyxy_matches_set_pixels_and_handles_empty_or_mismatched_shapes() {
+        let empty = Bitmask::empty(130 * 5);
+        assert_eq!(empty.bbox_xyxy(130, 5), None);
+        assert_eq!(empty.bbox_xyxy(0, 5), None);
+        assert_eq!(empty.bbox_xyxy(65, 5), None);
+
+        // Span multiple 64-bit words (`130 * 5 = 650` bits = 11 u64 words).
+        let m = Bitmask::from_fn(130 * 5, |idx| {
+            let (x, y) = (idx % 130, idx / 130);
+            (x == 17 && y == 4) || (x == 121 && y == 1)
+        });
+        assert_eq!(m.bbox_xyxy(130, 5), Some([17, 1, 121, 4]));
     }
 }

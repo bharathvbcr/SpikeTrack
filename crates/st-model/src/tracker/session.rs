@@ -529,12 +529,14 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
             collect_tile_candidates(
                 &spec,
                 &t_out.pred_logits,
+                1.0,
                 &t_out.pred_boxes,
                 t_masks.as_slice(),
                 mask_side,
                 min_tile_prob,
                 DEFAULT_SEAM_MARGIN,
                 &mut pred_logits,
+                None,
                 &mut pred_boxes,
                 &mut masks,
             );

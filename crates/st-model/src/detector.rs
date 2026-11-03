@@ -404,9 +404,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
     /// Set a post-decoder `[dx, dy, dw, dh]` logit shift applied only to `pred_boxes` after
     /// decoder layer 5 (decoupled from `boxRPB` in layers `0..5`).
     pub fn set_post_box_delta(&mut self, delta: [f32; 4]) -> Result<(), String> {
-        if delta.iter().any(|v| !v.is_finite()) {
-            return Err(format!("post_box_delta must be finite, got {delta:?}"));
-        }
+        validate_post_box_delta(delta)?;
         self.post_box_delta = delta;
         Ok(())
     }
@@ -418,11 +416,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
     /// Set the blend weight in `[0.0, 1.0]` mixing penultimate decoder layer (`li = 4`) scores
     /// with the final layer (`li = 5`). `0.0` is upstream's exact final-layer-only behavior.
     pub fn set_aux_score_weight(&mut self, weight: f32) -> Result<(), String> {
-        if !weight.is_finite() || !(0.0..=1.0).contains(&weight) {
-            return Err(format!(
-                "aux_score_weight must be finite in [0.0, 1.0], got {weight}"
-            ));
-        }
+        validate_aux_score_weight(weight)?;
         self.aux_score_weight = weight;
         Ok(())
     }
@@ -642,12 +636,14 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             score_hs(&hs_last)
         };
         if let (true, Some(prev)) = (use_aux, hs_prev.as_deref()) {
-            let w = self.aux_score_weight;
             let prev_scores = score_hs(prev);
-            for (s, &p) in last_scores.iter_mut().zip(&prev_scores) {
-                *s = ((1.0 - w) * *s + w * p).clamp(-12.0, 12.0);
-            }
-            presence_last = (1.0 - w) * presence_last + w * presence_prev;
+            blend_aux_scores(
+                &mut last_scores,
+                &prev_scores,
+                &mut presence_last,
+                presence_prev,
+                self.aux_score_weight,
+            );
         }
         let pp_presence = host::sigmoid(presence_last);
         let pred_logits: Vec<f32> = last_scores
@@ -784,6 +780,43 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
     }
 }
 
+/// Validate that every component of `post_box_delta` is finite.
+pub fn validate_post_box_delta(delta: [f32; 4]) -> Result<(), String> {
+    if delta.iter().any(|v| !v.is_finite()) {
+        return Err(format!("post_box_delta must be finite, got {delta:?}"));
+    }
+    Ok(())
+}
+
+/// Validate that `aux_score_weight` is finite and in `[0.0, 1.0]`.
+pub fn validate_aux_score_weight(weight: f32) -> Result<(), String> {
+    if !weight.is_finite() || !(0.0..=1.0).contains(&weight) {
+        return Err(format!(
+            "aux_score_weight must be finite in [0.0, 1.0], got {weight}"
+        ));
+    }
+    Ok(())
+}
+
+/// Blend penultimate-layer (`li = 4`) query and presence logits into the final layer (`li = 5`).
+/// Exact no-op when `weight == 0.0`.
+pub fn blend_aux_scores(
+    last_scores: &mut [f32],
+    prev_scores: &[f32],
+    presence_last: &mut f32,
+    presence_prev: f32,
+    weight: f32,
+) {
+    assert_eq!(last_scores.len(), prev_scores.len(), "aux score length");
+    if weight == 0.0 {
+        return;
+    }
+    for (s, &p) in last_scores.iter_mut().zip(prev_scores) {
+        *s = ((1.0 - weight) * *s + weight * p).clamp(-12.0, 12.0);
+    }
+    *presence_last = (1.0 - weight) * *presence_last + weight * presence_prev;
+}
+
 /// Apply a post-decoder `[dx, dy, dw, dh]` logit shift to `cxcywh` boxes in `[0, 1]` without
 /// touching decoder `boxRPB` reference points. Exact no-op when `delta == [0.0; 4]` (and per
 /// coordinate when `d == 0.0`).
@@ -903,6 +936,10 @@ mod tests {
 
     #[test]
     fn post_box_delta_is_bit_exact_at_zero_and_finite_on_boundaries() {
+        assert!(validate_post_box_delta([0.0, -0.1, 0.2, 0.05]).is_ok());
+        assert!(validate_post_box_delta([0.0, f32::NAN, 0.0, 0.0]).is_err());
+        assert!(validate_post_box_delta([0.0, 0.0, f32::INFINITY, 0.0]).is_err());
+
         let orig = vec![0.0f32, 1.0, 0.035, 0.042, 0.5, 0.25, 0.1, 0.9999];
         let mut cur = orig.clone();
         apply_post_box_delta(&mut cur, [0.0; 4]);
@@ -917,5 +954,32 @@ mod tests {
         assert!(cur[2] > orig[2] && cur[2] < 1.0);
         assert!(cur[3] < orig[3] && cur[3] > 0.0);
         assert!(cur.iter().all(|v| v.is_finite() && (0.0..=1.0).contains(v)));
+    }
+
+    #[test]
+    fn aux_score_weight_validation_and_blending_preserve_zero_identity_and_bounds() {
+        for ok in [0.0f32, 0.25, 1.0] {
+            assert!(validate_aux_score_weight(ok).is_ok());
+        }
+        for bad in [-0.01f32, 1.01, f32::NAN, f32::INFINITY] {
+            assert!(validate_aux_score_weight(bad).is_err());
+        }
+
+        let orig = [-3.5f32, 0.0, 4.2, 15.0];
+        let prev = [-1.5f32, 2.0, 0.2, 20.0];
+        let mut s0 = orig;
+        let mut p0 = 1.75f32;
+        blend_aux_scores(&mut s0, &prev, &mut p0, 0.25, 0.0);
+        for (a, b) in s0.iter().zip(&orig) {
+            assert_eq!(a.to_bits(), b.to_bits());
+        }
+        assert_eq!(p0.to_bits(), 1.75f32.to_bits());
+
+        blend_aux_scores(&mut s0, &prev, &mut p0, 0.75, 0.25);
+        assert!((s0[0] - -3.0).abs() < 1e-6);
+        assert!((s0[1] - 0.5).abs() < 1e-6);
+        assert!((s0[2] - 3.2).abs() < 1e-6);
+        assert_eq!(s0[3], 12.0);
+        assert!((p0 - 1.5).abs() < 1e-6);
     }
 }
