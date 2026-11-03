@@ -41,6 +41,10 @@ SPEC = [
     (f"{DEC_TEXT}.in_proj_v", f"{DEC_TEXT}.in_proj_weight", (2 * E, 3 * E), 8, 12.0),
     (f"{DEC_TEXT}.out_proj", f"{DEC_TEXT}.out_proj.weight", (0, E), 4, 4.0),
     (f"{DEC_IMG}.in_proj_q", f"{DEC_IMG}.in_proj_weight", (0, E), 16, 32.0),
+    ("detector.dot_prod_scoring.hs_proj", "detector.dot_prod_scoring.hs_proj.weight", (0, E), 16, 32.0),
+    ("detector.transformer.decoder.bbox_embed.layers.2", "detector.transformer.decoder.bbox_embed.layers.2.weight", (0, 4), 4, 8.0),
+    ("detector.transformer.decoder.presence_token_head.layers.2", "detector.transformer.decoder.presence_token_head.layers.2.weight", (0, 1), 1, 2.0),
+    ("detector.backbone.language_backbone.resizer", "detector.backbone.language_backbone.resizer.weight", (0, E), 16, 32.0),
 ]
 UNTOUCHED = [f"{ENC}.in_proj_bias", "detector.transformer.encoder.layers.1.self_attn.in_proj_weight"]
 
@@ -81,7 +85,7 @@ def main():
         "rule": "W' = W + (alpha/rank) * (B @ A) on the row slice, f32; torch (BLAS) and Rust (sequential k) sum in a different order, "
                 "so the Rust test allows |d| <= 1e-6 + 1e-6 * |expected| per element",
     }, indent=1))
-    print("merged tensors:", {p.split("transformer.")[1]: f"{e:.1e}" for p, e in err.items()})
+    print("merged tensors:", {p.removeprefix("detector."): f"{e:.1e}" for p, e in err.items()})
     print("wrote", OUT)
 
 

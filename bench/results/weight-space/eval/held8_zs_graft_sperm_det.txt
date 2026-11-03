@@ -1,0 +1,8 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+21           8       153         132        0  0.1216 0.0514 0.3391 0.6394
+22           8       101         129        0  0.0627 0.0247 0.1936 0.8279
+36           8       353         173        0  0.2332 0.0971 0.5697 0.7338
+47           8        64          99        0  0.1382 0.0775 0.2712 0.7049
+82           8       208          88        0  0.0870 0.0325 0.2622 0.6703
+all         40       879         621        0  0.1729 0.0606 0.5581 0.6740
+wrote bench/results/weight-space/eval/held8_zs_graft_sperm_det.json

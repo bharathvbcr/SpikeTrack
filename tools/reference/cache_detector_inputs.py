@@ -151,15 +151,19 @@ def main():
         p.requires_grad_(False)
     print(f"reference built in {time.time() - t0:.0f}s", flush=True)
 
-    # Text encoder: CPU, once per prompt, exactly the fp32 reference path.
+    # Text encoder: CPU, once per prompt, exactly the fp32 reference path (plus pre-resizer [32, 1024]).
     text = {}
+    te = det.backbone.language_backbone
     with torch.no_grad():
         for p in lc.ALL_PROMPTS:
+            tok = te.tokenizer([p], context_length=te.context_length)
+            _, pre = te.encoder(tok)  # [1, 32, 1024]
+            pre_seq = pre.transpose(0, 1)[:, 0].float().contiguous()  # [32, 1024]
             o = det.backbone.forward_text([p], device=torch.device("cpu"))
             feat, mask = o["language_features"], o["language_mask"]
             assert feat.shape == (32, 1, lc.DIM) and mask.shape == (1, 32), (feat.shape, mask.shape)
-            text[p] = (feat[:, 0].float().contiguous(), mask[0].to(torch.uint8).contiguous())
-    print(f"text features for {len(text)} prompts", flush=True)
+            text[p] = (feat[:, 0].float().contiguous(), mask[0].to(torch.uint8).contiguous(), pre_seq)
+    print(f"text features for {len(text)} prompts (including [32, 1024] pre-resizer)", flush=True)
 
     lang = det.backbone.language_backbone  # stays on the CPU: it is not used again
     det.backbone.language_backbone = torch.nn.Identity()
@@ -170,7 +174,7 @@ def main():
     (out / "frames").mkdir(parents=True, exist_ok=True)
     tensors = {}
     for i, p in enumerate(lc.ALL_PROMPTS):
-        tensors[f"p{i}.feat"], tensors[f"p{i}.mask"] = text[p]
+        tensors[f"p{i}.feat"], tensors[f"p{i}.mask"], tensors[f"p{i}.pre_resizer"] = text[p]
     save_file(tensors, str(out / "text.safetensors"))
 
     pos_ref = None

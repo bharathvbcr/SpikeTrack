@@ -4,15 +4,16 @@ commands:
   image        detect and segment a text-prompted concept in one image
   track        track a text-prompted concept through a video or a folder of frames
   eval-visem   HOTA of predicted tracks against VISEM-Tracking ground truth
+  weights      read, probe and diff SAM 3.1 weights in Rust (SVD, token rows, LoRA & surgical edits)
 
 `spiketrack <command> --help` shows a command's options.
-        0.08 real         0.00 user         0.00 sys
-             7438336  maximum resident set size
+        0.01 real         0.00 user         0.00 sys
+             7471104  maximum resident set size
                    0  average shared memory size
                    0  average unshared data size
                    0  average unshared stack size
-                 655  page reclaims
-                  30  page faults
+                 656  page reclaims
+                  32  page faults
                    0  swaps
                    0  block input operations
                    0  block output operations
@@ -20,7 +21,7 @@ commands:
                    0  messages received
                    0  signals received
                    0  voluntary context switches
-                  66  involuntary context switches
-            44416930  instructions retired
-            33997732  cycles elapsed
-             2130448  peak memory footprint
+                  99  involuntary context switches
+            43096106  instructions retired
+            42311124  cycles elapsed
+             2146832  peak memory footprint

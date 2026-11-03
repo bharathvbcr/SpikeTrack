@@ -155,7 +155,9 @@ pub fn metal_counters(m: &MetalBackend) -> (u64, u64) {
 
 /// Markdown: frame 0 per stage, then frames 1.. per stage (total, mean per frame, share of the
 /// stage sum), stages in the order they first ran; then the stage sum per steady frame against
-/// `frame_seconds` (the Session's push_frame time per frame, which excludes decode and collector).
+/// `frame_seconds` (the Session's push_frame time per frame, which excludes decode and collector);
+/// then every row as a fenced `tsv` block (frame, stage, ms), so a reader can pick its own frames
+/// (the memory bank fills over the first frames, and the means above include those).
 pub fn stage_report(rows: &[StageRow], frame_seconds: &[f64]) -> String {
     let mut order: Vec<&str> = Vec::new();
     for (_, s, _) in rows {
@@ -208,6 +210,11 @@ pub fn stage_report(rows: &[StageRow], frame_seconds: &[f64]) -> String {
             1e3 * measured / steady as f64
         ));
     }
+    out.push_str("\nPer frame:\n\n```tsv\nframe\tstage\tms\n");
+    for (f, s, secs) in rows {
+        out.push_str(&format!("{f}\t{s}\t{:.3}\n", 1e3 * secs));
+    }
+    out.push_str("```\n");
     out
 }
 
@@ -267,5 +274,15 @@ mod tests {
                 "| progress line + collector"
             ]
         );
+        let tsv: Vec<&str> = rep
+            .lines()
+            .skip_while(|l| *l != "```tsv")
+            .skip(1)
+            .take_while(|l| *l != "```")
+            .collect();
+        assert_eq!(tsv.len(), 1 + rows.len(), "{rep}");
+        assert_eq!(tsv[0], "frame\tstage\tms");
+        assert_eq!(tsv[2], "0\ttrunk\t2000.000");
+        assert_eq!(tsv[9], "2\tprogress line + collector\t100.000");
     }
 }

@@ -1,0 +1,6 @@
+SpikeTrack main 7f8db18 feat(model): unify M1–M5 zero-copy UMA, adversarial test suites, and fast developer workflows, dirty 25 (binary de9b4e9f3fbdee33, 11777568 bytes)
+metal toolchain Build Version: 27B47
+tessl 52bdd19 Merge fix/hosted-lib-device-check (PR #5): validate the hosted manifest's entries instead of assuming them
+ojas 286a444 Merge branch 'claude/docs-match-code-2026-11-01-eb0573': docs corrected against the code
+System-wide memory free percentage: 58%
+15:24  up 1 day,  2:19, 1 user, load averages: 27.08 29.34 29.90

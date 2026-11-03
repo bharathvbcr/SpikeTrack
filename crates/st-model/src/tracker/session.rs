@@ -67,13 +67,15 @@ use std::collections::BTreeMap;
 
 use ojas_core::{Backend, Tensor};
 
-use crate::detector::{Detector, DetectorTaps, D as DET_D, QUERIES};
+use crate::detector::{Detector, DetectorOut, D as DET_D, QUERIES};
 use crate::host;
-use crate::layers::{host_of, up};
+use crate::layers::{host_slice, up};
 use crate::text::Text;
+use crate::tile::{collect_tile_candidates, TileSpec, DEFAULT_SEAM_MARGIN};
 use crate::tokenizer::Tokenizer;
 use crate::tracker::associate::{
-    associate, nms_iom, not_close_to_boundary, track_detections, AssocParams, Association, Bitmask,
+    associate, nms_box_and_iom, nms_iom, not_close_to_boundary, track_detections, AssocParams,
+    Association, Bitmask,
 };
 use crate::tracker::bookkeeping::{
     BookParams, FrameInput, FramePlan, HideLog, TrackBook, YieldBuffer,
@@ -81,7 +83,7 @@ use crate::tracker::bookkeeping::{
 use crate::tracker::mask_decoder::MUX;
 use crate::tracker::state::{err, FrameCtx, TrackerState};
 use crate::tracker::vos::Vos;
-use crate::{ModelError, Neck, Taps};
+use crate::{ModelError, Neck};
 
 /// The builder's session parameters (`model_builder.py:1170-1202`).
 #[derive(Clone, Debug)]
@@ -97,6 +99,9 @@ pub struct SessionConfig {
     pub score_threshold: f32,
     /// `det_nms_thresh` (mask IoM).
     pub nms_iom: f32,
+    /// Optional box-IoU NMS threshold for head-box mode (`track --boxes detector`). `None` uses
+    /// upstream's whole-mask IoM NMS (`nms_iom`).
+    pub nms_box_iou: Option<f32>,
     /// `_suppress_detections_close_to_boundary` margin.
     pub boundary_margin: f32,
 }
@@ -110,18 +115,20 @@ impl SessionConfig {
             assoc: AssocParams::default(),
             score_threshold: 0.4,
             nms_iom: 0.1,
+            nms_box_iou: None,
             boundary_margin: 0.025,
         }
     }
 }
 
-/// The detector's raw output for one frame, host side.
+/// The detector's raw output for one frame, host side (`>= QUERIES` queries when tile proposals
+/// are appended).
 pub struct Detections {
-    /// `[200]` joint class-and-presence logits, before NMS.
+    /// `[n_det]` joint class-and-presence logits, before NMS.
     pub logits: Vec<f32>,
-    /// `[200, 4]` boxes, centre x, centre y, width, height in `[0, 1]`.
+    /// `[n_det, 4]` boxes, centre x, centre y, width, height in `[0, 1]`.
     pub boxes_cxcywh: Vec<f32>,
-    /// `[200, 288 * 288]` mask logits.
+    /// `[n_det, 288 * 288]` mask logits.
     pub masks: Vec<f32>,
 }
 
@@ -331,18 +338,21 @@ fn round_bf16<B: Backend + ?Sized>(be: &B, t: &Tensor) -> Result<Tensor, ModelEr
 }
 
 fn round_neck<B: Backend + ?Sized>(be: &B, neck: [Tensor; 3]) -> Result<[Tensor; 3], ModelError> {
-    let [a, b, c] = neck;
-    Ok([
-        round_bf16(be, &a)?,
-        round_bf16(be, &b)?,
-        round_bf16(be, &c)?,
-    ])
+    let [a0, b0, c0] = neck;
+    let a = round_bf16(be, &a0)?;
+    drop(a0);
+    let b = round_bf16(be, &b0)?;
+    drop(b0);
+    let c = round_bf16(be, &c0)?;
+    drop(c0);
+    Ok([a, b, c])
 }
 
-/// Mask logits of query `q`: one of `QUERIES` equal rows (`step_frame` checks the count against
-/// the geometry's mask size before any row is read).
+/// Mask logits of query `q`: one of `det.logits.len()` equal rows (`step_frame` checks the count
+/// against the geometry's mask size before any row is read).
 fn det_row(det: &Detections, q: usize) -> &[f32] {
-    let px = det.masks.len() / QUERIES;
+    let n_det = det.logits.len();
+    let px = det.masks.len() / n_det;
     &det.masks[q * px..(q + 1) * px]
 }
 
@@ -380,11 +390,12 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
             .tokenize(prompt)
             .map_err(|e| err(format!("tokenizer: {e}")))?;
         let tf = text.encode(&[ids])?;
-        let resized = host_of(&tf.resized, be)?;
+        let resized = host_slice(&tf.resized, be)?;
         let valid: Vec<f32> = (0..tf.padding.len())
             .filter(|&t| !tf.padding[t])
-            .flat_map(|t| resized[t * DET_D..(t + 1) * DET_D].to_vec())
+            .flat_map(|t| resized[t * DET_D..(t + 1) * DET_D].iter().copied())
             .collect();
+        drop((resized, tf));
         Ok(up(be, &valid, &[1, valid.len() / DET_D, DET_D])?)
     }
 
@@ -447,21 +458,92 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
     /// the yield buffer releases.
     pub fn push_frame(&mut self, frame: &Tensor) -> Result<Vec<YieldedFrame>, ModelError> {
         mark(&mut self.marker, STAGES[0]);
-        let trunk = self.vos.backbone.trunk(frame, &[], &mut Taps::default())?;
+        let trunk = self.vos.backbone.trunk_inference(frame)?;
         mark(&mut self.marker, STAGES[1]);
         let fpn = self.vos.backbone.neck(Neck::Detector, &trunk)?;
         let marker = &mut self.marker;
-        let out = self.detector.forward_marked(
-            &fpn,
-            &self.prompt,
-            &mut DetectorTaps::default(),
-            &mut |s| mark(marker, s),
-        )?;
+        let out = self
+            .detector
+            .forward_inference(&fpn, &self.prompt, &mut |s| mark(marker, s))?;
+        drop(fpn);
         mark(&mut self.marker, STAGES[2]);
+        let DetectorOut {
+            pred_logits,
+            pred_boxes,
+            pred_masks,
+            ..
+        } = out;
+        let masks_host = host_slice(&pred_masks, self.vos.be)?;
+        drop(pred_masks);
         let det = Detections {
-            logits: out.pred_logits,
-            boxes_cxcywh: out.pred_boxes,
-            masks: host_of(&out.pred_masks, self.vos.be)?,
+            logits: pred_logits,
+            boxes_cxcywh: pred_boxes,
+            masks: masks_host.to_vec(),
+        };
+        drop(masks_host);
+        self.step_frame(&trunk, &det)
+    }
+
+    /// Feed the next frame plus optional zoomed sub-tiles (`(TileSpec, [1, 3, 1008, 1008])`),
+    /// appending seam-filtered tile detections above `min_tile_prob` onto the full-frame queries
+    /// before NMS, association, reconditioning, and births.
+    pub fn push_frame_with_tiles(
+        &mut self,
+        frame: &Tensor,
+        tiles: &[(TileSpec, Tensor)],
+        min_tile_prob: f32,
+    ) -> Result<Vec<YieldedFrame>, ModelError> {
+        if tiles.is_empty() {
+            return self.push_frame(frame);
+        }
+        mark(&mut self.marker, STAGES[0]);
+        let trunk = self.vos.backbone.trunk_inference(frame)?;
+        mark(&mut self.marker, STAGES[1]);
+        let fpn = self.vos.backbone.neck(Neck::Detector, &trunk)?;
+        let marker = &mut self.marker;
+        let out = self
+            .detector
+            .forward_inference(&fpn, &self.prompt, &mut |s| mark(marker, s))?;
+        drop(fpn);
+        mark(&mut self.marker, STAGES[2]);
+        let DetectorOut {
+            mut pred_logits,
+            mut pred_boxes,
+            pred_masks,
+            ..
+        } = out;
+        let masks_host = host_slice(&pred_masks, self.vos.be)?;
+        let mut masks = masks_host.to_vec();
+        drop((pred_masks, masks_host));
+
+        let mask_side = self.vos.geo.low_res();
+        for &(spec, ref tile_tensor) in tiles {
+            let t_trunk = self.vos.backbone.trunk_inference(tile_tensor)?;
+            let t_fpn = self.vos.backbone.neck(Neck::Detector, &t_trunk)?;
+            drop(t_trunk);
+            let t_out = self
+                .detector
+                .forward_inference(&t_fpn, &self.prompt, &mut |_| {})?;
+            drop(t_fpn);
+            let t_masks = host_slice(&t_out.pred_masks, self.vos.be)?;
+            collect_tile_candidates(
+                &spec,
+                &t_out.pred_logits,
+                &t_out.pred_boxes,
+                t_masks.as_slice(),
+                mask_side,
+                min_tile_prob,
+                DEFAULT_SEAM_MARGIN,
+                &mut pred_logits,
+                &mut pred_boxes,
+                &mut masks,
+            );
+            drop((t_out.pred_masks, t_masks));
+        }
+        let det = Detections {
+            logits: pred_logits,
+            boxes_cxcywh: pred_boxes,
+            masks,
         };
         self.step_frame(&trunk, &det)
     }
@@ -472,7 +554,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         frame: &Tensor,
         det: &Detections,
     ) -> Result<Vec<YieldedFrame>, ModelError> {
-        let trunk = self.vos.backbone.trunk(frame, &[], &mut Taps::default())?;
+        let trunk = self.vos.backbone.trunk_inference(frame)?;
         self.step_frame(&trunk, det)
     }
 
@@ -496,11 +578,12 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
             )));
         }
         let mask = self.vos.geo.low_res();
-        if det.logits.len() != QUERIES
-            || det.boxes_cxcywh.len() != QUERIES * 4
-            || det.masks.len() != QUERIES * mask * mask
+        let n_det = det.logits.len();
+        if n_det < QUERIES
+            || det.boxes_cxcywh.len() != n_det * 4
+            || det.masks.len() != n_det * mask * mask
         {
-            return Err(err(format!("detections do not hold {QUERIES} queries of {mask}x{mask} masks (the tracker's geometry is {} pixels; was the detector built for the same size?)", self.vos.geo.pixels())));
+            return Err(err(format!("detections do not hold >={QUERIES} queries of {mask}x{mask} masks (got {n_det} logits, {} box floats, {} mask floats; tracker geometry is {} pixels)", det.boxes_cxcywh.len(), det.masks.len(), self.vos.geo.pixels())));
         }
         mark(&mut self.marker, STAGES[3]);
         let prop = round_neck(
@@ -508,6 +591,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
             self.vos.backbone.neck(Neck::Propagation, trunk)?,
         )?;
         let mut ctx = self.vos.frame_ctx(t, &prop)?;
+        drop(prop);
         // The prompt frame: `add_prompt`'s visit, then `propagate_in_video`'s.
         let visits = if t == 0 { 2 } else { 1 };
         let mut last = None;
@@ -602,47 +686,7 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
 
     /// NMS, thresholds, boundary filter and the kept-first reorder over the detector's queries.
     fn process_detections(&self, det: &Detections) -> DetStage {
-        let px = det.masks.len() / QUERIES;
-        let probs0: Vec<f32> = det.logits.iter().map(|&l| host::sigmoid(l)).collect();
-        let bits0: Vec<Bitmask> = (0..QUERIES)
-            .map(|q| Bitmask::from_logits(&det.masks[q * px..(q + 1) * px]))
-            .collect();
-        let nms_keep = nms_iom(&probs0, &bits0, self.cfg.score_threshold, self.cfg.nms_iom);
-        // Queries NMS did not keep (including those at or under the threshold) lose 1e4 of logit.
-        let probs: Vec<f32> = (0..QUERIES)
-            .map(|q| host::sigmoid(det.logits[q] - 1e4 * if nms_keep[q] { 0.0 } else { 1.0 }))
-            .collect();
-        let boxes_xyxy: Vec<f32> = det
-            .boxes_cxcywh
-            .chunks_exact(4)
-            .flat_map(|b| {
-                [
-                    b[0] - 0.5 * b[2],
-                    b[1] - 0.5 * b[3],
-                    b[0] + 0.5 * b[2],
-                    b[1] + 0.5 * b[3],
-                ]
-            })
-            .collect();
-        let corners: Vec<[f32; 4]> = boxes_xyxy
-            .chunks_exact(4)
-            .map(|b| [b[0], b[1], b[2], b[3]])
-            .collect();
-        let inside = not_close_to_boundary(&corners, self.cfg.boundary_margin);
-        let keep: Vec<bool> = (0..QUERIES)
-            .map(|q| probs[q] > self.cfg.score_threshold && inside[q])
-            .collect();
-        let mut order: Vec<usize> = (0..QUERIES).filter(|&q| keep[q]).collect();
-        order.extend((0..QUERIES).filter(|&q| !keep[q]));
-        DetStage {
-            bits: order.iter().map(|&q| bits0[q].clone()).collect(),
-            scores: order.iter().map(|&q| probs[q]).collect(),
-            keep_re: order.iter().map(|&q| keep[q]).collect(),
-            probs,
-            keep,
-            boxes_xyxy,
-            order,
-        }
+        process_detections_with_cfg(&self.cfg, det)
     }
 
     /// One visit of `_det_track_one_frame_impl`.
@@ -888,7 +932,10 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         let mut outputs: Vec<(i64, Bitmask)> = Vec::with_capacity(total);
         if total > 0 {
             let src = up(be, &all, &[total, 1, low_res, low_res])?;
-            let video = host_of(&be.interpolate_bilinear_forward(&src, [h, w], false)?, be)?;
+            let video_dev = be.interpolate_bilinear_forward(&src, [h, w], false)?;
+            drop(src);
+            let video = host_slice(&video_dev, be)?;
+            drop(video_dev);
             let ids = prev_ids
                 .iter()
                 .copied()
@@ -929,7 +976,8 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         items.sort_by_key(|i| i.0);
 
         if self.trace {
-            let kept_q: Vec<usize> = (0..QUERIES).filter(|&q| ds.keep[q]).collect();
+            let n_det = det.logits.len();
+            let kept_q: Vec<usize> = (0..n_det).filter(|&q| ds.keep[q]).collect();
             self.traces.push(VisitTrace {
                 frame: t,
                 visit,
@@ -981,14 +1029,69 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
         let be = self.vos.be;
         let (low_res, input_mask) = (self.vos.geo.low_res(), self.vos.geo.input_mask());
         let src = up(be, logits, &[k, 1, low_res, low_res])?;
-        let hi = host_of(
-            &be.interpolate_bilinear_forward(&src, [input_mask, input_mask], false)?,
-            be,
-        )?;
+        let hi_dev = be.interpolate_bilinear_forward(&src, [input_mask, input_mask], false)?;
+        drop(src);
+        let hi = host_slice(&hi_dev, be)?;
+        drop(hi_dev);
         Ok(hi
             .iter()
             .map(|&v| if v > 0.0 { 1.0 } else { 0.0 })
             .collect())
+    }
+}
+
+fn process_detections_with_cfg(cfg: &SessionConfig, det: &Detections) -> DetStage {
+    let n_det = det.logits.len();
+    let px = det.masks.len().checked_div(n_det).unwrap_or(0);
+    let probs0: Vec<f32> = det.logits.iter().map(|&l| host::sigmoid(l)).collect();
+    let bits0: Vec<Bitmask> = (0..n_det)
+        .map(|q| Bitmask::from_logits(&det.masks[q * px..(q + 1) * px]))
+        .collect();
+    let boxes_xyxy: Vec<f32> = det
+        .boxes_cxcywh
+        .chunks_exact(4)
+        .flat_map(|b| {
+            [
+                b[0] - 0.5 * b[2],
+                b[1] - 0.5 * b[3],
+                b[0] + 0.5 * b[2],
+                b[1] + 0.5 * b[3],
+            ]
+        })
+        .collect();
+    let corners: Vec<[f32; 4]> = boxes_xyxy
+        .chunks_exact(4)
+        .map(|b| [b[0], b[1], b[2], b[3]])
+        .collect();
+    let nms_keep = match cfg.nms_box_iou {
+        Some(max_iou) => nms_box_and_iom(
+            &probs0,
+            &corners,
+            &bits0,
+            cfg.score_threshold,
+            max_iou,
+            cfg.nms_iom,
+        ),
+        None => nms_iom(&probs0, &bits0, cfg.score_threshold, cfg.nms_iom),
+    };
+    // Queries NMS did not keep (including those at or under the threshold) lose 1e4 of logit.
+    let probs: Vec<f32> = (0..n_det)
+        .map(|q| host::sigmoid(det.logits[q] - 1e4 * if nms_keep[q] { 0.0 } else { 1.0 }))
+        .collect();
+    let inside = not_close_to_boundary(&corners, cfg.boundary_margin);
+    let keep: Vec<bool> = (0..n_det)
+        .map(|q| probs[q] > cfg.score_threshold && inside[q])
+        .collect();
+    let mut order: Vec<usize> = (0..n_det).filter(|&q| keep[q]).collect();
+    order.extend((0..n_det).filter(|&q| !keep[q]));
+    DetStage {
+        bits: order.iter().map(|&q| bits0[q].clone()).collect(),
+        scores: order.iter().map(|&q| probs[q]).collect(),
+        keep_re: order.iter().map(|&q| keep[q]).collect(),
+        probs,
+        keep,
+        boxes_xyxy,
+        order,
     }
 }
 
@@ -1201,5 +1304,58 @@ mod tests {
             mask_box_xywh(&m, 4, 8),
             [2.0 / 8.0, 1.0 / 4.0, 3.0 / 8.0, 1.0 / 4.0]
         );
+    }
+
+    #[test]
+    fn process_detections_supports_head_box_nms_border_relaxation_and_extra_tile_queries() {
+        // 203 queries (200 base + 3 appended tile queries), 4x4 masks:
+        // - q=0: head [0.20, 0.20, 0.04, 0.04], mask pixels 0..8
+        // - q=201: crossing tail (pixels 6..14, IoM = 2/8 = 0.25 > 0.10, <= 0.65), border head [0.015, 0.50, 0.03, 0.03]
+        // - q=202: duplicate mask on q=0 (pixels 0..8, IoM = 1.0 > 0.65) with slightly shifted box [0.25, 0.20, 0.04, 0.04]
+        let n_det = QUERIES + 3;
+        let px = 16;
+        let mut logits = vec![-6.0f32; n_det];
+        logits[0] = 2.5;
+        logits[QUERIES + 1] = 2.0;
+        logits[QUERIES + 2] = 1.5;
+        let mut boxes_cxcywh = vec![0.5f32; n_det * 4];
+        boxes_cxcywh[0..4].copy_from_slice(&[0.20, 0.20, 0.04, 0.04]);
+        boxes_cxcywh[(QUERIES + 1) * 4..(QUERIES + 2) * 4]
+            .copy_from_slice(&[0.015, 0.50, 0.03, 0.03]);
+        boxes_cxcywh[(QUERIES + 2) * 4..(QUERIES + 3) * 4]
+            .copy_from_slice(&[0.25, 0.20, 0.04, 0.04]);
+        let mut masks = vec![-3.0f32; n_det * px];
+        for i in 0..8 {
+            masks[i] = 3.0;
+            masks[(QUERIES + 2) * px + i] = 3.0;
+        }
+        for i in 6..14 {
+            masks[(QUERIES + 1) * px + i] = 3.0;
+        }
+        let det = Detections {
+            logits,
+            boxes_cxcywh,
+            masks,
+        };
+
+        // Upstream default config: mask-IoM (0.10) suppresses BOTH q=201 and q=202.
+        let base_cfg = SessionConfig::new(8, 480, 640);
+        let ds_base = process_detections_with_cfg(&base_cfg, &det);
+        assert_eq!(ds_base.order.len(), n_det);
+        assert!(ds_base.keep[0]);
+        assert!(!ds_base.keep[QUERIES + 1]);
+        assert!(!ds_base.keep[QUERIES + 2]);
+
+        // Head-box mode config: nms_box_iou=Some(0.35), nms_iom=0.65, boundary_margin=-1.0
+        // keeps q=0 AND crossing-tail border sperm q=201, while still suppressing duplicate mask q=202!
+        let mut head_cfg = SessionConfig::new(8, 480, 640);
+        head_cfg.nms_box_iou = Some(0.35);
+        head_cfg.nms_iom = 0.65;
+        head_cfg.boundary_margin = -1.0;
+        let ds_head = process_detections_with_cfg(&head_cfg, &det);
+        assert!(ds_head.keep[0]);
+        assert!(ds_head.keep[QUERIES + 1]);
+        assert!(!ds_head.keep[QUERIES + 2]);
+        assert_eq!(&ds_head.order[..2], &[0, QUERIES + 1]);
     }
 }

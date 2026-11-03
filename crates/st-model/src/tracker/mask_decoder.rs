@@ -11,7 +11,7 @@
 use ojas_core::{Backend, ConvTranspose2dParams, OjasError, Tensor};
 use st_weights::TensorGroup;
 
-use crate::layers::{get, up, Lin, Mha, Mlp, Norm};
+use crate::layers::{get, host_slice, up, Lin, Mha, Mlp, Norm};
 use crate::ModelError;
 
 pub const D: usize = 256;
@@ -194,7 +194,7 @@ impl MuxMaskDecoder {
             ),
             hyper: (0..MASKS_PER_OBJ)
                 .map(|i| {
-                    Mlp::load(
+                    Mlp::load_host(
                         be,
                         g,
                         &format!("{p}.output_hypernetworks_mlps.{i}"),
@@ -204,7 +204,7 @@ impl MuxMaskDecoder {
                     )
                 })
                 .collect::<Result<_, _>>()?,
-            iou_head: Mlp::load(
+            iou_head: Mlp::load_host(
                 be,
                 g,
                 &format!("{p}.iou_prediction_head"),
@@ -212,7 +212,7 @@ impl MuxMaskDecoder {
                 false,
                 false,
             )?,
-            obj_score_head: Mlp::load(
+            obj_score_head: Mlp::load_host(
                 be,
                 g,
                 &format!("{p}.pred_obj_score_head"),
@@ -265,13 +265,15 @@ impl MuxMaskDecoder {
             be.broadcast_add_forward(&pe1, &zeros)?
         };
         let (hs, src) = self.transformer.fwd(be, &img_tok, &pe, &tokens)?;
-        let hs_host = hs.to_host(be.budget())?.to_f32_vec()?;
+        drop((img_tok, pe, tokens));
 
-        // Upscale the image tokens with the high-res skips.
+        // Upscale the image tokens with the high-res skips before reading `hs`, so `dc1`/`ln1`/`dc2`
+        // encode asynchronously without stalling on an intermediate GPU readback.
         let src = be.permute(&src, &[0, 2, 1])?.reshape(&[b, D, feat, feat])?;
         let mut up2 = ConvTranspose2dParams::new();
         up2.stride = [2, 2];
         let x = be.conv_transpose2d_forward(&src, &self.dc1.0, Some(&self.dc1.1), up2)?;
+        drop(src);
         let x = be.residual_add_forward(&x, s1)?;
         let x = be.gelu_erf_forward(&be.channel_layer_norm_forward(
             &x,
@@ -281,49 +283,70 @@ impl MuxMaskDecoder {
         )?)?;
         let x = be.conv_transpose2d_forward(&x, &self.dc2.0, Some(&self.dc2.1), up2)?;
         let upscaled = be.gelu_erf_forward(&be.residual_add_forward(&x, s0)?)?; // [B, 32, 4G, 4G]
+        drop(x);
+
+        let hs_view = host_slice(&hs, be)?;
+        drop(hs);
+        let hs_host = hs_view.as_slice();
 
         // Per-object hypernetwork vectors [B, MUX, 3, 32] from the mask tokens.
         let row =
             |bi: usize, tidx: usize| &hs_host[(bi * ntok + tidx) * D..(bi * ntok + tidx + 1) * D];
-        let mut hyper_in = Vec::with_capacity(b * MUX * MASKS_PER_OBJ * (D / 8));
-        let mut sam_tokens = Vec::with_capacity(b * MUX * MASKS_PER_OBJ * D);
+        let ch = D / 8;
+        let b_mux = b * MUX;
+        let mut sam_tokens = Vec::with_capacity(b_mux * MASKS_PER_OBJ * D);
         for bi in 0..b {
             for s in 0..MUX {
                 for m in 0..MASKS_PER_OBJ {
-                    let t = row(bi, 2 * MUX + s * MASKS_PER_OBJ + m);
-                    hyper_in.extend(self.hyper[m].host(t, 1));
-                    sam_tokens.extend_from_slice(t);
+                    sam_tokens.extend_from_slice(row(bi, 2 * MUX + s * MASKS_PER_OBJ + m));
                 }
             }
         }
+        let mut hyper_in = vec![0f32; b_mux * MASKS_PER_OBJ * ch];
+        let mut m_in = Vec::with_capacity(b_mux * D);
+        for m in 0..MASKS_PER_OBJ {
+            m_in.clear();
+            for bi in 0..b {
+                for s in 0..MUX {
+                    m_in.extend_from_slice(row(bi, 2 * MUX + s * MASKS_PER_OBJ + m));
+                }
+            }
+            let h_m = self.hyper[m].host(&m_in, b_mux);
+            for bs in 0..b_mux {
+                hyper_in[(bs * MASKS_PER_OBJ + m) * ch..(bs * MASKS_PER_OBJ + m + 1) * ch]
+                    .copy_from_slice(&h_m[bs * ch..(bs + 1) * ch]);
+            }
+        }
+        let mut iou_in = Vec::with_capacity(b_mux * D);
+        let mut obj_in = Vec::with_capacity(b_mux * D);
+        for bi in 0..b {
+            iou_in.extend_from_slice(&hs_host[(bi * ntok + MUX) * D..(bi * ntok + 2 * MUX) * D]);
+            obj_in.extend_from_slice(&hs_host[(bi * ntok) * D..(bi * ntok + MUX) * D]);
+        }
+        drop(hs_view);
+        let iou_pred = self.iou_head.host(&iou_in, b_mux);
+        let object_score_logits = self.obj_score_head.host(&obj_in, b_mux);
+
         let n = low_res * low_res;
         let mut mask_tensors = Vec::with_capacity(b);
         for bi in 0..b {
             let hyper = Tensor::from_f32(
-                &hyper_in
-                    [bi * MUX * MASKS_PER_OBJ * (D / 8)..(bi + 1) * MUX * MASKS_PER_OBJ * (D / 8)],
-                &[MUX * MASKS_PER_OBJ, D / 8],
+                &hyper_in[bi * MUX * MASKS_PER_OBJ * ch..(bi + 1) * MUX * MASKS_PER_OBJ * ch],
+                &[MUX * MASKS_PER_OBJ, ch],
                 be.budget(),
             )?;
             let hyper = be.upload(&hyper)?;
-            let emb = be.permute(&upscaled.narrow_batch(bi)?.reshape(&[D / 8, n])?, &[1, 0])?; // [n, 32]
+            let emb = be.permute(&upscaled.narrow_batch(bi)?.reshape(&[ch, n])?, &[1, 0])?; // [n, 32]
             let m = be.linear_forward(&hyper, &emb)?; // [48, n]
             mask_tensors.push(m.reshape(&[1, MUX, MASKS_PER_OBJ, low_res, low_res])?);
         }
+        drop(upscaled);
         let masks = if b == 1 {
             mask_tensors.pop().expect("mask tensor")
         } else {
             let refs: Vec<&Tensor> = mask_tensors.iter().collect();
             be.concat(&refs, 0)?
         };
-        let mut iou_pred = Vec::with_capacity(b * MUX * MASKS_PER_OBJ);
-        let mut object_score_logits = Vec::with_capacity(b * MUX);
-        for bi in 0..b {
-            for s in 0..MUX {
-                iou_pred.extend(self.iou_head.host(row(bi, MUX + s), 1));
-                object_score_logits.extend(self.obj_score_head.host(row(bi, s), 1));
-            }
-        }
         Ok(MuxDecoderOut {
             masks,
             iou_pred,

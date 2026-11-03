@@ -1,0 +1,8 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+21          32       612         503        0  0.1141 0.0476 0.3070 0.6292
+22          32       401         470        0  0.0811 0.0406 0.1925 0.7258
+36          32      1409         505        0  0.2226 0.0861 0.6012 0.7163
+47          32       238         466        0  0.1363 0.0770 0.2654 0.6151
+82          32       832         431        0  0.0920 0.0374 0.2379 0.6155
+all        160      3492        2375        0  0.1663 0.0593 0.5697 0.6593
+wrote bench/results/weight-space/eval/held32_max16_zs_graft_sperm_det.json

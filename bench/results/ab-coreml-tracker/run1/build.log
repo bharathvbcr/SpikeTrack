@@ -1,0 +1,12 @@
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded objc2-core-ml v0.3.2
+  Downloaded objc2-metal v0.3.2
+  Downloaded objc2-image-io v0.3.2
+  Downloaded bitflags v2.13.2
+  Downloaded cfg-if v1.0.5
+  Downloaded objc2-core-video v0.3.2
+  Downloaded objc2 v0.6.5
+  Downloaded libc v0.2.191
+   Compiling spiketrack v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/spiketrack)
+    Finished `release` profile [optimized] target(s) in 20.99s

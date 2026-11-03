@@ -127,14 +127,15 @@ def install_loss_shims():
     sys.modules["torchmetrics.functional"] = tmf
 
 
-def build_loss():
-    """upstream roboflow_v100_full_ft_100_images.yaml, box + class + presence only (no masks)."""
+def build_loss(o2m=False, o2m_weight=2.0):
+    """upstream roboflow_v100_full_ft_100_images.yaml, box + class + presence (optional DAC one-to-many)."""
     install_loss_shims()
     from sam3.train.loss.loss_fns import Boxes, IABCEMdetr
     from sam3.train.loss.sam3_loss import Sam3LossWrapper
-    from sam3.train.matcher import BinaryHungarianMatcherV2
+    from sam3.train.matcher import BinaryHungarianMatcherV2, BinaryOneToManyMatcher
 
     matcher = BinaryHungarianMatcherV2(cost_class=2.0, cost_bbox=5.0, cost_giou=2.0, focal=True, alpha=0.25, gamma=2, stable=False)
+    o2m_matcher = BinaryOneToManyMatcher(alpha=0.3, threshold=0.4, topk=4) if o2m else None
     wrapper = Sam3LossWrapper(
         loss_fns_find=[
             Boxes(weight_dict={"loss_bbox": 5.0, "loss_giou": 2.0}),
@@ -147,7 +148,9 @@ def build_loss():
         ],
         normalization="local",
         matcher=matcher,
-        o2m_matcher=None,
+        o2m_matcher=o2m_matcher,
+        o2m_weight=o2m_weight,
+        use_o2m_matcher_on_o2m_aux=False,
         scale_by_find_batch_size=True,
     )
     return wrapper, matcher
@@ -200,14 +203,17 @@ def compute_loss(wrapper, matcher, out, targets):
 # ------------------------------------------------------------------ heads
 
 def build_heads(ckpt=CKPT, device="cpu"):
-    """A real `Sam3MultiplexDetector` holding only transformer, geometry encoder and scoring head."""
+    """A real `Sam3MultiplexDetector` holding transformer, geometry encoder, scoring head and text resizer."""
     from safetensors import safe_open
     from sam3 import model_builder as mb
     from sam3.model.sam3_multiplex_detector import Sam3MultiplexDetector
 
+    backbone_stub = nn.Module()
+    backbone_stub.language_backbone = nn.Module()
+    backbone_stub.language_backbone.resizer = nn.Linear(1024, DIM)
     det = Sam3MultiplexDetector(
         num_feature_levels=1,
-        backbone=nn.Module(),
+        backbone=backbone_stub,
         transformer=mb._create_sam3_transformer(use_fa3=False),
         segmentation_head=None,
         semantic_segmentation_head=None,
@@ -218,7 +224,7 @@ def build_heads(ckpt=CKPT, device="cpu"):
         supervise_joint_box_scores=True,
         is_multiplex=True,
     )
-    prefixes = ("transformer.", "geometry_encoder.", "dot_prod_scoring.")
+    prefixes = ("transformer.", "geometry_encoder.", "dot_prod_scoring.", "backbone.language_backbone.resizer.")
     sd = {}
     with safe_open(str(ckpt), "pt") as f:
         for k in f.keys():
@@ -233,10 +239,79 @@ def build_heads(ckpt=CKPT, device="cpu"):
     return det.to(device)
 
 
+def compute_prompt_pre_resizer(prompts=ALL_PROMPTS, ckpt=CKPT):
+    """Return {prompt: (pre_resizer [32, 1024] f32, mask [32] bool)} from the frozen CLIP text tower."""
+    import pkg_resources
+    from safetensors import safe_open
+    from sam3 import model_builder as mb
+
+    bpe = pkg_resources.resource_filename("sam3", "assets/bpe_simple_vocab_16e6.txt.gz")
+    te = mb._create_text_encoder(bpe)
+    prefix = "detector.backbone.language_backbone."
+    with safe_open(str(ckpt), "pt") as f:
+        sd = {k[len(prefix):]: f.get_tensor(k) for k in f.keys() if k.startswith(prefix)}
+    te.load_state_dict(sd, strict=True)
+    te.eval()
+    out = {}
+    with torch.no_grad():
+        tok = te.tokenizer(list(prompts), context_length=te.context_length)
+        masks = (tok != 0).bool().ne(1)  # [N, 32], True = pad
+        _, pre = te.encoder(tok)  # [N, 32, 1024]
+        pre_seq = pre.transpose(0, 1).float().contiguous()  # [32, N, 1024]
+        for i, p in enumerate(prompts):
+            out[p] = (pre_seq[:, i].contiguous(), masks[i].bool().contiguous())
+    return out
+
+
 # ------------------------------------------------------------------ LoRA
 
 _TARGET_RE = re.compile(r"^transformer\.(encoder\.layers\.\d+\.(self_attn|cross_attn_image)|decoder\.layers\.\d+\.(self_attn|cross_attn|ca_text))$")
+_HEAD_LINEAR_RE = re.compile(
+    r"^("
+    r"dot_prod_scoring\.(prompt_mlp\.layers\.[01]|prompt_proj|hs_proj)|"
+    r"transformer\.decoder\.bbox_embed\.layers\.[012]|"
+    r"transformer\.decoder\.presence_token_head\.layers\.[012]|"
+    r"backbone\.language_backbone\.resizer"
+    r")$"
+)
+_FFN_LINEAR_RE = re.compile(r"^transformer\.(encoder|decoder)\.layers\.\d+\.linear[12]$")
 SLOTS = (("q", "in_proj_weight", 0), ("k", "in_proj_weight", 1), ("v", "in_proj_weight", 2), ("o", "out_proj.weight", 0))
+
+
+class LoRALinear(nn.Module):
+    """`nn.Linear` with low-rank adaptation `W + (eff_alpha / eff_rank) * B A`.
+
+    When `min(out_features, in_features) < rank` (e.g. `bbox_embed.layers.2` `[4, 256]` or
+    `presence_token_head.layers.2` `[1, 256]`), `eff_rank = min(rank, out_features, in_features)`
+    and `eff_alpha = alpha * (eff_rank / rank)` so `scale = eff_alpha / eff_rank == alpha / rank`
+    stays identical across layers and satisfies `crates/st-weights/src/lora.rs`'s rank bound.
+    """
+
+    def __init__(self, base, prefix, rank=RANK, alpha=ALPHA, dropout=DROPOUT):
+        super().__init__()
+        assert isinstance(base, nn.Linear), (prefix, type(base))
+        self.base, self.prefix = base, prefix
+        out_f, in_f = base.out_features, base.in_features
+        eff_rank = min(rank, out_f, in_f)
+        assert eff_rank >= 1
+        eff_alpha = float(alpha) * (eff_rank / float(rank))
+        self.out_features, self.in_features = out_f, in_f
+        self.rank, self.alpha = eff_rank, eff_alpha
+        self.scale = eff_alpha / eff_rank
+        self.lora_A = nn.ParameterList([nn.Parameter(torch.empty(eff_rank, in_f))])
+        self.lora_B = nn.ParameterList([nn.Parameter(torch.zeros(out_f, eff_rank))])
+        nn.init.kaiming_uniform_(self.lora_A[0], a=math.sqrt(5))
+        self.drop = nn.Dropout(dropout)
+        self.enabled = True
+
+    def forward(self, x):
+        y = F.linear(x, self.base.weight, self.base.bias)
+        if self.enabled:
+            y = y + F.linear(F.linear(self.drop(x), self.lora_A[0]), self.lora_B[0]) * self.scale
+        return y
+
+    def modules_spec(self):
+        return [(self.prefix, f"{self.prefix}.weight", (0, self.out_features), self.lora_A[0], self.lora_B[0])]
 
 
 class LoRAMultiheadAttention(nn.Module):
@@ -329,8 +404,17 @@ class LoRAMultiheadAttention(nn.Module):
         return spec
 
 
-def attach_lora(det, rank=RANK, alpha=ALPHA, dropout=DROPOUT, seed=0):
-    """Wrap the fusion-encoder and decoder attentions. Returns the wrappers (30 of them)."""
+def _replace_submodule(root, name, wrapper):
+    parent_name, attr = name.rsplit(".", 1)
+    parent = root.get_submodule(parent_name)
+    if isinstance(parent, (nn.ModuleList, nn.Sequential)):
+        parent[int(attr)] = wrapper
+    else:
+        setattr(parent, attr, wrapper)
+
+
+def attach_lora(det, rank=RANK, alpha=ALPHA, dropout=DROPOUT, seed=0, include_heads=False, include_ffn=False):
+    """Wrap the fusion-encoder and decoder attentions, plus optional scoring/bbox/presence/resizer heads and FFNs."""
     from sam3.model.model_misc import MultiheadAttention
 
     # The decoder's cross_attn is upstream's own MultiheadAttention; its self_attn and ca_text (and
@@ -342,17 +426,31 @@ def attach_lora(det, rank=RANK, alpha=ALPHA, dropout=DROPOUT, seed=0):
     wrappers = []
     for name, m in found:
         assert isinstance(m, attention_types), (name, type(m))
-        parent_name, attr = name.rsplit(".", 1)
-        parent = det.get_submodule(parent_name)
         w = LoRAMultiheadAttention(m, "detector." + name, rank, alpha, dropout).to(next(m.parameters()).device)
         w.eval()  # LoRA input dropout is off until set_lora_train(det, True)
-        setattr(parent, attr, w)
+        _replace_submodule(det, name, w)
         wrappers.append(w)
+    if include_heads:
+        found_heads = [(n, m) for n, m in det.named_modules() if _HEAD_LINEAR_RE.match(n)]
+        assert len(found_heads) == 11, [n for n, _ in found_heads]
+        for name, m in found_heads:
+            w = LoRALinear(m, "detector." + name, rank, alpha, dropout).to(next(m.parameters()).device)
+            w.eval()
+            _replace_submodule(det, name, w)
+            wrappers.append(w)
+    if include_ffn:
+        found_ffn = [(n, m) for n, m in det.named_modules() if _FFN_LINEAR_RE.match(n)]
+        assert len(found_ffn) == 24, [n for n, _ in found_ffn]
+        for name, m in found_ffn:
+            w = LoRALinear(m, "detector." + name, rank, alpha, dropout).to(next(m.parameters()).device)
+            w.eval()
+            _replace_submodule(det, name, w)
+            wrappers.append(w)
     return wrappers
 
 
 def lora_wrappers(det):
-    return [m for m in det.modules() if isinstance(m, LoRAMultiheadAttention)]
+    return [m for m in det.modules() if isinstance(m, (LoRAMultiheadAttention, LoRALinear))]
 
 
 def lora_parameters(det):
@@ -444,18 +542,22 @@ def merge_into_state(state, entries):
 
 # ------------------------------------------------------------------ forward
 
-def grounding_forward(det, feats, pos, txt, txt_mask, aux=True, act_ckpt=False):
+def grounding_forward(det, feats, pos, txt, txt_mask, aux=True, act_ckpt=False, dac=False, txt_pre_resizer=None):
     """Detector outputs from cached inputs; `Sam3Image.forward_grounding` without segmentation/matching.
 
     feats [B, 256, 72, 72] (the 72x72 FPN level of the detector neck), pos [1 or B, 256, 72, 72],
-    txt [32, B, 256], txt_mask [B, 32] (True = pad). `aux` also returns the 5 earlier decoder layers
-    as `aux_outputs` (upstream trains with them); the decoder's one-to-many (DAC) queries are off.
+    txt [32, B, 256] (used when `txt_pre_resizer` is None), `txt_pre_resizer` [32, B, 1024] (projected
+    through `det.backbone.language_backbone.resizer` so LoRA on `resizer` receives gradients),
+    txt_mask [B, 32] (True = pad). `aux` also returns the 5 earlier decoder layers as `aux_outputs`;
+    `dac` enables the decoder's one-to-many (DAC) queries during training (`aux=True`).
     `act_ckpt` turns on upstream's own encoder activation checkpointing (a flag on the encoder module).
     """
     from sam3.model.data_misc import FindStage, NestedTensor
 
     bsz = feats.shape[0]
     dev = feats.device
+    if txt_pre_resizer is not None:
+        txt = det.backbone.language_backbone.resizer(txt_pre_resizer)
     bo = {
         "backbone_fpn": [NestedTensor(feats, None)],
         "vision_pos_enc": [pos.expand(bsz, -1, -1, -1)],
@@ -476,7 +578,7 @@ def grounding_forward(det, feats, pos, txt, txt_mask, aux=True, act_ckpt=False):
     out = {"encoder_hidden_states": enc_out["encoder_hidden_states"]}
     dec = det.transformer.decoder
     saved = (det.training, dec.dac)
-    det.training, dec.dac = bool(aux), False
+    det.training, dec.dac = bool(aux), bool(dac)
     try:
         out, _ = det._run_decoder(memory=out["encoder_hidden_states"], pos_embed=enc_out["pos_embed"],
                                   src_mask=enc_out["padding_mask"], out=out, prompt=prompt,

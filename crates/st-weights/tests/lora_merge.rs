@@ -144,10 +144,8 @@ fn adapter_applies_to_the_fully_loaded_checkpoint() {
     assert!(!report.tensors.is_empty());
     for name in &report.tensors {
         let got = w
-            .detector_transformer
-            .tensors
-            .get(name)
-            .unwrap_or_else(|| panic!("{name} not in the detector transformer group"));
+            .tensor(name)
+            .unwrap_or_else(|| panic!("{name} not in Sam31Weights"));
         compare(name, got, &read(&expected, name));
     }
 }

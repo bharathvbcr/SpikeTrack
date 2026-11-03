@@ -32,13 +32,15 @@ fp32 on CPU (tools/reference).
 | Image mode end to end (decode, backbone, text, detector), 20 VISEM frames, Metal | kept sets identical on 20/20, mask IoU 1.0000, ~2.3 s/frame | [d3-gate/metal-f32.log](bench/results/d3-gate/metal-f32.log) |
 | Semi-supervised VOS (D5), 3 DAVIS clips, Metal | J&F equal to upstream's (0.9107 / 0.9456 / 0.9514), mask IoU vs upstream 1.0000 | [vos-gate](bench/results/vos-gate) |
 | Text-prompted detect -> associate -> track session, VISEM 22, 32 frames (upstream's frame tensors), CPU and Metal | identical tracked-id sets on all 32 frames (13-15 objects, births included) on both, mask IoU 0.9985 (CPU 0.99854, Metal 0.99855) | [CPU](bench/results/parity-tracker/cpu-f32-detect-track-visem22.log), [Metal](bench/results/parity-tracker/metal-f32-detect-track-visem22.log) |
-| No Python | 8.4 MB binary linking only system frameworks; runs with no python on PATH | [packaging](bench/results/packaging) |
+| No Python | 11.8 MB (11.3 MiB) binary linking only system frameworks; runs with no python on PATH | [packaging](bench/results/packaging) |
 | Detector LoRA (rank 16, 983k params, trained on this Mac), 120 frames of 5 held-out VISEM videos | sperm recall at IoU 0.5: prompt "sperm" 0.000 -> 0.761 (precision 0.584), "cell" 0.212 -> 0.576 at 0.5; absent VISEM classes now fire on 16% of items (was 0) | [lora](bench/results/lora) |
 | LoRA merged in Rust | merged tensors vs PyTorch max abs diff 1.5e-8 on the real checkpoint; `--lora` on `image` and `track` | [merge-parity.log](bench/results/lora/merge-parity.log) |
 | Tracking, first 300 frames of the 5 held-out VISEM videos (1,500 frames, 32,949 GT boxes) | HOTA 0.1549 zero-shot (prompt "cell", upstream boxes) -> **0.4695** with the adapter, prompt "sperm" and `--boxes detector` (DetA 0.051 -> 0.320, AssA 0.594 -> 0.725) | [zero-shot](bench/results/track/held300-zeroshot-cell-mask/eval.txt), [adapter](bench/results/track/held300-lora600-sperm-detector/eval.txt), [box-convention](bench/results/track/box-convention) |
 | ViT trunk as CoreML fp32 (the Metal default since 2026-10-29) against the Ojas trunk, 49 frames of VISEM 22 interleaved over 3 rounds, and the 1,500 held-out frames | trunk rel L2 vs upstream <= 2.7e-5; frame 0.80x (2.70 against 3.40 s, contended machine); same id sets on all 1,500 held-out frames and the same HOTA, 0.4922 at cap 64; model load +3-12 s, 0.7 s (min of 3) since the package hash is recorded once per version ([e18b](bench/results/e18b-stat-key)) | [coreml-trunk](bench/results/coreml-trunk) |
 | Host and tracker work after the trunk (E12 + E13 + E15, 2026-10-30) against 3ca1476, VISEM 82 and 22, 16 frames, interleaved over 3 rounds, and the 1,500 held-out frames | frame 0.843x on 82 and 0.825x on 22 (min of 3, load 10-23, faster in 6 of 6 pairs); predictions byte-identical on all 1,500 held-out frames, so HOTA stays 0.4922; the footprint rises ~420 MiB over ~500 frames, then holds at ~9.3 GB on a 1,470-frame video, below the build before it ([e17](bench/results/e17-footprint-categories)) | [closing-e15](bench/results/closing-e15) |
 | Unified UMA memory & M4 TensorOps flash cross-attention + `boxRPB` (2026-11-02) | Removed >1.2 GB of duplicate `hw`/`hb` host weight vectors in `st-model` (`Lin`, `Norm`) and eliminated host-device round-trips in `mask_decoder`, `interactive`, `vos`, and `detector`; native decoupled $T_q \times T_k$ TensorOps flash cross-attention (`ojas_attn_fwd_d32`/`d64`) runs memory cross-attention (`5184 x 5200`) in **6.06 ms vs 209.28 ms scalar (34.5x speedup, 100% flash dispatch)**, and tile-register `boxRPB` biased flash attention runs DETR cross-attention in **0.85 ms vs 11.98 ms scalar (14.1x speedup)**; CPU and Metal backbone/tracker parity **1.0000000** cosine | `ojas-metal/examples/attention_flash_bench.rs`, [`PROJECT.md`](PROJECT.md) |
+| E22: Host-only weight residency (`load_host`), single-allocation `HostBuf` readback, tap-free inference paths, L1-tiled `Mlp::host` fusion, single-scope `rpb_bias` & pre-frame-0 weight/text release (2026-11-02) | Metal allocated at frame 0 cut **5400 -> 3744–3754 MiB (-30.5% to -30.7%)** on 82 and **5400 -> 3654–3738 MiB (-30.8% to -32.3%)** on 22; Metal allocated at frame 15 cut **5667 -> 4031 MiB (-1,636 MiB / -28.9%)** on 82 and **5558 -> 3918–3924 MiB (-1,634 to -1,640 MiB / -29.4% to -29.5%)** on 22; process physical `footprint` at frame 15 cut **8386 -> 3830–3838 MiB (-54.2% to -54.3%)** on 82 and **8042 -> 2456–2531 MiB (-68.5% to -69.5%)** on 22; steady frame 10 dispatches `4142 -> 3996` (82) and `3085 -> 2964` (22), host waits `+23 -> +20` (82) and `+19 -> +16` (22); Metal backbone (5 images, 95 stages, cosine **1.0000000**), text (cosine **1.000000000**), tracker (8/8 CPU & Metal, cosine **1.0000000**), and VISEM 22 32-frame session parity (0 id-set misses, mean mask IoU **0.99853**) all pass (wall-clock frame time not claimed without a quiet interleaved A/B) | [e22-flash-uma-ram](bench/results/e22-flash-uma-ram) |
+| Weight-space programming in Rust (`spiketrack weights` + `--weight-edit`, 2026-11-02), unseen held-out VISEM (`5 x 8 = 40` and `5 x 32 = 160` frames, 3,492 GT boxes) | Zero-gradient lexical concept graft (`1,024` / `1,537` of 875.5M params = `0.00012%`–`0.00018%`) lifts `--prompt sperm` from **0.0000 -> 0.1729 / 0.1929 HOTA** (8f) and **0.2106 HOTA** (32f, cap 64); calibrating the frozen `dot_prod_scoring.prompt_mlp.out_norm` (**512 params = 0.0000585%**, zero extra gradients) lifts 600-step LoRA from **0.4515 -> 0.5533 HOTA** (+10.18 pts, 8f) and **0.4751 -> 0.5526 HOTA** (+7.75 pts, DetA 0.316 -> 0.436, 5/5 unseen videos improved, 32f) | [weight-space](bench/results/weight-space) |
 | CoreML port on the same M5 Pro (the speed reference) | 0.272 s backbone + 0.0775 s track step per frame | [baselines](bench/results/baselines) |
 
 Not yet: the speed target (restated to parity-or-better with the CoreML port; we are ~6-8x behind
@@ -57,13 +59,33 @@ mismatch. `track --boxes detector` (opt-in, not upstream) reports each track's a
 box instead, which is where a detector LoRA shows. Every VISEM number states its box source; see
 [track/box-convention](bench/results/track/box-convention).
 
+## Accuracy, ROC/PR Curves & Bounding-Box Comparisons
+
+Full multi-scale tables (`1,000`-query `[0..1]` sweep, `120`-frame / `2,603`-box image detection + `600`-item negative specificity, `160`-frame & `1,500`-frame / `32,949`-box video tracking) and native mask galleries are in **[`docs/EVALUATION.md`](docs/EVALUATION.md)** (backed by [`bench/results/weight-space/roc_pr_held_out_f0.json`](bench/results/weight-space/roc_pr_held_out_f0.json)).
+
+| Unseen Held-Out VISEM (`21, 22, 36, 47, 82`) | Params Edited | Query AUROC | AP@0.50 | `@ 0.50` Image Prec / Rec / F1 | `@ 0.65` Birth Gate Prec / Rec / F1 (Box Acc) | 32f Video HOTA (`DetA / AssA`) |
+|---|---:|---:|---:|---|---|---|
+| **Zero-shot `"sperm"`** | `0` | `0.452` | `2.8%` | `—` / `0.0%` / `0.0%` | `—` / `0.0%` / `0.0%` (`0.0%`) | `0.000` (`0.000 / 0.000`) |
+| **Zero-shot `"cell"`** | `0` | `0.715` | `7.2%` | `11.6%` / `19.6%` / `14.6%` | `3.3%` / `1.8%` / `2.3%` (`1.2%`) | `0.166` (`0.059 / 0.571`, cap 16) |
+| **Zero-shot `"sperm"` + Weight Graft** (`0` grads) | `1,537` (`0.00018%`) | `0.723` | `7.0%` | `11.9%` / `21.4%` / `15.3%` | `6.4%` / `5.4%` / `5.8%` (`3.0%`) | `0.211` (`0.093 / 0.550`, cap 64) |
+| **600-Step Detector LoRA** (`visem-lora-r16`) | `983,040` LoRA | **`0.983`** | **`65.3%`** | `73.4%` / **`71.4%`** / **`72.4%`** | **`80.9%`** / `33.9%` / `47.8%` (`31.4%`) | `0.475` (`0.316 / 0.791`, cap 64; `0.492` on 300f) |
+| **LoRA + 512-wt Calibration** (`0` extra grads) | `+512` (`0.000059%`) | **`0.983`** | **`65.2%`** | **`73.8%`** / `70.5%` / `72.1%` | `75.3%` / **`59.8%`** / **`66.7%`** (**`50.0%`**) | **`0.553`** (**`0.436`** / `0.781`, cap 64) |
+
+On the `1,500`-frame held-out suite (`32,949` GT boxes), per-frame `IoU >= 0.50` box matching rises from **`6.6%` Precision / `4.6%` Recall (`1,524` TP, `21,514` FP)** zero-shot to **`72.8%` Precision / `50.5%` Recall / `59.6%` F1 (`16,639` TP, `6,221` FP)** with LoRA (`--boxes detector`, cap 64), while retaining **`100.0%` specificity (`0.0%` FPR)** across `600` everyday negative prompt tests (`"car"`, `"person"`, `"dog"`, etc.).
+
+![SpikeTrack ROC, Precision-Recall, F1 vs Threshold, and Weight-Space Gain Curves](docs/figures/roc-pr-f1-gain-curves.png)
+
+![Unseen VISEM Video 22 4-Stage Bounding-Box Progression](docs/figures/visem22-bbox-progression.png)
+
+![Unseen Ultra-Dense VISEM Video 36 Birth-Gate Rescue](docs/figures/visem36-dense-birth-rescue.png)
+
 ## Layout
 
 | Path | What |
 |---|---|
-| `crates/spiketrack` | The binary: `image`, `track`, `eval-visem` |
+| `crates/spiketrack` | The binary: `image`, `track`, `eval-visem`, `weights` |
 | `crates/st-model` | SAM 3.1 on the Ojas `Backend`: PE ViT trunk and necks, text encoder, detector and mask head, the multiplex tracker (memory attention, mask decoders, memory encoder), the VOS driver and the text-prompted detect-track session; a per-op profiler |
-| `crates/st-weights` | The checkpoint (safetensors) mapped to typed structs, every tensor claimed exactly once; LoRA adapter merge |
+| `crates/st-weights` | The checkpoint (safetensors) mapped to typed structs, every tensor claimed exactly once; LoRA adapter merge; native weight-space inspection (`inspect`) and surgical declarative edits (`edit`, `spiketrack-weight-edit-v1`) |
 | `crates/st-video` | Native frame decode (ImageIO, AVFoundation), Pillow-exact bilinear resize |
 | `crates/st-eval` | HOTA (TrackEval definition), DAVIS J&F, the VISEM-Tracking loader |
 | `crates/st-gate` | Event gating: per-window change maps and recompute policies for the backbone |
@@ -99,6 +121,15 @@ target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/imag
 target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/images \
   --prompt cell --backend metal --max-frames 64 --lora fixtures/lora_runs/visem-lora-r16/adapter.safetensors \
   --boxes detector --out out/track-lora
+
+# Inspect weight-space geometry (token embeddings, SVD spectra, LoRA deltas) and apply a surgical weight edit
+target/release/spiketrack weights --tokens "sperm,cell,pinhead sperm" \
+  --lora fixtures/lora_runs/visem-lora-r16/adapter.safetensors --diff base --svd-k 4
+target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/images \
+  --prompt sperm --backend metal --max-frames 32 \
+  --lora fixtures/lora_runs/visem-lora-r16/adapter.safetensors \
+  --weight-edit bench/results/weight-space/lora_scoring_outnorm_2p40.json \
+  --boxes detector --out out/track-lora-ws240
 
 # A smaller model input: frames are resized to 672 x 672 (48 x 48 tokens instead of 72 x 72)
 # before the model; any multiple of 336 is accepted (default 1008, the checkpoint's native size).

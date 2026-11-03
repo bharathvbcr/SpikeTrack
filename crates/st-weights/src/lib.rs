@@ -11,6 +11,10 @@
 //! test checks against `tools/reference/weights_manifest.json` without needing
 //! the gated weights.
 
+#![forbid(unsafe_code)]
+
+pub mod edit;
+pub mod inspect;
 pub mod lora;
 pub mod names;
 

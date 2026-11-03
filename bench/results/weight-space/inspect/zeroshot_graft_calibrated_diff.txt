@@ -1,0 +1,40 @@
+checkpoint: /Users/bharath/Code/research/models/sam3.1/sam3.1_multiplex.safetensors (1623 tensors, 875545324 parameters)
+weight_edit: bench/results/weight-space/zeroshot_sperm_graft_calibrated.json (4 op(s), 4 tensor(s), 1537 / 875545324 values = 0.000176%)
+  description: Zero-data lexical concept graft + presence/scoring birth-gate calibration (1,537 of 875,545,324 params = 0.000176%). Selected on VISEM train-5 split before held-out evaluation.
+
+diff vs base: 4 modified tensor(s), 1537 scalar(s) changed (0.000176%)
+  detector.dot_prod_scoring.prompt_mlp.out_norm.weight                 changed=    256/256 delta_l2=  2.1190 rel_l2= 0.2500 max_abs= 0.2514 sv=[]
+  detector.transformer.decoder.presence_token_head.layers.2.bias       changed=      1/1 delta_l2=  1.5000 rel_l2=45.8034 max_abs= 1.5000 sv=[]
+  detector.backbone.language_backbone.encoder.token_embedding.weight   changed=   1024/50593792 delta_l2=  1.2899 rel_l2= 0.0071 max_abs= 0.2203 sv=[1.2899, 0.0000] top_rows=[35781:1.2899]
+  detector.dot_prod_scoring.prompt_mlp.out_norm.bias                   changed=    256/256 delta_l2=  0.1096 rel_l2= 0.2500 max_abs= 0.0274 sv=[]
+
+token & prompt weight-space probe (4 item(s)):
+  prompt "sperm": bpe=[35781:"sperm</w>"(l2=0.9363)] emb_l2=0.9363 resized_mean_l2=9.5729 resized_eot_l2=21.6122
+    nearest token_embedding rows: 35781:"sperm</w>"(1.000,l2=0.936), 5533:"cell</w>"(1.000,l2=0.904), 8890:"cells</w>"(0.619,l2=0.898), 23268:"cellular</w>"(0.283,l2=0.913), 9316:"cell"(0.239,l2=0.893), 3451:"mobile</w>"(0.202,l2=0.901), 39029:"cellphone</w>"(0.170,l2=0.882), 805:"age</w>"(0.164,l2=0.847)
+  prompt "cell": bpe=[5533:"cell</w>"(l2=0.9042)] emb_l2=0.9042 resized_mean_l2=9.5701 resized_eot_l2=21.6107
+    nearest token_embedding rows: 5533:"cell</w>"(1.000,l2=0.904), 35781:"sperm</w>"(1.000,l2=0.936), 8890:"cells</w>"(0.619,l2=0.898), 23268:"cellular</w>"(0.283,l2=0.913), 9316:"cell"(0.239,l2=0.893), 3451:"mobile</w>"(0.202,l2=0.901), 39029:"cellphone</w>"(0.170,l2=0.882), 805:"age</w>"(0.164,l2=0.847)
+  prompt "pinhead sperm": bpe=[2629:"pin"(l2=0.8990), 1375:"head</w>"(l2=0.8619), 35781:"sperm</w>"(l2=0.9363)] emb_l2=0.5252 resized_mean_l2=9.3159 resized_eot_l2=20.5031
+    nearest token_embedding rows: 5533:"cell</w>"(0.616,l2=0.904), 35781:"sperm</w>"(0.616,l2=0.936), 1375:"head</w>"(0.591,l2=0.862), 2629:"pin"(0.545,l2=0.899), 5174:"heads</w>"(0.398,l2=0.881), 8890:"cells</w>"(0.395,l2=0.898), 1603:"head"(0.297,l2=0.879), 5164:"pin</w>"(0.228,l2=0.871)
+  prompt "sperm cluster": bpe=[35781:"sperm</w>"(l2=0.9363), 15595:"cluster</w>"(l2=0.9205)] emb_l2=0.6706 resized_mean_l2=9.7756 resized_eot_l2=19.5871
+    nearest token_embedding rows: 35781:"sperm</w>"(0.728,l2=0.936), 5533:"cell</w>"(0.728,l2=0.904), 15595:"cluster</w>"(0.717,l2=0.920), 8890:"cells</w>"(0.457,l2=0.898), 33217:"clusters</w>"(0.371,l2=0.827), 23268:"cellular</w>"(0.202,l2=0.913), 9316:"cell"(0.201,l2=0.893), 20060:"ometer</w>"(0.183,l2=0.920)
+
+  pairwise cosine — raw token_embedding (1024-D):
+                          sperm           cell  pinhead sperm  sperm cluster
+           sperm         1.0000         1.0000         0.6156         0.7279
+            cell         1.0000         1.0000         0.6156         0.7279
+   pinhead sperm         0.6156         0.6156         1.0000         0.4657
+   sperm cluster         0.7279         0.7279         0.4657         1.0000
+
+  pairwise cosine — post-24-layer Text+resizer mean valid tokens (256-D):
+                          sperm           cell  pinhead sperm  sperm cluster
+           sperm         1.0000         1.0000         0.4364         0.5726
+            cell         1.0000         1.0000         0.4364         0.5714
+   pinhead sperm         0.4364         0.4364         1.0000         0.3988
+   sperm cluster         0.5726         0.5714         0.3988         1.0000
+
+  pairwise cosine — post-24-layer Text+resizer EOT token (256-D):
+                          sperm           cell  pinhead sperm  sperm cluster
+           sperm         1.0000         1.0000         0.3469         0.4664
+            cell         1.0000         1.0000         0.3460         0.4648
+   pinhead sperm         0.3469         0.3460         1.0000         0.4046
+   sperm cluster         0.4664         0.4648         0.4046         1.0000

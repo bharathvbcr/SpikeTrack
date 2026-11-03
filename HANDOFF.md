@@ -50,6 +50,20 @@ write-up that leads with Ojas/tessl.
 - **Zero-Copy UMA & Host-Mirror Removal (M3):** `SharedBuf::to_gpu_buffer()` in `tessl` and `Worker::upload` in `ojas-metal` adopt `Payload::Mapped` (`StorageModeShared`) buffers directly into the device buffer table with zero byte copies (`mem_after == mem_before`). In `crates/st-model/src/layers.rs`, dead `hw`/`hb` host weight vectors were removed from `Lin` and `Norm` (saving **>1.2 GB** of duplicate host RAM), and redundant `.to_host().to_f32_vec()` round-trips in `mask_decoder.rs`, `interactive.rs`, `vos.rs`, and `detector.rs` were replaced with device-native `Backend` ops (`slice`, `concat`, `fill`, `broadcast_add_forward`).
 - **Native Decoupled Flash Cross-Attention & Register `boxRPB` (M4):** `ojas_attn_fwd_d32` and `ojas_attn_fwd_d64` in `ojas-metal` now execute decoupled $T_q \times T_k$ cross-attention natively on TensorOps without $O(m^2)$ pad-q zero-padding (**6.06 ms vs 209.28 ms scalar, 34.5x speedup, 100% flash dispatch** on `[1, 8, 5184, 32] x [1, 8, 5200, 32]` memory cross-attention) and accumulate 4D additive logit bias (`boxRPB`) directly in tile registers via buffers `13..18` before online softmax (**0.85 ms vs 11.98 ms scalar, 14.1x speedup** on `[1, 8, 201, 32] x [1, 8, 5184, 32]` DETR cross-attention).
 - **Workflows & Deduplication (M1, M2, M5):** Added `./scripts/dev_fast_check.sh`, `./scripts/ci_local.sh`, `./scripts/parity_check.sh`, and `docs/WORKFLOWS.md`; retired 1,645 LOC of duplicate `safetensors`/`json`/`npy`/`plain` parsers in `tessl` in favor of `ojas-io`; verified 100% CPU and Metal backbone/tracker parity (`1.0000000` cosine similarity).
+**E22 — Host-Only Weight Residency, Single-Allocation `HostBuf` Readback, Tap-Free Inference Paths, L1-Tiled `Mlp::host` Fusion, Single-Scope `rpb_bias` & Pre-Frame-0 Weight/Text Release (2026-11-02, `bench/results/e22-flash-uma-ram`):**
+- Added `Lin::load_host`, `Norm::load_host`, and `Mlp::load_host` (keeping the 20 host-only layers across `Detector`, `MultiplexMaskDecoder`, `InteractiveDecoder`, and `Vos` on `Payload::Host` instead of `Payload::Device`, avoiding 20 GPU buffer allocations and every `.host(...)` `Wait::Read` readback + duplicate `Vec<f32>` copy), hardened `host_of`/`view_f32` (`DType::F32`, `is_contiguous()`, `byte_offset % 4 == 0`, subview slicing on `Payload::Mapped`), and added owned `HostBuf` (`layers::host_slice`) so remaining device readbacks allocate once and drop the device `Tensor` immediately.
+- Added tap-free `Backbone::trunk_inference` and `Detector::forward_inference` (`taps: None`) for production `image` and `track` runs (freeing 164.6 MB of unused pinned diagnostic tap tensors, eliminating the mid-graph `geo` `Wait::Read` stall, reordering `hs` readback after transposed-conv upscale encoding in both mask decoders, skipping 5 unused `hs_proj.host` + `presence_head` passes per frame, and eagerly dropping dead `fpn`, `pred_masks`, `prop`, and slot-mask tensors).
+- Fused `Mlp::host` (`Mlp::host_rows`) across 32-row L1-cache-resident tiles (`32 KB` scratch per thread, eliminating 72 MB/frame of `mach_vm_map` page-faulting intermediate buffers in `rpb_x` and `rpb_y`), added 4x8/4/1 output blocking in `host::linear_rows`, fused `Detector::rpb_bias`'s `dx`/`dy`/`rpb_x`/`rpb_y` into a single `std::thread::scope` per decoder layer, and batched/parallelized `InteractiveDecoder::fwd`'s host heads and mask contractions.
+- Moved `Sam31Weights` by value into `track_on` and `infer_on`, cleared `vision.trunk.blocks` immediately when CoreML trunk is active, dropped `Text` (~1.4 GiB of CLIP text encoder Metal buffers) and each weight group as soon as its module is built, and called `telemetry.before_frames()` (`be.sync()` + `be.trim_pool()`) before frame 0.
+- **Measured on M5 Pro (`bench/results/e22-flash-uma-ram`):**
+  - **Metal allocated RAM at frame 0 / frame 15 [V]:** `5400 -> 3744–3754 MiB` (**-30.5% to -30.7%**) / `5667 -> 4031 MiB` (**-1,636 MiB / -28.9%**) on VISEM 82, and `5400 -> 3654–3738 MiB` (**-30.8% to -32.3%**) / `5558 -> 3918–3924 MiB` (**-1,634 to -1,640 MiB / -29.4% to -29.5%**) on VISEM 22.
+  - **Process physical `footprint` at frame 15 [V]:** `8386 -> 3830–3838 MiB` (**-4,548 to -4,556 MiB / -54.2% to -54.3%**) on VISEM 82 and `8042 -> 2456–2531 MiB` (**-5,511 to -5,586 MiB / -68.5% to -69.5%**) on VISEM 22.
+  - **Dispatches & GPU waits [V]:** frame 0 dispatches `4129 -> 2774` (82) and `4131 -> 2776` (22) (**-32.8%**); steady frame 10 dispatches `4142 -> 3996` (82) and `3085 -> 2964` (22); steady frame 10 unprofiled waits `+23 -> +20` (`read 19 -> 15`) on 82 and `+19 -> +16` (`read 16 -> 12`) on 22. Wall-clock speedup is not claimed as `[V]` without a quiet interleaved A/B (verified hold ran at external load 16.7–49.4).
+  - **Parity [V]:** `backbone_parity` on 5 images Metal (95 stages, worst cosine `1.0000000`), `text_parity` Metal (cosine `1.000000000`), `tracker_parity` (8/8 CPU & Metal, worst cosine `1.0000000`), and `detect_track_parity` on VISEM 22 Metal (`session_matches_upstream_on_metal`: 32 frames, 0 id-set misses, mean mask IoU `0.99853` over 470 pairs) all pass.
+**Weight-Space Programming (`st_weights::{inspect,edit}` + `spiketrack weights` / `--weight-edit`, 2026-11-02, `bench/results/weight-space`):**
+- Added full-checkpoint tensor lookup across all 1,623 SAM 3.1 tensors (`875,545,324` params), `f64` matrix-free SVD / vocabulary embedding & post-24-layer `Text+resizer` cosine probes (`spiketrack weights`), and atomic `spiketrack-weight-edit-v1` surgical edits (`--weight-edit FILE` on `weights`, `image`, and `track`, composable with `--lora` and refusing CoreML trunk runs if ViT trunk tensors are edited).
+- **Mechanistic findings [V]:** BPE row `35781` (`"sperm</w>"`) sits in a clinical text cluster (`ivf`, `fertility`, raw cosine `0.0510` with `"cell</w>"` row `5533`), causing `presence_probability = 0.1715` and `0` zero-shot detections; meanwhile 600-step LoRA (`visem-lora-r16`, whose largest spectral update is `decoder.layers.4.ca_text.in_proj_weight`, `sigma_0 = 0.8969`) froze `detector.dot_prod_scoring.*`, leaving true sperm head logits compressed across the `0.65` VOS birth threshold.
+- **Unseen held-out VISEM (`21, 22, 36, 47, 82`, selected strictly on train-5 `14, 30, 19, 54, 13`) [V]:** Zero-gradient lexical graft (`1,024` / `1,537` params = `0.000117%`–`0.000176%`) lifts `--prompt sperm` from `0.0000` to `0.1729` / `0.1929` HOTA (8f) and `0.2106` HOTA (32f, cap 64); calibrating frozen `dot_prod_scoring.prompt_mlp.out_norm` (`512` params = `0.0000585%`, zero extra gradients) lifts 600-step LoRA from `0.4515 -> 0.5533` HOTA (`+10.18` pts, 8f) and `0.4751 -> 0.5526` HOTA (`+7.75` pts, `DetA 0.3162 -> 0.4359`, `5/5` unseen videos improved, 32f / 3,492 GT boxes).
 
 ## 2. Why it is new (keep this framing in every write-up)
 
@@ -91,23 +105,23 @@ Stretch (only if every gate above is green): gp-cuda-smoke, gp-meta-model-report
 | Order | Task | Priority | Status | Depends on |
 |---|---|---|---|---|
 | 0 | gp-rules-repo-and-access | 0 | in progress (repo, licences, NOTICE, CONTRIBUTIONS done; Official Rules unread) | — |
-| 1 | gp-reference-oracle | 0 | in progress (CPU reference, safetensors, backbone + text fixtures done; video fixtures, CoreML/MPS baselines open) | access granted |
+| 1 | gp-reference-oracle | 0 | done (CPU reference, safetensors, backbone + text + tracker + detect-track fixtures, CoreML baseline done) | access granted |
 | 2 | gp-weights-loader | 0 | done | access granted |
-| 3 | gp-vision-backbone | 0 | ready | 1, 2 |
-| 4 | gp-prompt-encoders | 0 | backlog | 2, 3 |
-| 5 | gp-detector-and-mask-head | 0 | backlog | 3, 4 |
-| 6 | gp-tracker-multiplex | 0 | backlog | 5 |
-| 7 | gp-eval-harness | 1 | in progress (HOTA = TrackEval, J&F port + oracle, VISEM loader; SA-V/DAVIS loaders and CLI open) | 1 |
-| 8 | gp-tensorops-hot-path | 1 | backlog | 6 |
-| 9 | gp-event-gating | 1 | backlog | 6, 7 |
-| 10 | gp-cli-and-no-python-proof | 1 | backlog | 6 |
-| 11 | gp-demo-and-submission | 0 | backlog | 7–10 |
+| 3 | gp-vision-backbone | 0 | done (CPU & Metal parity 1.0000000 cosine; CoreML fp32 default trunk) | 1, 2 |
+| 4 | gp-prompt-encoders | 0 | done (text + geometry encoders CPU & Metal parity 1.0000000 cosine) | 2, 3 |
+| 5 | gp-detector-and-mask-head | 0 | done (D3 gate 20/20 VISEM frames IoU 1.0000 on CPU & Metal) | 3, 4 |
+| 6 | gp-tracker-multiplex | 0 | done (tracker_parity 8/8, VOS 3 DAVIS clips, detect_track_parity 32 VISEM frames IoU 0.9985) | 5 |
+| 7 | gp-eval-harness | 1 | done (HOTA = TrackEval, DAVIS J&F, VISEM loader, `eval-visem` CLI) | 1 |
+| 8 | gp-tensorops-hot-path | 1 | done (M4 `ojas_attn_fwd_d32`/`d64` flash cross-attention + tile-register `boxRPB`, E10–E22) | 6 |
+| 9 | gp-event-gating | 1 | done (`st-gate` exact & approximate policies verified in `bench/results/gating`) | 6, 7 |
+| 10 | gp-cli-and-no-python-proof | 1 | done (`spiketrack image/track/eval-visem/weights`, `scripts/no_python_check.sh`, 11.8 MB / 11.3 MiB binary) | 6 |
+| 11 | gp-demo-and-submission | 0 | in progress (README, WRITEUP, SUMMARY, demo clip `22-sperm-lora.mp4` done; portal submission pending) | 7–10 |
 | 12 | gp-cuda-smoke | 3 | backlog | 8 (stretch) |
 | 13 | gp-meta-model-report | 3 | backlog | 10 (stretch) |
 | 14 | gp-zero-shot-check | 0 | done (recall < 0.7) | — (runs before weights arrive) |
 | 15 | gp-exemplar-prompts | 1 | backlog | 4 |
 | 16 | gp-motion-aware-memory | 1 | backlog | 6 |
-| 17 | gp-domain-lora | 0 (zero-shot recall < 0.7) | ready | 14, 2 |
+| 17 | gp-domain-lora | 0 (zero-shot recall < 0.7) | done (rank-16 detector LoRA trained, merged in Rust to 1.5e-8, held-out HOTA 0.1549 -> 0.4922) | 14, 2 |
 | 18 | gp-weight-quantization | 3 | backlog | 8 (stretch) |
 
 Component map: COMPONENTS.md. Improvement research and options: IMPROVEMENTS.md.

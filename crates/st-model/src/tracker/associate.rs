@@ -118,6 +118,111 @@ pub fn nms_iom(
     keep
 }
 
+/// Intersection-over-union of two `[x0, y0, x1, y1]` boxes; `0.0` when either box has
+/// non-positive area or Non-NaN coordinates do not overlap.
+pub fn box_iou_xyxy(a: [f32; 4], b: [f32; 4]) -> f32 {
+    let aw = (a[2] - a[0]).max(0.0);
+    let ah = (a[3] - a[1]).max(0.0);
+    let bw = (b[2] - b[0]).max(0.0);
+    let bh = (b[3] - b[1]).max(0.0);
+    let area_a = aw * ah;
+    let area_b = bw * bh;
+    if !(area_a > 0.0 && area_b > 0.0) {
+        return 0.0;
+    }
+    let ix = (a[2].min(b[2]) - a[0].max(b[0])).max(0.0);
+    let iy = (a[3].min(b[3]) - a[1].max(b[1])).max(0.0);
+    let inter = ix * iy;
+    let union = area_a + area_b - inter;
+    if union > 0.0 {
+        inter / union
+    } else {
+        0.0
+    }
+}
+
+/// Greedy NMS in descending-score order over detections with `prob > prob_threshold`:
+/// a kept detection suppresses every later one whose head-box IoU exceeds `iou_threshold`.
+/// Returns keep flags in the original order; ties in score keep the original order.
+pub fn nms_box_iou(
+    probs: &[f32],
+    boxes_xyxy: &[[f32; 4]],
+    prob_threshold: f32,
+    iou_threshold: f32,
+) -> Vec<bool> {
+    assert_eq!(probs.len(), boxes_xyxy.len(), "one box per score");
+    let n = probs.len();
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by(|&a, &b| probs[b].total_cmp(&probs[a]));
+    let mut keep_sorted: Vec<bool> = order.iter().map(|&i| probs[i] > prob_threshold).collect();
+    for i in 0..n {
+        if !keep_sorted[i] {
+            continue;
+        }
+        let bi = boxes_xyxy[order[i]];
+        for j in i + 1..n {
+            if keep_sorted[j] && box_iou_xyxy(bi, boxes_xyxy[order[j]]) > iou_threshold {
+                keep_sorted[j] = false;
+            }
+        }
+    }
+    let mut keep = vec![false; n];
+    for (k, &i) in order.iter().enumerate() {
+        keep[i] = keep_sorted[k];
+    }
+    keep
+}
+
+/// Joint greedy NMS in descending-score order over detections with `prob > prob_threshold`:
+/// a kept detection suppresses any later one whose head-box IoU exceeds `max_box_iou` OR whose
+/// mask IoM exceeds `max_mask_iom`. Using `max_mask_iom = 1.0` disables the mask-IoM clause;
+/// using e.g. `(0.35, 0.65)` preserves adjacent sperm with crossing flagella (`IoM ~ 0.1-0.4`)
+/// while still suppressing multi-query duplicate masks on the same sperm (`IoM > 0.65`).
+pub fn nms_box_and_iom(
+    probs: &[f32],
+    boxes_xyxy: &[[f32; 4]],
+    masks: &[Bitmask],
+    prob_threshold: f32,
+    max_box_iou: f32,
+    max_mask_iom: f32,
+) -> Vec<bool> {
+    assert_eq!(probs.len(), boxes_xyxy.len(), "one box per score");
+    assert_eq!(probs.len(), masks.len(), "one mask per score");
+    let n = probs.len();
+    let areas: Vec<u32> = masks.iter().map(Bitmask::area).collect();
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by(|&a, &b| probs[b].total_cmp(&probs[a]));
+    let mut keep_sorted: Vec<bool> = order.iter().map(|&i| probs[i] > prob_threshold).collect();
+    for i in 0..n {
+        if !keep_sorted[i] {
+            continue;
+        }
+        let oi = order[i];
+        let bi = boxes_xyxy[oi];
+        for j in i + 1..n {
+            if !keep_sorted[j] {
+                continue;
+            }
+            let oj = order[j];
+            let box_sup = box_iou_xyxy(bi, boxes_xyxy[oj]) > max_box_iou;
+            let mask_sup = if max_mask_iom < 1.0 {
+                let denom = areas[oi].min(areas[oj]).max(1);
+                (masks[oi].intersection(&masks[oj]) as f32 / denom as f32) > max_mask_iom
+            } else {
+                false
+            };
+            if box_sup || mask_sup {
+                keep_sorted[j] = false;
+            }
+        }
+    }
+    let mut keep = vec![false; n];
+    for (k, &i) in order.iter().enumerate() {
+        keep[i] = keep_sorted[k];
+    }
+    keep
+}
+
 /// Box centers (normalized xyxy) strictly inside `[margin, 1 - margin]` on both axes.
 pub fn not_close_to_boundary(boxes_xyxy: &[[f32; 4]], margin: f32) -> Vec<bool> {
     boxes_xyxy
@@ -462,5 +567,48 @@ mod tests {
         assert_eq!(a.trk_is_unmatched, vec![true]);
         assert_eq!(a.is_new_det, vec![false]);
         assert_eq!(a.det_is_high_conf, vec![false]);
+    }
+
+    #[test]
+    fn nms_box_iou_keeps_crossing_flagella_heads_and_handles_edges_and_ties() {
+        assert_eq!(nms_box_iou(&[], &[], 0.4, 0.5), Vec::<bool>::new());
+        // Zero / negative area boxes return 0.0 IoU and never suppress disjoint valid boxes.
+        assert_eq!(
+            box_iou_xyxy([0.2, 0.2, 0.2, 0.4], [0.2, 0.2, 0.3, 0.4]),
+            0.0
+        );
+        assert_eq!(
+            box_iou_xyxy([0.5, 0.5, 0.2, 0.2], [0.2, 0.2, 0.5, 0.5]),
+            0.0
+        );
+
+        // Two sperm whose 20-px masks overlap heavily on crossing tails (IoM = 6/10 = 0.6 > 0.1),
+        // while their head boxes are completely disjoint: nms_iom kills #1, nms_box_iou keeps both.
+        let m0 = rect(20, 20, 2, 2, 12, 3); // 10 px horizontal tail
+        let m1 = rect(20, 20, 4, 2, 10, 3); // 6 px overlap (IoM = 6/6 = 1.0)
+        assert_eq!(nms_iom(&[0.9, 0.8], &[m0, m1], 0.4, 0.1), vec![true, false]);
+        let heads = [[0.05, 0.05, 0.10, 0.10], [0.40, 0.05, 0.45, 0.10]];
+        assert_eq!(nms_box_iou(&[0.9, 0.8], &heads, 0.4, 0.5), vec![true, true]);
+
+        // Exact boundary IoU: two 0.75x0.5 dyadic boxes shifted by 0.25 -> inter=0.25, union=0.50,
+        // IoU=0.5 exactly in IEEE-754 f32. Strict `> iou_threshold` keeps IoU == 0.5.
+        let b_a = [0.0, 0.0, 0.75, 0.5];
+        let b_b = [0.25, 0.0, 1.0, 0.5];
+        assert_eq!(box_iou_xyxy(b_a, b_b), 0.5);
+        assert_eq!(
+            nms_box_iou(&[0.9, 0.8], &[b_a, b_b], 0.4, 0.5),
+            vec![true, true]
+        );
+        assert_eq!(
+            nms_box_iou(&[0.9, 0.8], &[b_a, b_b], 0.4, 0.499),
+            vec![true, false]
+        );
+
+        // Ties keep original order; probs <= prob_threshold are rejected.
+        let dup = [0.1, 0.1, 0.2, 0.2];
+        assert_eq!(
+            nms_box_iou(&[0.4, 0.8, 0.8], &[dup, dup, dup], 0.4, 0.5),
+            vec![false, true, false]
+        );
     }
 }

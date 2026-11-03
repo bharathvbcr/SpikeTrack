@@ -1,0 +1,61 @@
+mac_heavy: 2026-11-03T02:20:48Z 'spiketrack-ab-coreml' holds the lock (waited 0s; load 4.92, 1341 processes); running: bash tools/jobs/ab_coreml_tracker.sh
+== build load { 4.92 5.73 7.43 } gpu 23%
+== unit-tests load { 6.20 5.97 7.48 } gpu 5%
+SpikeTrack 7f8db18 feat(model): unify M1–M5 zero-copy UMA, adversarial test suites, and fast developer workflows, dirty 30 (binary 061fc4326821803d)
+ojas 286a444 Merge branch 'claude/docs-match-code-2026-11-01-eb0573': docs corrected against the code (dirty files: 0)
+tessl 52bdd19 Merge fix/hosted-lib-device-check (PR #5): validate the hosted manifest's entries instead of assuming them (dirty files: 0)
+coremltools 9.0
+port fp32 tracker: present
+Apple M5 Pro
+20:21  up 1 day,  7:17, 1 user, load averages: 7.37 6.26 7.54
+== st-control-1 load { 7.37 6.26 7.54 } gpu 3%
+== coreml-fp16-r1 load { 12.28 8.00 8.09 } gpu 96%
+== coreml-fp32-r1 load { 10.44 7.80 8.02 } gpu 98%
+== st-r1 load { 9.68 7.69 7.98 } gpu 67%
+== st-r2 load { 5.53 6.92 7.67 } gpu 96%
+== coreml-fp16-r2 load { 2.74 5.85 7.22 } gpu 96%
+== coreml-fp32-r2 load { 2.50 5.65 7.12 } gpu 98%
+== coreml-fp32-r3 load { 2.43 5.53 7.06 } gpu 89%
+== st-r3 load { 2.39 5.47 7.03 } gpu 71%
+== coreml-fp16-r3 load { 4.11 5.30 6.84 } gpu 96%
+== st-control-2 load { 5.35 5.51 6.88 } gpu 98%
+st-r1: predictions byte-identical to st-control-1
+st-r2: predictions byte-identical to st-control-1
+st-r3: predictions byte-identical to st-control-1
+st-control-2: predictions byte-identical to st-control-1
+# Tracker step A/B summary (steady frames / steps >= 8)
+
+## Precondition: stage runs against unprofiled controls
+
+Controls' steady push_frame mean 1892.5 ms over 52 frames.
+
+- round 1: in-Session 1768.6 ms/frame (-6.5%) ok
+- round 2: in-Session 1757.3 ms/frame (-7.1%) ok
+- round 3: in-Session 1880.4 ms/frame (-0.6%) ok
+
+## Per round, ms
+
+| round | SpikeTrack tracker median (min) | port fp16 step | port fp32 step | ratio vs fp16 | ratio vs fp32 | SpikeTrack backbone | port backbone fp16 |
+|---|---|---|---|---|---|---|---|
+| 1 | 407.8 (403.2) | 70.6 | 204.0 | 5.78 | 2.00 | 986.0 | 273.1 |
+| 2 | 403.2 (400.0) | 68.6 | 206.0 | 5.88 | 1.96 | 982.0 | 256.8 |
+| 3 | 425.0 (411.7) | 82.8 | 201.2 | 5.14 | 2.11 | 1020.5 | 353.0 |
+
+- round 1: SpikeTrack 26 frames, 16 tracks, cap 16, active 16-16 on steady frames, trunk coreml-fp32, births on 0 steady frames
+- round 2: SpikeTrack 26 frames, 16 tracks, cap 16, active 16-16 on steady frames, trunk coreml-fp32, births on 0 steady frames
+- round 3: SpikeTrack 26 frames, 16 tracks, cap 16, active 16-16 on steady frames, trunk coreml-fp32, births on 0 steady frames
+
+## Noise
+
+- round-to-round spread of the medians: SpikeTrack 5.4%, port fp16 20.6%
+- port fp32 2.4%
+- step cost against bank depth (port fp16, round 1, every timed call from step 2): 67.2, 67.8, 69.7, 69.9, 70.5, 69.3, 69.4, 68.5, 68.2, 68.5, 69.8, 69.2, 69.0, 69.8, 69.5, 70.7, 70.8, 68.9, 71.3, 71.1, 70.5, 70.6, 71.1, 70.2, 70.6, 71.4, 71.8, 71.8, 72.8, 71.4, 72.2, 72.7
+
+## Decision (pre-stated)
+
+- vs port fp32: ratios 2.00, 1.96, 2.11; noise 5.4%; NOT MET
+- vs port fp16: ratios 5.78, 5.88, 5.14; noise 20.6%; NOT MET
+
+20:28  up 1 day,  7:24, 1 user, load averages: 4.47 5.25 6.68
+AB status 0
+mac_heavy: 2026-11-03T02:28:11Z 'spiketrack-ab-coreml' finished with exit 0

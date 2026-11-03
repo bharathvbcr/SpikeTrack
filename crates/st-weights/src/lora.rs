@@ -31,10 +31,11 @@
 //! whose width is not the weight's, and a non-finite merged value. Applying checks every target
 //! before it changes any tensor, so a refusal leaves the weights untouched.
 //!
-//! Only tensors in the untyped groups of [`Sam31Weights`] can be targeted (the detector
-//! transformer, geometry encoder, segmentation head, scoring head and tracker). The typed
-//! families (vision trunk, text encoder) are not adaptable here: a target in one is
-//! [`LoraError::UnknownTarget`]. The SpikeTrack adapter touches only `detector.transformer.*`.
+//! Any 2-D tensor in [`Sam31Weights`] can be targeted (the detector transformer, geometry encoder,
+//! segmentation head, scoring head, tracker, text encoder/resizer, and vision trunk). Adapters that
+//! touch `detector.backbone.vision_backbone.trunk.*` are flagged by
+//! [`LoraAdapter::touches_vision_trunk`] so CLI commands using an exported CoreML trunk can refuse
+//! rather than silently bypassing those edits.
 //!
 //! # Numerics
 //!
@@ -405,16 +406,83 @@ impl LoraAdapter {
         Ok(report)
     }
 
-    /// Fold the adapter into the untyped groups of a loaded checkpoint.
+    /// First target parameter inside `detector.backbone.vision_backbone.trunk.`, if any.
+    ///
+    /// Callers running an external pre-compiled ViT trunk (e.g. CoreML) use this to fail closed
+    /// rather than silently bypassing trunk LoRA modules.
+    pub fn touches_vision_trunk(&self) -> Option<&str> {
+        self.targets
+            .iter()
+            .map(|t| t.param.as_str())
+            .find(|p| p.starts_with("detector.backbone.vision_backbone.trunk."))
+    }
+
+    /// Fold the adapter into a loaded checkpoint (both the untyped detector/tracker groups and
+    /// typed 2-D weights such as `detector.backbone.language_backbone.resizer.weight`).
+    /// All targets are checked and staged first; on any refusal no tensor is changed.
     pub fn apply(&self, w: &mut Sam31Weights) -> Result<MergeReport, LoraError> {
-        let [a, b, c, d, e] = [
-            &mut w.detector_transformer.tensors,
-            &mut w.geometry_encoder.tensors,
-            &mut w.segmentation_head.tensors,
-            &mut w.dot_prod_scoring.tensors,
-            &mut w.tracker.tensors,
-        ];
-        self.merge_into(&mut [a, b, c, d, e])
+        for t in &self.targets {
+            let Some(existing) = w.tensor(&t.param) else {
+                return Err(LoraError::UnknownTarget {
+                    param: t.param.clone(),
+                });
+            };
+            let shape_err = |detail: String| LoraError::Shape {
+                param: t.param.clone(),
+                detail,
+            };
+            let &[rows, cols] = existing.shape.as_slice() else {
+                return Err(shape_err(format!(
+                    "weight shape {:?} is not 2-D",
+                    existing.shape
+                )));
+            };
+            if t.row_end > rows {
+                return Err(shape_err(format!(
+                    "rows [{}, {}) past the weight's {rows} rows",
+                    t.row_start, t.row_end
+                )));
+            }
+            if t.in_features() != cols {
+                return Err(shape_err(format!(
+                    "A is {} wide, the weight {cols}",
+                    t.in_features()
+                )));
+            }
+            if existing.data.len() != rows * cols {
+                return Err(shape_err(
+                    "weight data length disagrees with its shape".to_string(),
+                ));
+            }
+        }
+        let mut merged: BTreeMap<String, Vec<f32>> = BTreeMap::new();
+        for t in &self.targets {
+            let cols = t.in_features();
+            let buf = merged.entry(t.param.clone()).or_insert_with(|| {
+                w.tensor(&t.param)
+                    .expect("verified present above")
+                    .data
+                    .clone()
+            });
+            t.add_into(buf, cols);
+        }
+        for (param, data) in &merged {
+            if data.iter().any(|v| !v.is_finite()) {
+                return Err(LoraError::NonFinite {
+                    param: param.clone(),
+                });
+            }
+        }
+        let mut report = MergeReport {
+            targets: self.targets.len(),
+            tensors: BTreeSet::new(),
+        };
+        for (param, data) in merged {
+            let dst = w.tensor_mut(&param).expect("verified present above");
+            dst.data = data;
+            report.tensors.insert(param);
+        }
+        Ok(report)
     }
 }
 
@@ -843,5 +911,90 @@ mod tests {
         assert_eq!(ad.targets.len(), 1);
         assert_eq!(ad.targets[0].scale(), 2.0);
         assert_eq!(ad.targets[0].a.shape, vec![4, 16]);
+    }
+
+    fn tiny_checkpoint() -> Sam31Weights {
+        let rec = crate::SchemaRecorder::default();
+        let mut w = Sam31Weights::load(&rec).unwrap();
+        w.for_each_tensor_mut(|t| {
+            t.shape = if t.name.ends_with(".bias") {
+                vec![4]
+            } else {
+                vec![4, 6]
+            };
+            let n = t.numel();
+            t.data = pseudo(n, 42);
+        });
+        w.detector_transformer
+            .tensors
+            .insert(P.to_string(), weight(P, 8, 6, 77));
+        w
+    }
+
+    #[test]
+    fn apply_reaches_typed_language_resizer_and_rolls_back_atomically() {
+        const RESIZER: &str = "detector.backbone.language_backbone.resizer.weight";
+        const RESIZER_BIAS: &str = "detector.backbone.language_backbone.resizer.bias";
+        const TRUNK_QKV: &str = "detector.backbone.vision_backbone.trunk.blocks.0.attn.qkv.weight";
+
+        let mut w = tiny_checkpoint();
+        let orig_resizer = w.text.resizer.weight.clone();
+        let orig_det = w.detector_transformer.tensors[P].clone();
+
+        // 1. Valid adapter touching both typed resizer and untyped detector attention.
+        let s_res = spec("resizer", RESIZER, [0, 4], 2, 4.0, 6, 11);
+        let s_det = spec("det_q", P, [0, 4], 2, 4.0, 6, 19);
+        let ad = LoraAdapter::parse(&bytes(&[s_res, s_det], |m| m, &[])).unwrap();
+        assert_eq!(ad.touches_vision_trunk(), None);
+
+        let rep = ad.apply(&mut w).unwrap();
+        assert_eq!(rep.targets, 2);
+        assert!(rep.tensors.contains(RESIZER) && rep.tensors.contains(P));
+        assert_ne!(w.text.resizer.weight.data, orig_resizer.data);
+        assert_ne!(w.detector_transformer.tensors[P].data, orig_det.data);
+        // Untouched rows 4..8 of P remain bit-identical.
+        assert_eq!(
+            w.detector_transformer.tensors[P].data[4 * 6..],
+            orig_det.data[4 * 6..]
+        );
+
+        // 2. 1-D typed bias is refused without mutating prior state.
+        let snap_resizer = w.text.resizer.weight.data.clone();
+        let bad_1d = LoraAdapter::parse(&bytes(
+            &[
+                spec("resizer", RESIZER, [0, 4], 2, 4.0, 6, 3),
+                spec("bias", RESIZER_BIAS, [0, 4], 1, 1.0, 1, 5),
+            ],
+            |m| m,
+            &[],
+        ))
+        .unwrap();
+        assert!(matches!(bad_1d.apply(&mut w), Err(LoraError::Shape { .. })));
+        assert_eq!(w.text.resizer.weight.data, snap_resizer);
+
+        // 3. Overflow to Inf on second target leaves first target untouched.
+        let mut s_inf = spec("det_q", P, [0, 4], 1, 1e38, 6, 9);
+        s_inf.a = vec![1e20; 6];
+        s_inf.b = vec![1e20; 4];
+        let bad_inf = LoraAdapter::parse(&bytes(
+            &[spec("resizer", RESIZER, [0, 4], 2, 4.0, 6, 3), s_inf],
+            |m| m,
+            &[],
+        ))
+        .unwrap();
+        assert!(matches!(
+            bad_inf.apply(&mut w),
+            Err(LoraError::NonFinite { .. })
+        ));
+        assert_eq!(w.text.resizer.weight.data, snap_resizer);
+
+        // 4. Trunk target detection for external CoreML guard.
+        let trunk_ad = LoraAdapter::parse(&bytes(
+            &[spec("t", TRUNK_QKV, [0, 4], 2, 2.0, 6, 1)],
+            |m| m,
+            &[],
+        ))
+        .unwrap();
+        assert_eq!(trunk_ad.touches_vision_trunk(), Some(TRUNK_QKV));
     }
 }

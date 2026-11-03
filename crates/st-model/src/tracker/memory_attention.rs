@@ -63,6 +63,27 @@ pub struct MemoryInputs<'a> {
     pub num_obj_ptr_tokens: usize,
 }
 
+/// A stored frame's memory-side projections in every layer: keys `img_k(image) + ca_k(memory)`
+/// and values `ca_v(memory)`, `[1, T, D]` each, before positions, RoPE and the head split. They
+/// depend on the frame alone (its temporal position is added after them), so every later frame
+/// that attends it can reuse them ([`MemoryAttention::frame_kv`]).
+pub struct FrameKv {
+    tokens: usize,
+    layers: Vec<(Tensor, Tensor)>,
+}
+
+/// One frame's inputs to [`MemoryAttention::fwd_frames`], one bucket.
+pub struct FramesInputs<'a> {
+    /// Current frame features, `[1, T, D]` (also the source), and their positions.
+    pub image: &'a Tensor,
+    pub src_pos: &'a Tensor,
+    /// The memory frames in attention order: projections and positions (with temporal
+    /// encodings), `[1, T, D]`.
+    pub frames: &'a [(&'a FrameKv, &'a Tensor)],
+    /// Object pointers after the frames, `[1, P, D]`, and their positions.
+    pub ptrs: Option<(&'a Tensor, &'a Tensor)>,
+}
+
 impl MemoryAttention {
     /// The memory attention for the native 1008 x 1008 input.
     pub fn load<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str) -> Result<Self, ModelError> {
@@ -143,6 +164,125 @@ impl MemoryAttention {
         Ok((table(&self.cos, 1.0)?, table(&self.sin, 0.0)?))
     }
 
+    /// A stored frame's projections in every layer, from its image features and mask memory
+    /// (`[1, T, D]` each), for [`Self::fwd_frames`].
+    pub fn frame_kv<B: Backend + ?Sized>(
+        &self,
+        be: &B,
+        image: &Tensor,
+        memory: &Tensor,
+    ) -> Result<FrameKv, ModelError> {
+        let want = [1, self.tokens, D];
+        if image.shape() != want || memory.shape() != want {
+            return Err(ModelError::Ojas(OjasError::OutOfRange {
+                op: "st_model::MemoryAttention::frame_kv",
+                detail: format!(
+                    "image {:?} and memory {:?} must both be {want:?}",
+                    image.shape(),
+                    memory.shape()
+                ),
+            }));
+        }
+        let layers = self
+            .layers
+            .iter()
+            .map(|l| -> Result<(Tensor, Tensor), OjasError> {
+                let k =
+                    be.residual_add_forward(&l.img_k.fwd(be, image)?, &l.ca_k.fwd(be, memory)?)?;
+                Ok((k, l.ca_v.fwd(be, memory)?))
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(FrameKv {
+            tokens: self.tokens,
+            layers,
+        })
+    }
+
+    /// [`Self::fwd`] for one bucket with each memory frame's projections taken from `x.frames`
+    /// ([`Self::frame_kv`]) instead of recomputed: the same ops on the same rows, so the same
+    /// output where the backend's linear gives a row the same bits at any row count (CPU
+    /// `Numerics::Exact` does; tests/memory_attention_cache.rs). Returns `[1, T, D]`.
+    pub fn fwd_frames<B: Backend + ?Sized>(
+        &self,
+        be: &B,
+        x: &FramesInputs<'_>,
+    ) -> Result<Tensor, ModelError> {
+        const OP: &str = "st_model::MemoryAttention::fwd_frames";
+        let tokens = self.tokens;
+        let one = [1, tokens, D];
+        let p = x.ptrs.map_or(0, |(ptr, _)| ptr.shape()[1]);
+        let bad = |detail: String| ModelError::Ojas(OjasError::OutOfRange { op: OP, detail });
+        if x.image.shape() != one || x.src_pos.shape() != one {
+            return Err(bad(format!(
+                "image {:?} and src_pos {:?} must both be {one:?}",
+                x.image.shape(),
+                x.src_pos.shape()
+            )));
+        }
+        for (i, (kv, pos)) in x.frames.iter().enumerate() {
+            if kv.tokens != tokens || kv.layers.len() != self.layers.len() || pos.shape() != one {
+                return Err(bad(format!(
+                    "memory frame {i}: projections of {} tokens over {} layers and positions {:?}, want {tokens} tokens over {} layers and {one:?}",
+                    kv.tokens,
+                    kv.layers.len(),
+                    pos.shape(),
+                    self.layers.len()
+                )));
+            }
+        }
+        if let Some((ptr, ptr_pos)) = x.ptrs {
+            if ptr.shape() != [1, p, D] || ptr_pos.shape() != [1, p, D] {
+                return Err(bad(format!(
+                    "pointers {:?} and their positions {:?} must both be [1, P, {D}]",
+                    ptr.shape(),
+                    ptr_pos.shape()
+                )));
+            }
+        }
+        if x.frames.is_empty() && p == 0 {
+            return Err(bad("no memory frames and no pointers to attend".into()));
+        }
+        let cat = |parts: &[&Tensor]| -> Result<Tensor, OjasError> {
+            match parts {
+                [only] => Ok((*only).clone()),
+                _ => be.concat(parts, 1),
+            }
+        };
+        let positions: Vec<&Tensor> = x
+            .frames
+            .iter()
+            .map(|(_, pos)| *pos)
+            .chain(x.ptrs.map(|(_, pos)| pos))
+            .collect();
+        let key_pos = cat(&positions)?;
+        // Pointer slots: zero image features, as `fwd` pads them.
+        let zeros = (p > 0)
+            .then(|| be.fill(&[1, p, D], DType::F32, 0.0))
+            .transpose()?;
+        self.layers_fwd(
+            be,
+            [x.image, x.image, x.src_pos],
+            &key_pos,
+            (x.frames.len(), p),
+            |i, l| {
+                let ptr_kv = match (x.ptrs, &zeros) {
+                    (Some((ptr, _)), Some(zeros)) => Some((
+                        be.residual_add_forward(&l.img_k.fwd(be, zeros)?, &l.ca_k.fwd(be, ptr)?)?,
+                        l.ca_v.fwd(be, ptr)?,
+                    )),
+                    _ => None,
+                };
+                let (ks, vs): (Vec<&Tensor>, Vec<&Tensor>) = x
+                    .frames
+                    .iter()
+                    .map(|(kv, _)| (&kv.layers[i].0, &kv.layers[i].1))
+                    .chain(ptr_kv.as_ref().map(|(k, v)| (k, v)))
+                    .unzip();
+                Ok((cat(&ks)?, cat(&vs)?))
+            },
+        )
+    }
+
     /// Returns the conditioned features, `[B, T, D]`.
     pub fn fwd<B: Backend + ?Sized>(
         &self,
@@ -179,6 +319,33 @@ impl MemoryAttention {
                 be.concat(&[x.memory_image_pos, &tail_b], 1)?,
             )
         };
+        self.layers_fwd(
+            be,
+            [x.image, x.src, x.src_pos],
+            &pad_mi_pos,
+            (frames, p),
+            |_, l| {
+                let k = be
+                    .residual_add_forward(&l.img_k.fwd(be, &pad_mi)?, &l.ca_k.fwd(be, x.memory)?)?;
+                Ok((k, l.ca_v.fwd(be, x.memory)?))
+            },
+        )
+    }
+
+    /// The four layers and the final norm. `memory_kv(i, layer)` gives layer `i`'s memory keys
+    /// before positions and RoPE (`img_k(image) + ca_k(memory)`, pointer rows on zero image
+    /// features) and its values (`ca_v(memory)`), `[B, F * T + P, D]` each; `key_pos` is the
+    /// keys' positions, the same shape.
+    fn layers_fwd<B: Backend + ?Sized>(
+        &self,
+        be: &B,
+        [image, src, src_pos]: [&Tensor; 3],
+        key_pos: &Tensor,
+        (frames, p): (usize, usize),
+        memory_kv: impl Fn(usize, &Layer) -> Result<(Tensor, Tensor), OjasError>,
+    ) -> Result<Tensor, ModelError> {
+        let tokens = self.tokens;
+        let b = src.shape()[0];
         let (q_cos, q_sin) = (&self.cos, &self.sin);
         let (k_cos, k_sin) = self.key_tables(be, frames, p)?;
 
@@ -192,16 +359,16 @@ impl MemoryAttention {
         };
         let opts = AttentionOpts::default();
 
-        let src_pos_scaled = be.scale_forward(x.src_pos, 0.1)?;
-        let mut tgt = be.residual_add_forward(x.src, &src_pos_scaled)?;
+        let src_pos_scaled = be.scale_forward(src_pos, 0.1)?;
+        let mut tgt = be.residual_add_forward(src, &src_pos_scaled)?;
         // The raw image is per frame, shared by every bucket.
-        let images: Vec<&Tensor> = std::iter::repeat_n(x.image, b).collect();
+        let images: Vec<&Tensor> = std::iter::repeat_n(image, b).collect();
         let image_b = if b == 1 {
-            x.image.clone()
+            image.clone()
         } else {
             be.concat(&images, 0)?
         };
-        for l in &self.layers {
+        for (i, l) in self.layers.iter().enumerate() {
             // Self-attention with RoPE on q and k.
             let t2 = l.n1.fwd(be, &tgt)?;
             let q = be.rope_interleaved_forward(&heads(&l.sa[0].fwd(be, &t2)?)?, q_cos, q_sin)?;
@@ -212,10 +379,9 @@ impl MemoryAttention {
             // Decoupled cross-attention to the memories.
             let t2 = l.n2.fwd(be, &tgt)?;
             let q = be.residual_add_forward(&l.img_q.fwd(be, &image_b)?, &l.ca_q.fwd(be, &t2)?)?;
-            let k =
-                be.residual_add_forward(&l.img_k.fwd(be, &pad_mi)?, &l.ca_k.fwd(be, x.memory)?)?;
-            let k = be.residual_add_forward(&k, &pad_mi_pos)?;
-            let v = heads(&l.ca_v.fwd(be, x.memory)?)?;
+            let (k, v) = memory_kv(i, l)?;
+            let k = be.residual_add_forward(&k, key_pos)?;
+            let v = heads(&v)?;
             let q = be.rope_interleaved_forward(&heads(&q)?, q_cos, q_sin)?;
             let k = be.rope_interleaved_forward(&heads(&k)?, &k_cos, &k_sin)?;
             let a = be.attention_forward(&to_bhtd(&q)?, &to_bhtd(&k)?, &to_bhtd(&v)?, opts)?;

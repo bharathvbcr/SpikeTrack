@@ -1,0 +1,18 @@
+{
+  "format": "spiketrack-weight-edit-v1",
+  "description": "Post-LoRA inverse-temperature calibration of the frozen detector.dot_prod_scoring.prompt_mlp.out_norm LayerNorm by 2.40x (512 of 875,545,324 params = 0.0000585%). Selected at the unimodal HOTA peak on VISEM train-5 (G in {1.0, 1.35, 1.60, 1.85, 2.10, 2.40, 3.00, 4.00}) before held-out evaluation.",
+  "edits": [
+    {
+      "op": "scale_1d",
+      "param": "detector.dot_prod_scoring.prompt_mlp.out_norm.weight",
+      "range": [0, 256],
+      "scale": 2.4
+    },
+    {
+      "op": "scale_1d",
+      "param": "detector.dot_prod_scoring.prompt_mlp.out_norm.bias",
+      "range": [0, 256],
+      "scale": 2.4
+    }
+  ]
+}

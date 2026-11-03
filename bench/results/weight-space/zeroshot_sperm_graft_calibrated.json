@@ -1,0 +1,36 @@
+{
+  "format": "spiketrack-weight-edit-v1",
+  "description": "Zero-data lexical concept graft + presence/scoring birth-gate calibration (1,537 of 875,545,324 params = 0.000176%). Selected on VISEM train-5 split before held-out evaluation.",
+  "edits": [
+    {
+      "op": "graft_row",
+      "param": "detector.backbone.language_backbone.encoder.token_embedding.weight",
+      "dst": 35781,
+      "sources": [
+        {
+          "row": 5533,
+          "weight": 1.0
+        }
+      ],
+      "preserve_norm": true
+    },
+    {
+      "op": "add_1d",
+      "param": "detector.transformer.decoder.presence_token_head.layers.2.bias",
+      "range": [0, 1],
+      "values": [1.5]
+    },
+    {
+      "op": "scale_1d",
+      "param": "detector.dot_prod_scoring.prompt_mlp.out_norm.weight",
+      "range": [0, 256],
+      "scale": 1.25
+    },
+    {
+      "op": "scale_1d",
+      "param": "detector.dot_prod_scoring.prompt_mlp.out_norm.bias",
+      "range": [0, 256],
+      "scale": 1.25
+    }
+  ]
+}

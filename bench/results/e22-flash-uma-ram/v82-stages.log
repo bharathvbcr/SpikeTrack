@@ -1,0 +1,22 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 0.5 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 0.49 s)
+model loaded in 1.0 s on metal; tracking 16 frame(s) of "82"
+frame 0 (1/16): 5.87 s, 13 active track(s), 0 frame(s) released; waits +28 (upload 2, read 7, sync 19), dispatches +2774, metal allocated 3754 MiB (frame peak 7383 MiB), footprint 3655 MiB, pageouts +639, swapins +4
+frame 1 (2/16): 4.31 s, 15 active track(s), 0 frame(s) released; waits +30 (upload 1, read 7, sync 22), dispatches +3580, metal allocated 3814 MiB (frame peak 5608 MiB), footprint 3410 MiB, pageouts +0, swapins +0
+frame 2 (3/16): 4.19 s, 17 active track(s), 0 frame(s) released; waits +30 (upload 1, read 7, sync 22), dispatches +3599, metal allocated 3831 MiB (frame peak 5615 MiB), footprint 3605 MiB, pageouts +1, swapins +0
+frame 3 (4/16): 4.33 s, 17 active track(s), 0 frame(s) released; waits +31 (upload 1, read 5, sync 25), dispatches +3935, metal allocated 3822 MiB (frame peak 5609 MiB), footprint 3640 MiB, pageouts +0, swapins +0
+frame 4 (5/16): 3.71 s, 18 active track(s), 0 frame(s) released; waits +36 (upload 1, read 9, sync 26), dispatches +4594, metal allocated 3861 MiB (frame peak 5653 MiB), footprint 3456 MiB, pageouts +0, swapins +0
+frame 5 (6/16): 2.92 s, 18 active track(s), 0 frame(s) released; waits +31 (upload 1, read 5, sync 25), dispatches +3960, metal allocated 3853 MiB (frame peak 5636 MiB), footprint 3912 MiB, pageouts +6, swapins +10
+frame 6 (7/16): 3.73 s, 18 active track(s), 0 frame(s) released; waits +31 (upload 1, read 5, sync 25), dispatches +3972, metal allocated 3872 MiB (frame peak 5875 MiB), footprint 3754 MiB, pageouts +8, swapins +0
+frame 7 (8/16): 5.28 s, 18 active track(s), 0 frame(s) released; waits +31 (upload 1, read 5, sync 25), dispatches +3984, metal allocated 3882 MiB (frame peak 6154 MiB), footprint 3615 MiB, pageouts +0, swapins +0
+frame 8 (9/16): 4.87 s, 18 active track(s), 0 frame(s) released; waits +31 (upload 1, read 5, sync 25), dispatches +3990, metal allocated 3897 MiB (frame peak 6169 MiB), footprint 3640 MiB, pageouts +0, swapins +0
+frame 9 (10/16): 4.66 s, 18 active track(s), 0 frame(s) released; waits +31 (upload 1, read 5, sync 25), dispatches +3996, metal allocated 3912 MiB (frame peak 6185 MiB), footprint 3970 MiB, pageouts +0, swapins +8
+frame 10 (11/16): 4.60 s, 18 active track(s), 0 frame(s) released; waits +31 (upload 1, read 5, sync 25), dispatches +3996, metal allocated 3927 MiB (frame peak 6201 MiB), footprint 3713 MiB, pageouts +0, swapins +16
+frame 11 (12/16): 4.43 s, 18 active track(s), 0 frame(s) released; waits +31 (upload 1, read 5, sync 25), dispatches +3996, metal allocated 3942 MiB (frame peak 6217 MiB), footprint 3719 MiB, pageouts +0, swapins +0
+frame 12 (13/16): 5.18 s, 18 active track(s), 0 frame(s) released; waits +31 (upload 1, read 5, sync 25), dispatches +3996, metal allocated 3958 MiB (frame peak 6233 MiB), footprint 3765 MiB, pageouts +0, swapins +0
+frame 13 (14/16): 3.72 s, 18 active track(s), 0 frame(s) released; waits +31 (upload 1, read 5, sync 25), dispatches +3996, metal allocated 3973 MiB (frame peak 6249 MiB), footprint 4074 MiB, pageouts +0, swapins +67
+frame 14 (15/16): 2.94 s, 18 active track(s), 1 frame(s) released; waits +31 (upload 1, read 5, sync 25), dispatches +3996, metal allocated 3988 MiB (frame peak 6265 MiB), footprint 3776 MiB, pageouts +0, swapins +0
+frame 15 (16/16): 4.43 s, 19 active track(s), 15 frame(s) released; waits +36 (upload 1, read 9, sync 26), dispatches +4654, metal allocated 4031 MiB (frame peak 6281 MiB), footprint 3838 MiB, pageouts +18, swapins +0
+profile (stages) written to /Users/bharath/Code/research/SpikeTrack/bench/results/e22-flash-uma-ram/v82-stages/82.profile-stages.md
+16 frame(s) of "82" tracked on metal: 18 track(s) born, 4.32 s/frame (model, mean), 70.8 s total
+  /Users/bharath/Code/research/SpikeTrack/bench/results/e22-flash-uma-ram/v82-stages/82.json
+  /Users/bharath/Code/research/SpikeTrack/bench/results/e22-flash-uma-ram/v82-stages/82.run.json

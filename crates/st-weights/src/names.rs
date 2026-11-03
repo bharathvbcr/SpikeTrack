@@ -327,6 +327,188 @@ pub const GROUP_PREFIXES: [&str; 5] = [
     "tracker.model.",
 ];
 
+impl Linear {
+    fn visit<'a>(&'a self, f: &mut dyn FnMut(&'a Weight)) {
+        f(&self.weight);
+        f(&self.bias);
+    }
+
+    fn visit_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Weight)) {
+        f(&mut self.weight);
+        f(&mut self.bias);
+    }
+}
+
+impl LayerNorm {
+    fn visit<'a>(&'a self, f: &mut dyn FnMut(&'a Weight)) {
+        f(&self.weight);
+        f(&self.bias);
+    }
+
+    fn visit_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Weight)) {
+        f(&mut self.weight);
+        f(&mut self.bias);
+    }
+}
+
+impl Conv {
+    fn visit<'a>(&'a self, f: &mut dyn FnMut(&'a Weight)) {
+        f(&self.weight);
+        f(&self.bias);
+    }
+
+    fn visit_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Weight)) {
+        f(&mut self.weight);
+        f(&mut self.bias);
+    }
+}
+
+impl VitTrunk {
+    fn visit<'a>(&'a self, f: &mut dyn FnMut(&'a Weight)) {
+        f(&self.patch_embed);
+        f(&self.pos_embed);
+        self.ln_pre.visit(f);
+        for b in &self.blocks {
+            b.norm1.visit(f);
+            b.qkv.visit(f);
+            b.proj.visit(f);
+            f(&b.freqs_cis);
+            b.norm2.visit(f);
+            b.fc1.visit(f);
+            b.fc2.visit(f);
+        }
+    }
+
+    fn visit_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Weight)) {
+        f(&mut self.patch_embed);
+        f(&mut self.pos_embed);
+        self.ln_pre.visit_mut(f);
+        for b in &mut self.blocks {
+            b.norm1.visit_mut(f);
+            b.qkv.visit_mut(f);
+            b.proj.visit_mut(f);
+            f(&mut b.freqs_cis);
+            b.norm2.visit_mut(f);
+            b.fc1.visit_mut(f);
+            b.fc2.visit_mut(f);
+        }
+    }
+}
+
+impl FpnNeck {
+    fn visit<'a>(&'a self, f: &mut dyn FnMut(&'a Weight)) {
+        for lvl in &self.levels {
+            match lvl {
+                FpnLevel::Up4 {
+                    dconv0,
+                    dconv1,
+                    conv_1x1,
+                    conv_3x3,
+                } => {
+                    dconv0.visit(f);
+                    dconv1.visit(f);
+                    conv_1x1.visit(f);
+                    conv_3x3.visit(f);
+                }
+                FpnLevel::Up2 {
+                    dconv,
+                    conv_1x1,
+                    conv_3x3,
+                } => {
+                    dconv.visit(f);
+                    conv_1x1.visit(f);
+                    conv_3x3.visit(f);
+                }
+                FpnLevel::Same { conv_1x1, conv_3x3 } => {
+                    conv_1x1.visit(f);
+                    conv_3x3.visit(f);
+                }
+            }
+        }
+    }
+
+    fn visit_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Weight)) {
+        for lvl in &mut self.levels {
+            match lvl {
+                FpnLevel::Up4 {
+                    dconv0,
+                    dconv1,
+                    conv_1x1,
+                    conv_3x3,
+                } => {
+                    dconv0.visit_mut(f);
+                    dconv1.visit_mut(f);
+                    conv_1x1.visit_mut(f);
+                    conv_3x3.visit_mut(f);
+                }
+                FpnLevel::Up2 {
+                    dconv,
+                    conv_1x1,
+                    conv_3x3,
+                } => {
+                    dconv.visit_mut(f);
+                    conv_1x1.visit_mut(f);
+                    conv_3x3.visit_mut(f);
+                }
+                FpnLevel::Same { conv_1x1, conv_3x3 } => {
+                    conv_1x1.visit_mut(f);
+                    conv_3x3.visit_mut(f);
+                }
+            }
+        }
+    }
+}
+
+impl VisionBackbone {
+    fn visit<'a>(&'a self, f: &mut dyn FnMut(&'a Weight)) {
+        self.trunk.visit(f);
+        self.convs.visit(f);
+        self.interactive_convs.visit(f);
+        self.propagation_convs.visit(f);
+    }
+
+    fn visit_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Weight)) {
+        self.trunk.visit_mut(f);
+        self.convs.visit_mut(f);
+        self.interactive_convs.visit_mut(f);
+        self.propagation_convs.visit_mut(f);
+    }
+}
+
+impl TextEncoder {
+    fn visit<'a>(&'a self, f: &mut dyn FnMut(&'a Weight)) {
+        f(&self.token_embedding);
+        f(&self.positional_embedding);
+        for b in &self.blocks {
+            b.ln_1.visit(f);
+            b.in_proj.visit(f);
+            b.out_proj.visit(f);
+            b.ln_2.visit(f);
+            b.c_fc.visit(f);
+            b.c_proj.visit(f);
+        }
+        self.ln_final.visit(f);
+        f(&self.text_projection);
+        self.resizer.visit(f);
+    }
+
+    fn visit_mut<'a>(&'a mut self, f: &mut dyn FnMut(&'a mut Weight)) {
+        f(&mut self.token_embedding);
+        f(&mut self.positional_embedding);
+        for b in &mut self.blocks {
+            b.ln_1.visit_mut(f);
+            b.in_proj.visit_mut(f);
+            b.out_proj.visit_mut(f);
+            b.ln_2.visit_mut(f);
+            b.c_fc.visit_mut(f);
+            b.c_proj.visit_mut(f);
+        }
+        self.ln_final.visit_mut(f);
+        f(&mut self.text_projection);
+        self.resizer.visit_mut(f);
+    }
+}
+
 impl Sam31Weights {
     pub fn load(src: &dyn Source) -> Result<Self, WeightsError> {
         let [t, g, s, d, k] = GROUP_PREFIXES;
@@ -339,5 +521,170 @@ impl Sam31Weights {
             dot_prod_scoring: src.group(d)?,
             tracker: src.group(k)?,
         })
+    }
+
+    /// Visit every tensor in the checkpoint in load order: typed vision and text families first,
+    /// then the five untyped groups sorted by name.
+    pub fn for_each_tensor<'a>(&'a self, mut f: impl FnMut(&'a Weight)) {
+        self.vision.visit(&mut f);
+        self.text.visit(&mut f);
+        for g in [
+            &self.detector_transformer,
+            &self.geometry_encoder,
+            &self.segmentation_head,
+            &self.dot_prod_scoring,
+            &self.tracker,
+        ] {
+            for w in g.tensors.values() {
+                f(w);
+            }
+        }
+    }
+
+    /// Visit every tensor mutably in the same deterministic load order as [`Self::for_each_tensor`].
+    pub fn for_each_tensor_mut<'a>(&'a mut self, mut f: impl FnMut(&'a mut Weight)) {
+        self.vision.visit_mut(&mut f);
+        self.text.visit_mut(&mut f);
+        for g in [
+            &mut self.detector_transformer,
+            &mut self.geometry_encoder,
+            &mut self.segmentation_head,
+            &mut self.dot_prod_scoring,
+            &mut self.tracker,
+        ] {
+            for w in g.tensors.values_mut() {
+                f(w);
+            }
+        }
+    }
+
+    /// Every tensor in deterministic load order.
+    pub fn tensors(&self) -> Vec<&Weight> {
+        let mut out = Vec::new();
+        self.for_each_tensor(|w| out.push(w));
+        out
+    }
+
+    /// Total scalar elements across every tensor in [`Sam31Weights`].
+    pub fn total_numel(&self) -> usize {
+        let mut total = 0usize;
+        self.for_each_tensor(|w| total = total.saturating_add(w.numel()));
+        total
+    }
+
+    /// Look up any tensor by its exact checkpoint name across both typed and untyped families.
+    pub fn tensor(&self, name: &str) -> Option<&Weight> {
+        for g in [
+            &self.detector_transformer,
+            &self.geometry_encoder,
+            &self.segmentation_head,
+            &self.dot_prod_scoring,
+            &self.tracker,
+        ] {
+            if name.starts_with(&g.prefix) {
+                return g.tensors.get(name);
+            }
+        }
+        let mut found = None;
+        self.vision.visit(&mut |w| {
+            if found.is_none() && w.name == name {
+                found = Some(w);
+            }
+        });
+        if found.is_some() {
+            return found;
+        }
+        self.text.visit(&mut |w| {
+            if found.is_none() && w.name == name {
+                found = Some(w);
+            }
+        });
+        found
+    }
+
+    /// Mutably look up any tensor by its exact checkpoint name across both typed and untyped families.
+    pub fn tensor_mut(&mut self, name: &str) -> Option<&mut Weight> {
+        for g in [
+            &mut self.detector_transformer,
+            &mut self.geometry_encoder,
+            &mut self.segmentation_head,
+            &mut self.dot_prod_scoring,
+            &mut self.tracker,
+        ] {
+            if name.starts_with(&g.prefix) {
+                return g.tensors.get_mut(name);
+            }
+        }
+        let mut found = None;
+        if name.starts_with(VISION) {
+            self.vision.visit_mut(&mut |w| {
+                if found.is_none() && w.name == name {
+                    found = Some(w);
+                }
+            });
+            return found;
+        }
+        if name.starts_with(TEXT) {
+            self.text.visit_mut(&mut |w| {
+                if found.is_none() && w.name == name {
+                    found = Some(w);
+                }
+            });
+            return found;
+        }
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Expected, SchemaRecorder};
+
+    #[test]
+    fn tensor_lookup_reaches_every_typed_and_group_tensor_uniquely() {
+        let rec = SchemaRecorder::default();
+        let mut w = Sam31Weights::load(&rec).unwrap();
+        let expected = rec.expected.into_inner();
+        for g in [
+            &mut w.detector_transformer,
+            &mut w.geometry_encoder,
+            &mut w.segmentation_head,
+            &mut w.dot_prod_scoring,
+            &mut w.tracker,
+        ] {
+            let name = format!("{}synthetic.weight", g.prefix);
+            g.tensors.insert(
+                name.clone(),
+                Weight {
+                    name,
+                    shape: vec![2, 2],
+                    data: vec![1.0, 2.0, 3.0, 4.0],
+                },
+            );
+        }
+        let mut expected_names = Vec::new();
+        for e in expected {
+            match e {
+                Expected::Tensor { name, .. } | Expected::ComplexPairs { name, .. } => {
+                    expected_names.push(name);
+                }
+                Expected::Group { prefix } => {
+                    expected_names.push(format!("{prefix}synthetic.weight"));
+                }
+            }
+        }
+        let listed: Vec<String> = w.tensors().into_iter().map(|t| t.name.clone()).collect();
+        assert_eq!(listed, expected_names);
+        for (idx, name) in expected_names.iter().enumerate() {
+            assert_eq!(w.tensor(name).unwrap().name, *name);
+            let t = w.tensor_mut(name).unwrap();
+            t.data = vec![idx as f32];
+        }
+        for (idx, name) in expected_names.iter().enumerate() {
+            assert_eq!(w.tensor(name).unwrap().data, vec![idx as f32], "{name}");
+        }
+        assert!(w.tensor("no.such.tensor").is_none());
+        assert!(w.tensor_mut("no.such.tensor").is_none());
     }
 }

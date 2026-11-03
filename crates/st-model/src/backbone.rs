@@ -219,7 +219,7 @@ fn out_of_range(op: &'static str, detail: String) -> OjasError {
 }
 
 fn host_f32<B: Backend + ?Sized>(be: &B, t: &Tensor) -> Result<Vec<f32>, OjasError> {
-    be.download(t)?.to_f32_vec()
+    crate::layers::host_of(t, be)
 }
 
 /// Element offset of token row `y` of window `w` in a `[1, grid, grid, C]` buffer;
@@ -263,7 +263,8 @@ fn gather_windows<B: Backend + ?Sized>(
     set: &WindowSet,
 ) -> Result<Tensor, OjasError> {
     let grid = checked_grid("st_model::backbone::gather_windows", x, set)?;
-    let data = host_f32(be, x)?;
+    let data_view = crate::layers::host_slice(x, be)?;
+    let data = data_view.as_slice();
     let run = VIT_WINDOW * VIT_DIM;
     let mut out = Vec::with_capacity(set.count() * VIT_WINDOW * run);
     for w in set.iter() {
@@ -272,6 +273,7 @@ fn gather_windows<B: Backend + ?Sized>(
             out.extend_from_slice(&data[at..at + run]);
         }
     }
+    drop(data_view);
     upload(be, &out, &[set.count(), VIT_WINDOW, VIT_WINDOW, VIT_DIM])
 }
 
@@ -296,7 +298,8 @@ fn scatter_windows<B: Backend + ?Sized>(
         ));
     }
     let mut data = host_f32(be, base)?;
-    let rows = host_f32(be, sub)?;
+    let rows_view = crate::layers::host_slice(sub, be)?;
+    let rows = rows_view.as_slice();
     let run = VIT_WINDOW * VIT_DIM;
     for (j, w) in set.iter().enumerate() {
         for y in 0..VIT_WINDOW {
@@ -304,6 +307,7 @@ fn scatter_windows<B: Backend + ?Sized>(
             data[at..at + run].copy_from_slice(&rows[(j * VIT_WINDOW + y) * run..][..run]);
         }
     }
+    drop(rows_view);
     upload(be, &data, &[1, grid, grid, VIT_DIM])
 }
 
@@ -602,13 +606,13 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         }
     }
 
-    /// The external trunk on `image`: download, run, upload. Block taps do not exist there.
+    /// The external trunk on `image`: borrow/readback, run, upload. Block taps do not exist there.
     fn run_external(
         &self,
         ext: &dyn ExternalTrunk,
         image: &Tensor,
         keep_blocks: &[usize],
-        taps: &mut Taps,
+        taps: Option<&mut Taps>,
     ) -> Result<Tensor, OjasError> {
         const OP: &str = "st_model::Backbone::trunk";
         if !keep_blocks.is_empty() {
@@ -627,7 +631,9 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
                 detail: format!("image is {:?}, want [1, 3, {side}, {side}]", image.shape()),
             });
         }
-        let out = ext.run(&host_f32(self.be, image)?)?;
+        let img_view = crate::layers::host_slice(image, self.be)?;
+        let out = ext.run(img_view.as_slice())?;
+        drop(img_view);
         let want = grid * grid * VIT_DIM;
         if out.len() != want {
             return Err(OjasError::Shape {
@@ -639,7 +645,9 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
                 ),
             });
         }
-        *taps = Taps::default();
+        if let Some(t) = taps {
+            *t = Taps::default();
+        }
         upload(self.be, &out, &[1, grid, grid, VIT_DIM])
     }
 
@@ -735,9 +743,19 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         taps: &mut Taps,
     ) -> Result<Tensor, OjasError> {
         if let Some(ext) = &self.external {
-            return self.run_external(ext.as_ref(), image, keep_blocks, taps);
+            return self.run_external(ext.as_ref(), image, keep_blocks, Some(taps));
         }
-        self.run_trunk(image, keep_blocks, taps, Plan::Ungated)
+        self.run_trunk(image, keep_blocks, Some(taps), Plan::Ungated)
+            .map(|(x, _)| x)
+    }
+
+    /// Inference trunk pass without retaining `patch_embed` or `ln_pre` tap tensors across the
+    /// 32 ViT blocks.
+    pub fn trunk_inference(&self, image: &Tensor) -> Result<Tensor, OjasError> {
+        if let Some(ext) = &self.external {
+            return self.run_external(ext.as_ref(), image, &[], None);
+        }
+        self.run_trunk(image, &[], None, Plan::Ungated)
             .map(|(x, _)| x)
     }
 
@@ -826,9 +844,11 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         match policy {
             GatePolicy::Off => {
                 cache.clear();
-                self.run_trunk(image, keep_blocks, taps, Plan::Ungated)
+                self.run_trunk(image, keep_blocks, Some(taps), Plan::Ungated)
             }
-            GatePolicy::Frame => self.run_trunk(image, keep_blocks, taps, Plan::Capture(cache)),
+            GatePolicy::Frame => {
+                self.run_trunk(image, keep_blocks, Some(taps), Plan::Capture(cache))
+            }
             GatePolicy::Windows {
                 approximate_after_global,
             } => {
@@ -836,7 +856,7 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
                     self.run_trunk(
                         image,
                         keep_blocks,
-                        taps,
+                        Some(taps),
                         Plan::Partial {
                             cache,
                             set: recompute,
@@ -844,7 +864,7 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
                         },
                     )
                 } else {
-                    self.run_trunk(image, keep_blocks, taps, Plan::Capture(cache))
+                    self.run_trunk(image, keep_blocks, Some(taps), Plan::Capture(cache))
                 }
             }
         }
@@ -865,7 +885,7 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         &self,
         image: &Tensor,
         keep_blocks: &[usize],
-        taps: &mut Taps,
+        mut taps: Option<&mut Taps>,
         mut plan: Plan<'_>,
     ) -> Result<(Tensor, GatedStats), OjasError> {
         let be = self.be;
@@ -886,9 +906,13 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         let pe = be.permute(&pe, &[0, 2, 3, 1])?; // NHWC
         let x = be.residual_add_forward(&pe, &self.pos_tiled)?;
         let mut x = be.layer_norm_forward(&x, &self.ln_pre.w, &self.ln_pre.b, VIT_LN_EPS)?;
-        taps.patch_embed = Some(pe);
-        taps.ln_pre = Some(x.clone());
-        taps.blocks = vec![None; self.blocks.len()];
+        if let Some(t) = taps.as_deref_mut() {
+            t.patch_embed = Some(pe);
+            t.ln_pre = Some(x.clone());
+            t.blocks = vec![None; self.blocks.len()];
+        } else {
+            drop(pe);
+        }
 
         let stages = self.stages();
         let (windowed_blocks, global_blocks) = self.block_counts();
@@ -937,15 +961,19 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
                     }
                     x = scatter_windows(be, &base, &sub, set)?;
                     let last = stage.windowed.end - 1;
-                    if keep_blocks.contains(&last) {
-                        taps.blocks[last] = Some(x.clone());
+                    if let Some(t) = taps.as_deref_mut() {
+                        if keep_blocks.contains(&last) {
+                            t.blocks[last] = Some(x.clone());
+                        }
                     }
                 } else {
                     for i in stage.windowed.clone() {
                         x = self.block_apply(&self.blocks[i], &x, Mix::Grid)?;
                         stats.window_blocks_run += side * side;
-                        if keep_blocks.contains(&i) {
-                            taps.blocks[i] = Some(x.clone());
+                        if let Some(t) = taps.as_deref_mut() {
+                            if keep_blocks.contains(&i) {
+                                t.blocks[i] = Some(x.clone());
+                            }
                         }
                     }
                 }
@@ -959,8 +987,10 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
             if let Some(g) = stage.global {
                 x = self.block_apply(&self.blocks[g], &x, Mix::Global)?;
                 stats.global_blocks_run += 1;
-                if keep_blocks.contains(&g) {
-                    taps.blocks[g] = Some(x.clone());
+                if let Some(t) = taps.as_deref_mut() {
+                    if keep_blocks.contains(&g) {
+                        t.blocks[g] = Some(x.clone());
+                    }
                 }
             }
         }

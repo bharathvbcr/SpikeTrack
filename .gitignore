@@ -30,6 +30,7 @@ tools/baselines/.venv-export/
 
 # Benchmark artifacts
 bench/results/**/*.npy
+bench/results/**/spiketrack
 
 # Secrets & environment configurations
 .env

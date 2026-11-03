@@ -14,7 +14,7 @@ use st_gate::Geometry;
 use st_weights::TensorGroup;
 
 use crate::host;
-use crate::layers::{get, host_of, up, Conv, Lin, Mha, Mlp, Norm};
+use crate::layers::{get, host_of, host_slice, up, Conv, Lin, Mha, Mlp, Norm};
 use crate::ModelError;
 
 pub const D: usize = 256;
@@ -231,6 +231,12 @@ pub struct Detector<'b, B: Backend + ?Sized> {
     mask_embed: Mlp,
     /// Sine position encoding of the top (grid x grid) level, `[1, grid^2, 256]`.
     pos: Tensor,
+    /// Post-decoder `[dx, dy, dw, dh]` logit shift applied strictly after the 6th decoder layer
+    /// so `rpb_bias` in layers `0..5` stays untouched. `[0.0; 4]` is the bit-exact identity.
+    post_box_delta: [f32; 4],
+    /// Weight in `[0.0, 1.0]` blending the penultimate decoder layer (`li = 4`) into the final
+    /// dot-product and presence logits. `0.0` is the bit-exact identity.
+    aux_score_weight: f32,
 }
 
 /// Detector weight groups, as `st_weights::Sam31Weights` holds them.
@@ -310,8 +316,8 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             dec_layers: (0..6)
                 .map(|i| DecLayer::load(be, t, &format!("{tp}.decoder.layers.{i}")))
                 .collect::<Result<_, _>>()?,
-            dec_norm: Norm::load(be, t, &format!("{tp}.decoder.norm"))?,
-            bbox_embed: Mlp::load(
+            dec_norm: Norm::load_host(be, t, &format!("{tp}.decoder.norm"))?,
+            bbox_embed: Mlp::load_host(
                 be,
                 t,
                 &format!("{tp}.decoder.bbox_embed"),
@@ -319,7 +325,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
                 false,
                 false,
             )?,
-            ref_point_head: Mlp::load(
+            ref_point_head: Mlp::load_host(
                 be,
                 t,
                 &format!("{tp}.decoder.ref_point_head"),
@@ -327,7 +333,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
                 false,
                 false,
             )?,
-            rpb_x: Mlp::load(
+            rpb_x: Mlp::load_host(
                 be,
                 t,
                 &format!("{tp}.decoder.boxRPB_embed_x"),
@@ -335,7 +341,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
                 false,
                 false,
             )?,
-            rpb_y: Mlp::load(
+            rpb_y: Mlp::load_host(
                 be,
                 t,
                 &format!("{tp}.decoder.boxRPB_embed_y"),
@@ -343,7 +349,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
                 false,
                 false,
             )?,
-            presence_head: Mlp::load(
+            presence_head: Mlp::load_host(
                 be,
                 t,
                 &format!("{tp}.decoder.presence_token_head"),
@@ -351,8 +357,12 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
                 false,
                 false,
             )?,
-            presence_out_norm: Norm::load(be, t, &format!("{tp}.decoder.presence_token_out_norm"))?,
-            prompt_mlp: Mlp::load(
+            presence_out_norm: Norm::load_host(
+                be,
+                t,
+                &format!("{tp}.decoder.presence_token_out_norm"),
+            )?,
+            prompt_mlp: Mlp::load_host(
                 be,
                 sc,
                 &format!("{cp}.prompt_mlp"),
@@ -360,8 +370,8 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
                 true,
                 true,
             )?,
-            prompt_proj: Lin::load(be, sc, &format!("{cp}.prompt_proj"), D, D)?,
-            hs_proj: Lin::load(be, sc, &format!("{cp}.hs_proj"), D, D)?,
+            prompt_proj: Lin::load_host(be, sc, &format!("{cp}.prompt_proj"), D, D)?,
+            hs_proj: Lin::load_host(be, sc, &format!("{cp}.hs_proj"), D, D)?,
             seg_cross_attn: Mha::load(be, s, &format!("{sp}.cross_attend_prompt"))?,
             seg_cross_norm: Norm::load(be, s, &format!("{sp}.cross_attn_norm"))?,
             pd_convs: (0..2)
@@ -386,7 +396,39 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
                 false,
             )?,
             pos: up(be, &pos, &[1, tokens, D])?,
+            post_box_delta: [0.0; 4],
+            aux_score_weight: 0.0,
         })
+    }
+
+    /// Set a post-decoder `[dx, dy, dw, dh]` logit shift applied only to `pred_boxes` after
+    /// decoder layer 5 (decoupled from `boxRPB` in layers `0..5`).
+    pub fn set_post_box_delta(&mut self, delta: [f32; 4]) -> Result<(), String> {
+        if delta.iter().any(|v| !v.is_finite()) {
+            return Err(format!("post_box_delta must be finite, got {delta:?}"));
+        }
+        self.post_box_delta = delta;
+        Ok(())
+    }
+
+    pub fn post_box_delta(&self) -> [f32; 4] {
+        self.post_box_delta
+    }
+
+    /// Set the blend weight in `[0.0, 1.0]` mixing penultimate decoder layer (`li = 4`) scores
+    /// with the final layer (`li = 5`). `0.0` is upstream's exact final-layer-only behavior.
+    pub fn set_aux_score_weight(&mut self, weight: f32) -> Result<(), String> {
+        if !weight.is_finite() || !(0.0..=1.0).contains(&weight) {
+            return Err(format!(
+                "aux_score_weight must be finite in [0.0, 1.0], got {weight}"
+            ));
+        }
+        self.aux_score_weight = weight;
+        Ok(())
+    }
+
+    pub fn aux_score_weight(&self) -> f32 {
+        self.aux_score_weight
     }
 
     /// The input size this detector was built for.
@@ -421,7 +463,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
         text: &Tensor,
         taps: &mut DetectorTaps,
     ) -> Result<DetectorOut, ModelError> {
-        self.forward_marked(fpn, text, taps, &mut |_| {})
+        self.forward_impl(fpn, text, Some(taps), &mut |_| {})
     }
 
     /// [`Self::forward`], calling `mark` with a [`DETECTOR_STAGES`] name as each phase begins (for
@@ -431,6 +473,29 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
         fpn: &[Tensor; 3],
         text: &Tensor,
         taps: &mut DetectorTaps,
+        mark: &mut dyn FnMut(&str),
+    ) -> Result<DetectorOut, ModelError> {
+        self.forward_impl(fpn, text, Some(taps), mark)
+    }
+
+    /// Inference pass without recording intermediate [`DetectorTaps`]: avoids stalling the GPU on
+    /// `geo`, avoids pinning intermediate encoder / pixel-decoder tensors in Metal memory, and
+    /// evaluates `hs_proj` only on the final decoder layer. Numerics of [`DetectorOut`] are
+    /// bit-identical to [`Self::forward`].
+    pub fn forward_inference(
+        &self,
+        fpn: &[Tensor; 3],
+        text: &Tensor,
+        mark: &mut dyn FnMut(&str),
+    ) -> Result<DetectorOut, ModelError> {
+        self.forward_impl(fpn, text, None, mark)
+    }
+
+    fn forward_impl(
+        &self,
+        fpn: &[Tensor; 3],
+        text: &Tensor,
+        mut taps: Option<&mut DetectorTaps>,
         mark: &mut dyn FnMut(&str),
     ) -> Result<DetectorOut, ModelError> {
         mark(DETECTOR_STAGES[0]);
@@ -455,18 +520,29 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             geo = l.fwd(be, &geo, None, &img, Some(&self.pos))?;
         }
         let geo = self.geo_encode_norm.fwd(be, &geo)?;
-        let geo_host = host_of(&geo, be)?;
-        taps.geo = Some(geo_host.clone());
+        if let Some(t) = taps.as_deref_mut() {
+            t.geo = Some(host_of(&geo, be)?);
+        }
 
         // Prompt = [valid text tokens; geometry CLS].
+        let text_dev;
+        let text = if text.device() == geo.device() {
+            text
+        } else {
+            text_dev = be.upload(text)?;
+            &text_dev
+        };
         let prompt = be.concat(&[text, &geo], 1)?;
+        drop(geo);
         let plen = prompt.shape()[1];
 
         // Fusion encoder over image tokens, cross-attending to the prompt.
         let mut mem = img;
         for l in &self.enc_layers {
             mem = l.fwd(be, &mem, Some(&self.pos), &prompt, None)?;
-            taps.enc_layers.push(mem.clone());
+            if let Some(t) = taps.as_deref_mut() {
+                t.enc_layers.push(mem.clone());
+            }
         }
         let mem_keys = be.residual_add_forward(&mem, &self.pos)?;
 
@@ -483,10 +559,18 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             self.query_embed.clone()
         };
         let mut x = be.concat(&[&presence, &query_embed], 1)?;
+        drop((presence, query_embed));
+        let mut hs_prev: Option<Vec<f32>> = None;
         let mut hs_last = Vec::new();
-        for layer in &self.dec_layers {
+        let mut presence_prev = 0.0f32;
+        let mut presence_last = 0.0f32;
+        let n_dec = self.dec_layers.len();
+        let use_aux = self.aux_score_weight > 0.0 && n_dec >= 2;
+        for (li, layer) in self.dec_layers.iter().enumerate() {
             mark(DETECTOR_STAGES[1]);
-            taps.ref_boxes.push(refs.clone());
+            if let Some(t) = taps.as_deref_mut() {
+                t.ref_boxes.push(refs.clone());
+            }
             let sine = host::sine_embed_boxes(&refs);
             let qpos = self.ref_point_head.host(&sine, QUERIES);
             let mut pos = vec![0f32; D];
@@ -495,29 +579,45 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             let rpb = self.rpb_bias(&refs)?;
             mark(DETECTOR_STAGES[2]);
             x = layer.fwd(be, &x, &pos, &prompt, &mem, &mem_keys, &rpb)?;
+            drop((pos, rpb));
             mark(DETECTOR_STAGES[3]);
-            let xh = host_of(&x, be)?;
-            let (presence, queries) = xh.split_at(D);
+            let xh = host_slice(&x, be)?;
+            let (presence_tok, queries) = xh.as_slice().split_at(D);
             let hs = self.dec_norm.host(queries);
+            if taps.is_some() || li + 1 == n_dec || (use_aux && li + 2 == n_dec) {
+                // Upstream calls .clamp() on the presence logits and discards the result: no clamp.
+                let pres = self
+                    .presence_head
+                    .host(&self.presence_out_norm.host(presence_tok), 1)[0];
+                if use_aux && li + 2 == n_dec {
+                    presence_prev = pres;
+                }
+                presence_last = pres;
+            }
+            drop(xh);
             let delta = self.bbox_embed.host(&hs, QUERIES);
             refs = refs
                 .iter()
                 .zip(&delta)
                 .map(|(&r, &d)| host::sigmoid(host::inverse_sigmoid(r) + d))
                 .collect();
-            // Upstream calls .clamp() on the presence logits and discards the result: no clamp.
-            let pl = self
-                .presence_head
-                .host(&self.presence_out_norm.host(presence), 1)[0];
-            taps.presence_logits.push(pl);
-            taps.hs.push(hs.clone());
+            if let Some(t) = taps.as_deref_mut() {
+                t.presence_logits.push(presence_last);
+                t.hs.push(hs.clone());
+            }
+            if use_aux && li + 2 == n_dec {
+                hs_prev = Some(hs.clone());
+            }
             hs_last = hs;
         }
+        drop((x, mem_keys));
 
-        // Dot-product scoring on the last layer, then the joint presence score.
+        // Dot-product scoring on the last layer (with optional penultimate-layer blend), then the
+        // joint presence score.
         mark(DETECTOR_STAGES[4]);
-        let prompt_host = host_of(&prompt, be)?;
-        let pm = self.prompt_mlp.host(&prompt_host, plen);
+        let prompt_host = host_slice(&prompt, be)?;
+        let pm = self.prompt_mlp.host(prompt_host.as_slice(), plen);
+        drop(prompt_host);
         let mut pooled = vec![0f32; D];
         for row in pm.chunks_exact(D) {
             pooled.iter_mut().zip(row).for_each(|(a, b)| *a += b);
@@ -525,23 +625,32 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
         pooled.iter_mut().for_each(|v| *v /= plen as f32);
         let pp = self.prompt_proj.host(&pooled, 1);
         let scale = 1.0 / (D as f32).sqrt();
-        let presence = *taps.presence_logits.last().expect("six layers");
-        for hs in &taps.hs {
+        let score_hs = |hs: &[f32]| -> Vec<f32> {
             let proj = self.hs_proj.host(hs, QUERIES);
-            taps.scores.push(
-                proj.chunks_exact(D)
-                    .map(|r| {
-                        (r.iter().zip(&pp).map(|(a, b)| a * b).sum::<f32>() * scale)
-                            .clamp(-12.0, 12.0)
-                    })
-                    .collect(),
-            );
+            proj.chunks_exact(D)
+                .map(|r| {
+                    (r.iter().zip(&pp).map(|(a, b)| a * b).sum::<f32>() * scale).clamp(-12.0, 12.0)
+                })
+                .collect()
+        };
+        let mut last_scores = if let Some(t) = taps.as_deref_mut() {
+            for hs in &t.hs {
+                t.scores.push(score_hs(hs));
+            }
+            t.scores.last().expect("six layers").clone()
+        } else {
+            score_hs(&hs_last)
+        };
+        if let (true, Some(prev)) = (use_aux, hs_prev.as_deref()) {
+            let w = self.aux_score_weight;
+            let prev_scores = score_hs(prev);
+            for (s, &p) in last_scores.iter_mut().zip(&prev_scores) {
+                *s = ((1.0 - w) * *s + w * p).clamp(-12.0, 12.0);
+            }
+            presence_last = (1.0 - w) * presence_last + w * presence_prev;
         }
-        let pp_presence = host::sigmoid(presence);
-        let pred_logits: Vec<f32> = taps
-            .scores
-            .last()
-            .expect("six layers")
+        let pp_presence = host::sigmoid(presence_last);
+        let pred_logits: Vec<f32> = last_scores
             .iter()
             .map(|&s| host::inverse_sigmoid(host::sigmoid(s) * pp_presence).clamp(-10.0, 10.0))
             .collect();
@@ -550,28 +659,38 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
         mark(DETECTOR_STAGES[5]);
         let t = self.seg_cross_norm.fwd(be, &mem)?;
         let ca = self.seg_cross_attn.fwd(be, &t, &prompt, &prompt, None)?;
-        taps.seg_cross_attn = Some(ca.clone());
+        drop((t, prompt));
+        if let Some(tp) = taps.as_deref_mut() {
+            tp.seg_cross_attn = Some(ca.clone());
+        }
         let enc = be.residual_add_forward(&mem, &ca)?; // [1, grid^2, 256]
+        drop((mem, ca));
         let mut prev = be.permute(&enc, &[0, 2, 1])?.reshape(&[1, D, feat, feat])?;
+        drop(enc);
         for (i, bb) in [&fpn[1], &fpn[0]].into_iter().enumerate() {
             let upsampled = self.nearest2x(&prev)?;
             prev = be.residual_add_forward(bb, &upsampled)?;
             prev = self.pd_convs[i].fwd(be, &prev, 1)?;
             prev = be.relu_forward(&self.group_norm(&prev, &self.pd_gn[i])?)?;
         }
-        taps.pixel_embed = Some(prev.clone());
+        if let Some(tp) = taps {
+            tp.pixel_embed = Some(prev.clone());
+        }
         let instance = self.instance_head.fwd(be, &prev, 0)?; // [1, 256, M, M], M = 288 at 1008
         let semantic_seg = self.semantic_head.fwd(be, &prev, 0)?;
+        drop(prev);
         let mask_embed = self.mask_embed.fwd(be, &up(be, &hs_last, &[QUERIES, D])?)?;
         let inst = be.permute(&instance.reshape(&[D, mask * mask])?, &[1, 0])?; // [M * M, 256]
+        drop(instance);
         let pred_masks = be
             .linear_forward(&mask_embed, &inst)?
             .reshape(&[QUERIES, mask, mask])?;
 
-        let pred_boxes = refs;
+        let mut pred_boxes = refs;
+        apply_post_box_delta(&mut pred_boxes, self.post_box_delta);
         Ok(DetectorOut {
             pred_logits,
-            presence_logit: presence,
+            presence_logit: presence_last,
             pred_boxes,
             pred_masks,
             semantic_seg,
@@ -591,25 +710,56 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             let v = d * 8.0;
             v.signum() * (v.abs() + 1.0).log2() / log8
         };
-        // deltas [Q * grid, 2] per axis: coord - (x0, x1) or (y0, y1).
-        let (mut dx, mut dy) = (
-            Vec::with_capacity(QUERIES * feat * 2),
-            Vec::with_capacity(QUERIES * feat * 2),
+        let q_stride = feat * HEADS;
+        let (mut ex, mut ey) = (
+            vec![0f32; QUERIES * q_stride],
+            vec![0f32; QUERIES * q_stride],
         );
-        for b in refs.chunks_exact(4) {
-            let (x0, y0, x1, y1) = (
-                b[0] - 0.5 * b[2],
-                b[1] - 0.5 * b[3],
-                b[0] + 0.5 * b[2],
-                b[1] + 0.5 * b[3],
-            );
-            for &c in &coords {
-                dx.extend([enc(c - x0), enc(c - x1)]);
-                dy.extend([enc(c - y0), enc(c - y1)]);
+        let threads = std::thread::available_parallelism()
+            .map(std::num::NonZeroUsize::get)
+            .unwrap_or(1)
+            .clamp(1, QUERIES / 25);
+        let q_chunk = QUERIES.div_ceil(threads);
+        let (rpb_x, rpb_y) = (&self.rpb_x, &self.rpb_y);
+        std::thread::scope(|s| {
+            let mut ex_rest = ex.as_mut_slice();
+            let mut ey_rest = ey.as_mut_slice();
+            let mut q0 = 0;
+            while !ex_rest.is_empty() {
+                let qn = (ex_rest.len() / q_stride).min(q_chunk);
+                let (ex_piece, ex_tail) = ex_rest.split_at_mut(qn * q_stride);
+                let (ey_piece, ey_tail) = ey_rest.split_at_mut(qn * q_stride);
+                ex_rest = ex_tail;
+                ey_rest = ey_tail;
+                let refs_piece = &refs[q0 * 4..(q0 + qn) * 4];
+                let coords = &coords;
+                s.spawn(move || {
+                    let mut dx = vec![0f32; qn * feat * 2];
+                    let mut dy = vec![0f32; qn * feat * 2];
+                    for ((b, rx), ry) in refs_piece
+                        .chunks_exact(4)
+                        .zip(dx.chunks_exact_mut(feat * 2))
+                        .zip(dy.chunks_exact_mut(feat * 2))
+                    {
+                        let (x0, x1) = (b[0] - 0.5 * b[2], b[0] + 0.5 * b[2]);
+                        let (y0, y1) = (b[1] - 0.5 * b[3], b[1] + 0.5 * b[3]);
+                        for ((px, py), &c) in rx
+                            .chunks_exact_mut(2)
+                            .zip(ry.chunks_exact_mut(2))
+                            .zip(coords)
+                        {
+                            px[0] = enc(c - x0);
+                            px[1] = enc(c - x1);
+                            py[0] = enc(c - y0);
+                            py[1] = enc(c - y1);
+                        }
+                    }
+                    rpb_x.host_rows(&dx, qn * feat, ex_piece);
+                    rpb_y.host_rows(&dy, qn * feat, ey_piece);
+                });
+                q0 += qn;
             }
-        }
-        let ex = self.rpb_x.host(&dx, QUERIES * feat); // [Q, grid(w), 8]
-        let ey = self.rpb_y.host(&dy, QUERIES * feat); // [Q, grid(h), 8]
+        });
         rpb_from_axes(self.be, &ex, &ey, feat)
     }
 
@@ -634,6 +784,22 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
     }
 }
 
+/// Apply a post-decoder `[dx, dy, dw, dh]` logit shift to `cxcywh` boxes in `[0, 1]` without
+/// touching decoder `boxRPB` reference points. Exact no-op when `delta == [0.0; 4]` (and per
+/// coordinate when `d == 0.0`).
+pub fn apply_post_box_delta(boxes_cxcywh: &mut [f32], delta: [f32; 4]) {
+    if delta == [0.0; 4] {
+        return;
+    }
+    for b in boxes_cxcywh.chunks_exact_mut(4) {
+        for (coord, &d) in b.iter_mut().zip(&delta) {
+            if d != 0.0 {
+                *coord = host::sigmoid(host::inverse_sigmoid(*coord) + d);
+            }
+        }
+    }
+}
+
 /// The box-RPB bias from its per-axis tables `ex` / `ey`, each `[Q, grid, HEADS]` as the MLPs
 /// emit them: `bias[h, 1 + q, i * grid + j] = ey[q, i, h] + ex[q, j, h]`, row 0 (the presence
 /// token) zero, as a device `[1, HEADS, 1 + Q, grid^2]`.
@@ -646,9 +812,14 @@ fn rpb_from_axes<B: Backend + ?Sized>(
     let q = ex.len() / (feat * HEADS);
     // [Q, grid, HEADS] -> [HEADS, Q, grid] on the host (a copy).
     let by_head = |e: &[f32]| -> Vec<f32> {
-        (0..HEADS)
-            .flat_map(|h| e.iter().skip(h).step_by(HEADS).copied())
-            .collect()
+        let n = q * feat;
+        let mut out = vec![0f32; HEADS * n];
+        for (i, row) in e.chunks_exact(HEADS).enumerate() {
+            for (h, &v) in row.iter().enumerate() {
+                out[h * n + i] = v;
+            }
+        }
+        out
     };
     let ey = up(be, &by_head(ey), &[HEADS, q, feat, 1])?;
     let ex = up(be, &by_head(ex), &[HEADS, q, 1, feat])?;
@@ -728,5 +899,23 @@ mod tests {
         rpb_matches_the_host_loop_on(
             &ojas_metal::MetalBackend::new(Budget::new(4 << 30)).expect("metal"),
         );
+    }
+
+    #[test]
+    fn post_box_delta_is_bit_exact_at_zero_and_finite_on_boundaries() {
+        let orig = vec![0.0f32, 1.0, 0.035, 0.042, 0.5, 0.25, 0.1, 0.9999];
+        let mut cur = orig.clone();
+        apply_post_box_delta(&mut cur, [0.0; 4]);
+        for (a, b) in cur.iter().zip(&orig) {
+            assert_eq!(a.to_bits(), b.to_bits());
+        }
+
+        apply_post_box_delta(&mut cur, [0.0, 0.0, 0.15, -0.10]);
+        // Unshifted cx, cy remain bit-exact; dw > 0 widens w; dh < 0 shrinks h; all stay finite in (0, 1).
+        assert_eq!(cur[0].to_bits(), orig[0].to_bits());
+        assert_eq!(cur[1].to_bits(), orig[1].to_bits());
+        assert!(cur[2] > orig[2] && cur[2] < 1.0);
+        assert!(cur[3] < orig[3] && cur[3] > 0.0);
+        assert!(cur.iter().all(|v| v.is_finite() && (0.0..=1.0).contains(v)));
     }
 }

@@ -1,0 +1,8 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+21           8       153         132        0  0.1216 0.0514 0.3391 0.6393
+22           8       101         129        0  0.0627 0.0247 0.1936 0.8279
+36           8       353         170        0  0.2334 0.0965 0.5723 0.7358
+47           8        64         103        0  0.1353 0.0738 0.2718 0.7051
+82           8       208          88        0  0.0870 0.0325 0.2622 0.6703
+all         40       879         622        0  0.1726 0.0600 0.5591 0.6745
+wrote bench/results/weight-space/eval/held8_zs_base_cell_det.json

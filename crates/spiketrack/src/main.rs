@@ -5,6 +5,7 @@
 //! * `image`: one image, one text prompt: boxes, scores and masks (see `image_cmd`).
 //! * `track`: text-prompted multi-object tracking of a video or frame folder (see `track_cmd`).
 //! * `eval-visem`: HOTA of predicted tracks against VISEM-Tracking (see `eval_visem`).
+//! * `weights`: native weight-space inspection, SVD spectra, token probes and surgical diffs (see `weights_cmd`).
 
 #[cfg(not(target_os = "macos"))]
 compile_error!("spiketrack decodes images and video with ImageIO and AVFoundation: macOS only");
@@ -20,6 +21,7 @@ mod procinfo;
 mod track_cmd;
 mod track_profile;
 mod weights;
+mod weights_cmd;
 
 use std::process::ExitCode;
 
@@ -32,6 +34,7 @@ commands:
   image        detect and segment a text-prompted concept in one image
   track        track a text-prompted concept through a video or a folder of frames
   eval-visem   HOTA of predicted tracks against VISEM-Tracking ground truth
+  weights      read, probe and diff SAM 3.1 weights in Rust (SVD, token rows, LoRA & surgical edits)
 
 `spiketrack <command> --help` shows a command's options.";
 
@@ -43,6 +46,7 @@ fn dispatch(args: &[String]) -> Result<(), CliError> {
         "image" => image_cmd::run(rest),
         "track" => track_cmd::run(rest),
         "eval-visem" => eval_visem::run(rest),
+        "weights" => weights_cmd::run(rest),
         "--help" | "-h" | "help" => {
             println!("{USAGE}");
             Ok(())
@@ -60,6 +64,7 @@ fn main() -> ExitCode {
                 Some("image") => image_cmd::USAGE,
                 Some("track") => track_cmd::USAGE,
                 Some("eval-visem") => eval_visem::USAGE,
+                Some("weights") => weights_cmd::USAGE,
                 _ => USAGE,
             };
             eprintln!("spiketrack: {m}\n\n{usage}");

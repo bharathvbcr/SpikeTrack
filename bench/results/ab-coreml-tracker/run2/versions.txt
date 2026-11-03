@@ -1,0 +1,7 @@
+SpikeTrack 7f8db18 feat(model): unify M1–M5 zero-copy UMA, adversarial test suites, and fast developer workflows, dirty 30 (binary 061fc4326821803d)
+ojas 286a444 Merge branch 'claude/docs-match-code-2026-11-01-eb0573': docs corrected against the code (dirty files: 0)
+tessl 52bdd19 Merge fix/hosted-lib-device-check (PR #5): validate the hosted manifest's entries instead of assuming them (dirty files: 0)
+coremltools 9.0
+port fp32 tracker: present
+Apple M5 Pro
+20:21  up 1 day,  7:17, 1 user, load averages: 7.37 6.26 7.54

@@ -1,0 +1,8 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+21          32       612         503        0  0.1138 0.0471 0.3093 0.6290
+22          32       401         470        0  0.0811 0.0406 0.1925 0.7258
+36          32      1409         505        0  0.2227 0.0861 0.6023 0.7165
+47          32       238         486        0  0.1322 0.0731 0.2631 0.6154
+82          32       832         431        0  0.0923 0.0375 0.2390 0.6161
+all        160      3492        2395        0  0.1658 0.0589 0.5708 0.6595
+wrote bench/results/weight-space/eval/held32_max16_zs_base_cell_det.json

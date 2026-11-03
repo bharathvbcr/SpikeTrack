@@ -159,6 +159,20 @@ impl Tokenizer {
         Ok(out)
     }
 
+    /// Canonical BPE piece for each vocabulary id (`<|startoftext|>` / `<|endoftext|>` preferred
+    /// over internal aliases).
+    pub fn vocab_pieces(&self) -> std::collections::BTreeMap<u32, &str> {
+        let mut out = std::collections::BTreeMap::new();
+        for (piece, &id) in &self.encoder {
+            if SPECIALS.contains(&piece.as_str()) {
+                out.entry(id).or_insert(piece.as_str());
+            } else {
+                out.insert(id, piece.as_str());
+            }
+        }
+        out
+    }
+
     /// Upstream's `bpe`: the last symbol carries `</w>`; repeatedly merge
     /// every occurrence of the lowest-ranked adjacent pair.
     fn bpe(&self, token: &str) -> Vec<String> {

@@ -1,0 +1,4 @@
+mac_heavy: 2026-11-03T02:35:36Z 'spiketrack-mattn-ops' holds the lock (waited 0s; load 6.79, 1329 processes); running: bash bench/results/ab-coreml-tracker/ops-job.sh
+binary 061fc4326821803d; 20:35  up 1 day,  7:31, 1 user, load averages: 6.79 6.70 6.77
+20:36  up 1 day,  7:32, 1 user, load averages: 7.22 6.78 6.79
+mac_heavy: 2026-11-03T02:36:05Z 'spiketrack-mattn-ops' finished with exit 0

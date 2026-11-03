@@ -78,13 +78,20 @@ def mem_gb(device):
 # ------------------------------------------------------------------ cache access
 
 class Cache:
-    def __init__(self, root):
+    def __init__(self, root, need_pre_resizer=False):
         self.root = pathlib.Path(root)
         self.meta = json.loads((self.root / "meta.json").read_text())
         self.frames = self.meta["frames"]
         assert self.meta["prompts"] == lc.ALL_PROMPTS, "cache was built with a different prompt list"
+        self.text_pre = None
         with safe_open(str(self.root / "text.safetensors"), "pt") as f:
+            keys = set(f.keys())
             self.text = {p: (f.get_tensor(f"p{i}.feat"), f.get_tensor(f"p{i}.mask").bool()) for i, p in enumerate(lc.ALL_PROMPTS)}
+            if all(f"p{i}.pre_resizer" in keys for i in range(len(lc.ALL_PROMPTS))):
+                self.text_pre = {p: f.get_tensor(f"p{i}.pre_resizer") for i, p in enumerate(lc.ALL_PROMPTS)}
+        if need_pre_resizer and self.text_pre is None:
+            computed = lc.compute_prompt_pre_resizer(lc.ALL_PROMPTS)
+            self.text_pre = {p: computed[p][0] for p in lc.ALL_PROMPTS}
         with safe_open(str(self.root / "pos.safetensors"), "pt") as f:
             self.pos = f.get_tensor("pos")[None]
         self._shards, self._gt = {}, {}
@@ -107,13 +114,14 @@ class Cache:
     def present(self, rec):
         return [c for c in lc.CLASS_PROMPTS if len(self.gt(rec, c))]
 
-    def batch(self, items, device):
+    def batch(self, items, device, use_pre_resizer=False):
         """items: [(frame record, prompt, class or None)] -> model inputs and normalized GT lists."""
         feats = torch.stack([self.feat(r) for r, _, _ in items]).to(device)
         txt = torch.stack([self.text[p][0] for _, p, _ in items], 1).to(device)
+        txt_pre = torch.stack([self.text_pre[p] for _, p, _ in items], 1).to(device) if (use_pre_resizer and self.text_pre is not None) else None
         mask = torch.stack([self.text[p][1] for _, p, _ in items]).to(device)
         gts = [self.gt(r, c) if c is not None else np.zeros((0, 4), np.float32) for r, _, c in items]
-        return feats, self.pos.to(device), txt, mask, gts
+        return feats, self.pos.to(device), txt, txt_pre, mask, gts
 
 
 def sample_items(cache, train_frames, rng, n, pos_frac):
@@ -160,12 +168,12 @@ def eval_plan(cache, frames):
 
 
 @torch.no_grad()
-def run_eval_plan(det, cache, plan, device, batch):
+def run_eval_plan(det, cache, plan, device, batch, use_pre_resizer=False):
     rows = []
     for i in range(0, len(plan), batch):
         chunk = plan[i:i + batch]
-        feats, pos, txt, mask, _ = cache.batch([(r, p, None) for r, p, _, _ in chunk], device)
-        out = lc.grounding_forward(det, feats, pos, txt, mask, aux=False)
+        feats, pos, txt, txt_pre, mask, _ = cache.batch([(r, p, None) for r, p, _, _ in chunk], device, use_pre_resizer=use_pre_resizer)
+        out = lc.grounding_forward(det, feats, pos, txt, mask, aux=False, txt_pre_resizer=txt_pre)
         joint, pres, proc = lc.scores(out)
         boxes = out["pred_boxes_xyxy"].float().cpu().numpy()
         for j, (rec, prompt, cls, role) in enumerate(chunk):
@@ -236,13 +244,13 @@ def summarize(cache, rows):
     return out
 
 
-def evaluate(det, cache, device, batch, frames):
+def evaluate(det, cache, device, batch, frames, use_pre_resizer=False):
     plan = eval_plan(cache, frames)
     results = {}
     for name, enabled in (("zero_shot", False), ("lora", True)):
         lc.set_lora_enabled(det, enabled)
         t0 = time.time()
-        rows = run_eval_plan(det, cache, plan, device, batch)
+        rows = run_eval_plan(det, cache, plan, device, batch, use_pre_resizer=use_pre_resizer)
         results[name] = summarize(cache, rows)
         results[name]["seconds"] = round(time.time() - t0, 1)
         print(f"eval {name}: {len(rows)} (frame, prompt) items in {results[name]['seconds']}s", flush=True)
@@ -285,7 +293,7 @@ def lr_at(step, total, warmup, base, floor=0.1):
     return base * (floor + (1 - floor) * 0.5 * (1 + math.cos(math.pi * min(1.0, p))))
 
 
-def check_merged_equivalence(det, cache, device, adapter_path, rec):
+def check_merged_equivalence(det, cache, device, adapter_path, rec, use_pre_resizer=False):
     """The adapter merged into a fresh head's weights (merge_into_state, the formula lora.rs implements)
     must reproduce the LoRA-wrapped head on a real cached input."""
     meta, entries = lc.load_adapter(adapter_path)
@@ -293,11 +301,11 @@ def check_merged_equivalence(det, cache, device, adapter_path, rec):
     state = {f"detector.{n}": p.data for n, p in fresh.named_parameters()}
     lc.merge_into_state(state, [(m, p, r, k, a, A.to(device), B.to(device)) for m, p, r, k, a, A, B in entries])
     items = [(rec, lc.CLASS_PROMPTS[0], 0), (rec, lc.EVERYDAY_NEGATIVES[0], None)]
-    feats, pos, txt, mask, _ = cache.batch(items, device)
+    feats, pos, txt, txt_pre, mask, _ = cache.batch(items, device, use_pre_resizer=use_pre_resizer)
     with torch.no_grad():
         lc.set_lora_enabled(det, True)
-        a = lc.grounding_forward(det, feats, pos, txt, mask, aux=False)
-        b = lc.grounding_forward(fresh, feats, pos, txt, mask, aux=False)
+        a = lc.grounding_forward(det, feats, pos, txt, mask, aux=False, txt_pre_resizer=txt_pre)
+        b = lc.grounding_forward(fresh, feats, pos, txt, mask, aux=False, txt_pre_resizer=txt_pre)
     return {"max_abs_logit": (a["pred_logits"] - b["pred_logits"]).abs().max().item(),
             "max_abs_box": (a["pred_boxes"] - b["pred_boxes"]).abs().max().item(),
             "max_abs_presence_logit": (a["presence_logit_dec"] - b["presence_logit_dec"]).abs().max().item()}
@@ -327,6 +335,13 @@ def main():
     ap.add_argument("--alpha", type=float, default=lc.ALPHA)
     ap.add_argument("--dropout", type=float, default=lc.DROPOUT)
     ap.add_argument("--pos-frac", type=float, default=0.5, help="share of items that are positive prompts")
+    ap.add_argument("--include-heads", action="store_true",
+                    help="also adapt dot_prod_scoring, bbox_embed, presence_token_head, and language_backbone.resizer")
+    ap.add_argument("--include-ffn", action="store_true",
+                    help="also adapt fusion-encoder and decoder FFN linear1/linear2")
+    ap.add_argument("--o2m", action="store_true",
+                    help="enable DAC one-to-many queries and BinaryOneToManyMatcher during training")
+    ap.add_argument("--o2m-weight", type=float, default=2.0)
     ap.add_argument("--seed", type=int, default=20261027)
     ap.add_argument("--no-act-ckpt", action="store_true", help="keep encoder activations (needs far more memory)")
     ap.add_argument("--save-every", type=int, default=100)
@@ -347,7 +362,8 @@ def main():
     cfg["command"] = " ".join(sys.argv)
     cfg["torch"] = torch.__version__
 
-    cache = Cache(args.cache)
+    use_pre_resizer = bool(args.include_heads)
+    cache = Cache(args.cache, need_pre_resizer=use_pre_resizer)
     train_frames, held_frames = cache.split("train"), cache.split("held_out")
     split = lc.load_split()
     assert not {r["video"] for r in train_frames} & set(split["held_out"]), "held-out video in the training cache"
@@ -357,10 +373,13 @@ def main():
 
     device = args.device
     det = lc.build_heads(device=device)
-    wrappers = lc.attach_lora(det, rank=args.rank, alpha=args.alpha, dropout=args.dropout, seed=args.seed)
+    wrappers = lc.attach_lora(
+        det, rank=args.rank, alpha=args.alpha, dropout=args.dropout, seed=args.seed,
+        include_heads=args.include_heads, include_ffn=args.include_ffn,
+    )
     params = lc.lora_parameters(det)
     n_params = sum(p.numel() for p in params)
-    print(f"{len(wrappers)} attention modules, {n_params:,} trainable parameters", flush=True)
+    print(f"{len(wrappers)} LoRA modules, {n_params:,} trainable parameters (include_heads={args.include_heads}, include_ffn={args.include_ffn}, o2m={args.o2m})", flush=True)
     cfg["trainable_params"] = n_params
 
     if args.eval_only:
@@ -369,7 +388,7 @@ def main():
         log = {"config": cfg, "steps": []}
     else:
         assert train_frames, "no training frames in the cache"
-        loss_wrapper, matcher = lc.build_loss()
+        loss_wrapper, matcher = lc.build_loss(o2m=args.o2m, o2m_weight=args.o2m_weight)
         opt = torch.optim.AdamW(params, lr=args.lr, weight_decay=args.weight_decay, betas=(0.9, 0.999))
         start, log = 0, {"config": cfg, "steps": []}
         if args.resume and (run_dir / "checkpoint.pt").exists():
@@ -388,6 +407,9 @@ def main():
         end = args.steps if args.stop_after is None else min(args.steps, start + args.stop_after)
         if args.stop_after is not None and args.stop_after < 1:
             raise SystemExit("--stop-after must be at least 1")
+        loss_keys = ("core_loss", "loss_bbox", "loss_giou", "loss_ce", "presence_loss")
+        if args.o2m:
+            loss_keys = loss_keys + ("loss_bbox_o2m", "loss_giou_o2m", "loss_ce_o2m", "presence_loss_o2m")
         for step in range(start, end):
             t0 = time.time()
             for g in opt.param_groups:
@@ -398,15 +420,19 @@ def main():
             for _ in range(args.accum):
                 items = sample_items(cache, train_frames, rng, args.batch, args.pos_frac)
                 n_pos += sum(c is not None for _, _, c in items)
-                feats, pos, txt, mask, gts = cache.batch(items, device)
-                out = lc.grounding_forward(det, feats, pos, txt, mask, aux=True, act_ckpt=not args.no_act_ckpt)
+                feats, pos, txt, txt_pre, mask, gts = cache.batch(items, device, use_pre_resizer=use_pre_resizer)
+                out = lc.grounding_forward(
+                    det, feats, pos, txt, mask, aux=True, act_ckpt=not args.no_act_ckpt,
+                    dac=args.o2m, txt_pre_resizer=txt_pre,
+                )
                 losses = lc.compute_loss(loss_wrapper, matcher, out, lc.make_targets(gts, device))
                 loss = losses["core_loss"]
                 if not torch.isfinite(loss):
                     raise RuntimeError(f"step {step}: non-finite loss {loss.item()} for {[(r['video'], r['frame'], p) for r, p, _ in items]}")
                 (loss / args.accum).backward()
-                for k in ("core_loss", "loss_bbox", "loss_giou", "loss_ce", "presence_loss"):
-                    agg[k] = agg.get(k, 0.0) + float(losses[k]) / args.accum
+                for k in loss_keys:
+                    if k in losses:
+                        agg[k] = agg.get(k, 0.0) + float(losses[k]) / args.accum
             gnorm = float(torch.nn.utils.clip_grad_norm_(params, 1.0))
             opt.step()
             opt.zero_grad(set_to_none=True)
@@ -434,8 +460,8 @@ def main():
 
     if not args.no_eval:
         assert held_frames, "no held-out frames in the cache"
-        results = evaluate(det, cache, device, args.eval_batch, held_frames)
-        results["merged_vs_wrapped"] = check_merged_equivalence(det, cache, device, adapter_path, held_frames[0])
+        results = evaluate(det, cache, device, args.eval_batch, held_frames, use_pre_resizer=use_pre_resizer)
+        results["merged_vs_wrapped"] = check_merged_equivalence(det, cache, device, adapter_path, held_frames[0], use_pre_resizer=use_pre_resizer)
         results["adapter"] = str(adapter_path)
         results["split_file"] = "tools/reference/visem_split.json"
         (res_dir / "eval.json").write_text(json.dumps(results, indent=1))
@@ -443,8 +469,9 @@ def main():
         (res_dir / "eval.md").write_text(md + "\n")
         print(md, flush=True)
         print("merged-weights vs LoRA-wrapped forward:", json.dumps(results["merged_vs_wrapped"]), flush=True)
-    log["peak_rss_gb"] = round(rss_gb(), 2)
-    (res_dir / "train_log.json").write_text(json.dumps(log, indent=1))
+    if not args.eval_only or not (res_dir / "train_log.json").exists():
+        log["peak_rss_gb"] = round(rss_gb(), 2)
+        (res_dir / "train_log.json").write_text(json.dumps(log, indent=1))
 
 
 if __name__ == "__main__":

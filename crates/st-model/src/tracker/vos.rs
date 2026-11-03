@@ -10,12 +10,12 @@ use st_weights::TensorGroup;
 
 use crate::backbone::{Backbone, Neck};
 use crate::host;
-use crate::layers::{get, host_of, up, Conv, Lin, Mlp};
+use crate::layers::{get, host_of, host_slice, up, Conv, Lin, Mlp};
 use crate::tracker::interactive::InteractiveDecoder;
 use crate::tracker::mask_decoder::{high_res, MuxMaskDecoder, MASKS_PER_OBJ, MUX};
 use crate::tracker::memory_attention::{MemoryAttention, MemoryInputs};
 use crate::tracker::memory_encoder::MemoryEncoder;
-use crate::{ModelError, Taps};
+use crate::ModelError;
 
 pub const D: usize = 256;
 /// The native 1008 x 1008 input's feature grid, token count, mask-logit side, image side and
@@ -267,7 +267,7 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
                 let w = host_w("interactivity_no_mem_embed", &[1, 1, D])?;
                 up(be, &w, &[1, D, 1, 1])?
             },
-            obj_ptr_proj: Mlp::load(
+            obj_ptr_proj: Mlp::load_host(
                 be,
                 g,
                 &format!("{p}.obj_ptr_proj"),
@@ -275,7 +275,7 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
                 false,
                 false,
             )?,
-            interactive_obj_ptr_proj: Mlp::load(
+            interactive_obj_ptr_proj: Mlp::load_host(
                 be,
                 g,
                 &format!("{p}.interactive_obj_ptr_proj"),
@@ -283,8 +283,8 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
                 false,
                 false,
             )?,
-            no_obj_ptr_linear: Lin::load(be, g, &format!("{p}.no_obj_ptr_linear"), D, D)?,
-            obj_ptr_tpos_proj: Lin::load(be, g, &format!("{p}.obj_ptr_tpos_proj"), D, D)?,
+            no_obj_ptr_linear: Lin::load_host(be, g, &format!("{p}.no_obj_ptr_linear"), D, D)?,
+            obj_ptr_tpos_proj: Lin::load_host(be, g, &format!("{p}.obj_ptr_tpos_proj"), D, D)?,
             maskmem_tpos,
             no_obj_embed_spatial: host_w("no_obj_embed_spatial", &[MUX, D])?,
             output_valid: host_w("output_valid_embed", &[MUX, D])?,
@@ -331,10 +331,10 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         let slot_valid: Vec<bool> = (0..MUX).map(|s| s < n).collect();
         let mut mem: Vec<Option<FrameMem>> = Vec::with_capacity(frames.len());
         for (fi, frame) in frames.iter().enumerate() {
-            let trunk = self.backbone.trunk(frame, &[], &mut Taps::default())?;
+            let trunk = self.backbone.trunk_inference(frame)?;
             let prop = self.backbone.neck(Neck::Propagation, &trunk)?;
             let (ps0, ps1) = high_res(be, &self.mux_decoder, &prop[0], &prop[1])?;
-            let prop_tokens = nchw_to_tokens(&host_of(&prop[2], be)?, D, tokens);
+            let prop_tokens = nchw_to_tokens(&host_slice(&prop[2], be)?, D, tokens);
             let pos_tokens = nchw_to_tokens(&self.sine_pos, D, tokens);
             let out = if fi == 0 {
                 let inter = self.backbone.neck(Neck::Interactive, &trunk)?;
@@ -684,7 +684,9 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         let out = self
             .mux_decoder
             .fwd(be, &pix, &self.prop_pe, ps0, ps1, &extra)?;
-        let masks = host_of(&out.masks, be)?; // [1, 16, 3, M, M]
+        drop(pix);
+        let masks_view = host_slice(&out.masks, be)?; // [1, 16, 3, M, M]
+        let masks = masks_view.as_slice();
         let px = low_res * low_res;
         let mut low = vec![0f32; n * px];
         let mut ptrs = vec![0f32; MUX * D];
@@ -713,6 +715,7 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
             };
             ptrs[o * D..(o + 1) * D].copy_from_slice(&ptr);
         }
+        drop((masks_view, out));
         let maskmem = self.encode_memory(prop72, &low, &scores, n, &[], false, slot_valid)?;
         mem.push(Some(FrameMem {
             maskmem: maskmem.clone(),

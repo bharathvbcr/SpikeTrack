@@ -214,6 +214,62 @@ def test_heads_and_training(device, bsz):
     path.parent.rmdir()
 
 
+def test_v2_heads_and_o2m(device, bsz):
+    det = lc.build_heads(device=device)
+    feats, pos, txt, mask = synthetic_inputs(device, bsz)
+    g = torch.Generator().manual_seed(7)
+    txt_pre = torch.randn(32, bsz, 1024, generator=g).to(device)
+    with torch.no_grad():
+        txt_ref = det.backbone.language_backbone.resizer(txt_pre)
+        ref = lc.grounding_forward(det, feats, pos, txt_ref, mask, aux=False)
+
+    wrappers = lc.attach_lora(det, seed=0, include_heads=True)
+    entries0 = lc.adapter_entries(wrappers)
+    check("41 modules (30 attn + 11 head linears) = 131 entries", len(wrappers) == 41 and len(entries0) == 131, f"{len(wrappers)}/{len(entries0)}")
+    with torch.no_grad():
+        got0 = lc.grounding_forward(det, feats, pos, txt, mask, aux=False, txt_pre_resizer=txt_pre)
+    err0 = (ref["pred_logits"] - got0["pred_logits"]).abs().max().item()
+    check("v2 LoRA B=0 == un-adapted heads (with resizer)", err0 < 2e-3, f"max|d logit|={err0:.2e}")
+
+    wrapper, matcher = lc.build_loss(o2m=True, o2m_weight=2.0)
+    gts = [torch.tensor([[0.2, 0.2, 0.25, 0.26], [0.5, 0.5, 0.56, 0.55]]).numpy(), torch.zeros(0, 4).numpy()][:bsz]
+    targets = lc.make_targets(gts, device)
+    params = lc.lora_parameters(det)
+    opt = torch.optim.AdamW(params, lr=1e-3)
+    lc.set_lora_train(det, True)
+    for step in range(2):
+        torch.manual_seed(10 + step)
+        out = lc.grounding_forward(det, feats, pos, txt, mask, aux=True, act_ckpt=True, dac=True, txt_pre_resizer=txt_pre)
+        check("o2m outputs present when dac=True", "pred_logits_o2m" in out and "pred_boxes_o2m" in out)
+        losses = lc.compute_loss(wrapper, matcher, out, targets)
+        loss = losses["core_loss"]
+        check(f"v2+o2m step {step} loss finite", bool(torch.isfinite(loss)), f"{loss.item():.3f}")
+        loss.backward()
+        gb = [b.grad for w in wrappers for b in w.lora_B]
+        ga = [a.grad for w in wrappers for a in w.lora_A]
+        nz_b = sum(g is not None and g.abs().sum() > 0 for g in gb)
+        nz_a = sum(g is not None and g.abs().sum() > 0 for g in ga)
+        if step == 0:
+            check("every v2 B (all 131 incl. resizer/bbox/scoring/presence) gets gradient at step 0", nz_b == 131 and nz_a == 0, f"B={nz_b}/131 A={nz_a}/131")
+        else:
+            check("every v2 A gets gradient at step 1", nz_a == 131 and nz_b == 131, f"B={nz_b}/131 A={nz_a}/131")
+        opt.step()
+        opt.zero_grad()
+    lc.set_lora_train(det, False)
+
+    entries = lc.adapter_entries(wrappers)
+    fresh = lc.build_heads(device=device)
+    state = {f"detector.{n}": p.data for n, p in fresh.named_parameters()}
+    lc.merge_into_state(state, [(m, p, r, k, a, A.to(device), B.to(device)) for m, p, r, k, a, A, B in entries])
+    with torch.no_grad():
+        a_out = lc.grounding_forward(det, feats, pos, txt, mask, aux=False, txt_pre_resizer=txt_pre)
+        b_out = lc.grounding_forward(fresh, feats, pos, txt, mask, aux=False, txt_pre_resizer=txt_pre)
+    dl = (a_out["pred_logits"] - b_out["pred_logits"]).abs().max().item()
+    db = (a_out["pred_boxes"] - b_out["pred_boxes"]).abs().max().item()
+    dp = (a_out["presence_logit_dec"] - b_out["presence_logit_dec"]).abs().max().item()
+    check("v2 merged weights == LoRA-wrapped forward", dl < 2e-3 and db < 1e-4 and dp < 1e-4, f"dl={dl:.2e} db={db:.2e} dp={dp:.2e}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--device", default="cpu")
@@ -226,6 +282,7 @@ def main():
     test_attention_parity()
     if not args.skip_heads:
         test_heads_and_training(args.device, args.batch)
+        test_v2_heads_and_o2m(args.device, args.batch)
     print("ALL PASS", f"peak rss {rss_gb():.2f} GB")
 
 

@@ -78,6 +78,8 @@ use ojas_core::{Autocast, Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
 use ojas_metal::{MetalBackend, WaitCounts};
 use st_coreml::{CoremlTrunk, Units};
+use st_model::tile::{TileSpec, DEFAULT_TILE_SPAN};
+use st_model::tracker::associate::Bitmask;
 use st_model::tracker::session::{Session, SessionConfig, YieldedFrame};
 use st_model::tracker::vos::Vos;
 use st_model::Geometry;
@@ -89,14 +91,16 @@ use st_video::{
 use st_weights::Sam31Weights;
 
 use crate::cli::{existing_path, Args, CliError};
-use crate::image_cmd::BackendChoice;
+use crate::image_cmd::{
+    crop_tile_rgb8, parse_aux_score_weight, parse_post_box_delta, BackendChoice,
+};
 use crate::json;
 use crate::mask::Rle;
 use crate::overlay::{self, Drawn};
 use crate::png;
 use crate::procinfo::{phys_footprint_bytes, vm_pageouts_swapins};
 use crate::track_profile::{self, OpsLabels, ProfileMode, StageClock, StageSink};
-use crate::weights::{self, lora_json};
+use crate::weights::{self, edit_json, lora_json};
 use st_model::profile::Profiled;
 
 /// `--max-objects` when not given. Upstream's builder caps tracking at 16, which bounds the dense
@@ -108,9 +112,10 @@ pub const USAGE: &str = "\
 spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--max-frames N]
                  [--start F] [--overlay K] [--overlay-video FILE] [--overlay-fps F]
                  [--video ID] [--boxes mask|detector] [--weights FILE]
-                 [--lora FILE] [--model-dir DIR] [--threads N] [--trim-pool-every K]
+                 [--lora FILE] [--weight-edit FILE] [--model-dir DIR] [--threads N] [--trim-pool-every K]
                  [--trunk-precision f32|bf16-linears|coreml-fp32|coreml-fp16] [--max-objects N]
-                 [--input-size N] [--profile stages|ops]
+                 [--input-size N] [--post-box-delta dx,dy,dw,dh] [--aux-score-weight W]
+                 [--tile-every K] [--profile stages|ops]
 
   Tracks every instance of <text> through a video with SAM 3.1's multiplex tracker, forward
   from the first frame processed. <input> is a folder of <video>_frame_<n>.jpg frames
@@ -132,16 +137,20 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
   --video ID        the video id used in file names and \"video\" (default: from the frame
                     names, or the mp4's file name without extension)
   --boxes SOURCE    mask (default, upstream's out_boxes_xywh: the extent of the track's mask
-                    before the non-overlap rule) or detector (not upstream: the box of the
-                    detection this frame's association assigned to the track, the mask box
-                    when none was; for datasets whose boxes are not mask extents, such as
-                    VISEM-Tracking's sperm-head boxes). Masks are the same either way.
+                    before the non-overlap rule) or detector (not upstream: head-box NMS + full
+                    border recall + the assigned detection box, or morphological head-bulb box
+                    inside the propagated mask when no detection matched; for datasets whose
+                    boxes are part boxes rather than whole-mask extents, such as VISEM-Tracking).
   --weights FILE    the converted checkpoint (default: $SPIKETRACK_WEIGHTS)
   --lora FILE       fold this detector LoRA adapter (spiketrack-lora-v1) into the weights
+  --weight-edit FILE  apply this surgical weight-edit manifest (spiketrack-weight-edit-v1)
   --model-dir DIR   folder with the tokenizer's vocab.json and merges.txt (default: $SPIKETRACK_MODEL_DIR)
   --threads N       CPU worker threads for --backend cpu, 1 to 256 (default 8)
   --trim-pool-every K  diagnostic, --backend metal only: hand Ojas's cached free buffers back to
                     the device after every K-th frame (MetalBackend::trim_pool)
+  --post-box-delta D  post-decoder [dx,dy,dw,dh] logit shift on pred_boxes, decoupled from boxRPB
+  --aux-score-weight W  blend weight in [0, 1] mixing decoder layer 4 scores into layer 5 (default 0)
+  --tile-every K    run 2x2 overlapping 1008x1008 tile proposals every K-th frame (K >= 1)
   --profile MODE    diagnostic, --backend metal only (not with bf16-linears): break each frame
                     down by stage (trunk, detector, each tracker state, memory, births, outputs,
                     decode, collector) into <out>/<video>.profile-<MODE>.md. stages: wall time
@@ -565,14 +574,253 @@ pub struct FrameResult {
     pub objects: Vec<TrackedObject>,
 }
 
+/// Per-track kinematic + scale state for `--boxes detector` fallback when a propagated frame has
+/// no uniquely matched detection (`det_boxes_xyxy[k] == None`).
+#[derive(Clone, Copy, Debug)]
+struct HeadBoxState {
+    last_frame: usize,
+    cx: f32,
+    cy: f32,
+    vx: f32,
+    vy: f32,
+    ema_w: f32,
+    ema_h: f32,
+}
+
+/// Stateful per-track head-box memory across released frames (`Collector`).
+#[derive(Clone, Debug, Default)]
+pub struct HeadBoxTracker {
+    tracks: BTreeMap<i64, HeadBoxState>,
+    scene_wh: Option<(f32, f32)>,
+}
+
+impl HeadBoxTracker {
+    fn observe_detection(
+        &mut self,
+        id: i64,
+        frame: usize,
+        box_xyxy: [f32; 4],
+        min_w: f32,
+        min_h: f32,
+    ) {
+        let bw = (box_xyxy[2] - box_xyxy[0]).max(min_w);
+        let bh = (box_xyxy[3] - box_xyxy[1]).max(min_h);
+        let cx = 0.5 * (box_xyxy[0] + box_xyxy[2]);
+        let cy = 0.5 * (box_xyxy[1] + box_xyxy[3]);
+        self.scene_wh = Some(match self.scene_wh {
+            Some((sw, sh)) => (0.85 * sw + 0.15 * bw, 0.85 * sh + 0.15 * bh),
+            None => (bw, bh),
+        });
+        let next = match self.tracks.get(&id).copied() {
+            Some(prev) if frame > prev.last_frame => {
+                let dt = (frame - prev.last_frame) as f32;
+                let ivx = ((cx - prev.cx) / dt).clamp(-0.08, 0.08);
+                let ivy = ((cy - prev.cy) / dt).clamp(-0.08, 0.08);
+                HeadBoxState {
+                    last_frame: frame,
+                    cx,
+                    cy,
+                    vx: 0.5 * prev.vx + 0.5 * ivx,
+                    vy: 0.5 * prev.vy + 0.5 * ivy,
+                    ema_w: 0.7 * prev.ema_w + 0.3 * bw,
+                    ema_h: 0.7 * prev.ema_h + 0.3 * bh,
+                }
+            }
+            _ => HeadBoxState {
+                last_frame: frame,
+                cx,
+                cy,
+                vx: 0.0,
+                vy: 0.0,
+                ema_w: bw,
+                ema_h: bh,
+            },
+        };
+        self.tracks.insert(id, next);
+    }
+
+    fn fallback_box(
+        &mut self,
+        id: i64,
+        frame: usize,
+        mask: &Bitmask,
+        height: usize,
+        width: usize,
+        mask_xywh: &[f32],
+    ) -> [f32; 4] {
+        if mask.area() == 0 || height == 0 || width == 0 {
+            return [
+                mask_xywh[0],
+                mask_xywh[1],
+                mask_xywh[0] + mask_xywh[2],
+                mask_xywh[1] + mask_xywh[3],
+            ];
+        }
+        let default_wh = self.scene_wh.unwrap_or((0.036, 0.045));
+        let (target_w, target_h, pred_center) = match self.tracks.get(&id).copied() {
+            Some(prev) => {
+                let dt = frame.saturating_sub(prev.last_frame).min(8) as f32;
+                let pcx = (prev.cx + prev.vx * dt).clamp(0.0, 1.0);
+                let pcy = (prev.cy + prev.vy * dt).clamp(0.0, 1.0);
+                (prev.ema_w, prev.ema_h, Some((pcx, pcy)))
+            }
+            None => (default_wh.0, default_wh.1, None),
+        };
+        let b = locate_head_bulb_xyxy(mask, width, height, target_w, target_h, pred_center)
+            .unwrap_or([
+                mask_xywh[0],
+                mask_xywh[1],
+                mask_xywh[0] + mask_xywh[2],
+                mask_xywh[1] + mask_xywh[3],
+            ]);
+        let cx = 0.5 * (b[0] + b[2]);
+        let cy = 0.5 * (b[1] + b[3]);
+        if let Some(prev) = self.tracks.get_mut(&id) {
+            if frame > prev.last_frame {
+                let dt = (frame - prev.last_frame) as f32;
+                let ivx = ((cx - prev.cx) / dt).clamp(-0.08, 0.08);
+                let ivy = ((cy - prev.cy) / dt).clamp(-0.08, 0.08);
+                prev.vx = 0.65 * prev.vx + 0.35 * ivx;
+                prev.vy = 0.65 * prev.vy + 0.35 * ivy;
+                prev.cx = cx;
+                prev.cy = cy;
+                prev.last_frame = frame;
+            }
+        }
+        b
+    }
+}
+
+/// Locate the dense 2-D sperm-head bulb inside a whole-sperm binary mask (`height * width`),
+/// avoiding the 1-D flagellum tail when `det_boxes_xyxy[k]` is `None`. Uses a 2-D summed-area
+/// table over the mask's tight bounding box plus an optional kinematic proximity prior.
+pub fn locate_head_bulb_xyxy(
+    mask: &Bitmask,
+    width: usize,
+    height: usize,
+    target_w_norm: f32,
+    target_h_norm: f32,
+    pred_center: Option<(f32, f32)>,
+) -> Option<[f32; 4]> {
+    if width == 0 || height == 0 || mask.pixels() != width * height || mask.area() == 0 {
+        return None;
+    }
+    let (mut mx0, mut my0, mut mx1, mut my1) = (width, height, 0usize, 0usize);
+    for y in 0..height {
+        let row = y * width;
+        for x in 0..width {
+            if mask.get(row + x) {
+                mx0 = mx0.min(x);
+                mx1 = mx1.max(x);
+                my0 = my0.min(y);
+                my1 = my1.max(y);
+            }
+        }
+    }
+    if mx0 > mx1 || my0 > my1 {
+        return None;
+    }
+    let bw = mx1 - mx0 + 1;
+    let bh = my1 - my0 + 1;
+    let stride = bw + 1;
+    let mut sat = vec![0u32; (bh + 1) * stride];
+    for ry in 0..bh {
+        let mut row_sum = 0u32;
+        let mrow = (my0 + ry) * width + mx0;
+        let prev_off = ry * stride;
+        let cur_off = (ry + 1) * stride;
+        for rx in 0..bw {
+            if mask.get(mrow + rx) {
+                row_sum += 1;
+            }
+            sat[cur_off + rx + 1] = sat[prev_off + rx + 1] + row_sum;
+        }
+    }
+
+    let kw = ((target_w_norm * width as f32).round() as usize).clamp(1, bw);
+    let kh = ((target_h_norm * height as f32).round() as usize).clamp(1, bh);
+    let inv_area = 1.0 / (kw * kh).max(1) as f32;
+    let (mut best_wx, mut best_wy, mut best_score) = (0usize, 0usize, f32::NEG_INFINITY);
+    for wy in 0..=(bh - kh) {
+        let y_top = wy * stride;
+        let y_bot = (wy + kh) * stride;
+        let cand_cy = (my0 as f32 + wy as f32 + 0.5 * kh as f32) / height as f32;
+        for wx in 0..=(bw - kw) {
+            let count =
+                sat[y_bot + wx + kw] + sat[y_top + wx] - sat[y_bot + wx] - sat[y_top + wx + kw];
+            if count == 0 {
+                continue;
+            }
+            let fill = count as f32 * inv_area;
+            let pen = match pred_center {
+                Some((pcx, pcy)) => {
+                    let cand_cx = (mx0 as f32 + wx as f32 + 0.5 * kw as f32) / width as f32;
+                    0.35 * (cand_cx - pcx).hypot(cand_cy - pcy)
+                }
+                None => 0.0,
+            };
+            let s = fill - pen;
+            if s > best_score {
+                best_score = s;
+                best_wx = wx;
+                best_wy = wy;
+            }
+        }
+    }
+
+    // Refine sub-window center via the foreground centroid inside the winning head-bulb window.
+    let (mut sum_x, mut sum_y, mut cnt) = (0.0f64, 0.0f64, 0u64);
+    for ry in best_wy..(best_wy + kh) {
+        let py = my0 + ry;
+        for rx in best_wx..(best_wx + kw) {
+            let px = mx0 + rx;
+            if mask.get(py * width + px) {
+                sum_x += (px as f64) + 0.5;
+                sum_y += (py as f64) + 0.5;
+                cnt += 1;
+            }
+        }
+    }
+    let (cx, cy) = if cnt > 0 {
+        (
+            (sum_x / cnt as f64) as f32 / width as f32,
+            (sum_y / cnt as f64) as f32 / height as f32,
+        )
+    } else {
+        (
+            (mx0 as f32 + best_wx as f32 + 0.5 * kw as f32) / width as f32,
+            (my0 as f32 + best_wy as f32 + 0.5 * kh as f32) / height as f32,
+        )
+    };
+    let hw = 0.5 * target_w_norm.clamp(1.0 / width as f32, 1.0);
+    let hh = 0.5 * target_h_norm.clamp(1.0 / height as f32, 1.0);
+    Some([
+        (cx - hw).clamp(0.0, 1.0),
+        (cy - hh).clamp(0.0, 1.0),
+        (cx + hw).clamp(0.0, 1.0),
+        (cy + hh).clamp(0.0, 1.0),
+    ])
+}
+
 /// A released frame's objects with boxes as normalised xyxy from `source`, how many boxes were
 /// widened to one pixel (a mask a single pixel wide or high, or a degenerate detection box), and
 /// how many came from a detection. Detection boxes are clipped to the frame.
+#[cfg(test)]
 pub fn objects_of(
     y: &YieldedFrame,
     height: usize,
     width: usize,
     source: BoxSource,
+) -> Result<(Vec<TrackedObject>, usize, usize), String> {
+    objects_of_with_head_tracker(y, height, width, source, None)
+}
+
+pub fn objects_of_with_head_tracker(
+    y: &YieldedFrame,
+    height: usize,
+    width: usize,
+    source: BoxSource,
+    mut head_tracker: Option<&mut HeadBoxTracker>,
 ) -> Result<(Vec<TrackedObject>, usize, usize), String> {
     let n = y.obj_ids.len();
     if y.probs.len() != n
@@ -591,6 +839,8 @@ pub fn objects_of(
     }
     let (mut widened, mut from_detector) = (0, 0);
     let mut out = Vec::with_capacity(n);
+    let min_w = if width > 0 { 1.0 / width as f32 } else { 0.0 };
+    let min_h = if height > 0 { 1.0 / height as f32 } else { 0.0 };
     for k in 0..n {
         let b = &y.boxes_xywh[k * 4..k * 4 + 4];
         if !b.iter().all(|v| v.is_finite())
@@ -606,9 +856,25 @@ pub fn objects_of(
             (BoxSource::Detector, Some(d)) => {
                 from_detector += 1;
                 let c = |v: f32| v.clamp(0.0, 1.0);
-                ([c(d[0]), c(d[1])], [c(d[2]), c(d[3])])
+                let clipped = [c(d[0]), c(d[1]), c(d[2]), c(d[3])];
+                if let Some(ht) = head_tracker.as_deref_mut() {
+                    ht.observe_detection(y.obj_ids[k], y.frame, clipped, min_w, min_h);
+                }
+                ([clipped[0], clipped[1]], [clipped[2], clipped[3]])
             }
-            _ => ([b[0], b[1]], [b[0] + b[2], b[1] + b[3]]),
+            (BoxSource::Detector, None) => {
+                if let Some(ht) = head_tracker.as_deref_mut() {
+                    let fb = ht.fallback_box(y.obj_ids[k], y.frame, &y.masks[k], height, width, b);
+                    ([fb[0], fb[1]], [fb[2], fb[3]])
+                } else if y.masks[k].area() > 0 {
+                    let fb = locate_head_bulb_xyxy(&y.masks[k], width, height, 0.036, 0.045, None)
+                        .unwrap_or([b[0], b[1], b[0] + b[2], b[1] + b[3]]);
+                    ([fb[0], fb[1]], [fb[2], fb[3]])
+                } else {
+                    ([b[0], b[1]], [b[0] + b[2], b[1] + b[3]])
+                }
+            }
+            (BoxSource::Mask, _) => ([b[0], b[1]], [b[0] + b[2], b[1] + b[3]]),
         };
         let mut changed = false;
         if x1 <= x0 {
@@ -714,6 +980,7 @@ pub struct Collector {
     overlay_every: Option<u32>,
     overlay_video: Option<OverlayVideo>,
     boxes: BoxSource,
+    head_tracker: HeadBoxTracker,
     /// The decoded frames still awaiting release (the session releases a frame 15 frames late)
     /// that an overlay will want: every one while a video is being written, else the `--overlay K`
     /// frames. `accept` removes a frame as it is rendered, so this holds at most the lag's worth.
@@ -751,6 +1018,7 @@ impl Collector {
             overlay_every,
             overlay_video: None,
             boxes,
+            head_tracker: HeadBoxTracker::default(),
             images: BTreeMap::new(),
             results: Vec::new(),
             widened: 0,
@@ -816,7 +1084,8 @@ impl Collector {
         let (h, w) = (self.height, self.width);
         let n = self.first_n + y.frame as u32;
         let (objects, widened, from_detector) =
-            objects_of(&y, h, w, self.boxes).map_err(CliError::failed)?;
+            objects_of_with_head_tracker(&y, h, w, self.boxes, Some(&mut self.head_tracker))
+                .map_err(CliError::failed)?;
         self.widened += widened;
         self.reported += objects.len();
         self.from_detector += from_detector;
@@ -995,6 +1264,12 @@ struct Options {
     max_objects: usize,
     /// `--input-size`, validated: the model's token grid and every size derived from it.
     geometry: Geometry,
+    /// `--post-box-delta`.
+    post_box_delta: [f32; 4],
+    /// `--aux-score-weight`.
+    aux_score_weight: f32,
+    /// `--tile-every`.
+    tile_every: Option<usize>,
     /// `--profile`.
     profile: Option<ProfileMode>,
 }
@@ -1150,6 +1425,9 @@ impl MetalProbe {
 
 /// What a backend adds to each frame's progress line, and the optional pool trim.
 trait FrameTelemetry<B> {
+    fn before_frames(&mut self) -> Result<(), CliError> {
+        Ok(())
+    }
     fn after_frame(&mut self, be: &B, index: usize) -> Result<String, CliError>;
 }
 
@@ -1182,6 +1460,14 @@ impl MetalTelemetry {
 }
 
 impl<B: Backend> FrameTelemetry<B> for MetalTelemetry {
+    fn before_frames(&mut self) -> Result<(), CliError> {
+        self.metal.sync().map_err(CliError::from_err)?;
+        self.metal.trim_pool().map_err(CliError::from_err)?;
+        self.probe = MetalProbe::new(&self.metal)?;
+        self.host = HostProbe::new();
+        Ok(())
+    }
+
     fn after_frame(&mut self, _: &B, index: usize) -> Result<String, CliError> {
         let be = &self.metal;
         let mut line = format!("{}, {}", self.probe.frame(be)?, self.host.field());
@@ -1207,7 +1493,7 @@ fn parse_input_size(n: usize) -> Result<Geometry, CliError> {
 
 fn track_on<B: Backend>(
     be: &B,
-    w: &Sam31Weights,
+    w: Sam31Weights,
     stream: &mut FrameStream,
     opts: &Options,
     collector: &mut Collector,
@@ -1215,11 +1501,39 @@ fn track_on<B: Backend>(
     profile: Option<&dyn StageSink>,
 ) -> Result<Timing, CliError> {
     let t_load = Instant::now();
+    let Sam31Weights {
+        mut vision,
+        text: text_w,
+        geometry_encoder,
+        detector_transformer,
+        segmentation_head,
+        dot_prod_scoring,
+        tracker,
+    } = w;
+    if matches!(opts.trunk, TrunkPrecision::Coreml(_)) {
+        vision.trunk.blocks = Vec::new();
+    }
+    let tok = Tokenizer::from_hf_files(
+        &opts.model_dir.join("vocab.json"),
+        &opts.model_dir.join("merges.txt"),
+    )
+    .map_err(|e| {
+        CliError::failed(format!(
+            "tokenizer files in {}: {e}",
+            opts.model_dir.display()
+        ))
+    })?;
+    let text = Text::new(be, &text_w).map_err(CliError::from_err)?;
+    drop(text_w);
+    let prompt = Session::encode_prompt(be, &text, &tok, &opts.prompt)
+        .map_err(|e| CliError::failed(format!("prompt {:?}: {e}", opts.prompt)))?;
+    drop(text);
+    drop(tok);
     let backbone = match opts.trunk {
         TrunkPrecision::F32 => {
-            Backbone::new_at(be, &w.vision, opts.geometry).map_err(CliError::from_err)?
+            Backbone::new_at(be, &vision, opts.geometry).map_err(CliError::from_err)?
         }
-        TrunkPrecision::Bf16Linears => Backbone::new_at(be, &w.vision, opts.geometry)
+        TrunkPrecision::Bf16Linears => Backbone::new_at(be, &vision, opts.geometry)
             .and_then(|b| b.with_trunk_linears_bf16())
             .map_err(CliError::from_err)?,
         TrunkPrecision::Coreml(precision) => {
@@ -1243,38 +1557,45 @@ fn track_on<B: Backend>(
                 trunk.compile_seconds,
                 trunk.model_seconds
             );
-            Backbone::with_external_trunk(be, &w.vision, Box::new(trunk))
+            Backbone::with_external_trunk(be, &vision, Box::new(trunk))
                 .map_err(CliError::from_err)?
         }
     };
+    drop(vision);
     let external_trunk = backbone.external_trunk();
-    let text = Text::new(be, &w.text).map_err(CliError::from_err)?;
-    let detector = Detector::new_at(
+    let mut detector = Detector::new_at(
         be,
         DetectorWeights {
-            transformer: &w.detector_transformer,
-            geometry: &w.geometry_encoder,
-            segmentation: &w.segmentation_head,
-            scoring: &w.dot_prod_scoring,
+            transformer: &detector_transformer,
+            geometry: &geometry_encoder,
+            segmentation: &segmentation_head,
+            scoring: &dot_prod_scoring,
         },
         opts.geometry,
     )
     .map_err(CliError::from_err)?;
-    let vos = Vos::new(be, &backbone, &w.tracker).map_err(CliError::from_err)?;
-    let tok = Tokenizer::from_hf_files(
-        &opts.model_dir.join("vocab.json"),
-        &opts.model_dir.join("merges.txt"),
-    )
-    .map_err(|e| {
-        CliError::failed(format!(
-            "tokenizer files in {}: {e}",
-            opts.model_dir.display()
-        ))
-    })?;
-    let prompt = Session::encode_prompt(be, &text, &tok, &opts.prompt)
-        .map_err(|e| CliError::failed(format!("prompt {:?}: {e}", opts.prompt)))?;
+    detector
+        .set_post_box_delta(opts.post_box_delta)
+        .map_err(CliError::from_err)?;
+    detector
+        .set_aux_score_weight(opts.aux_score_weight)
+        .map_err(CliError::from_err)?;
+    drop((
+        detector_transformer,
+        geometry_encoder,
+        segmentation_head,
+        dot_prod_scoring,
+    ));
+    let vos = Vos::new(be, &backbone, &tracker).map_err(CliError::from_err)?;
+    drop(tracker);
+    telemetry.before_frames()?;
     let mut cfg = SessionConfig::new(stream.len, stream.height, stream.width);
     cfg.book.max_num_objects = opts.max_objects;
+    if opts.boxes == BoxSource::Detector {
+        cfg.nms_box_iou = Some(0.35);
+        cfg.nms_iom = 0.65;
+        cfg.boundary_margin = -1.0;
+    }
     let mut session = Session::new(&vos, &detector, prompt, cfg);
     if let Some(p) = profile {
         session.set_stage_marker(move |stage| p.enter(stage));
@@ -1297,15 +1618,54 @@ fn track_on<B: Backend>(
         let Some((n, image)) = stream.next_frame()? else {
             break;
         };
+        collector.keep_image(index, &image);
+        let tile_tensors: Vec<(TileSpec, Tensor)> =
+            if opts.tile_every.is_some_and(|k| index % k == 0) {
+                let specs = TileSpec::grid_2x2(image.width, image.height, DEFAULT_TILE_SPAN)
+                    .map_err(|e| CliError::failed(format!("tile grid: {e}")))?;
+                let mut out = Vec::with_capacity(specs.len());
+                for spec in &specs {
+                    let crop = crop_tile_rgb8(&image, spec)
+                        .map_err(|e| CliError::failed(format!("frame {n} tile crop: {e}")))?;
+                    let t_in = upstream_input(&crop, side);
+                    drop(crop);
+                    let t_host = Tensor::from_f32(&t_in, &[1, 3, side, side], be.budget())
+                        .map_err(CliError::from_err)?;
+                    drop(t_in);
+                    let t_dev = if external_trunk.is_some() {
+                        t_host
+                    } else {
+                        let d = be.upload(&t_host).map_err(CliError::from_err)?;
+                        drop(t_host);
+                        d
+                    };
+                    out.push((*spec, t_dev));
+                }
+                out
+            } else {
+                Vec::new()
+            };
         let input = upstream_input(&image, side);
+        drop(image);
         let tensor = Tensor::from_f32(&input, &[1, 3, side, side], be.budget())
             .map_err(CliError::from_err)?;
-        let device = be.upload(&tensor).map_err(CliError::from_err)?;
-        collector.keep_image(index, &image);
+        drop(input);
+        let frame_tensor = if external_trunk.is_some() {
+            tensor
+        } else {
+            let d = be.upload(&tensor).map_err(CliError::from_err)?;
+            drop(tensor);
+            d
+        };
         let t0 = Instant::now();
-        let released = session
-            .push_frame(&device)
-            .map_err(|e| CliError::failed(format!("frame {n}: {e}")))?;
+        let released = if tile_tensors.is_empty() {
+            session.push_frame(&frame_tensor)
+        } else {
+            session.push_frame_with_tiles(&frame_tensor, &tile_tensors, 0.4)
+        }
+        .map_err(|e| CliError::failed(format!("frame {n}: {e}")))?;
+        drop(tile_tensors);
+        drop(frame_tensor);
         be.sync().map_err(CliError::from_err)?;
         let secs = t0.elapsed().as_secs_f64();
         frame_seconds.push(secs);
@@ -1338,6 +1698,40 @@ fn track_on<B: Backend>(
     })
 }
 
+fn check_trunk_lora(
+    trunk: TrunkPrecision,
+    adapter: &st_weights::lora::LoraAdapter,
+) -> Result<(), CliError> {
+    if matches!(trunk, TrunkPrecision::Coreml(_)) {
+        if let Some(target) = adapter.touches_vision_trunk() {
+            return Err(CliError::usage(format!(
+                "--lora targets {target:?}, which --trunk-precision {} would bypass via the exported CoreML package; pass --trunk-precision f32 or bf16-linears",
+                trunk.name()
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn check_trunk_weight_edits(
+    trunk: TrunkPrecision,
+    plan: &st_weights::edit::WeightEditPlan,
+) -> Result<(), CliError> {
+    if matches!(trunk, TrunkPrecision::Coreml(_)) {
+        if let Some(op) = plan.edits.iter().find(|e| {
+            e.param()
+                .starts_with("detector.backbone.vision_backbone.trunk.")
+        }) {
+            return Err(CliError::usage(format!(
+                "--weight-edit targets {:?}, which --trunk-precision {} would bypass via the exported CoreML package; pass --trunk-precision f32 or bf16-linears",
+                op.param(),
+                trunk.name()
+            )));
+        }
+    }
+    Ok(())
+}
+
 pub fn run(raw: &[String]) -> Result<(), CliError> {
     let args = Args::parse(
         raw,
@@ -1354,12 +1748,16 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
             "boxes",
             "weights",
             "lora",
+            "weight-edit",
             "model-dir",
             "threads",
             "trim-pool-every",
             "trunk-precision",
             "max-objects",
             "input-size",
+            "post-box-delta",
+            "aux-score-weight",
+            "tile-every",
             "profile",
         ],
         1,
@@ -1392,6 +1790,21 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         )));
     }
     let geometry = parse_input_size(args.parsed("input-size", DEFAULT_INPUT_SIZE)?)?;
+    let post_box_delta = match args.get("post-box-delta") {
+        Some(s) => parse_post_box_delta(s)?,
+        None => [0.0; 4],
+    };
+    let aux_score_weight = match args.get("aux-score-weight") {
+        Some(s) => parse_aux_score_weight(s)?,
+        None => 0.0,
+    };
+    let tile_every = args
+        .get("tile-every")
+        .map(|_| args.parsed("tile-every", 0usize))
+        .transpose()?;
+    if tile_every == Some(0) {
+        return Err(CliError::usage("--tile-every must be at least 1"));
+    }
     let trunk = match args.get("trunk-precision") {
         Some(p) => TrunkPrecision::parse(p)?,
         None => TrunkPrecision::default_for(backend),
@@ -1479,6 +1892,14 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         "weights",
     )?;
     let lora = weights::lora_path(args.get("lora"))?;
+    let weight_edit = weights::edit_path(args.get("weight-edit"))?;
+    let (adapter, plan) = weights::open_modifiers(lora.as_deref(), weight_edit.as_deref())?;
+    if let Some(adapter) = &adapter {
+        check_trunk_lora(trunk, adapter)?;
+    }
+    if let Some(plan) = &plan {
+        check_trunk_weight_edits(trunk, plan)?;
+    }
     let model_dir = existing_path(
         args.get("model-dir"),
         "SPIKETRACK_MODEL_DIR",
@@ -1498,10 +1919,17 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         trunk,
         max_objects,
         geometry,
+        post_box_delta,
+        aux_score_weight,
+        tile_every,
         profile,
     };
 
-    let (w, applied) = weights::load(&opts.weights, lora.as_deref())?;
+    let (w, applied, applied_edit) = weights::load_opened(
+        &opts.weights,
+        lora.as_deref().zip(adapter),
+        weight_edit.as_deref().zip(plan),
+    )?;
     let mut collector = Collector::new(
         &opts.out,
         &stream.video,
@@ -1532,7 +1960,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
             (
                 track_on(
                     &be,
-                    &w,
+                    w,
                     &mut stream,
                     &opts,
                     &mut collector,
@@ -1549,7 +1977,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
             (
                 track_on(
                     &be,
-                    &w,
+                    w,
                     &mut stream,
                     &opts,
                     &mut collector,
@@ -1566,7 +1994,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
             (
                 track_on(
                     &Autocast::new(metal),
-                    &w,
+                    w,
                     &mut stream,
                     &opts,
                     &mut collector,
@@ -1584,7 +2012,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
                 None => (
                     track_on(
                         &be,
-                        &w,
+                        w,
                         &mut stream,
                         &opts,
                         &mut collector,
@@ -1598,7 +2026,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
                     let clock = StageClock::new(&be);
                     let timing = track_on(
                         &be,
-                        &w,
+                        w,
                         &mut stream,
                         &opts,
                         &mut collector,
@@ -1614,7 +2042,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
                     let labels = OpsLabels::new(&profiled);
                     let timing = track_on(
                         &profiled,
-                        &w,
+                        w,
                         &mut stream,
                         &opts,
                         &mut collector,
@@ -1661,7 +2089,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
-        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"external_trunk\": {},\n  \"max_objects\": {},\n  \"metal_mem_cap_bytes\": {},\n  \"input_size\": {},\n  \"profile\": {}\n}}\n",
+        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"weight_edit\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"external_trunk\": {},\n  \"max_objects\": {},\n  \"metal_mem_cap_bytes\": {},\n  \"input_size\": {},\n  \"profile\": {}\n}}\n",
         json::string(&stream.video),
         json::string(&input.to_string_lossy()),
         json::string(&opts.prompt),
@@ -1678,6 +2106,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         json::string(&preprocessing_text(stream.from_video, opts.geometry.pixels())),
         decoders_json(&stream.decoders),
         lora_json(applied.as_ref()),
+        edit_json(applied_edit.as_ref()).map_err(CliError::failed)?,
         json::string(opts.boxes.name()),
         collector.reported,
         collector.from_detector,
@@ -3201,7 +3630,7 @@ mod tests {
         let weights = std::env::var("SPIKETRACK_WEIGHTS").expect("set SPIKETRACK_WEIGHTS");
         let model_dir =
             PathBuf::from(std::env::var("SPIKETRACK_MODEL_DIR").expect("set SPIKETRACK_MODEL_DIR"));
-        let (w, _) = weights::load(Path::new(&weights), None).expect("weights");
+        let (w, _, _) = weights::load(Path::new(&weights), None, None).expect("weights");
         let fx = ojas_io::SafeTensors::open(&root.join("fixtures/detect_track/22.safetensors"))
             .expect("oracle fixture");
         let (_, oracle) = fx.read_f32_widened("frames").expect("frames");
@@ -3340,5 +3769,248 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn coreml_trunk_refuses_vit_trunk_weight_edits_and_allows_other_families() {
+        let vit_edit = st_weights::edit::WeightEditPlan::parse(
+            r#"{
+              "format": "spiketrack-weight-edit-v1",
+              "edits": [{
+                "op": "scale_rows",
+                "param": "detector.backbone.vision_backbone.trunk.blocks.7.attn.proj.weight",
+                "rows": [0, 64],
+                "scale": 0.0
+              }]
+            }"#,
+        )
+        .unwrap();
+        let text_and_det_edit = st_weights::edit::WeightEditPlan::parse(
+            r#"{
+              "format": "spiketrack-weight-edit-v1",
+              "edits": [
+                {
+                  "op": "graft_row",
+                  "param": "detector.backbone.language_backbone.encoder.token_embedding.weight",
+                  "dst": 10,
+                  "sources": [{"row": 20, "weight": 1.0}],
+                  "preserve_norm": true
+                },
+                {
+                  "op": "add_1d",
+                  "param": "detector.transformer.decoder.bbox_embed.layers.2.bias",
+                  "range": [2, 4],
+                  "values": [-0.2, -0.2]
+                }
+              ]
+            }"#,
+        )
+        .unwrap();
+
+        for p in ["coreml-fp32", "coreml-fp16"] {
+            let t = TrunkPrecision::parse(p).unwrap();
+            let err = check_trunk_weight_edits(t, &vit_edit)
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("CoreML") && err.contains("f32"), "{err}");
+            assert!(check_trunk_weight_edits(t, &text_and_det_edit).is_ok());
+        }
+        for p in ["f32", "bf16-linears"] {
+            let t = TrunkPrecision::parse(p).unwrap();
+            assert!(check_trunk_weight_edits(t, &vit_edit).is_ok());
+        }
+    }
+
+    #[test]
+    fn bad_modifiers_fail_before_checkpoint_open_in_track_cmd() {
+        let scratch = std::env::temp_dir().join(format!(
+            "spiketrack-track-edit-order-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&scratch);
+        let frames_dir = scratch.join("frames");
+        std::fs::create_dir_all(&frames_dir).unwrap();
+        let png_bytes = png::encode_rgb(16, 16, &[0u8; 16 * 16 * 3]).unwrap();
+        std::fs::write(frames_dir.join("v_frame_0.png"), png_bytes).unwrap();
+
+        // Not a valid safetensors file: if Checkpoint::open ran first, the error would start with "checkpoint".
+        let dummy_weights = scratch.join("dummy.safetensors");
+        std::fs::write(&dummy_weights, b"not a safetensors checkpoint").unwrap();
+        let vit_edit_path = scratch.join("vit_edit.json");
+        std::fs::write(
+            &vit_edit_path,
+            br#"{
+              "format": "spiketrack-weight-edit-v1",
+              "edits": [{
+                "op": "scale_rows",
+                "param": "detector.backbone.vision_backbone.trunk.blocks.7.attn.proj.weight",
+                "rows": [0, 64],
+                "scale": 0.0
+              }]
+            }"#,
+        )
+        .unwrap();
+        let bad_lora = scratch.join("bad_lora.safetensors");
+        std::fs::write(&bad_lora, b"not safetensors").unwrap();
+
+        let out_dir = scratch.join("track_out");
+        let args_vit: Vec<String> = [
+            frames_dir.to_str().unwrap(),
+            "--prompt",
+            "sperm",
+            "--out",
+            out_dir.to_str().unwrap(),
+            "--trunk-precision",
+            "coreml-fp16",
+            "--weights",
+            dummy_weights.to_str().unwrap(),
+            "--weight-edit",
+            vit_edit_path.to_str().unwrap(),
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+
+        // Fails before --model-dir lookup, before Checkpoint::open, and before Collector creates --out.
+        let err = run(&args_vit).expect_err("CoreML + ViT weight edit must be refused");
+        assert!(err.to_string().contains("CoreML"), "{err}");
+        assert!(!out_dir.exists());
+
+        let args_lora: Vec<String> = [
+            frames_dir.to_str().unwrap(),
+            "--prompt",
+            "sperm",
+            "--out",
+            out_dir.to_str().unwrap(),
+            "--weights",
+            dummy_weights.to_str().unwrap(),
+            "--lora",
+            bad_lora.to_str().unwrap(),
+            "--weight-edit",
+            vit_edit_path.to_str().unwrap(),
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+        let lora_err = run(&args_lora).expect_err("malformed LoRA must fail upfront");
+        assert!(
+            lora_err.to_string().starts_with("lora adapter"),
+            "{lora_err}"
+        );
+        assert!(!out_dir.exists());
+
+        let _ = std::fs::remove_dir_all(&scratch);
+    }
+
+    #[test]
+    fn head_box_tracker_locks_onto_sperm_bulb_instead_of_flagellum_on_unmatched_frames() {
+        let (w, h) = (640usize, 480usize);
+        // Synthetic sperm on frame 1 (unmatched propagation): 18x18 dense head bulb at
+        // [200..218, 150..168] plus an 80-px 2-px-wide tail extending right to x = 298.
+        let mask = Bitmask::from_fn(h * w, |idx| {
+            let (x, y) = (idx % w, idx / w);
+            ((200..218).contains(&x) && (150..168).contains(&y))
+                || ((218..298).contains(&x) && (158..160).contains(&y))
+        });
+        let whole_xywh = [
+            200.0 / w as f32,
+            150.0 / h as f32,
+            98.0 / w as f32,
+            18.0 / h as f32,
+        ];
+        let mut ht = HeadBoxTracker::default();
+        // Frame 0: matched detector head box [198, 150, 216, 168] (swimming +2 px right).
+        let f0 = YieldedFrame {
+            frame: 0,
+            obj_ids: vec![7],
+            probs: vec![0.91],
+            boxes_xywh: whole_xywh.to_vec(),
+            masks: vec![mask.clone()],
+            det_boxes_xyxy: vec![Some([
+                198.0 / w as f32,
+                150.0 / h as f32,
+                216.0 / w as f32,
+                168.0 / h as f32,
+            ])],
+        };
+        let (objs0, _, det0) =
+            objects_of_with_head_tracker(&f0, h, w, BoxSource::Detector, Some(&mut ht)).unwrap();
+        assert_eq!(det0, 1);
+        assert_eq!(objs0.len(), 1);
+
+        // Frame 1: unmatched (`det_boxes_xyxy = [None]`). Without HeadBoxTracker, fallback to
+        // `whole_xywh` spans 98 px (head+tail, IoU ~0.18 with true head). With HeadBoxTracker,
+        // the box stays tightly anchored on the [200..218, 150..168] head bulb.
+        let f1 = YieldedFrame {
+            frame: 1,
+            obj_ids: vec![7],
+            probs: vec![0.91],
+            boxes_xywh: whole_xywh.to_vec(),
+            masks: vec![mask],
+            det_boxes_xyxy: vec![None],
+        };
+        let (objs1, _, det1) =
+            objects_of_with_head_tracker(&f1, h, w, BoxSource::Detector, Some(&mut ht)).unwrap();
+        assert_eq!(det1, 0);
+        let pred = objs1[0].box_xyxy_norm;
+        let gt_head = [
+            200.0 / w as f32,
+            150.0 / h as f32,
+            218.0 / w as f32,
+            168.0 / h as f32,
+        ];
+        let ix0 = pred[0].max(gt_head[0]);
+        let iy0 = pred[1].max(gt_head[1]);
+        let ix1 = pred[2].min(gt_head[2]);
+        let iy1 = pred[3].min(gt_head[3]);
+        let inter = (ix1 - ix0).max(0.0) * (iy1 - iy0).max(0.0);
+        let area_p = (pred[2] - pred[0]) * (pred[3] - pred[1]);
+        let area_g = (gt_head[2] - gt_head[0]) * (gt_head[3] - gt_head[1]);
+        let iou = inter / (area_p + area_g - inter);
+        assert!(
+            iou > 0.80,
+            "expected tight head-bulb IoU > 0.80 on unmatched frame, got {iou:.3} ({pred:?} vs {gt_head:?})"
+        );
+    }
+
+    #[test]
+    fn coreml_trunk_refuses_lora_touching_vision_trunk_and_allows_detector_lora() {
+        let mk_target = |param: &str| st_weights::lora::LoraTarget {
+            module: "m".into(),
+            param: param.into(),
+            row_start: 0,
+            row_end: 4,
+            rank: 2,
+            alpha: 4.0,
+            a: st_weights::Weight {
+                name: String::new(),
+                shape: vec![2, 4],
+                data: vec![0.0; 8],
+            },
+            b: st_weights::Weight {
+                name: String::new(),
+                shape: vec![4, 2],
+                data: vec![0.0; 8],
+            },
+        };
+        let trunk_lora = st_weights::lora::LoraAdapter {
+            base_sha256: None,
+            dropout: None,
+            targets: vec![mk_target(
+                "detector.backbone.vision_backbone.trunk.blocks.0.attn.proj.weight",
+            )],
+        };
+        let det_lora = st_weights::lora::LoraAdapter {
+            base_sha256: None,
+            dropout: None,
+            targets: vec![mk_target("detector.dot_prod_scoring.hs_proj.weight")],
+        };
+        for p in ["coreml-fp32", "coreml-fp16"] {
+            let t = TrunkPrecision::parse(p).unwrap();
+            let err = check_trunk_lora(t, &trunk_lora).unwrap_err();
+            assert!(err.to_string().contains("CoreML"), "{err}");
+            assert!(check_trunk_lora(t, &det_lora).is_ok());
+        }
+        assert!(check_trunk_lora(TrunkPrecision::F32, &trunk_lora).is_ok());
     }
 }

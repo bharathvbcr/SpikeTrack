@@ -1,0 +1,12 @@
+{
+  "metric": "HOTA, TrackEval definition (st_eval): mean over alpha 0.05..0.95 step 0.05",
+  "classes": ["sperm"],
+  "videos": [
+    {"id": "21", "frames": 8, "gt_boxes": 153, "pred_boxes": 0, "pred_frames_outside_gt": 0, "hota": 0, "det_a": 0, "ass_a": 0, "loc_a": 1},
+    {"id": "22", "frames": 8, "gt_boxes": 101, "pred_boxes": 0, "pred_frames_outside_gt": 0, "hota": 0, "det_a": 0, "ass_a": 0, "loc_a": 1},
+    {"id": "36", "frames": 8, "gt_boxes": 353, "pred_boxes": 0, "pred_frames_outside_gt": 0, "hota": 0, "det_a": 0, "ass_a": 0, "loc_a": 1},
+    {"id": "47", "frames": 8, "gt_boxes": 64, "pred_boxes": 0, "pred_frames_outside_gt": 0, "hota": 0, "det_a": 0, "ass_a": 0, "loc_a": 1},
+    {"id": "82", "frames": 8, "gt_boxes": 208, "pred_boxes": 0, "pred_frames_outside_gt": 0, "hota": 0, "det_a": 0, "ass_a": 0, "loc_a": 1}
+  ],
+  "combined": {"hota": 0, "det_a": 0, "ass_a": 0, "loc_a": 1}
+}

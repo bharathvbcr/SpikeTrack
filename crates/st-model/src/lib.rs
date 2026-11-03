@@ -23,6 +23,7 @@ pub mod host;
 pub mod layers;
 pub mod profile;
 pub mod text;
+pub mod tile;
 pub mod tokenizer;
 pub mod tracker;
 
@@ -32,6 +33,7 @@ pub use detector::{Detector, DetectorOut, DetectorTaps, DetectorWeights};
 /// tracker derives from ([`Geometry::from_image_side`] validates it).
 pub use st_gate::Geometry;
 pub use text::{Text, TextFeatures};
+pub use tile::TileSpec;
 pub use tokenizer::Tokenizer;
 
 #[derive(Debug)]

@@ -42,14 +42,14 @@
 //! their `pred_masks` and, past the memory and pointer horizon, the whole output.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use ojas_core::{Backend, Conv2dParams, DType, OjasError, Tensor};
 
 use crate::host;
-use crate::layers::{host_of, up};
+use crate::layers::{host_slice, up};
 use crate::tracker::mask_decoder::{high_res, MASKS_PER_OBJ, MUX};
-use crate::tracker::memory_attention::MemoryInputs;
+use crate::tracker::memory_attention::{FrameKv, FramesInputs};
 use crate::tracker::vos::{
     bf16_round, nchw_to_tokens, sine_1d, Vos, D, LN2D_EPS, MAX_PTRS, NO_OBJ_SCORE, NUM_MASKMEM,
 };
@@ -103,6 +103,33 @@ pub struct FrameFeats {
 pub struct MaskMem {
     pub nchw: Vec<f32>,
     pub tokens: Tensor,
+    /// Its projections in memory attention, with the image features they were computed from:
+    /// filled by the first frame that attends this memory ([`MaskMem::kv`]), shared by clones,
+    /// and dropped by [`TrackerState::prune`] once no later frame can attend it.
+    kv: Arc<OnceLock<(Arc<FrameFeats>, FrameKv)>>,
+}
+
+impl MaskMem {
+    /// This memory's memory-attention projections with `feats`, the stored frame's own image
+    /// features: computed on the first call, then reused.
+    fn kv<B: Backend + ?Sized>(
+        &self,
+        vos: &Vos<'_, B>,
+        feats: &Arc<FrameFeats>,
+    ) -> Result<&FrameKv, ModelError> {
+        if self.kv.get().is_none() {
+            let kv = vos.mem_attn.frame_kv(vos.be, &feats.tokens, &self.tokens)?;
+            // A second setter would hold the same values; the first one stays.
+            let _ = self.kv.set((Arc::clone(feats), kv));
+        }
+        match self.kv.get() {
+            Some((with, kv)) if Arc::ptr_eq(with, feats) => Ok(kv),
+            Some(_) => Err(err(
+                "a mask memory's projections were computed with another frame's image features",
+            )),
+            None => Err(err("a mask memory's projections were not stored")),
+        }
+    }
 }
 
 /// Interactive-path inputs of the current frame (`_get_interactive_pix_mem` and the two
@@ -517,16 +544,17 @@ impl TrackerState {
         }
         if run_mem_encoder {
             let low = up(be, &merged.pred_masks, &[n, 1, low_res, low_res])?;
-            let mut hr = host_of(
-                &be.interpolate_bilinear_forward(&low, [image, image], false)?,
-                be,
-            )?;
-            crate::tracker::vos::non_overlap(&mut hr, n, image * image);
+            let upsampled = be.interpolate_bilinear_forward(&low, [image, image], false)?;
+            drop(low);
+            let mut hr_host = upsampled.to_host(be.budget())?;
+            drop(upsampled);
+            let hr = hr_host.f32_slice_mut()?;
+            crate::tracker::vos::non_overlap(hr, n, image * image);
             let slot_of = self.slot_of();
             let rows: Vec<usize> = (0..n).collect();
             merged.maskmem = Some(vos.encode_mask_memory(
                 ctx,
-                &hr,
+                hr,
                 &rows,
                 image,
                 &merged.scores,
@@ -701,20 +729,16 @@ impl TrackerState {
             // No memory to attend to: upstream falls back to the frame's own features.
             ctx.prop72.clone()
         } else {
-            // The stored memories, their image features and the position rows are device tensors
-            // already: the memory is their concatenation, with the pointer block uploaded after it.
-            let (mut memory, mut memory_pos, mut mimage, mut mimage_pos) =
-                (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+            // Each stored memory brings its projections, computed once by the first frame that
+            // attends it, and its temporal position row; the pointer block is uploaded after them.
+            let mut frames: Vec<(&FrameKv, &Tensor)> = Vec::with_capacity(entries.len());
             for &(st, t_pos) in &entries {
-                let shifted = &vos.memory_pos_tokens[tpos(t_pos)];
                 let feats = st
                     .feats
                     .as_ref()
                     .ok_or_else(|| err("a stored memory without its image features"))?;
-                memory.push(&st.maskmem.as_ref().expect("filtered on maskmem").tokens);
-                mimage.push(&feats.tokens);
-                memory_pos.push(shifted);
-                mimage_pos.push(shifted);
+                let mm = st.maskmem.as_ref().expect("filtered on maskmem");
+                frames.push((mm.kv(vos, feats)?, &vos.memory_pos_tokens[tpos(t_pos)]));
             }
             // Object pointers: the conditioning frames at |distance|, then frames before the current one.
             let max_ptr = num_frames.min(MAX_PTRS);
@@ -754,35 +778,14 @@ impl TrackerState {
             } else {
                 None
             };
-            if let Some((p, pp)) = &ptr_dev {
-                memory.push(p);
-                memory_pos.push(pp);
-            }
-            let cat = |parts: &[&Tensor]| -> Result<Tensor, OjasError> {
-                if parts.len() == 1 {
-                    Ok(parts[0].clone())
-                } else {
-                    be.concat(parts, 1)
-                }
-            };
-            let (memory, memory_pos, mimage, mimage_pos) = (
-                cat(&memory)?,
-                cat(&memory_pos)?,
-                cat(&mimage)?,
-                cat(&mimage_pos)?,
-            );
             mark(PROPAGATE_STAGES[1]);
-            let fused = vos.mem_attn.fwd(
+            let fused = vos.mem_attn.fwd_frames(
                 be,
-                &MemoryInputs {
+                &FramesInputs {
                     image: image_dev,
-                    src: image_dev,
                     src_pos: &vos.pos_tokens,
-                    memory_image: &mimage,
-                    memory_image_pos: &mimage_pos,
-                    memory: &memory,
-                    memory_pos: &memory_pos,
-                    num_obj_ptr_tokens: n_ptr,
+                    frames: &frames,
+                    ptrs: ptr_dev.as_ref().map(|(p, pp)| (p, pp)),
                 },
             )?;
             be.permute(&fused, &[0, 2, 1])?
@@ -805,8 +808,10 @@ impl TrackerState {
         let out = vos
             .mux_decoder
             .fwd(be, &pix, &vos.prop_pe, &ctx.ps0, &ctx.ps1, &extra)?;
+        drop(pix);
         mark(PROPAGATE_STAGES[3]);
-        let masks = host_of(&out.masks, be)?; // [1, 16, 3, M, M]
+        let masks_view = host_slice(&out.masks, be)?; // [1, 16, 3, M, M]
+        let masks = masks_view.as_slice();
         let px = vos.geo.low_res() * vos.geo.low_res();
         let mut low = vec![0f32; n * px];
         let mut ptrs = vec![0f32; n * D];
@@ -840,6 +845,8 @@ impl TrackerState {
             };
             ptrs[o * D..(o + 1) * D].copy_from_slice(&ptr);
         }
+        drop(masks_view);
+        drop(out);
         Ok(Stored {
             row_ids: self.obj_ids.clone(),
             pred_masks: low,
@@ -952,13 +959,22 @@ impl TrackerState {
         Ok(true)
     }
 
-    /// Drop what no later step can read once `current` is done: older frames' `pred_masks`, and
-    /// non-conditioning outputs beyond the 7-frame memory and 16-frame pointer window.
+    /// Drop what no later step can read once `current` is done: older frames' `pred_masks`,
+    /// the memory-attention projections of non-conditioning frames before the next frame's
+    /// 7-frame memory, and non-conditioning outputs beyond the 16-frame pointer window.
     pub fn prune(&mut self, current: usize) {
         for map in [&mut self.cond, &mut self.non_cond] {
             for (&f, st) in map.iter_mut() {
                 if f < current {
                     st.pred_masks = Vec::new();
+                }
+            }
+        }
+        // Frame current + 1 attends non-conditioning frames current - 5 ..= current.
+        for (&f, st) in self.non_cond.iter_mut() {
+            if f + NUM_MASKMEM <= current + 1 {
+                if let Some(mm) = st.maskmem.as_mut() {
+                    mm.kv = Arc::default();
                 }
             }
         }
@@ -1015,31 +1031,26 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
             .collect();
         let hi: Vec<f32> = masks.iter().map(|&m| m * 20.0 - 10.0).collect();
         let low = st_video::resize_bilinear_aa_f32(&hi, n, mx, mx, low_res, low_res);
+        drop(hi);
 
         let mut k4 = Conv2dParams::new();
         k4.stride = [4, 4];
+        let masks_dev = up(be, masks, &[n, 1, mx, mx])?;
         let down = be.conv2d_forward(
-            &up(be, masks, &[n, 1, mx, mx])?,
+            &masks_dev,
             &self.mask_downsample.w,
             Some(&self.mask_downsample.b),
             k4,
         )?;
+        drop(masks_dev);
         let ds = down.shape()[2];
         let mut x = if ds == low_res {
             down
         } else {
-            up(
-                be,
-                &st_video::resize_bilinear_aa_f32(
-                    &host_of(&down, be)?,
-                    n,
-                    ds,
-                    ds,
-                    low_res,
-                    low_res,
-                ),
-                &[n, 1, low_res, low_res],
-            )?
+            let down_host = host_slice(&down, be)?;
+            let resized = st_video::resize_bilinear_aa_f32(&down_host, n, ds, ds, low_res, low_res);
+            drop((down_host, down));
+            up(be, &resized, &[n, 1, low_res, low_res])?
         };
         let p1 = Conv2dParams::new();
         let mut k2 = Conv2dParams::new();
@@ -1054,6 +1065,7 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         let io =
             self.interactive
                 .fwd(be, &ip.pix, &self.inter_pe, &sparse, 2, &x, &ip.s0, &ip.s1)?;
+        drop(x);
         let mut ptrs = vec![0f32; n * D];
         for o in 0..n {
             let tok = &io.mask_tokens[o * 4 * D..o * 4 * D + D]; // mask token 0
@@ -1160,9 +1172,14 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         }
         let refs: Vec<&Tensor> = parts.iter().collect();
         let masks = be.concat(&refs, 0)?.reshape(&[1, 2 * MUX, size, size])?;
+        drop(refs);
+        drop((parts, objs, zero, one));
         mark(ENCODE_STAGES[2]);
         let enc = self.mem_enc.fwd(be, &ctx.prop72, &masks)?;
-        let mut feat = host_of(&enc.features, be)?;
+        drop(masks);
+        let feat_slice = host_slice(&enc.features, be)?;
+        let mut feat = feat_slice.to_vec();
+        drop((feat_slice, enc));
         mark(ENCODE_STAGES[3]);
         let mut score_of_slot = [0f32; MUX];
         for (o, &s) in slot_of.iter().enumerate() {
@@ -1183,7 +1200,11 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         }
         bf16_round(&mut feat);
         let tokens = up(be, &nchw_to_tokens(&feat, D, tokens), &[1, tokens, D])?;
-        Ok(MaskMem { nchw: feat, tokens })
+        Ok(MaskMem {
+            nchw: feat,
+            tokens,
+            kv: Arc::default(),
+        })
     }
 }
 
@@ -1329,5 +1350,35 @@ mod tests {
         assert!(!s.non_cond.contains_key(&4));
         assert!(s.non_cond.get(&19).expect("19").pred_masks.is_empty());
         assert!(!s.non_cond.get(&20).expect("20").pred_masks.is_empty());
+    }
+
+    #[test]
+    fn prune_drops_projections_before_the_next_frames_memory_only() {
+        let mm = || MaskMem {
+            nchw: Vec::new(),
+            tokens: Tensor::from_f32(&[0.0], &[1, 1, 1], &ojas_core::Budget::new(1 << 20))
+                .expect("tensor"),
+            kv: Arc::default(),
+        };
+        let mut s = state_with(&[0]);
+        s.cond.get_mut(&0).expect("cond").maskmem = Some(mm());
+        for f in 1..=20usize {
+            let mut st = s.cond.get(&0).expect("cond").clone();
+            st.maskmem = Some(mm());
+            s.non_cond.insert(f, st);
+        }
+        let cache = |st: &Stored| Arc::clone(&st.maskmem.as_ref().expect("maskmem").kv);
+        let before: BTreeMap<usize, _> = s.non_cond.iter().map(|(&f, st)| (f, cache(st))).collect();
+        let cond_before = cache(s.cond.get(&0).expect("cond"));
+        s.prune(20);
+        // Frame 21 attends 15..=20: those keep their projections; 5..=14 stay for pointers only.
+        for (f, st) in &s.non_cond {
+            let kept = Arc::ptr_eq(&before[f], &cache(st));
+            assert_eq!(kept, *f >= 15, "frame {f}: projections kept {kept}");
+        }
+        assert!(Arc::ptr_eq(
+            &cond_before,
+            &cache(s.cond.get(&0).expect("cond"))
+        ));
     }
 }

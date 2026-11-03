@@ -1,0 +1,12 @@
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+   Compiling st-coreml v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-coreml)
+   Compiling spiketrack v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/spiketrack)
+    Finished `release` profile [optimized] target(s) in 19.22s
+     Running unittests src/main.rs (target/release/deps/spiketrack-e551d509e8706cd4)
+
+running 2 tests
+test track_profile::tests::profile_modes_parse_and_nothing_else ... ok
+test track_profile::tests::the_report_keeps_frame_0_apart_and_sums_the_steady_frames ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 86 filtered out; finished in 0.00s
+

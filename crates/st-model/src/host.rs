@@ -20,11 +20,6 @@ pub fn linear(x: &[f32], n: usize, w: &[f32], b: &[f32], out: usize) -> Vec<f32>
     if n == 0 {
         return y;
     }
-    if inp == 0 {
-        y.chunks_exact_mut(out)
-            .for_each(|yr| yr.iter_mut().zip(b).for_each(|(v, &bo)| *v = 0f32 + bo));
-        return y;
-    }
     let threads = if n * inp * out >= THREAD_MIN_MACS {
         std::thread::available_parallelism()
             .map_or(1, |p| p.get())
@@ -75,47 +70,121 @@ pub fn for_each_chunk_mut<T: Send>(
         }
     });
 }
+
+/// Split `dst` (`n` rows of width `row_len`) across up to [`MAX_THREADS`] scoped threads at row
+/// boundaries, with at least `min_rows_per_thread` rows per thread, calling `f(first_row, piece)`.
+pub fn for_each_row_chunk_mut<T: Send>(
+    dst: &mut [T],
+    row_len: usize,
+    min_rows_per_thread: usize,
+    f: impl Fn(usize, &mut [T]) + Sync,
+) {
+    assert!(
+        row_len > 0 && dst.len().is_multiple_of(row_len),
+        "row chunk shape"
+    );
+    let rows = dst.len() / row_len;
+    let threads = std::thread::available_parallelism()
+        .map_or(1, |p| p.get())
+        .min(MAX_THREADS)
+        .min(rows / min_rows_per_thread.max(1));
+    if threads <= 1 {
+        f(0, dst);
+        return;
+    }
+    let per = rows.div_ceil(threads);
+    let f = &f;
+    std::thread::scope(|s| {
+        for (k, piece) in dst.chunks_mut(per * row_len).enumerate() {
+            s.spawn(move || f(k * per, piece));
+        }
+    });
+}
+
 /// The multiply-add count from which [`linear`] splits rows across threads.
 pub const THREAD_MIN_MACS: usize = 1 << 20;
 
-fn linear_rows(x: &[f32], w: &[f32], b: &[f32], inp: usize, out: usize, y: &mut [f32]) {
-    for (xr, yr) in x.chunks_exact(inp).zip(y.chunks_exact_mut(out)) {
+pub fn linear_rows(x: &[f32], w: &[f32], b: &[f32], inp: usize, out: usize, y: &mut [f32]) {
+    if inp == 0 {
+        y.chunks_exact_mut(out)
+            .for_each(|yr| yr.iter_mut().zip(b).for_each(|(v, &bo)| *v = 0f32 + bo));
+        return;
+    }
+    let mut x_chunks = x.chunks_exact(4 * inp);
+    let mut y_chunks = y.chunks_exact_mut(4 * out);
+    for (xc, yc) in (&mut x_chunks).zip(&mut y_chunks) {
+        let (xr0, rest) = xc.split_at(inp);
+        let (xr1, rest) = rest.split_at(inp);
+        let (xr2, xr3) = rest.split_at(inp);
+        let (yr0, rest) = yc.split_at_mut(out);
+        let (yr1, rest) = rest.split_at_mut(out);
+        let (yr2, yr3) = rest.split_at_mut(out);
+        let xrs = [xr0, xr1, xr2, xr3];
+        let mut yrs = [yr0, yr1, yr2, yr3];
         let mut o = 0;
         while o + 8 <= out {
-            linear_block::<8>(xr, w, b, inp, o, yr);
+            linear_block_rows::<4, 8>(xrs, w, b, inp, o, &mut yrs);
             o += 8;
         }
         if o + 4 <= out {
-            linear_block::<4>(xr, w, b, inp, o, yr);
+            linear_block_rows::<4, 4>(xrs, w, b, inp, o, &mut yrs);
             o += 4;
         }
         while o < out {
-            linear_block::<1>(xr, w, b, inp, o, yr);
+            linear_block_rows::<4, 1>(xrs, w, b, inp, o, &mut yrs);
+            o += 1;
+        }
+    }
+    for (xr, yr) in x_chunks
+        .remainder()
+        .chunks_exact(inp)
+        .zip(y_chunks.into_remainder().chunks_exact_mut(out))
+    {
+        let xrs = [xr];
+        let mut yrs = [yr];
+        let mut o = 0;
+        while o + 8 <= out {
+            linear_block_rows::<1, 8>(xrs, w, b, inp, o, &mut yrs);
+            o += 8;
+        }
+        if o + 4 <= out {
+            linear_block_rows::<1, 4>(xrs, w, b, inp, o, &mut yrs);
+            o += 4;
+        }
+        while o < out {
+            linear_block_rows::<1, 1>(xrs, w, b, inp, o, &mut yrs);
             o += 1;
         }
     }
 }
 
-/// Outputs `o0..o0 + N` of one row.
+/// Outputs `o0..o0 + N` across `R` rows simultaneously, preserving exact left-to-right IEEE `f32`
+/// reduction order per `(row, output)` while broadcasting each weight `wr[k][i]` across `R` rows.
 #[inline(always)]
-fn linear_block<const N: usize>(
-    xr: &[f32],
+fn linear_block_rows<const R: usize, const N: usize>(
+    xrs: [&[f32]; R],
     w: &[f32],
     b: &[f32],
     inp: usize,
     o0: usize,
-    yr: &mut [f32],
+    yrs: &mut [&mut [f32]; R],
 ) {
     let wr: [&[f32]; N] = std::array::from_fn(|k| &w[(o0 + k) * inp..(o0 + k + 1) * inp]);
-    let mut acc = [0f32; N];
+    let mut acc = [[0f32; R]; N];
     for i in 0..inp {
-        let v = xr[i];
+        let vx: [f32; R] = std::array::from_fn(|r| xrs[r][i]);
         for k in 0..N {
-            acc[k] += v * wr[k][i];
+            let wk = wr[k][i];
+            for r in 0..R {
+                acc[k][r] += vx[r] * wk;
+            }
         }
     }
     for k in 0..N {
-        yr[o0 + k] = acc[k] + b[o0 + k];
+        let bk = b[o0 + k];
+        for r in 0..R {
+            yrs[r][o0 + k] = acc[k][r] + bk;
+        }
     }
 }
 
@@ -123,21 +192,58 @@ pub fn relu_in_place(x: &mut [f32]) {
     x.iter_mut().for_each(|v| *v = v.max(0.0));
 }
 
-/// LayerNorm over rows of width `dim` (biased variance), torch's formula.
-pub fn layer_norm(x: &[f32], dim: usize, w: &[f32], b: &[f32], eps: f32) -> Vec<f32> {
-    let mut y = vec![0f32; x.len()];
+#[inline]
+fn layer_norm_stats(row: &[f32], eps: f32) -> (f64, f64) {
+    let dim = row.len() as f64;
+    let mean = row.iter().map(|&v| f64::from(v)).sum::<f64>() / dim;
+    let var = row
+        .iter()
+        .map(|&v| (f64::from(v) - mean).powi(2))
+        .sum::<f64>()
+        / dim;
+    (mean, 1.0 / (var + f64::from(eps)).sqrt())
+}
+
+pub(crate) fn layer_norm_rows(
+    x: &[f32],
+    dim: usize,
+    w: &[f32],
+    b: &[f32],
+    eps: f32,
+    y: &mut [f32],
+) {
     for (row, out) in x.chunks_exact(dim).zip(y.chunks_exact_mut(dim)) {
-        let mean = row.iter().map(|&v| f64::from(v)).sum::<f64>() / dim as f64;
-        let var = row
-            .iter()
-            .map(|&v| (f64::from(v) - mean).powi(2))
-            .sum::<f64>()
-            / dim as f64;
-        let inv = 1.0 / (var + f64::from(eps)).sqrt();
+        let (mean, inv) = layer_norm_stats(row, eps);
         for i in 0..dim {
             out[i] = ((f64::from(row[i]) - mean) * inv) as f32 * w[i] + b[i];
         }
     }
+}
+
+pub fn layer_norm_in_place(y: &mut [f32], dim: usize, w: &[f32], b: &[f32], eps: f32) {
+    for row in y.chunks_exact_mut(dim) {
+        let (mean, inv) = layer_norm_stats(row, eps);
+        for i in 0..dim {
+            row[i] = ((f64::from(row[i]) - mean) * inv) as f32 * w[i] + b[i];
+        }
+    }
+}
+
+/// LayerNorm over rows of width `dim` (biased variance), torch's formula.
+pub fn layer_norm(x: &[f32], dim: usize, w: &[f32], b: &[f32], eps: f32) -> Vec<f32> {
+    let mut y = vec![0f32; x.len()];
+    if dim == 0 {
+        return y;
+    }
+    let full = (x.len() / dim) * dim;
+    if full == 0 {
+        return y;
+    }
+    let min_rows = ((1 << 15) / dim).max(1);
+    for_each_row_chunk_mut(&mut y[..full], dim, min_rows, |r0, piece| {
+        let xs = &x[r0 * dim..r0 * dim + piece.len()];
+        layer_norm_rows(xs, dim, w, b, eps, piece);
+    });
     y
 }
 
@@ -161,16 +267,25 @@ pub fn sine_embed_boxes(boxes: &[f32]) -> Vec<f32> {
         .collect();
     let scale = 2.0 * std::f32::consts::PI;
     let n = boxes.len() / 4;
-    let mut out = Vec::with_capacity(n * 4 * HALF);
-    for b in boxes.chunks_exact(4) {
-        for &coord in &[b[1], b[0], b[2], b[3]] {
-            let e = coord * scale;
-            for (i, &d) in dim_t.iter().enumerate() {
-                let p = e / d;
-                out.push(if i % 2 == 0 { p.sin() } else { p.cos() });
+    let mut out = vec![0f32; n * 4 * HALF];
+    if n == 0 {
+        return out;
+    }
+    for_each_row_chunk_mut(&mut out, 4 * HALF, 128, |r0, piece| {
+        for (b, dst) in boxes[r0 * 4..]
+            .chunks_exact(4)
+            .zip(piece.chunks_exact_mut(4 * HALF))
+        {
+            for (ci, &coord) in [b[1], b[0], b[2], b[3]].iter().enumerate() {
+                let e = coord * scale;
+                let slot = &mut dst[ci * HALF..(ci + 1) * HALF];
+                for (i, &d) in dim_t.iter().enumerate() {
+                    let p = e / d;
+                    slot[i] = if i % 2 == 0 { p.sin() } else { p.cos() };
+                }
             }
         }
-    }
+    });
     out
 }
 
@@ -254,6 +369,10 @@ mod tests {
             (200, 256, 4),
             (1, 256, 256),
             (3, 7, 13),
+            (4, 7, 13),
+            (5, 7, 13),
+            (8, 7, 13),
+            (9, 7, 13),
             (14_401, 5, 15),
             (2, 1, 1),
         ]
@@ -289,6 +408,14 @@ mod tests {
             linear(&[], 3, &[], &[0.5, -0.0], 2),
             vec![0.5, 0.0, 0.5, 0.0, 0.5, 0.0]
         );
+        let mut y = vec![-1.0f32; 6];
+        linear_rows(&[], &[], &[0.5, -0.0], 0, 2, &mut y);
+        assert_eq!(y, vec![0.5, 0.0, 0.5, 0.0, 0.5, 0.0]);
+        let ln_ragged = layer_norm(&[1.0, 3.0, 99.0], 2, &[1.0, 1.0], &[0.0, 0.0], 0.0);
+        assert_eq!(ln_ragged.len(), 3);
+        assert!((ln_ragged[0] - -1.0).abs() < 1e-6);
+        assert!((ln_ragged[1] - 1.0).abs() < 1e-6);
+        assert_eq!(ln_ragged[2], 0.0);
     }
 
     #[test]
@@ -331,5 +458,37 @@ mod tests {
         // channel 0: sin of y-embed at y=0: (1 / (2 + 1e-6)) * 2pi / 1
         let want = (1.0f32 / (2.0 + 1e-6) * 2.0 * std::f32::consts::PI).sin();
         assert!((m[0] - want).abs() < 1e-7);
+    }
+
+    #[test]
+    fn threaded_sine_embed_boxes_and_layer_norm_match_serial_bit_for_bit() {
+        let boxes = values(303 * 4, 17);
+        let got_sine = sine_embed_boxes(&boxes);
+        let mut want_sine = Vec::with_capacity(303 * 512);
+        let scale = 2.0 * std::f32::consts::PI;
+        for b in boxes.chunks_exact(4) {
+            for &coord in &[b[1], b[0], b[2], b[3]] {
+                let e = coord * scale;
+                for i in 0..128 {
+                    let d = 10000f32.powf((2 * (i / 2)) as f32 / 128.0);
+                    let p = e / d;
+                    want_sine.push(if i % 2 == 0 { p.sin() } else { p.cos() });
+                }
+            }
+        }
+        assert_eq!(got_sine.len(), want_sine.len());
+        for (i, (g, w)) in got_sine.iter().zip(&want_sine).enumerate() {
+            assert_eq!(g.to_bits(), w.to_bits(), "sine element {i}");
+        }
+
+        let x = values(303 * 256, 31);
+        let w = values(256, 32);
+        let b = values(256, 33);
+        let got_ln = layer_norm(&x, 256, &w, &b, 1e-5);
+        let mut want_ln = x.clone();
+        layer_norm_in_place(&mut want_ln, 256, &w, &b, 1e-5);
+        for (i, (g, e)) in got_ln.iter().zip(&want_ln).enumerate() {
+            assert_eq!(g.to_bits(), e.to_bits(), "ln element {i}");
+        }
     }
 }
