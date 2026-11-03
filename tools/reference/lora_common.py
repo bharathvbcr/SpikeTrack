@@ -67,6 +67,9 @@ EVAL_SEEN_NEGATIVES = EVERYDAY_NEGATIVES[:3]
 EVAL_UNSEEN_NEGATIVES = ["car", "cell nucleus"]  # the two absent prompts of zero_shot_check.py
 PROBE_PROMPT = "cell"
 ALL_PROMPTS = list(CLASS_PROMPTS.values()) + EVERYDAY_NEGATIVES + EVAL_UNSEEN_NEGATIVES + [PROBE_PROMPT]
+# Exact non-BOS/EOS/PAD BPE token IDs of ("sperm", "sperm cluster", "pinhead sperm"):
+# 1375="head</w>", 2629="pin", 15595="cluster</w>", 35781="sperm</w>" (disjoint from all negative/probe prompts).
+CLASS_TOKEN_IDS = (1375, 2629, 15595, 35781)
 
 TOKENS = 72 * 72
 DIM = 256
@@ -127,8 +130,9 @@ def install_loss_shims():
     sys.modules["torchmetrics.functional"] = tmf
 
 
-def build_loss(o2m=False, o2m_weight=2.0):
-    """upstream roboflow_v100_full_ft_100_images.yaml, box + class + presence (optional DAC one-to-many)."""
+def build_loss(o2m=False, o2m_weight=2.0, box_weights=(5.0, 2.0)):
+    """upstream roboflow_v100_full_ft_100_images.yaml, box + class + presence (optional DAC one-to-many).
+    `box_weights` = (loss_bbox, loss_giou); the matcher's costs stay upstream's."""
     install_loss_shims()
     from sam3.train.loss.loss_fns import Boxes, IABCEMdetr
     from sam3.train.loss.sam3_loss import Sam3LossWrapper
@@ -138,7 +142,7 @@ def build_loss(o2m=False, o2m_weight=2.0):
     o2m_matcher = BinaryOneToManyMatcher(alpha=0.3, threshold=0.4, topk=4) if o2m else None
     wrapper = Sam3LossWrapper(
         loss_fns_find=[
-            Boxes(weight_dict={"loss_bbox": 5.0, "loss_giou": 2.0}),
+            Boxes(weight_dict={"loss_bbox": box_weights[0], "loss_giou": box_weights[1]}),
             IABCEMdetr(
                 weak_loss=False,
                 weight_dict={"loss_ce": 20.0, "presence_loss": 20.0},
@@ -189,14 +193,38 @@ def make_targets(gt_xyxy, device):
     }
 
 
-def compute_loss(wrapper, matcher, out, targets):
-    """Match every decoder layer's output (final + aux) then reduce with upstream's wrapper."""
+def compute_loss(wrapper, matcher, out, targets, neg_query_weight=0.0):
+    """Match every decoder layer's output (final + aux) then reduce with upstream's wrapper.
+
+    Upstream's `IABCEMdetr` masks `loss_bce` by `keep_loss = (num_boxes > 0)`, giving zero per-query
+    gradient on negative prompts (`num_boxes == 0`) even when queries fire strongly on absent
+    morphology classes. When `neg_query_weight > 0`, focal negative BCE (`p^2 * BCE(logit, 0)`) over
+    negative batch items (final + aux layers) trains both `dot_prod_scoring` and prompt tokens to
+    suppress false detections on absent concepts without perturbing quiet background queries.
+    """
     out["indices"] = matcher(out, targets)
     for aux in out.get("aux_outputs", []):
         aux["indices"] = matcher(aux, targets)
     losses = wrapper.compute_loss(out, targets)
     bsz = targets["num_boxes"].shape[0]
-    losses["core_loss"] = losses["core_loss"] * bsz**0.5  # scale_by_find_batch_size
+    scale = bsz**0.5  # scale_by_find_batch_size
+    losses["core_loss"] = losses["core_loss"] * scale
+    if neg_query_weight > 0.0:
+        neg_mask = targets["num_boxes"] == 0
+        if bool(neg_mask.any()):
+            n_neg = int(neg_mask.sum().item())
+            neg_total = torch.zeros((), device=out["pred_logits"].device)
+            for layer_out in [out, *out.get("aux_outputs", [])]:
+                logits_neg = layer_out["pred_logits"][neg_mask].float()
+                p_neg = logits_neg.sigmoid()
+                bce = F.binary_cross_entropy_with_logits(
+                    logits_neg, torch.zeros_like(logits_neg), reduction="none"
+                )
+                neg_total = neg_total + (p_neg.square() * bce).sum() / n_neg
+            losses["neg_query_loss"] = neg_total
+            losses["core_loss"] = losses["core_loss"] + (neg_query_weight * scale) * neg_total
+        else:
+            losses["neg_query_loss"] = torch.zeros((), device=out["pred_logits"].device)
     return losses
 
 
@@ -239,8 +267,8 @@ def build_heads(ckpt=CKPT, device="cpu"):
     return det.to(device)
 
 
-def compute_prompt_pre_resizer(prompts=ALL_PROMPTS, ckpt=CKPT):
-    """Return {prompt: (pre_resizer [32, 1024] f32, mask [32] bool)} from the frozen CLIP text tower."""
+def build_text_encoder(ckpt=CKPT, device="cpu"):
+    """Load the SAM 3.1 CLIP text backbone (`detector.backbone.language_backbone.*`) with frozen weights."""
     import pkg_resources
     from safetensors import safe_open
     from sam3 import model_builder as mb
@@ -252,6 +280,14 @@ def compute_prompt_pre_resizer(prompts=ALL_PROMPTS, ckpt=CKPT):
         sd = {k[len(prefix):]: f.get_tensor(k) for k in f.keys() if k.startswith(prefix)}
     te.load_state_dict(sd, strict=True)
     te.eval()
+    for p in te.parameters():
+        p.requires_grad_(False)
+    return te.to(device)
+
+
+def compute_prompt_pre_resizer(prompts=ALL_PROMPTS, ckpt=CKPT):
+    """Return {prompt: (pre_resizer [32, 1024] f32, mask [32] bool)} from the frozen CLIP text tower."""
+    te = build_text_encoder(ckpt=ckpt, device="cpu")
     out = {}
     with torch.no_grad():
         tok = te.tokenizer(list(prompts), context_length=te.context_length)
@@ -449,21 +485,112 @@ def attach_lora(det, rank=RANK, alpha=ALPHA, dropout=DROPOUT, seed=0, include_he
     return wrappers
 
 
-def lora_wrappers(det):
-    return [m for m in det.modules() if isinstance(m, (LoRAMultiheadAttention, LoRALinear))]
+class LoRAEmbeddingRows(nn.Module):
+    """Exact rank-1 row adaptation on selected `nn.Embedding` vocabulary rows (`W[r:r+1] + scale * B_r @ A_r`).
+
+    Each targeted token row `r` (`[1, D]`) has exact rank 1 (`B: [1, 1]`, `A: [1, D]`), so zero
+    low-rank approximation error is incurred while staying 100% compatible with
+    `crates/st-weights/src/lora.rs`'s disjoint row-slice merge (`rows: [r, r + 1]`).
+    """
+
+    def __init__(self, base, prefix, rows=CLASS_TOKEN_IDS, alpha=2.0):
+        super().__init__()
+        assert isinstance(base, nn.Embedding), (prefix, type(base))
+        rows = tuple(sorted(set(int(r) for r in rows)))
+        assert rows and all(0 <= r < base.num_embeddings for r in rows), rows
+        self.base, self.prefix = base, prefix
+        self.rows = rows
+        self.embed_dim = base.embedding_dim
+        self.rank, self.alpha = 1, float(alpha)
+        self.scale = float(alpha)
+        self.lora_A = nn.ParameterList([nn.Parameter(torch.empty(1, self.embed_dim)) for _ in rows])
+        self.lora_B = nn.ParameterList([nn.Parameter(torch.zeros(1, 1)) for _ in rows])
+        for a in self.lora_A:
+            nn.init.kaiming_uniform_(a, a=math.sqrt(5))
+        self.enabled = True
+
+    def forward(self, tok):
+        y = self.base(tok)
+        if self.enabled:
+            for i, r in enumerate(self.rows):
+                delta = (self.lora_B[i] @ self.lora_A[i]) * self.scale  # [1, D]
+                hit = (tok == r).unsqueeze(-1).to(y.dtype)
+                y = y + hit * delta
+        return y
+
+    def modules_spec(self):
+        return [
+            (f"{self.prefix}.row_{r}", f"{self.prefix}.weight", (r, r + 1), self.lora_A[i], self.lora_B[i])
+            for i, r in enumerate(self.rows)
+        ]
 
 
-def lora_parameters(det):
-    return [p for w in lora_wrappers(det) for p in list(w.lora_A) + list(w.lora_B)]
+def attach_text_lora(te, rows=CLASS_TOKEN_IDS, alpha=2.0, seed=0):
+    """Wrap `te.encoder.token_embedding` on VISEM class prompt vocabulary rows and verify disjointness."""
+    special = {0, 49406, 49407}
+    cls_prompts = list(CLASS_PROMPTS.values())
+    other_prompts = [p for p in ALL_PROMPTS if p not in CLASS_PROMPTS.values()]
+    cls_tok = te.tokenizer(cls_prompts, context_length=te.context_length)
+    other_tok = te.tokenizer(other_prompts, context_length=te.context_length)
+    cls_ids = {int(t) for t in cls_tok.reshape(-1).tolist() if int(t) not in special}
+    other_ids = {int(t) for t in other_tok.reshape(-1).tolist() if int(t) not in special}
+    assert tuple(sorted(cls_ids)) == tuple(sorted(rows)), (sorted(cls_ids), sorted(rows))
+    assert not (cls_ids & other_ids), f"class token IDs overlap negative/probe prompts: {cls_ids & other_ids}"
+
+    torch.manual_seed(seed)
+    emb = te.encoder.token_embedding
+    dev = next(emb.parameters()).device
+    w = LoRAEmbeddingRows(
+        emb, "detector.backbone.language_backbone.encoder.token_embedding", rows=rows, alpha=alpha
+    ).to(dev)
+    w.eval()
+    te.encoder.token_embedding = w
+    tok_map = {p: cls_tok[i].to(dev) for i, p in enumerate(cls_prompts)}
+    return w, tok_map
 
 
-def set_lora_train(det, train):
-    for w in lora_wrappers(det):
+def encode_prompts_with_text_lora(prompts, cached_pre, te, tok_map, device):
+    """Return `[32, B, 1024]` pre-resizer features, running `te.encoder` differentiably on class prompts."""
+    uniq_cls = []
+    for p in prompts:
+        if p in tok_map and p not in uniq_cls:
+            uniq_cls.append(p)
+    live = {}
+    if uniq_cls:
+        sub_tok = torch.stack([tok_map[p] for p in uniq_cls], 0)
+        _, pre = te.encoder(sub_tok)  # [M, 32, 1024]
+        pre_seq = pre.transpose(0, 1).float()  # [32, M, 1024]
+        for i, p in enumerate(uniq_cls):
+            live[p] = pre_seq[:, i]
+    return torch.stack([live[p] if p in live else cached_pre[p].to(device) for p in prompts], 1)
+
+
+def _iter_roots(roots):
+    if roots is None:
+        return ()
+    return tuple(r for r in (roots if isinstance(roots, (list, tuple)) else (roots,)) if r is not None)
+
+
+def lora_wrappers(roots):
+    return [
+        m
+        for r in _iter_roots(roots)
+        for m in r.modules()
+        if isinstance(m, (LoRAMultiheadAttention, LoRALinear, LoRAEmbeddingRows))
+    ]
+
+
+def lora_parameters(roots):
+    return [p for w in lora_wrappers(roots) for p in list(w.lora_A) + list(w.lora_B)]
+
+
+def set_lora_train(roots, train):
+    for w in lora_wrappers(roots):
         w.train(train)
 
 
-def set_lora_enabled(det, enabled):
-    for w in lora_wrappers(det):
+def set_lora_enabled(roots, enabled):
+    for w in lora_wrappers(roots):
         w.enabled = enabled
 
 
@@ -514,13 +641,15 @@ def load_adapter(path):
     return meta, entries
 
 
-def load_adapter_into(det, path):
-    """Copy a saved adapter into the attached wrappers (names, ranks and shapes must match)."""
+def load_adapter_into(roots, path, strict=True):
+    """Copy a saved adapter into the attached wrappers (`strict=False` warm-starts matching subset)."""
     meta, entries = load_adapter(path)
-    spec = {s[0]: s for w in lora_wrappers(det) for s in w.modules_spec()}
-    assert len(spec) == len(entries), (len(spec), len(entries))
+    spec = {s[0]: s for w in lora_wrappers(roots) for s in w.modules_spec()}
+    if strict:
+        assert len(spec) == len(entries), (len(spec), len(entries))
     with torch.no_grad():
         for module, param, rows, rank, alpha, a, b in entries:
+            assert module in spec, f"adapter module {module!r} missing from attached LoRA wrappers"
             _, want_param, want_rows, pa, pb = spec[module]
             assert (param, tuple(rows)) == (want_param, want_rows) and pa.shape == a.shape and pb.shape == b.shape, module
             pa.copy_(a)

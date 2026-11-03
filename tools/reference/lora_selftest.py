@@ -257,6 +257,18 @@ def test_v2_heads_and_o2m(device, bsz):
         opt.zero_grad()
     lc.set_lora_train(det, False)
 
+    # --box-loss-weights: doubling (loss_bbox, loss_giou) leaves the raw box terms and raises core_loss.
+    with torch.no_grad():
+        torch.manual_seed(12)
+        out = lc.grounding_forward(det, feats, pos, txt, mask, aux=True, dac=True, txt_pre_resizer=txt_pre)
+        base = lc.compute_loss(wrapper, matcher, out, targets)
+        w2, m2 = lc.build_loss(o2m=True, o2m_weight=2.0, box_weights=(10.0, 4.0))
+        heavy = lc.compute_loss(w2, m2, out, targets)
+    same_raw = all(torch.equal(base[k], heavy[k]) for k in ("loss_bbox", "loss_giou"))
+    check("box_weights (10, 4) keeps raw box losses and raises core_loss",
+          same_raw and heavy["core_loss"].item() > base["core_loss"].item(),
+          f"core {base['core_loss'].item():.4f} -> {heavy['core_loss'].item():.4f}")
+
     entries = lc.adapter_entries(wrappers)
     fresh = lc.build_heads(device=device)
     state = {f"detector.{n}": p.data for n, p in fresh.named_parameters()}
@@ -268,6 +280,79 @@ def test_v2_heads_and_o2m(device, bsz):
     db = (a_out["pred_boxes"] - b_out["pred_boxes"]).abs().max().item()
     dp = (a_out["presence_logit_dec"] - b_out["presence_logit_dec"]).abs().max().item()
     check("v2 merged weights == LoRA-wrapped forward", dl < 2e-3 and db < 1e-4 and dp < 1e-4, f"dl={dl:.2e} db={db:.2e} dp={dp:.2e}")
+
+
+def test_v3_token_lora_and_neg_query_loss(device):
+    te = lc.build_text_encoder(device=device)
+    prompts = ["sperm", "pinhead sperm", "sperm cluster", "shoe"]
+    tok_all = te.tokenizer(prompts, context_length=te.context_length).to(device)
+    with torch.no_grad():
+        _, ref_pre_all = te.encoder(tok_all)
+    cached_pre = {p: ref_pre_all[i].float().cpu() for i, p in enumerate(prompts)}
+
+    tw, tok_map = lc.attach_text_lora(te, alpha=2.0, seed=0)
+    with torch.no_grad():
+        _, ref_cls3 = te.encoder(tok_all[:3])
+        lc.set_lora_enabled(te, False)
+        _, raw_cls3 = te.encoder(tok_all[:3])
+        lc.set_lora_enabled(te, True)
+        got0 = lc.encode_prompts_with_text_lora(prompts, cached_pre, te, tok_map, device)
+    exact_err = (ref_cls3 - raw_cls3).abs().max().item()
+    check("v3 token_embedding LoRA B=0 == exact 0.0 at same batch shape", exact_err == 0.0, f"max|d|={exact_err:.2e}")
+    ref0 = torch.stack([cached_pre[p].to(device) for p in prompts], 1)
+    err0 = (got0 - ref0).abs().max().item()
+    check("v3 token_embedding LoRA B=0 == cached batch-4 CLIP encoder (<1e-4 BLAS tiling)", err0 < 1e-4, f"max|d|={err0:.2e}")
+
+    # Verify negative-item focal query suppression sends non-zero gradient to BOTH scoring head and token rows!
+    det = lc.build_heads(device=device)
+    wrappers = lc.attach_lora(det, seed=0, include_heads=True) + [tw]
+    feats, pos, txt, _ = synthetic_inputs(device, 2)
+    mask = (tok_all[:2] == 0)
+    wrapper, matcher = lc.build_loss(o2m=True, o2m_weight=2.0)
+    # Item 0: positive ("sperm"), Item 1: negative ("pinhead sperm", 0 GT boxes!)
+    gts = [torch.tensor([[0.2, 0.2, 0.25, 0.26]]).numpy(), torch.zeros(0, 4).numpy()]
+    targets = lc.make_targets(gts, device)
+    params = lc.lora_parameters((det, te))
+    opt = torch.optim.AdamW(params, lr=2e-3)
+    lc.set_lora_train((det, te), True)
+    for step in range(2):
+        torch.manual_seed(20 + step)
+        txt_pre = lc.encode_prompts_with_text_lora(["sperm", "pinhead sperm"], cached_pre, te, tok_map, device)
+        out = lc.grounding_forward(det, feats, pos, txt, mask, aux=True, act_ckpt=True, dac=True, txt_pre_resizer=txt_pre)
+        losses = lc.compute_loss(wrapper, matcher, out, targets, neg_query_weight=1.5)
+        check(f"v3 step {step} neg_query_loss > 0", float(losses["neg_query_loss"]) > 0.0, f"{float(losses['neg_query_loss']):.4f}")
+        losses["core_loss"].backward()
+        # Tokens in ["sperm", "pinhead sperm"] are {1375, 2629, 35781} -> indices 0, 1, 3 of CLASS_TOKEN_IDS.
+        active_b = [tw.lora_B[i].grad for i in (0, 1, 3)]
+        inactive_b = tw.lora_B[2].grad  # 15595 = "cluster</w>" not in batch
+        check(
+            f"v3 step {step} active class token rows get gradient, unused row gets zero",
+            all(g is not None and g.abs().sum() > 0 for g in active_b) and (inactive_b is None or inactive_b.abs().sum() == 0),
+        )
+        opt.step()
+        opt.zero_grad()
+    lc.set_lora_train((det, te), False)
+
+    # Verify merged token_embedding.weight + detector heads == LoRA-wrapped forward!
+    entries = lc.adapter_entries(wrappers)
+    check("v3 adapter has 135 entries (131 detector + 4 token rows)", len(entries) == 135, str(len(entries)))
+    fresh_det = lc.build_heads(device=device)
+    fresh_te = lc.build_text_encoder(device=device)
+    state = {f"detector.{n}": p.data for n, p in fresh_det.named_parameters()}
+    state.update({
+        f"detector.backbone.language_backbone.{n}": p.data
+        for n, p in fresh_te.named_parameters()
+        if n.startswith("encoder.")
+    })
+    lc.merge_into_state(state, [(m, p, r, k, a, A.to(device), B.to(device)) for m, p, r, k, a, A, B in entries])
+    with torch.no_grad():
+        pre_a = lc.encode_prompts_with_text_lora(["sperm", "pinhead sperm"], cached_pre, te, tok_map, device)
+        pre_b = lc.encode_prompts_with_text_lora(["sperm", "pinhead sperm"], cached_pre, fresh_te, tok_map, device)
+        a_out = lc.grounding_forward(det, feats, pos, txt, mask, aux=False, txt_pre_resizer=pre_a)
+        b_out = lc.grounding_forward(fresh_det, feats, pos, txt, mask, aux=False, txt_pre_resizer=pre_b)
+    dl = (a_out["pred_logits"] - b_out["pred_logits"]).abs().max().item()
+    db = (a_out["pred_boxes"] - b_out["pred_boxes"]).abs().max().item()
+    check("v3 merged token_embedding + heads == LoRA-wrapped forward", dl < 2e-3 and db < 2e-4, f"dl={dl:.2e} db={db:.2e}")
 
 
 def main():
@@ -283,6 +368,7 @@ def main():
     if not args.skip_heads:
         test_heads_and_training(args.device, args.batch)
         test_v2_heads_and_o2m(args.device, args.batch)
+        test_v3_token_lora_and_neg_query_loss(args.device)
     print("ALL PASS", f"peak rss {rss_gb():.2f} GB")
 
 

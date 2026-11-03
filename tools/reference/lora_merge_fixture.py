@@ -45,6 +45,7 @@ SPEC = [
     ("detector.transformer.decoder.bbox_embed.layers.2", "detector.transformer.decoder.bbox_embed.layers.2.weight", (0, 4), 4, 8.0),
     ("detector.transformer.decoder.presence_token_head.layers.2", "detector.transformer.decoder.presence_token_head.layers.2.weight", (0, 1), 1, 2.0),
     ("detector.backbone.language_backbone.resizer", "detector.backbone.language_backbone.resizer.weight", (0, E), 16, 32.0),
+    ("detector.backbone.language_backbone.encoder.token_embedding.row_35781", "detector.backbone.language_backbone.encoder.token_embedding.weight", (35781, 35782), 1, 2.0),
 ]
 UNTOUCHED = [f"{ENC}.in_proj_bias", "detector.transformer.encoder.layers.1.self_attn.in_proj_weight"]
 
