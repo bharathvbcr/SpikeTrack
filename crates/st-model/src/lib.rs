@@ -27,8 +27,11 @@ pub mod tile;
 pub mod tokenizer;
 pub mod tracker;
 
-pub use backbone::{Backbone, ExternalTrunk, Neck, Taps, IMAGE_SIZE};
-pub use detector::{Detector, DetectorOut, DetectorTaps, DetectorWeights};
+pub use backbone::{Backbone, ExternalNeck, ExternalTrunk, Neck, Taps, IMAGE_SIZE, NECK_DIM};
+pub use detector::{
+    Detector, DetectorOut, DetectorTaps, DetectorWeights, ExternalEncoder, ExternalSegHead,
+    HostSegInputs,
+};
 /// The model's input size: the one runtime value every shape in the trunk, necks, detector and
 /// tracker derives from ([`Geometry::from_image_side`] validates it).
 pub use st_gate::Geometry;

@@ -368,6 +368,20 @@ pub trait ExternalTrunk {
     fn run(&self, image: &[f32]) -> Result<Vec<f32>, OjasError>;
 }
 
+/// Channels of every neck level.
+pub const NECK_DIM: usize = 256;
+
+/// One neck computed outside the Ojas backend, in place of [`Backbone::neck`]'s convolutions for
+/// that neck (st-coreml's Core ML program). It computes what the neck computes, to a tolerance its
+/// own parity gate states, not bit for bit.
+pub trait ExternalNeck {
+    /// What `run.json` records about it (format, precision, package hash).
+    fn describe(&self) -> String;
+    /// `trunk`: `[1, 72, 72, 1024]` NHWC, row-major. Returns the three levels `[1, 256, h, w]`
+    /// (NCHW) at 288, 144 and 72, row-major.
+    fn run(&self, trunk: &[f32]) -> Result<[Vec<f32>; 3], OjasError>;
+}
+
 /// The backbone with its weights resident on one backend.
 pub struct Backbone<'b, B: Backend + ?Sized> {
     be: &'b B,
@@ -385,6 +399,8 @@ pub struct Backbone<'b, B: Backend + ?Sized> {
     trunk_linears_bf16: bool,
     /// [`Self::with_external_trunk`]: the trunk runs there; the necks stay on `be`.
     external: Option<Box<dyn ExternalTrunk + 'b>>,
+    /// [`Self::with_external_neck`], per [`Neck`]: that neck runs there instead of on `be`.
+    external_necks: [Option<Box<dyn ExternalNeck + 'b>>; 3],
 }
 
 fn upload<B: Backend + ?Sized>(be: &B, data: &[f32], shape: &[usize]) -> Result<Tensor, OjasError> {
@@ -514,6 +530,35 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
         self.external.as_ref().map(|e| e.describe())
     }
 
+    /// `which` neck runs in `ext` instead of on `be` ([`Self::neck`] hands it the trunk on the host
+    /// and uploads the three levels it returns). Only at the native 1008 x 1008, the size the
+    /// package is exported at.
+    pub fn with_external_neck(
+        mut self,
+        which: Neck,
+        ext: Box<dyn ExternalNeck + 'b>,
+    ) -> Result<Self, OjasError> {
+        if self.geo != Geometry::SAM3 {
+            return Err(out_of_range(
+                "st_model::Backbone::with_external_neck",
+                format!(
+                    "an external neck is exported at the native {} input, not {}",
+                    Geometry::SAM3.pixels(),
+                    self.geo.pixels()
+                ),
+            ));
+        }
+        self.external_necks[which as usize] = Some(ext);
+        Ok(self)
+    }
+
+    /// What computes `which` neck: `None` for the backend's convolutions.
+    pub fn external_neck(&self, which: Neck) -> Option<String> {
+        self.external_necks[which as usize]
+            .as_ref()
+            .map(|e| e.describe())
+    }
+
     fn load(
         be: &'b B,
         w: &VisionBackbone,
@@ -590,6 +635,7 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
             ],
             trunk_linears_bf16: false,
             external,
+            external_necks: [None, None, None],
         })
     }
 
@@ -1076,6 +1122,16 @@ impl<'b, B: Backend + ?Sized> Backbone<'b, B> {
     /// levels at `4G`, `2G` and `G` squared (288, 144, 72), each `[1, 256, h, w]` (NCHW).
     pub fn neck(&self, which: Neck, trunk: &Tensor) -> Result<[Tensor; 3], OjasError> {
         let be = self.be;
+        if let Some(ext) = &self.external_necks[which as usize] {
+            let g = self.geo.grid;
+            let host = trunk.to_host(be.budget())?;
+            let [a, b, c] = ext.run(host.f32_slice()?)?;
+            return Ok([
+                upload(be, &a, &[1, NECK_DIM, 4 * g, 4 * g])?,
+                upload(be, &b, &[1, NECK_DIM, 2 * g, 2 * g])?,
+                upload(be, &c, &[1, NECK_DIM, g, g])?,
+            ]);
+        }
         let x = be.permute(trunk, &[0, 3, 1, 2])?;
         let mut up = ConvTranspose2dParams::new();
         up.stride = [2, 2];

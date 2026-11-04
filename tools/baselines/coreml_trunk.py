@@ -235,7 +235,7 @@ def main():
     ap.add_argument("cmd", choices=["export", "check"])
     ap.add_argument("--precision", choices=["fp16", "fp32", "mixed", "mixed-lin", "mixed-res"], required=True)
     ap.add_argument("-n", type=int, default=10)
-    ap.add_argument("--units", default="CPU_AND_GPU", choices=["CPU_AND_GPU", "ALL", "CPU_ONLY"])
+    ap.add_argument("--units", default="CPU_AND_GPU", choices=["CPU_AND_GPU", "ALL", "CPU_ONLY", "CPU_AND_NE"])
     a = ap.parse_args()
     if a.cmd == "export":
         export(a.precision)

@@ -77,13 +77,16 @@ use std::time::Instant;
 use ojas_core::{Autocast, Backend, Budget, Tensor};
 use ojas_cpu::CpuBackend;
 use ojas_metal::{MetalBackend, WaitCounts};
-use st_coreml::{CoremlTrunk, Units};
+use st_coreml::{
+    CoremlDetEncoder, CoremlMemAttn, CoremlMemEncoder, CoremlNeck, CoremlSegHead, CoremlTrunk,
+    PipelinedTrunk, Units,
+};
 use st_model::tile::{TileSpec, DEFAULT_TILE_SPAN};
 use st_model::tracker::associate::Bitmask;
 use st_model::tracker::session::{Session, SessionConfig, YieldedFrame};
 use st_model::tracker::vos::Vos;
 use st_model::Geometry;
-use st_model::{Backbone, Detector, DetectorWeights, Text, Tokenizer};
+use st_model::{Backbone, Detector, DetectorWeights, Neck, Text, Tokenizer};
 use st_video::encode;
 use st_video::{
     decode_image_with_source, resize_bilinear_pil, Rgb8, VideoFile, VideoReader, VideoWriter,
@@ -112,8 +115,11 @@ pub const USAGE: &str = "\
 spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--max-frames N]
                  [--start F] [--overlay K] [--overlay-video FILE] [--overlay-fps F]
                  [--video ID] [--boxes mask|detector] [--weights FILE]
-                 [--lora FILE] [--weight-edit FILE] [--model-dir DIR] [--threads N] [--trim-pool-every K]
-                 [--trunk-precision f32|bf16-linears|coreml-fp32|coreml-fp16] [--max-objects N]
+                 [--lora FILE] [--weight-edit FILE] [--model-dir DIR] [--threads N] [--trim-pool-every K] [--overlap-dispatches N]
+                 [--trunk-precision f32|bf16-linears|coreml-fp32|coreml-fp16]
+                 [--trunk-pipeline on|off] [--mem-attn ojas|coreml-fp32|coreml-fp16]
+                 [--necks ojas|coreml-fp32|coreml-fp16] [--seg-head ojas|coreml-fp32|coreml-fp16]
+                 [--max-objects N]
                  [--input-size N] [--post-box-delta dx,dy,dw,dh] [--aux-score-weight W]
                  [--tile-every K] [--profile stages|ops]
 
@@ -148,6 +154,10 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
   --threads N       CPU worker threads for --backend cpu, 1 to 256 (default 8)
   --trim-pool-every K  diagnostic, --backend metal only: hand Ojas's cached free buffers back to
                     the device after every K-th frame (MetalBackend::trim_pool)
+  --overlap-dispatches N  --backend metal only: the Metal device commits recorded work to the GPU
+                    without waiting after every N dispatches (Ojas's default 256), so the GPU runs
+                    while the host records or does host work. It moves when work reaches the GPU,
+                    not what it computes. Recorded in run.json.
   --post-box-delta D  post-decoder [dx,dy,dw,dh] logit shift on pred_boxes, decoupled from boxRPB
   --aux-score-weight W  blend weight in [0, 1] mixing decoder layer 4 scores into layer 5 (default 0)
   --tile-every K    run 2x2 overlapping 1008x1008 tile proposals every K-th frame (K >= 1)
@@ -169,8 +179,52 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
                     regenerated for the grid (see st_model::backbone::vit_rope_tables). The CoreML
                     trunks are exported at 1008, so any other size needs --trunk-precision f32 or
                     bf16-linears. Recorded in run.json.
-  --trunk-precision P  what runs the ViT trunk (default: coreml-fp32 on --backend metal, f32 on
-                    --backend cpu). coreml-fp32 / coreml-fp16: the trunk runs as a CoreML ML
+  --mem-attn M      what runs propagation's memory attention (default: coreml-fp16 beside the
+                    default coreml-fp16 trunk on --backend metal at 1008, ojas otherwise; the pair
+                    passed the held-out gates together, bench/results/track/held300-coreml). coreml-fp32 /
+                    coreml-fp16: one CoreML ML Program from
+                    <model-dir>/coreml/sam3.1_mattn_<fp32|fp16>.mlpackage, exported by
+                    tools/baselines/coreml_mattn.py (--backend metal at 1008 only; a missing package
+                    is an error, never a fallback). An adapter or edit of memory attention's weights
+                    is refused with it, including under the default; --mem-attn ojas or
+                    --trunk-precision coreml-fp32 lifts that. Recorded in run.json.
+  --trunk-pipeline on|off  with a CoreML --trunk-precision, run the trunk on its own thread one
+                    frame ahead: frame t + 1's trunk runs while frame t's detector and tracker run.
+                    The predictions are the same (the same program on the same input); only the
+                    order of work changes (default: on with a CoreML trunk, off otherwise;
+                    bench/results/e26-pipeline: byte-identical tracks, 0.78-0.91x the frame time).
+                    With --necks coreml-*, the neck programs run on that thread too.
+  --necks M         what runs the detector and propagation necks (default: coreml-fp16 on the
+                    trunk's worker beside the default pipelined coreml-fp16 trunk on --backend metal
+                    at 1008, ojas otherwise; bench/results/e30-quiet). coreml-fp32 /
+                    coreml-fp16: CoreML ML Programs from
+                    <model-dir>/coreml/sam3.1_neck_<det|prop>_<fp32|fp16>.mlpackage, exported by
+                    tools/baselines/coreml_necks.py export --neck det|prop. Same rules as --mem-attn.
+  --seg-head M      what runs the detector's segmentation head (default: ojas). coreml-fp32 /
+                    coreml-fp16: one CoreML ML Program from
+                    <model-dir>/coreml/sam3.1_seghead_<fp32|fp16>.mlpackage, exported by
+                    tools/baselines/coreml_seghead.py. Same rules as --mem-attn.
+  --mem-encoder M   what runs the tracker's memory encoder (default: as --mem-attn's, so
+                    coreml-fp16 beside the default coreml-fp16 trunk on --backend metal at 1008,
+                    ojas otherwise; bench/results/e32-memenc). coreml-fp32 /
+                    coreml-fp16: one CoreML ML Program from
+                    <model-dir>/coreml/sam3.1_memenc_<fp32|fp16>.mlpackage, exported by
+                    tools/baselines/coreml_memenc.py export. It encodes the memories whose masks
+                    arrive at the downsampler's input size (every propagated frame); a merge's memory,
+                    from masks at the image size, stays on Ojas. run.json counts both. Same rules as
+                    --mem-attn.
+  --det-encoder M   what runs the detector's geometry and fusion encoders (default: ojas).
+                    coreml-fp32 / coreml-fp16: one CoreML ML Program from
+                    <model-dir>/coreml/sam3.1_detenc_<fp32|fp16>_<adapter>.mlpackage, exported by
+                    tools/baselines/coreml_detenc.py export --precision P [--lora FILE]. <adapter> is
+                    the first 12 hex of the --lora file's sha256 (base without --lora): the adapter is
+                    folded into the package, so each adapter needs its own export. Refuses a
+                    --weight-edit inside the encoders and an --input-size other than 1008.
+  --trunk-precision P  what runs the ViT trunk (default: coreml-fp16 on --backend metal, f32 on
+                    --backend cpu). The Metal default runs at 0.57-0.60x the coreml-fp32 frame
+                    with held-out HOTA 0.5694 against 0.5700 (bench/results/e27-pipe-necks,
+                    track/held300-coreml); --trunk-precision coreml-fp32 is the fp32 reference and
+                    also puts memory attention back on Ojas. coreml-fp32 / coreml-fp16: the trunk runs as a CoreML ML
                     Program (CPU and GPU) from <model-dir>/coreml/sam3.1_trunk_<fp32|fp16>.mlpackage,
                     exported by tools/baselines/coreml_trunk.py (a missing package is an error,
                     never a fallback); the necks, detector and tracker stay on --backend.
@@ -1351,8 +1405,23 @@ struct Options {
     weights: PathBuf,
     model_dir: PathBuf,
     trim_pool_every: Option<u32>,
+    /// `--overlap-dispatches`: dispatches the Metal device records between unwaited commits
+    /// (`None`: Ojas's default).
+    overlap_dispatches: Option<usize>,
     /// `--trunk-precision`.
     trunk: TrunkPrecision,
+    /// `--trunk-pipeline on`: the CoreML trunk runs one frame ahead on its own thread.
+    trunk_pipeline: bool,
+    /// `--mem-attn`.
+    mem_attn: Placement,
+    /// `--necks`: the detector and propagation necks.
+    necks: Placement,
+    /// `--seg-head`: the detector's segmentation head.
+    seg_head: Placement,
+    /// `--mem-encoder`: the tracker's memory encoder.
+    mem_encoder: Placement,
+    /// `--det-encoder`, with its package: the detector's geometry and fusion encoders.
+    det_encoder: (Placement, Option<PathBuf>),
     /// `--max-objects`.
     max_objects: usize,
     /// `--input-size`, validated: the model's token grid and every size derived from it.
@@ -1391,13 +1460,16 @@ impl TrunkPrecision {
         })
     }
 
-    /// What `--trunk-precision` defaults to. On Metal, the CoreML fp32 trunk: E10 measured it at
-    /// 0.80x the Ojas trunk's frame, with the same id sets on all 1500 held-out VISEM frames and the
-    /// same HOTA (bench/results/coreml-trunk). On CPU, the Ojas f32 trunk: that path is the
-    /// upstream-parity oracle, and CoreML would run on the GPU anyway.
+    /// What `--trunk-precision` defaults to. On Metal, the CoreML fp16 trunk (with fp16 memory
+    /// attention, see [`Placement::default_mem_attn`]): E27 measured that pair at 0.57-0.60x the
+    /// coreml-fp32 frame, and it passed the held-out gates of bench/results/e25-coreml-frame/RULES.md
+    /// (HOTA 0.6025 on 32 frames, 0.5694 against 0.5700 on 1,500; bench/results/track/
+    /// held32-coreml, held300-coreml). `--trunk-precision coreml-fp32` is the fp32 reference (E10:
+    /// same id sets as the Ojas trunk on all 1,500 frames). On CPU, the Ojas f32 trunk: that path is
+    /// the upstream-parity oracle, and CoreML would run on the GPU anyway.
     fn default_for(backend: BackendChoice) -> Self {
         match backend {
-            BackendChoice::Metal => Self::Coreml("fp32"),
+            BackendChoice::Metal => Self::Coreml("fp16"),
             BackendChoice::Cpu => Self::F32,
         }
     }
@@ -1419,11 +1491,179 @@ fn coreml_package(model_dir: &Path, precision: &str) -> PathBuf {
         .join(format!("sam3.1_trunk_{precision}.mlpackage"))
 }
 
+/// `--mem-attn`, `--necks` and `--seg-head`: whether a stage runs on the Ojas backend or as an exported CoreML
+/// package of one precision.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Placement {
+    /// The stage on the Ojas backend.
+    Ojas,
+    /// The CoreML package of this precision ("fp32" or "fp16").
+    Coreml(&'static str),
+}
+
+/// The checkpoint prefix of memory attention's weights, which its CoreML package bakes in.
+const MEM_ATTN_PREFIX: &str = "tracker.model.transformer.encoder.";
+/// The checkpoint prefixes of the two necks `--necks` exports.
+const NECK_PREFIXES: [&str; 2] = [
+    "detector.backbone.vision_backbone.convs.",
+    "detector.backbone.vision_backbone.propagation_convs.",
+];
+/// The checkpoint prefix of the segmentation head, which `--seg-head`'s package bakes in.
+const SEG_HEAD_PREFIX: &str = "detector.segmentation_head.";
+/// The checkpoint prefix of the tracker's memory encoder, which `--mem-encoder`'s package bakes in.
+const MEM_ENCODER_PREFIX: &str = "tracker.model.maskmem_backbone.";
+/// The checkpoint prefixes of the detector encoders, which `--det-encoder`'s package bakes in
+/// (with the `--lora` adapter folded, so only a weight edit there is refused).
+const DET_ENCODER_PREFIXES: [&str; 2] = [
+    "detector.geometry_encoder.",
+    "detector.transformer.encoder.",
+];
+
+impl Placement {
+    fn parse(flag: &str, s: &str) -> Result<Self, CliError> {
+        Ok(match s {
+            "ojas" => Self::Ojas,
+            "coreml-fp32" => Self::Coreml("fp32"),
+            "coreml-fp16" => Self::Coreml("fp16"),
+            other => {
+                return Err(CliError::usage(format!(
+                    "--{flag}: {other:?} is not ojas, coreml-fp32 or coreml-fp16"
+                )))
+            }
+        })
+    }
+
+    /// What `--mem-attn` defaults to: the CoreML fp16 program when the trunk is the CoreML fp16
+    /// program on Metal at the native input (the Metal default; the pair was gated together),
+    /// otherwise Ojas. So `--trunk-precision coreml-fp32` alone restores the fp32 reference
+    /// configuration, and a run the CoreML program cannot serve (another backend or input size)
+    /// never fails over a flag it did not pass.
+    fn default_mem_attn(trunk: TrunkPrecision, backend: BackendChoice, geometry: Geometry) -> Self {
+        match (trunk, backend) {
+            (TrunkPrecision::Coreml("fp16"), BackendChoice::Metal)
+                if geometry == Geometry::SAM3 =>
+            {
+                Self::Coreml("fp16")
+            }
+            _ => Self::Ojas,
+        }
+    }
+
+    /// What `--necks` defaults to: the CoreML fp16 programs on the trunk's worker when
+    /// [`Self::default_mem_attn`] would pick CoreML fp16 and the trunk is pipelined (E30,
+    /// bench/results/e30-quiet: 0.89-0.92x the frame with held-out HOTA 0.5697 against 0.5694 over
+    /// 1,500 frames; only measured pipelined), otherwise Ojas.
+    fn default_necks(
+        trunk: TrunkPrecision,
+        backend: BackendChoice,
+        geometry: Geometry,
+        trunk_pipeline: bool,
+    ) -> Self {
+        match Self::default_mem_attn(trunk, backend, geometry) {
+            Self::Coreml("fp16") if trunk_pipeline => Self::Coreml("fp16"),
+            _ => Self::Ojas,
+        }
+    }
+
+    /// What `--mem-encoder` defaults to: whatever [`Self::default_mem_attn`] picks (E32,
+    /// bench/results/e32-memenc: 0.83-0.87x the frame, held-out HOTA 0.6025 on 32 frames and
+    /// 0.5695 against 0.5697 on 1,500).
+    fn default_mem_encoder(
+        trunk: TrunkPrecision,
+        backend: BackendChoice,
+        geometry: Geometry,
+    ) -> Self {
+        Self::default_mem_attn(trunk, backend, geometry)
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Ojas => "ojas",
+            Self::Coreml("fp16") => "coreml-fp16",
+            Self::Coreml(_) => "coreml-fp32",
+        }
+    }
+
+    /// `<model-dir>/coreml/sam3.1_<stem>_<precision>.mlpackage`, where tools/baselines writes it.
+    fn package(self, model_dir: &Path, stem: &str) -> Option<PathBuf> {
+        match self {
+            Self::Ojas => None,
+            Self::Coreml(p) => Some(
+                model_dir
+                    .join("coreml")
+                    .join(format!("sam3.1_{stem}_{p}.mlpackage")),
+            ),
+        }
+    }
+
+    /// The package for `--<flag>`, which must exist: a missing one is an error, never a fallback.
+    fn existing_package(
+        self,
+        model_dir: &Path,
+        stem: &str,
+        flag: &str,
+        script: &str,
+    ) -> Result<Option<PathBuf>, CliError> {
+        match self.package(model_dir, stem) {
+            Some(p) if !p.is_dir() => Err(CliError::usage(format!(
+                "--{flag} {}: {} does not exist; export it with tools/baselines/{script}, or pass --{flag} ojas",
+                self.name(),
+                p.display()
+            ))),
+            other => Ok(other),
+        }
+    }
+}
+
+/// Refuses an adapter or weight edit that changes weights under `prefixes` while `--<flag>` runs
+/// them from an exported CoreML package, which would silently bypass the change.
+fn check_placement_weights(
+    placement: Placement,
+    flag: &str,
+    prefixes: &[&str],
+    adapter: Option<&st_weights::lora::LoraAdapter>,
+    plan: Option<&st_weights::edit::WeightEditPlan>,
+) -> Result<(), CliError> {
+    if placement == Placement::Ojas {
+        return Ok(());
+    }
+    let target = prefixes.iter().find_map(|prefix| {
+        adapter
+            .and_then(|a| a.touches_prefix(prefix).map(str::to_string))
+            .or_else(|| {
+                plan.and_then(|p| {
+                    p.edits
+                        .iter()
+                        .map(|e| e.param().to_string())
+                        .find(|p| p.starts_with(prefix))
+                })
+            })
+    });
+    match target {
+        Some(t) => Err(CliError::usage(format!(
+            "--lora or --weight-edit targets {t:?}, which --{flag} {} would bypass via the exported CoreML package; pass --{flag} ojas",
+            placement.name()
+        ))),
+        None => Ok(()),
+    }
+}
+
 struct Timing {
     load_seconds: f64,
     frame_seconds: Vec<f64>,
     /// `Backbone::external_trunk`: `None` when the Ojas blocks computed the trunk.
     external_trunk: Option<String>,
+    /// `Vos::external_mem_attn`: `None` when the Ojas backend computed memory attention.
+    external_mem_attn: Option<String>,
+    /// `Backbone::external_neck` for the detector and propagation necks.
+    external_necks: [Option<String>; 2],
+    /// `Detector::external_seg_head`.
+    external_seg_head: Option<String>,
+    /// `Detector::external_encoder`.
+    external_det_encoder: Option<String>,
+    /// `Vos::external_mem_encoder`, and `Vos::mem_encoder_calls` at the end: `[external, Ojas]`.
+    external_mem_encoder: Option<String>,
+    mem_encoder_calls: [usize; 2],
 }
 
 const MIB: f64 = (1u64 << 20) as f64;
@@ -1622,7 +1862,23 @@ fn track_on<B: Backend>(
         .map_err(|e| CliError::failed(format!("prompt {:?}: {e}", opts.prompt)))?;
     drop(text);
     drop(tok);
-    let backbone = match opts.trunk {
+    let mut trunk_prefetch: Option<PipelinedTrunk> = None;
+    // `--necks coreml-*`: the detector and propagation neck packages, which run on the trunk's worker
+    // when the trunk is pipelined.
+    let mut neck_packages: Vec<(Neck, PathBuf)> = Vec::new();
+    for (which, stem, neck) in [
+        (Neck::Detector, "neck_det", "det"),
+        (Neck::Propagation, "neck_prop", "prop"),
+    ] {
+        let script = format!("coreml_necks.py export --neck {neck}");
+        if let Some(package) =
+            opts.necks
+                .existing_package(&opts.model_dir, stem, "necks", &script)?
+        {
+            neck_packages.push((which, package));
+        }
+    }
+    let mut backbone = match opts.trunk {
         TrunkPrecision::F32 => {
             Backbone::new_at(be, &vision, opts.geometry).map_err(CliError::from_err)?
         }
@@ -1638,23 +1894,81 @@ fn track_on<B: Backend>(
                     package.display()
                 )));
             }
-            let trunk =
-                CoremlTrunk::load(&package, Units::CpuAndGpu).map_err(CliError::from_err)?;
-            println!(
-                "CoreML trunk {} loaded in {:.1} s ({}; hash {:.2} s {}, compile {:.2} s, model load {:.2} s)",
-                package.display(),
-                trunk.load_seconds,
-                if trunk.compiled { "compiled this run" } else { "compiled model reused" },
-                trunk.hash_seconds,
-                if trunk.hashed { "full" } else { "recorded" },
-                trunk.compile_seconds,
-                trunk.model_seconds
-            );
-            Backbone::with_external_trunk(be, &vision, Box::new(trunk))
-                .map_err(CliError::from_err)?
+            let line = |load: f64,
+                        compiled: bool,
+                        hash: f64,
+                        hashed: bool,
+                        compile: f64,
+                        model: f64| {
+                println!(
+                    "CoreML trunk {} loaded in {load:.1} s ({}; hash {hash:.2} s {}, compile {compile:.2} s, model load {model:.2} s){}",
+                    package.display(),
+                    if compiled { "compiled this run" } else { "compiled model reused" },
+                    if hashed { "full" } else { "recorded" },
+                    if opts.trunk_pipeline { ", pipelined one frame ahead" } else { "" }
+                )
+            };
+            if opts.trunk_pipeline {
+                let paths: Vec<PathBuf> = neck_packages.iter().map(|(_, p)| p.clone()).collect();
+                let (pipe, r) = PipelinedTrunk::load(&package, &paths, Units::CpuAndGpu)
+                    .map_err(CliError::from_err)?;
+                line(
+                    r.load_seconds,
+                    r.compiled,
+                    r.hash_seconds,
+                    r.hashed,
+                    r.compile_seconds,
+                    r.model_seconds,
+                );
+                for n in &r.necks {
+                    println!("neck on the trunk's worker: {n}");
+                }
+                trunk_prefetch = Some(pipe.clone());
+                Backbone::with_external_trunk(be, &vision, Box::new(pipe))
+                    .map_err(CliError::from_err)?
+            } else {
+                let t =
+                    CoremlTrunk::load(&package, Units::CpuAndGpu).map_err(CliError::from_err)?;
+                line(
+                    t.load_seconds,
+                    t.compiled,
+                    t.hash_seconds,
+                    t.hashed,
+                    t.compile_seconds,
+                    t.model_seconds,
+                );
+                Backbone::with_external_trunk(be, &vision, Box::new(t))
+                    .map_err(CliError::from_err)?
+            }
         }
     };
     drop(vision);
+    for (i, (which, package)) in neck_packages.iter().enumerate() {
+        let ext: Box<dyn st_model::ExternalNeck> = match &trunk_prefetch {
+            Some(pipe) => Box::new(pipe.neck(i).map_err(CliError::from_err)?),
+            None => {
+                let n = CoremlNeck::load(package, Units::CpuAndGpu).map_err(CliError::from_err)?;
+                println!(
+                    "neck: {} ({}, {:.1} s)",
+                    package.display(),
+                    if n.compiled {
+                        "compiled now"
+                    } else {
+                        "cached compile"
+                    },
+                    n.load_seconds
+                );
+                Box::new(n)
+            }
+        };
+        backbone = backbone
+            .with_external_neck(*which, ext)
+            .map_err(CliError::from_err)?;
+    }
+    let external_necks = [
+        backbone.external_neck(Neck::Detector),
+        backbone.external_neck(Neck::Propagation),
+    ];
     let external_trunk = backbone.external_trunk();
     let mut detector = Detector::new_at(
         be,
@@ -1673,14 +1987,93 @@ fn track_on<B: Backend>(
     detector
         .set_aux_score_weight(opts.aux_score_weight)
         .map_err(CliError::from_err)?;
+    if let Some(package) = opts.seg_head.existing_package(
+        &opts.model_dir,
+        "seghead",
+        "seg-head",
+        "coreml_seghead.py export",
+    )? {
+        let h = CoremlSegHead::load(&package, Units::CpuAndGpu).map_err(CliError::from_err)?;
+        println!(
+            "segmentation head: {} ({}, {:.1} s)",
+            package.display(),
+            if h.compiled {
+                "compiled now"
+            } else {
+                "cached compile"
+            },
+            h.load_seconds
+        );
+        detector
+            .set_external_seg_head(Box::new(h))
+            .map_err(CliError::usage)?;
+    }
+    let external_seg_head = detector.external_seg_head();
+    if let (_, Some(package)) = &opts.det_encoder {
+        let e = CoremlDetEncoder::load(package, Units::CpuAndGpu).map_err(CliError::from_err)?;
+        println!(
+            "detector encoders: {} ({}, {:.1} s)",
+            package.display(),
+            if e.compiled {
+                "compiled now"
+            } else {
+                "cached compile"
+            },
+            e.load_seconds
+        );
+        detector
+            .set_external_encoder(Box::new(e))
+            .map_err(CliError::from_err)?;
+    }
+    let external_det_encoder = detector.external_encoder();
     drop((
         detector_transformer,
         geometry_encoder,
         segmentation_head,
         dot_prod_scoring,
     ));
-    let vos = Vos::new(be, &backbone, &tracker).map_err(CliError::from_err)?;
+    let mut vos = Vos::new(be, &backbone, &tracker).map_err(CliError::from_err)?;
     drop(tracker);
+    if let Some(package) = opts.mem_attn.existing_package(
+        &opts.model_dir,
+        "mattn",
+        "mem-attn",
+        "coreml_mattn.py export",
+    )? {
+        let m = CoremlMemAttn::load(&package, Units::CpuAndGpu).map_err(CliError::from_err)?;
+        println!(
+            "memory attention: {} ({}, {:.1} s)",
+            package.display(),
+            if m.compiled {
+                "compiled now"
+            } else {
+                "cached compile"
+            },
+            m.load_seconds
+        );
+        vos = vos.with_external_mem_attn(Box::new(m));
+    }
+    let external_mem_attn = vos.external_mem_attn();
+    if let Some(package) = opts.mem_encoder.existing_package(
+        &opts.model_dir,
+        "memenc",
+        "mem-encoder",
+        "coreml_memenc.py export",
+    )? {
+        let e = CoremlMemEncoder::load(&package, Units::CpuAndGpu).map_err(CliError::from_err)?;
+        println!(
+            "memory encoder: {} ({}, {:.1} s)",
+            package.display(),
+            if e.compiled {
+                "compiled now"
+            } else {
+                "cached compile"
+            },
+            e.load_seconds
+        );
+        vos = vos.with_external_mem_encoder(Box::new(e));
+    }
+    let external_mem_encoder = vos.external_mem_encoder();
     telemetry.before_frames()?;
     let mut cfg = SessionConfig::new(stream.len, stream.height, stream.width);
     cfg.book.max_num_objects = opts.max_objects;
@@ -1704,13 +2097,35 @@ fn track_on<B: Backend>(
     let side = opts.geometry.pixels();
     let mut frame_seconds = Vec::with_capacity(stream.len);
     let mut index = 0usize;
+    // With --trunk-pipeline the next frame is decoded and its trunk queued before this frame is
+    // tracked, so the trunk of frame t + 1 runs while the detector and tracker run frame t.
+    let mut lookahead: Option<(u32, Rgb8)> = None;
+    if let Some(pipe) = &trunk_prefetch {
+        lookahead = stream.next_frame()?;
+        if let Some((_, img)) = &lookahead {
+            pipe.prefetch(upstream_input(img, side))
+                .map_err(CliError::from_err)?;
+        }
+    }
     loop {
         if let Some(p) = profile {
             p.enter(track_profile::DECODE);
         }
-        let Some((n, image)) = stream.next_frame()? else {
+        let next = if trunk_prefetch.is_some() {
+            lookahead.take()
+        } else {
+            stream.next_frame()?
+        };
+        let Some((n, image)) = next else {
             break;
         };
+        if let Some(pipe) = &trunk_prefetch {
+            lookahead = stream.next_frame()?;
+            if let Some((_, img)) = &lookahead {
+                pipe.prefetch(upstream_input(img, side))
+                    .map_err(CliError::from_err)?;
+            }
+        }
         collector.keep_image(index, &image);
         let tile_tensors: Vec<(TileSpec, Tensor)> =
             if opts.tile_every.is_some_and(|k| index % k == 0) {
@@ -1788,7 +2203,39 @@ fn track_on<B: Backend>(
         load_seconds,
         frame_seconds,
         external_trunk,
+        external_mem_attn,
+        external_necks,
+        external_seg_head,
+        external_det_encoder,
+        external_mem_encoder,
+        mem_encoder_calls: vos.mem_encoder_calls(),
     })
+}
+
+/// `--det-encoder`'s package, which must exist:
+/// `<model-dir>/coreml/sam3.1_detenc_<precision>_<adapter tag>.mlpackage`, the tag naming the
+/// `--lora` adapter folded into it ([`st_coreml::adapter_tag`]).
+fn det_encoder_package(
+    placement: Placement,
+    model_dir: &Path,
+    lora: Option<&Path>,
+) -> Result<Option<PathBuf>, CliError> {
+    let Placement::Coreml(p) = placement else {
+        return Ok(None);
+    };
+    let tag = st_coreml::adapter_tag(lora).map_err(CliError::from_err)?;
+    let package = model_dir
+        .join("coreml")
+        .join(format!("sam3.1_detenc_{p}_{tag}.mlpackage"));
+    if !package.is_dir() {
+        let lora_arg = lora.map_or_else(String::new, |l| format!(" --lora {}", l.display()));
+        return Err(CliError::usage(format!(
+            "--det-encoder {}: {} does not exist; export it with tools/baselines/coreml_detenc.py export --precision {p}{lora_arg}, or pass --det-encoder ojas",
+            placement.name(),
+            package.display()
+        )));
+    }
+    Ok(Some(package))
 }
 
 fn check_trunk_lora(
@@ -1845,7 +2292,14 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
             "model-dir",
             "threads",
             "trim-pool-every",
+            "overlap-dispatches",
             "trunk-precision",
+            "trunk-pipeline",
+            "mem-attn",
+            "necks",
+            "seg-head",
+            "det-encoder",
+            "mem-encoder",
             "max-objects",
             "input-size",
             "post-box-delta",
@@ -1875,6 +2329,18 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     }
     if trim_pool_every.is_some() && backend != BackendChoice::Metal {
         return Err(CliError::usage("--trim-pool-every is for --backend metal"));
+    }
+    let overlap_dispatches = args
+        .get("overlap-dispatches")
+        .map(|_| args.parsed("overlap-dispatches", 0usize))
+        .transpose()?;
+    if overlap_dispatches == Some(0) {
+        return Err(CliError::usage("--overlap-dispatches must be at least 1"));
+    }
+    if overlap_dispatches.is_some() && backend != BackendChoice::Metal {
+        return Err(CliError::usage(
+            "--overlap-dispatches is for --backend metal",
+        ));
     }
     let max_objects: usize = args.parsed("max-objects", DEFAULT_MAX_OBJECTS)?;
     if !(1..=128).contains(&max_objects) {
@@ -1910,6 +2376,50 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
             "--profile is for --backend metal, with any --trunk-precision but bf16-linears",
         ));
     }
+    let placement = |flag: &str, default: Placement| -> Result<Placement, CliError> {
+        let p = match args.get(flag) {
+            Some(m) => Placement::parse(flag, m)?,
+            None => default,
+        };
+        if p != Placement::Ojas && (backend != BackendChoice::Metal || geometry != Geometry::SAM3) {
+            return Err(CliError::usage(format!(
+                "--{flag} {}: the CoreML package is for --backend metal at the native {} input; pass --{flag} ojas",
+                p.name(),
+                Geometry::SAM3.pixels()
+            )));
+        }
+        Ok(p)
+    };
+    let trunk_pipeline = match args.get("trunk-pipeline") {
+        None => matches!(trunk, TrunkPrecision::Coreml(_)),
+        Some("off") => false,
+        Some("on") => true,
+        Some(other) => {
+            return Err(CliError::usage(format!(
+                "--trunk-pipeline: {other:?} is not on or off"
+            )))
+        }
+    };
+    if trunk_pipeline && !matches!(trunk, TrunkPrecision::Coreml(_)) {
+        return Err(CliError::usage(format!(
+            "--trunk-pipeline on runs the CoreML trunk on its own thread; --trunk-precision {} is not a CoreML trunk",
+            trunk.name()
+        )));
+    }
+    let mem_attn = placement(
+        "mem-attn",
+        Placement::default_mem_attn(trunk, backend, geometry),
+    )?;
+    let necks = placement(
+        "necks",
+        Placement::default_necks(trunk, backend, geometry, trunk_pipeline),
+    )?;
+    let seg_head = placement("seg-head", Placement::Ojas)?;
+    let det_encoder = placement("det-encoder", Placement::Ojas)?;
+    let mem_encoder = placement(
+        "mem-encoder",
+        Placement::default_mem_encoder(trunk, backend, geometry),
+    )?;
     if matches!(trunk, TrunkPrecision::Coreml(_)) && geometry != Geometry::SAM3 {
         return Err(CliError::usage(format!(
             "--input-size {}: the CoreML trunk ({}) is exported at {}; pass --trunk-precision f32 or bf16-linears",
@@ -1993,12 +2503,51 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
     if let Some(plan) = &plan {
         check_trunk_weight_edits(trunk, plan)?;
     }
+    check_placement_weights(
+        mem_attn,
+        "mem-attn",
+        &[MEM_ATTN_PREFIX],
+        adapter.as_ref(),
+        plan.as_ref(),
+    )?;
+    check_placement_weights(
+        necks,
+        "necks",
+        &NECK_PREFIXES,
+        adapter.as_ref(),
+        plan.as_ref(),
+    )?;
+    check_placement_weights(
+        seg_head,
+        "seg-head",
+        &[SEG_HEAD_PREFIX],
+        adapter.as_ref(),
+        plan.as_ref(),
+    )?;
+    check_placement_weights(
+        mem_encoder,
+        "mem-encoder",
+        &[MEM_ENCODER_PREFIX],
+        adapter.as_ref(),
+        plan.as_ref(),
+    )?;
+    check_placement_weights(
+        det_encoder,
+        "det-encoder",
+        &DET_ENCODER_PREFIXES,
+        None,
+        plan.as_ref(),
+    )?;
     let model_dir = existing_path(
         args.get("model-dir"),
         "SPIKETRACK_MODEL_DIR",
         "tokenizer folder",
         "model-dir",
     )?;
+    let det_encoder = (
+        det_encoder,
+        det_encoder_package(det_encoder, &model_dir, lora.as_deref())?,
+    );
     let opts = Options {
         prompt,
         out,
@@ -2009,7 +2558,14 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         weights,
         model_dir,
         trim_pool_every,
+        overlap_dispatches,
         trunk,
+        trunk_pipeline,
+        mem_attn,
+        necks,
+        seg_head,
+        det_encoder,
+        mem_encoder,
         max_objects,
         geometry,
         post_box_delta,
@@ -2083,6 +2639,11 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         }
         BackendChoice::Metal if opts.trunk == TrunkPrecision::Bf16Linears => {
             let (metal, cap) = open_metal()?;
+            if let Some(n) = opts.overlap_dispatches {
+                metal
+                    .set_overlap_dispatches(n)
+                    .map_err(CliError::from_err)?;
+            }
             let mut telemetry = MetalTelemetry::new(&metal, opts.trim_pool_every)?;
             (
                 track_on(
@@ -2100,6 +2661,9 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         }
         BackendChoice::Metal => {
             let (be, cap) = open_metal()?;
+            if let Some(n) = opts.overlap_dispatches {
+                be.set_overlap_dispatches(n).map_err(CliError::from_err)?;
+            }
             let mut telemetry = MetalTelemetry::new(&be, opts.trim_pool_every)?;
             match opts.profile {
                 None => (
@@ -2182,7 +2746,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
-        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"weight_edit\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"external_trunk\": {},\n  \"max_objects\": {},\n  \"metal_mem_cap_bytes\": {},\n  \"input_size\": {},\n  \"profile\": {}\n}}\n",
+        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"weight_edit\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"trunk_pipeline\": {},\n  \"external_trunk\": {},\n  \"mem_attn\": {},\n  \"external_mem_attn\": {},\n  \"necks\": {},\n  \"external_necks\": [{}, {}],\n  \"seg_head\": {},\n  \"external_seg_head\": {},\n  \"det_encoder\": {},\n  \"external_det_encoder\": {},\n  \"mem_encoder\": {},\n  \"external_mem_encoder\": {},\n  \"mem_encoder_calls\": {{\"external\": {}, \"ojas\": {}}},\n  \"max_objects\": {},\n  \"metal_mem_cap_bytes\": {},\n  \"metal_overlap_dispatches\": {},\n  \"input_size\": {},\n  \"profile\": {}\n}}\n",
         json::string(&stream.video),
         json::string(&input.to_string_lossy()),
         json::string(&opts.prompt),
@@ -2208,9 +2772,24 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         video_fps_source_json,
         video_frames_json,
         json::string(opts.trunk.name()),
+        opts.trunk_pipeline,
         timing.external_trunk.as_deref().map_or_else(|| "null".to_string(), json::string),
+        json::string(opts.mem_attn.name()),
+        timing.external_mem_attn.as_deref().map_or_else(|| "null".to_string(), json::string),
+        json::string(opts.necks.name()),
+        timing.external_necks[0].as_deref().map_or_else(|| "null".to_string(), json::string),
+        timing.external_necks[1].as_deref().map_or_else(|| "null".to_string(), json::string),
+        json::string(opts.seg_head.name()),
+        timing.external_seg_head.as_deref().map_or_else(|| "null".to_string(), json::string),
+        json::string(opts.det_encoder.0.name()),
+        timing.external_det_encoder.as_deref().map_or_else(|| "null".to_string(), json::string),
+        json::string(opts.mem_encoder.name()),
+        timing.external_mem_encoder.as_deref().map_or_else(|| "null".to_string(), json::string),
+        timing.mem_encoder_calls[0],
+        timing.mem_encoder_calls[1],
         opts.max_objects,
         metal_mem_cap.map_or_else(|| "null".to_string(), |b| b.to_string()),
+        opts.overlap_dispatches.map_or_else(|| "null".to_string(), |n| n.to_string()),
         opts.geometry.pixels(),
         opts.profile.map_or_else(|| "null".to_string(), |m| json::string(m.name())),
     );
@@ -3224,6 +3803,24 @@ mod tests {
             "--trunk-precision",
             "f32"
         ]));
+        assert!(usage(&["in", "--prompt", "p", "--overlap-dispatches", "0"]));
+        assert!(usage(&["in", "--prompt", "p", "--overlap-dispatches", "x"]));
+        assert!(usage(&[
+            "in",
+            "--prompt",
+            "p",
+            "--overlap-dispatches",
+            "8",
+            "--backend",
+            "cpu"
+        ]));
+        assert!(!usage(&[
+            "in",
+            "--prompt",
+            "p",
+            "--overlap-dispatches",
+            "8"
+        ]));
     }
 
     #[test]
@@ -3338,15 +3935,113 @@ mod tests {
     }
 
     #[test]
-    fn the_default_trunk_is_coreml_fp32_on_metal_and_the_ojas_trunk_on_cpu() {
+    fn the_default_trunk_is_coreml_fp16_on_metal_and_the_ojas_trunk_on_cpu() {
         assert_eq!(
             TrunkPrecision::default_for(BackendChoice::Metal),
-            TrunkPrecision::Coreml("fp32")
+            TrunkPrecision::Coreml("fp16")
         );
         assert_eq!(
             TrunkPrecision::default_for(BackendChoice::Cpu),
             TrunkPrecision::F32
         );
+    }
+
+    /// Memory attention defaults to its fp16 CoreML program only beside the fp16 CoreML trunk on
+    /// Metal at the native input, the pair the held-out gates passed; every other trunk, backend or
+    /// input size keeps it on Ojas, so `--trunk-precision coreml-fp32` alone is the fp32 reference.
+    #[test]
+    fn memory_attention_defaults_to_coreml_fp16_only_beside_the_default_fp16_trunk() {
+        let metal = BackendChoice::Metal;
+        let small = Geometry::from_image_side(672).unwrap();
+        assert_eq!(
+            Placement::default_mem_attn(TrunkPrecision::default_for(metal), metal, Geometry::SAM3),
+            Placement::Coreml("fp16")
+        );
+        for (trunk, backend, geometry) in [
+            (TrunkPrecision::Coreml("fp32"), metal, Geometry::SAM3),
+            (TrunkPrecision::F32, metal, Geometry::SAM3),
+            (TrunkPrecision::Bf16Linears, metal, Geometry::SAM3),
+            (
+                TrunkPrecision::Coreml("fp16"),
+                BackendChoice::Cpu,
+                Geometry::SAM3,
+            ),
+            (TrunkPrecision::Coreml("fp16"), metal, small),
+            (
+                TrunkPrecision::default_for(BackendChoice::Cpu),
+                BackendChoice::Cpu,
+                Geometry::SAM3,
+            ),
+        ] {
+            assert_eq!(
+                Placement::default_mem_attn(trunk, backend, geometry),
+                Placement::Ojas,
+                "{trunk:?} on {backend:?} at {}",
+                geometry.pixels()
+            );
+        }
+    }
+
+    /// The memory encoder follows memory attention's default exactly (E32's rule): fp16 CoreML
+    /// beside the default fp16 trunk on Metal at the native input, Ojas everywhere else.
+    #[test]
+    fn the_memory_encoder_defaults_as_memory_attention_does() {
+        let metal = BackendChoice::Metal;
+        let small = Geometry::from_image_side(672).unwrap();
+        assert_eq!(
+            Placement::default_mem_encoder(
+                TrunkPrecision::default_for(metal),
+                metal,
+                Geometry::SAM3
+            ),
+            Placement::Coreml("fp16")
+        );
+        for trunk in [
+            TrunkPrecision::Coreml("fp16"),
+            TrunkPrecision::Coreml("fp32"),
+            TrunkPrecision::F32,
+            TrunkPrecision::Bf16Linears,
+        ] {
+            for backend in [metal, BackendChoice::Cpu] {
+                for geometry in [Geometry::SAM3, small] {
+                    assert_eq!(
+                        Placement::default_mem_encoder(trunk, backend, geometry),
+                        Placement::default_mem_attn(trunk, backend, geometry),
+                        "{trunk:?} on {backend:?} at {}",
+                        geometry.pixels()
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            Placement::default_mem_encoder(TrunkPrecision::Coreml("fp32"), metal, Geometry::SAM3),
+            Placement::Ojas
+        );
+    }
+
+    #[test]
+    fn the_necks_default_to_coreml_fp16_only_beside_the_default_pipelined_fp16_trunk() {
+        let metal = BackendChoice::Metal;
+        let small = Geometry::from_image_side(672).unwrap();
+        let fp16 = TrunkPrecision::default_for(metal);
+        assert_eq!(
+            Placement::default_necks(fp16, metal, Geometry::SAM3, true),
+            Placement::Coreml("fp16")
+        );
+        for (trunk, backend, geometry, pipelined) in [
+            (fp16, metal, Geometry::SAM3, false),
+            (TrunkPrecision::Coreml("fp32"), metal, Geometry::SAM3, true),
+            (TrunkPrecision::F32, metal, Geometry::SAM3, false),
+            (fp16, BackendChoice::Cpu, Geometry::SAM3, true),
+            (fp16, metal, small, true),
+        ] {
+            assert_eq!(
+                Placement::default_necks(trunk, backend, geometry, pipelined),
+                Placement::Ojas,
+                "{trunk:?} on {backend:?} at {}, pipelined {pipelined}",
+                geometry.pixels()
+            );
+        }
     }
 
     /// With no --trunk-precision, a Metal run whose model dir has no CoreML package fails loud and
@@ -3377,9 +4072,9 @@ mod tests {
         let Err(CliError::Failed(msg)) = r else {
             panic!("expected a failure, got {r:?}")
         };
-        assert!(msg.starts_with("--trunk-precision coreml-fp32: "), "{msg}");
+        assert!(msg.starts_with("--trunk-precision coreml-fp16: "), "{msg}");
         assert!(
-            msg.contains("coreml_trunk.py export --precision fp32")
+            msg.contains("coreml_trunk.py export --precision fp16")
                 && msg.contains("--trunk-precision f32"),
             "{msg}"
         );
@@ -3861,6 +4556,134 @@ mod tests {
                     row
                 );
             }
+        }
+    }
+
+    #[test]
+    fn placements_parse_their_three_names_and_name_their_packages() {
+        for name in ["ojas", "coreml-fp32", "coreml-fp16"] {
+            assert_eq!(Placement::parse("necks", name).expect(name).name(), name);
+        }
+        for bad in ["", "fp16", "coreml", "coreml-bf16", "Ojas"] {
+            let err = Placement::parse("seg-head", bad).unwrap_err().to_string();
+            assert!(err.contains("--seg-head"), "{bad:?}: {err}");
+        }
+        assert_eq!(Placement::Ojas.package(Path::new("/m"), "seghead"), None);
+        assert_eq!(
+            Placement::Coreml("fp16").package(Path::new("/m"), "seghead"),
+            Some(PathBuf::from("/m/coreml/sam3.1_seghead_fp16.mlpackage"))
+        );
+        let missing = Placement::Coreml("fp32")
+            .existing_package(
+                Path::new("/nonexistent"),
+                "seghead",
+                "seg-head",
+                "coreml_seghead.py export",
+            )
+            .unwrap_err()
+            .to_string();
+        assert!(
+            missing.contains("does not exist") && missing.contains("--seg-head ojas"),
+            "{missing}"
+        );
+    }
+
+    #[test]
+    fn the_det_encoder_package_is_named_by_the_adapter_folded_into_it() {
+        assert_eq!(
+            det_encoder_package(Placement::Ojas, Path::new("/nonexistent"), None).unwrap(),
+            None
+        );
+        let dir = std::env::temp_dir().join(format!("st-detenc-{}", std::process::id()));
+        let adapter = dir.join("adapter.safetensors");
+        std::fs::create_dir_all(dir.join("coreml")).unwrap();
+        std::fs::write(&adapter, b"abc").unwrap();
+        // sha256("abc") = ba7816bf8f01cfea...
+        assert_eq!(
+            st_coreml::adapter_tag(Some(&adapter)).unwrap(),
+            "ba7816bf8f01"
+        );
+        assert_eq!(st_coreml::adapter_tag(None).unwrap(), "base");
+        let missing = det_encoder_package(Placement::Coreml("fp16"), &dir, Some(&adapter))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            missing.contains("sam3.1_detenc_fp16_ba7816bf8f01.mlpackage does not exist")
+                && missing.contains("coreml_detenc.py export --precision fp16 --lora ")
+                && missing.contains("--det-encoder ojas"),
+            "{missing}"
+        );
+        let base = dir.join("coreml/sam3.1_detenc_fp32_base.mlpackage");
+        std::fs::create_dir_all(&base).unwrap();
+        assert_eq!(
+            det_encoder_package(Placement::Coreml("fp32"), &dir, None).unwrap(),
+            Some(base.clone())
+        );
+        // The base package is not used for an adapter: a run with --lora needs its own export.
+        assert!(det_encoder_package(Placement::Coreml("fp32"), &dir, Some(&adapter)).is_err());
+        std::fs::remove_file(&adapter).unwrap();
+        std::fs::remove_dir(&base).unwrap();
+        std::fs::remove_dir(dir.join("coreml")).unwrap();
+        std::fs::remove_dir(&dir).unwrap();
+    }
+
+    #[test]
+    fn coreml_placements_refuse_edits_of_the_weights_their_packages_bake_in() {
+        let plan = |param: &str| {
+            st_weights::edit::WeightEditPlan::parse(&format!(
+                r#"{{"format": "spiketrack-weight-edit-v1", "edits": [{{"op": "add_1d", "param": "{param}", "range": [0, 1], "values": [0.5]}}]}}"#
+            ))
+            .unwrap()
+        };
+        let cases: [(&str, &[&str], &str); 6] = [
+            (
+                "mem-encoder",
+                &[MEM_ENCODER_PREFIX],
+                "tracker.model.maskmem_backbone.pix_feat_proj.bias",
+            ),
+            (
+                "det-encoder",
+                &DET_ENCODER_PREFIXES,
+                "detector.transformer.encoder.layers.0.norm1.bias",
+            ),
+            (
+                "det-encoder",
+                &DET_ENCODER_PREFIXES,
+                "detector.geometry_encoder.norm.bias",
+            ),
+            (
+                "seg-head",
+                &[SEG_HEAD_PREFIX],
+                "detector.segmentation_head.instance_seg_head.bias",
+            ),
+            (
+                "necks",
+                &NECK_PREFIXES,
+                "detector.backbone.vision_backbone.convs.0.conv_1x1.bias",
+            ),
+            (
+                "mem-attn",
+                &[MEM_ATTN_PREFIX],
+                "tracker.model.transformer.encoder.layers.0.norm1.bias",
+            ),
+        ];
+        let elsewhere = plan("detector.dot_prod_scoring.prompt_proj.bias");
+        for (flag, prefixes, param) in cases {
+            let touched = plan(param);
+            for p in [Placement::Coreml("fp32"), Placement::Coreml("fp16")] {
+                let err = check_placement_weights(p, flag, prefixes, None, Some(&touched))
+                    .unwrap_err()
+                    .to_string();
+                assert!(
+                    err.contains(param) && err.contains(&format!("--{flag} ojas")),
+                    "{err}"
+                );
+                assert!(check_placement_weights(p, flag, prefixes, None, Some(&elsewhere)).is_ok());
+            }
+            assert!(
+                check_placement_weights(Placement::Ojas, flag, prefixes, None, Some(&touched))
+                    .is_ok()
+            );
         }
     }
 

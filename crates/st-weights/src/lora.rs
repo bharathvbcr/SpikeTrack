@@ -411,10 +411,16 @@ impl LoraAdapter {
     /// Callers running an external pre-compiled ViT trunk (e.g. CoreML) use this to fail closed
     /// rather than silently bypassing trunk LoRA modules.
     pub fn touches_vision_trunk(&self) -> Option<&str> {
+        self.touches_prefix("detector.backbone.vision_backbone.trunk.")
+    }
+
+    /// The first target whose checkpoint name starts with `prefix`, for a caller that runs those
+    /// weights from an exported package the adapter would not reach.
+    pub fn touches_prefix(&self, prefix: &str) -> Option<&str> {
         self.targets
             .iter()
             .map(|t| t.param.as_str())
-            .find(|p| p.starts_with("detector.backbone.vision_backbone.trunk."))
+            .find(|p| p.starts_with(prefix))
     }
 
     /// Fold the adapter into a loaded checkpoint (both the untyped detector/tracker groups and

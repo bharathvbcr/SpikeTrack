@@ -39,7 +39,8 @@ use objc2_core_ml::{
 use objc2_foundation::{NSArray, NSDictionary, NSError, NSInteger, NSNumber, NSString, NSURL};
 use ojas_core::OjasError;
 use sha2::{Digest, Sha256};
-use st_model::ExternalTrunk;
+use st_model::tracker::{ExternalMemAttn, ExternalMemEncoder, HostMemInputs};
+use st_model::{ExternalEncoder, ExternalNeck, ExternalSegHead, ExternalTrunk, HostSegInputs};
 
 const INPUT: &str = "image";
 const OUTPUT: &str = "trunk";
@@ -119,47 +120,149 @@ pub struct CoremlTrunk {
     pub model_seconds: f64,
 }
 
+/// A package hashed, compiled when its compiled model is missing, and loaded: what
+/// [`CoremlTrunk::load`] and [`CoremlMemAttn::load`] share.
+struct Loaded {
+    model: Retained<MLModel>,
+    sha256: String,
+    compiled: bool,
+    hashed: bool,
+    load_seconds: f64,
+    hash_seconds: f64,
+    compile_seconds: f64,
+    model_seconds: f64,
+}
+
+fn load_package(package: &Path, units: Units) -> Result<Loaded, CoremlError> {
+    let t0 = Instant::now();
+    if !package.is_dir() {
+        return Err(fail(format!(
+            "{} is not an .mlpackage directory",
+            package.display()
+        )));
+    }
+    let resolved = resolve_sha256(package, STAT_KEY_FULL_BYTES)?;
+    let t_hash = t0.elapsed().as_secs_f64();
+    let sha256 = resolved.sha256.clone();
+    let compiled_dir = compiled_path(package, &sha256);
+    let compiled = !compiled_dir.is_dir();
+    if compiled {
+        compile(package, &compiled_dir)?;
+    }
+    if resolved.hashed {
+        record_sha256(package, &resolved, STAT_KEY_FULL_BYTES)?;
+    }
+    let t_compile = t0.elapsed().as_secs_f64();
+    let url = NSURL::from_file_path(&compiled_dir)
+        .ok_or_else(|| fail(format!("{} is not a file URL", compiled_dir.display())))?;
+    let model = autoreleasepool(|_| -> Result<Retained<MLModel>, CoremlError> {
+        let cfg = unsafe { MLModelConfiguration::new() };
+        unsafe { cfg.setComputeUnits(units.ml()) };
+        unsafe { MLModel::modelWithContentsOfURL_configuration_error(&url, &cfg) }
+            .map_err(|e| ns_fail(&format!("loading {}", compiled_dir.display()), &e))
+    })?;
+    let load_seconds = t0.elapsed().as_secs_f64();
+    Ok(Loaded {
+        model,
+        sha256,
+        compiled,
+        hashed: resolved.hashed,
+        load_seconds,
+        hash_seconds: t_hash,
+        compile_seconds: t_compile - t_hash,
+        model_seconds: load_seconds - t_compile,
+    })
+}
+
+/// One prediction of `model`: each input `(name, data, shape)` is wrapped in place (Core ML reads
+/// it through the pointer while the prediction runs), and the f32 output `output` of shape `want`
+/// is read back row-major.
+fn predict_f32(
+    model: &MLModel,
+    inputs: &mut [(&str, &mut [f32], &[usize])],
+    output: &str,
+    want: &[usize],
+) -> Result<Vec<f32>, CoremlError> {
+    let mut outs = predict_f32_multi(model, inputs, &[(output, want)])?;
+    outs.pop().ok_or_else(|| fail("no output read"))
+}
+
+/// [`predict_f32`] with several f32 outputs, each `(name, shape)`, read back in that order.
+fn predict_f32_multi(
+    model: &MLModel,
+    inputs: &mut [(&str, &mut [f32], &[usize])],
+    outputs: &[(&str, &[usize])],
+) -> Result<Vec<Vec<f32>>, CoremlError> {
+    autoreleasepool(|_| {
+        let mut keys: Vec<Retained<NSString>> = Vec::with_capacity(inputs.len());
+        let mut values: Vec<Retained<MLFeatureValue>> = Vec::with_capacity(inputs.len());
+        for (name, data, shape) in inputs.iter_mut() {
+            let n: usize = shape.iter().product();
+            if data.len() != n {
+                return Err(fail(format!(
+                    "input {name:?} has {} values, want {n} ({shape:?})",
+                    data.len()
+                )));
+            }
+            let ptr = NonNull::new(data.as_mut_ptr().cast::<c_void>())
+                .ok_or_else(|| fail(format!("input {name:?} is null")))?;
+            // SAFETY: `data` is borrowed mutably for this whole call, which ends after the
+            // prediction; Core ML only reads it, and no deallocator is passed.
+            let arr = unsafe {
+                MLMultiArray::initWithDataPointer_shape_dataType_strides_deallocator_error(
+                    MLMultiArray::alloc(),
+                    ptr,
+                    &ns_ints(shape),
+                    MLMultiArrayDataType::Float32,
+                    &ns_ints(&contiguous_strides(shape)),
+                    None,
+                )
+            }
+            .map_err(|e| ns_fail(&format!("wrapping input {name:?}"), &e))?;
+            keys.push(NSString::from_str(name));
+            values.push(unsafe { MLFeatureValue::featureValueWithMultiArray(&arr) });
+        }
+        let key_refs: Vec<&NSString> = keys.iter().map(|k| &**k).collect();
+        let value_refs: Vec<&AnyObject> = values.iter().map(|v| v.as_ref()).collect();
+        let dict: Retained<NSDictionary<NSString, AnyObject>> =
+            NSDictionary::from_slices(&key_refs, &value_refs);
+        let provider = unsafe {
+            MLDictionaryFeatureProvider::initWithDictionary_error(
+                MLDictionaryFeatureProvider::alloc(),
+                &dict,
+            )
+        }
+        .map_err(|e| ns_fail("building the input features", &e))?;
+        let out =
+            unsafe { model.predictionFromFeatures_error(ProtocolObject::from_ref(&*provider)) }
+                .map_err(|e| ns_fail("prediction", &e))?;
+        outputs
+            .iter()
+            .map(|&(output, want)| {
+                let value = unsafe { out.featureValueForName(&NSString::from_str(output)) }
+                    .ok_or_else(|| fail(format!("the model has no output {output:?}")))?;
+                let arr = unsafe { value.multiArrayValue() }
+                    .ok_or_else(|| fail(format!("output {output:?} is not a multi-array")))?;
+                read_f32(&arr, want)
+            })
+            .collect()
+    })
+}
+
 impl CoremlTrunk {
     pub fn load(package: &Path, units: Units) -> Result<Self, CoremlError> {
-        let t0 = Instant::now();
-        if !package.is_dir() {
-            return Err(fail(format!(
-                "{} is not an .mlpackage directory",
-                package.display()
-            )));
-        }
-        let resolved = resolve_sha256(package, STAT_KEY_FULL_BYTES)?;
-        let t_hash = t0.elapsed().as_secs_f64();
-        let sha256 = resolved.sha256.clone();
-        let compiled_dir = compiled_path(package, &sha256);
-        let compiled = !compiled_dir.is_dir();
-        if compiled {
-            compile(package, &compiled_dir)?;
-        }
-        if resolved.hashed {
-            record_sha256(package, &resolved, STAT_KEY_FULL_BYTES)?;
-        }
-        let t_compile = t0.elapsed().as_secs_f64();
-        let url = NSURL::from_file_path(&compiled_dir)
-            .ok_or_else(|| fail(format!("{} is not a file URL", compiled_dir.display())))?;
-        let model = autoreleasepool(|_| -> Result<Retained<MLModel>, CoremlError> {
-            let cfg = unsafe { MLModelConfiguration::new() };
-            unsafe { cfg.setComputeUnits(units.ml()) };
-            unsafe { MLModel::modelWithContentsOfURL_configuration_error(&url, &cfg) }
-                .map_err(|e| ns_fail(&format!("loading {}", compiled_dir.display()), &e))
-        })?;
-        let load_seconds = t0.elapsed().as_secs_f64();
+        let l = load_package(package, units)?;
         Ok(Self {
-            model,
+            model: l.model,
             package: package.to_path_buf(),
-            sha256,
+            sha256: l.sha256,
             units,
-            compiled,
-            hashed: resolved.hashed,
-            load_seconds,
-            hash_seconds: t_hash,
-            compile_seconds: t_compile - t_hash,
-            model_seconds: load_seconds - t_compile,
+            compiled: l.compiled,
+            hashed: l.hashed,
+            load_seconds: l.load_seconds,
+            hash_seconds: l.hash_seconds,
+            compile_seconds: l.compile_seconds,
+            model_seconds: l.model_seconds,
         })
     }
 
@@ -185,62 +288,19 @@ impl CoremlTrunk {
                 image.len()
             )));
         }
-        autoreleasepool(|_| {
-            // Core ML reads the input through this pointer; the buffer outlives the prediction.
-            let mut input = image.to_vec();
-            let ptr = NonNull::new(input.as_mut_ptr().cast::<c_void>())
-                .ok_or_else(|| fail("input buffer is null"))?;
-            let arr = unsafe {
-                MLMultiArray::initWithDataPointer_shape_dataType_strides_deallocator_error(
-                    MLMultiArray::alloc(),
-                    ptr,
-                    &ns_ints(&IMAGE_SHAPE),
-                    MLMultiArrayDataType::Float32,
-                    &ns_ints(&contiguous_strides(&IMAGE_SHAPE)),
-                    None,
-                )
-            }
-            .map_err(|e| ns_fail("wrapping the input", &e))?;
-            let value = unsafe { MLFeatureValue::featureValueWithMultiArray(&arr) };
-            let key = NSString::from_str(INPUT);
-            let obj: &AnyObject = value.as_ref();
-            let dict: Retained<NSDictionary<NSString, AnyObject>> =
-                NSDictionary::from_slices(&[&*key], &[obj]);
-            let provider = unsafe {
-                MLDictionaryFeatureProvider::initWithDictionary_error(
-                    MLDictionaryFeatureProvider::alloc(),
-                    &dict,
-                )
-            }
-            .map_err(|e| ns_fail("building the input features", &e))?;
-            let out = unsafe {
-                self.model
-                    .predictionFromFeatures_error(ProtocolObject::from_ref(&*provider))
-            }
-            .map_err(|e| ns_fail("prediction", &e))?;
-            let value = unsafe { out.featureValueForName(&NSString::from_str(OUTPUT)) }
-                .ok_or_else(|| fail(format!("the model has no output {OUTPUT:?}")))?;
-            let arr = unsafe { value.multiArrayValue() }
-                .ok_or_else(|| fail(format!("output {OUTPUT:?} is not a multi-array")))?;
-            let result = read_f32(&arr, &TRUNK_SHAPE);
-            drop(input);
-            result
-        })
+        let mut input = image.to_vec();
+        predict_f32(
+            &self.model,
+            &mut [(INPUT, &mut input, &IMAGE_SHAPE)],
+            OUTPUT,
+            &TRUNK_SHAPE,
+        )
     }
 }
 
 impl ExternalTrunk for CoremlTrunk {
     fn describe(&self) -> String {
-        let name = self
-            .package
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        format!(
-            "coreml {name} ({}) sha256 {}",
-            self.units.name(),
-            self.sha256
-        )
+        describe(&self.package, self.units, &self.sha256)
     }
 
     fn run(&self, image: &[f32]) -> Result<Vec<f32>, OjasError> {
@@ -249,6 +309,960 @@ impl ExternalTrunk for CoremlTrunk {
             detail: e.to_string(),
         })
     }
+}
+
+/// What a [`PipelinedTrunk`]'s worker reports after loading its programs.
+pub struct TrunkLoadReport {
+    pub describe: String,
+    /// One per neck program the worker runs after the trunk, in the order they were given.
+    pub necks: Vec<String>,
+    pub compiled: bool,
+    pub hashed: bool,
+    pub load_seconds: f64,
+    pub hash_seconds: f64,
+    pub compile_seconds: f64,
+    pub model_seconds: f64,
+}
+
+/// One frame from the worker: the trunk and, per neck program, its three levels.
+struct FrameOut {
+    trunk: Vec<f32>,
+    necks: Vec<[Vec<f32>; 3]>,
+}
+
+enum Job {
+    Frame {
+        image: Vec<f32>,
+        reply: mpsc::Sender<Result<FrameOut, String>>,
+    },
+    /// One neck program on a trunk the worker did not produce (or whose levels were already taken).
+    Neck {
+        which: usize,
+        trunk: Vec<f32>,
+        reply: mpsc::Sender<Result<[Vec<f32>; 3], String>>,
+    },
+}
+
+/// An image sent to the worker, and where its frame will arrive.
+struct Queued {
+    image: Vec<f32>,
+    reply: mpsc::Receiver<Result<FrameOut, String>>,
+}
+
+/// Neck levels computed with a trunk already handed out, until [`PipelinedNeck::run`] takes them.
+struct Delivered {
+    trunk: Vec<f32>,
+    necks: Vec<Option<[Vec<f32>; 3]>>,
+}
+
+/// Images [`PipelinedTrunk::prefetch`] keeps queued at most: the frame being tracked and the next.
+const MAX_QUEUED: usize = 2;
+/// Frames whose neck levels are kept for [`PipelinedNeck::run`].
+const MAX_DELIVERED: usize = 2;
+
+struct PipeInner {
+    describe: String,
+    neck_describe: Vec<String>,
+    tx: std::sync::Mutex<Option<mpsc::Sender<Job>>>,
+    queue: std::sync::Mutex<std::collections::VecDeque<Queued>>,
+    delivered: std::sync::Mutex<std::collections::VecDeque<Delivered>>,
+    worker: std::sync::Mutex<Option<std::thread::JoinHandle<()>>>,
+}
+
+fn same_bits(a: &[f32], b: &[f32]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.to_bits() == y.to_bits())
+}
+
+/// The trunk package, and optionally neck packages fed by it, on their own thread. The caller starts
+/// the next frame ([`PipelinedTrunk::prefetch`]) while the current frame's detector and tracker run.
+/// `run` returns a queued frame's trunk when its image is bit-identical to the one asked for, and
+/// otherwise queues the image and waits for it. Either way the result is the same program's
+/// prediction of that image. The neck levels the worker computed from that trunk wait for
+/// [`PipelinedNeck`]. Clones share one worker: keep one to prefetch with and hand the others to the
+/// backbone.
+#[derive(Clone)]
+pub struct PipelinedTrunk(std::rc::Rc<PipeInner>);
+
+/// One of a [`PipelinedTrunk`]'s neck programs, for [`st_model::Backbone::with_external_neck`].
+pub struct PipelinedNeck {
+    pipe: PipelinedTrunk,
+    which: usize,
+}
+
+impl PipelinedTrunk {
+    /// Starts the worker and waits for it to load `package` and `necks` itself (a Core ML model
+    /// stays on the thread that loaded it).
+    pub fn load(
+        package: &Path,
+        necks: &[PathBuf],
+        units: Units,
+    ) -> Result<(Self, TrunkLoadReport), CoremlError> {
+        let (tx_job, rx_job) = mpsc::channel::<Job>();
+        let (tx_load, rx_load) = mpsc::channel::<Result<TrunkLoadReport, String>>();
+        let package = package.to_path_buf();
+        let neck_packages = necks.to_vec();
+        let worker = std::thread::Builder::new()
+            .name("coreml-trunk".into())
+            .spawn(move || {
+                let loaded = CoremlTrunk::load(&package, units).and_then(|t| {
+                    let necks = neck_packages
+                        .iter()
+                        .map(|p| CoremlNeck::load(p, units))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    Ok((t, necks))
+                });
+                let (trunk, necks) = match loaded {
+                    Ok(l) => l,
+                    Err(e) => {
+                        let _ = tx_load.send(Err(e.to_string()));
+                        return;
+                    }
+                };
+                let report = TrunkLoadReport {
+                    describe: format!("{} pipelined", describe(&package, units, &trunk.sha256)),
+                    necks: necks
+                        .iter()
+                        .map(|n| format!("{} pipelined", ExternalNeck::describe(n)))
+                        .collect(),
+                    compiled: trunk.compiled,
+                    hashed: trunk.hashed,
+                    load_seconds: trunk.load_seconds
+                        + necks.iter().map(|n| n.load_seconds).sum::<f64>(),
+                    hash_seconds: trunk.hash_seconds,
+                    compile_seconds: trunk.compile_seconds,
+                    model_seconds: trunk.model_seconds,
+                };
+                if tx_load.send(Ok(report)).is_err() {
+                    return;
+                }
+                while let Ok(job) = rx_job.recv() {
+                    match job {
+                        Job::Frame { image, reply } => {
+                            let out = trunk.predict(&image).and_then(|t| {
+                                let levels = necks.iter().map(|n| n.predict(&t)).collect::<Result<
+                                    Vec<_>,
+                                    _,
+                                >>(
+                                )?;
+                                Ok(FrameOut {
+                                    trunk: t,
+                                    necks: levels,
+                                })
+                            });
+                            let _ = reply.send(out.map_err(|e| e.to_string()));
+                        }
+                        Job::Neck {
+                            which,
+                            trunk,
+                            reply,
+                        } => {
+                            let out = match necks.get(which) {
+                                Some(n) => n.predict(&trunk).map_err(|e| e.to_string()),
+                                None => Err(format!("no neck program {which}")),
+                            };
+                            let _ = reply.send(out);
+                        }
+                    }
+                }
+            })
+            .map_err(|e| fail(format!("starting the trunk worker: {e}")))?;
+        let report = match rx_load.recv() {
+            Ok(Ok(r)) => r,
+            Ok(Err(e)) => {
+                let _ = worker.join();
+                return Err(fail(e));
+            }
+            Err(_) => {
+                let _ = worker.join();
+                return Err(fail("the trunk worker exited while loading"));
+            }
+        };
+        Ok((
+            Self(std::rc::Rc::new(PipeInner {
+                describe: report.describe.clone(),
+                neck_describe: report.necks.clone(),
+                tx: std::sync::Mutex::new(Some(tx_job)),
+                queue: std::sync::Mutex::new(std::collections::VecDeque::new()),
+                delivered: std::sync::Mutex::new(std::collections::VecDeque::new()),
+                worker: std::sync::Mutex::new(Some(worker)),
+            })),
+            report,
+        ))
+    }
+
+    /// The external neck for the worker's neck program `which` (the order `load` was given).
+    pub fn neck(&self, which: usize) -> Result<PipelinedNeck, CoremlError> {
+        if which >= self.0.neck_describe.len() {
+            return Err(fail(format!(
+                "neck {which} of a pipeline with {} neck program(s)",
+                self.0.neck_describe.len()
+            )));
+        }
+        Ok(PipelinedNeck {
+            pipe: self.clone(),
+            which,
+        })
+    }
+
+    fn send(&self, job: Job) -> Result<(), CoremlError> {
+        let tx = self
+            .0
+            .tx
+            .lock()
+            .map_err(|_| fail("trunk sender poisoned"))?;
+        tx.as_ref()
+            .ok_or_else(|| fail("the trunk worker was shut down"))?
+            .send(job)
+            .map_err(|_| fail("the trunk worker exited"))
+    }
+
+    fn submit(&self, image: Vec<f32>) -> Result<Queued, CoremlError> {
+        let (reply, rx) = mpsc::channel();
+        self.send(Job::Frame {
+            image: image.clone(),
+            reply,
+        })?;
+        Ok(Queued { image, reply: rx })
+    }
+
+    /// Queue `image` on the worker. When [`MAX_QUEUED`] images are queued already, the oldest is
+    /// dropped (the worker still finishes it; nothing waits for it).
+    pub fn prefetch(&self, image: Vec<f32>) -> Result<(), CoremlError> {
+        let mut q = self
+            .0
+            .queue
+            .lock()
+            .map_err(|_| fail("trunk queue poisoned"))?;
+        while q.len() >= MAX_QUEUED {
+            q.pop_front();
+        }
+        let queued = self.submit(image)?;
+        q.push_back(queued);
+        Ok(())
+    }
+
+    /// The trunk of `image`: a queued frame when `image` is one queued (bit for bit), otherwise one
+    /// predicted after whatever is queued ahead of it. Its neck levels are kept for [`PipelinedNeck`].
+    pub fn predict(&self, image: &[f32]) -> Result<Vec<f32>, CoremlError> {
+        let entry = {
+            let mut q = self
+                .0
+                .queue
+                .lock()
+                .map_err(|_| fail("trunk queue poisoned"))?;
+            match q.iter().position(|e| same_bits(&e.image, image)) {
+                Some(i) => q
+                    .remove(i)
+                    .ok_or_else(|| fail("trunk queue lost an entry"))?,
+                None => self.submit(image.to_vec())?,
+            }
+        };
+        let out = entry
+            .reply
+            .recv()
+            .map_err(|_| fail("the trunk worker exited"))?
+            .map_err(fail)?;
+        if !out.necks.is_empty() {
+            let mut d = self
+                .0
+                .delivered
+                .lock()
+                .map_err(|_| fail("neck store poisoned"))?;
+            d.push_back(Delivered {
+                trunk: out.trunk.clone(),
+                necks: out.necks.into_iter().map(Some).collect(),
+            });
+            while d.len() > MAX_DELIVERED {
+                d.pop_front();
+            }
+        }
+        Ok(out.trunk)
+    }
+
+    /// Neck program `which` on `trunk`: the levels the worker computed with it when this trunk came
+    /// from it (bit for bit) and they were not taken yet, otherwise a prediction made now.
+    fn neck_levels(&self, which: usize, trunk: &[f32]) -> Result<[Vec<f32>; 3], CoremlError> {
+        {
+            let mut d = self
+                .0
+                .delivered
+                .lock()
+                .map_err(|_| fail("neck store poisoned"))?;
+            if let Some(levels) = d
+                .iter_mut()
+                .rev()
+                .find(|e| same_bits(&e.trunk, trunk))
+                .and_then(|e| e.necks.get_mut(which).and_then(Option::take))
+            {
+                return Ok(levels);
+            }
+        }
+        let (reply, rx) = mpsc::channel();
+        self.send(Job::Neck {
+            which,
+            trunk: trunk.to_vec(),
+            reply,
+        })?;
+        rx.recv()
+            .map_err(|_| fail("the trunk worker exited"))?
+            .map_err(fail)
+    }
+}
+
+impl Drop for PipeInner {
+    fn drop(&mut self) {
+        if let Ok(mut tx) = self.tx.lock() {
+            tx.take();
+        }
+        if let Some(w) = self.worker.lock().ok().and_then(|mut w| w.take()) {
+            let _ = w.join();
+        }
+    }
+}
+
+impl ExternalTrunk for PipelinedTrunk {
+    fn describe(&self) -> String {
+        self.0.describe.clone()
+    }
+
+    fn run(&self, image: &[f32]) -> Result<Vec<f32>, OjasError> {
+        self.predict(image).map_err(|e| OjasError::Unsupported {
+            op: "st_coreml::PipelinedTrunk::run",
+            detail: e.to_string(),
+        })
+    }
+}
+
+impl ExternalNeck for PipelinedNeck {
+    fn describe(&self) -> String {
+        self.pipe.0.neck_describe[self.which].clone()
+    }
+
+    fn run(&self, trunk: &[f32]) -> Result<[Vec<f32>; 3], OjasError> {
+        self.pipe
+            .neck_levels(self.which, trunk)
+            .map_err(|e| OjasError::Unsupported {
+                op: "st_coreml::PipelinedNeck::run",
+                detail: e.to_string(),
+            })
+    }
+}
+
+/// One neck as a Core ML program (`<model-dir>/coreml/sam3.1_neck_<det|prop>_<precision>.mlpackage`,
+/// written by tools/baselines/coreml_necks.py --neck), for [`st_model::Backbone::with_external_neck`].
+/// Input `trunk` `[1, 72, 72, 1024]` NHWC; outputs `l0`, `l1`, `l2` `[1, 256, h, w]` at 288, 144, 72.
+pub struct CoremlNeck {
+    model: Retained<MLModel>,
+    package: PathBuf,
+    sha256: String,
+    units: Units,
+    input: std::sync::Mutex<Vec<f32>>,
+    pub compiled: bool,
+    pub load_seconds: f64,
+}
+
+impl CoremlNeck {
+    pub fn load(package: &Path, units: Units) -> Result<Self, CoremlError> {
+        let l = load_package(package, units)?;
+        Ok(Self {
+            model: l.model,
+            package: package.to_path_buf(),
+            sha256: l.sha256,
+            units,
+            input: std::sync::Mutex::new(vec![0f32; TRUNK_SHAPE.iter().product()]),
+            compiled: l.compiled,
+            load_seconds: l.load_seconds,
+        })
+    }
+
+    /// One prediction: the three levels, row-major NCHW.
+    pub fn predict(&self, trunk: &[f32]) -> Result<[Vec<f32>; 3], CoremlError> {
+        let mut input = self
+            .input
+            .lock()
+            .map_err(|_| fail("neck input buffer poisoned by an earlier panic"))?;
+        if trunk.len() != input.len() {
+            return Err(fail(format!(
+                "trunk has {} values, want {} ({TRUNK_SHAPE:?})",
+                trunk.len(),
+                input.len()
+            )));
+        }
+        input.copy_from_slice(trunk);
+        let g = TRUNK_SHAPE[1];
+        let shapes = [
+            [1, 256, 4 * g, 4 * g],
+            [1, 256, 2 * g, 2 * g],
+            [1, 256, g, g],
+        ];
+        let outs = predict_f32_multi(
+            &self.model,
+            &mut [("trunk", &mut input, &TRUNK_SHAPE)],
+            &[("l0", &shapes[0]), ("l1", &shapes[1]), ("l2", &shapes[2])],
+        )?;
+        let [a, b, c]: [Vec<f32>; 3] = outs
+            .try_into()
+            .map_err(|_| fail("the neck package returned other than three levels"))?;
+        Ok([a, b, c])
+    }
+}
+
+impl ExternalNeck for CoremlNeck {
+    fn describe(&self) -> String {
+        describe(&self.package, self.units, &self.sha256)
+    }
+
+    fn run(&self, trunk: &[f32]) -> Result<[Vec<f32>; 3], OjasError> {
+        self.predict(trunk).map_err(|e| OjasError::Unsupported {
+            op: "st_coreml::CoremlNeck::run",
+            detail: e.to_string(),
+        })
+    }
+}
+
+/// The memory-attention package's fixed contract (tools/baselines/coreml_mattn.py): frame and
+/// pointer slots past the ones in use hold zeros and are masked out by `key_bias`.
+pub mod mattn {
+    pub const T: usize = 72 * 72;
+    pub const D: usize = 256;
+    pub const MAX_FRAMES: usize = 7;
+    pub const MAX_PTRS: usize = 256;
+    pub const NKEYS: usize = MAX_FRAMES * T + MAX_PTRS;
+    /// Added to a padded key's logit: large and finite, so an fp16 build cannot produce NaN.
+    pub const MASK: f32 = -1e4;
+}
+
+/// The padded host inputs, kept between calls so only what changed is rewritten.
+struct MattnBufs {
+    image: Vec<f32>,
+    src_pos: Vec<f32>,
+    mem_image: Vec<f32>,
+    mem: Vec<f32>,
+    mem_pos: Vec<f32>,
+    ptr: Vec<f32>,
+    ptr_pos: Vec<f32>,
+    key_bias: Vec<f32>,
+    /// Frame and pointer slots the last call filled (the rest are already zero).
+    frames: usize,
+    ptrs: usize,
+}
+
+/// SAM 3.1's tracker memory attention as a Core ML program
+/// (`<model-dir>/coreml/sam3.1_mattn_<precision>.mlpackage`, written by
+/// tools/baselines/coreml_mattn.py), for [`st_model::tracker::Vos::with_external_mem_attn`].
+pub struct CoremlMemAttn {
+    model: Retained<MLModel>,
+    package: PathBuf,
+    sha256: String,
+    units: Units,
+    bufs: std::sync::Mutex<MattnBufs>,
+    pub compiled: bool,
+    pub load_seconds: f64,
+}
+
+impl CoremlMemAttn {
+    pub fn load(package: &Path, units: Units) -> Result<Self, CoremlError> {
+        use mattn::*;
+        let l = load_package(package, units)?;
+        let zeros = |n: usize| vec![0f32; n];
+        let key_bias = vec![MASK; NKEYS];
+        Ok(Self {
+            model: l.model,
+            package: package.to_path_buf(),
+            sha256: l.sha256,
+            units,
+            bufs: std::sync::Mutex::new(MattnBufs {
+                image: zeros(T * D),
+                src_pos: zeros(T * D),
+                mem_image: zeros(MAX_FRAMES * T * D),
+                mem: zeros(MAX_FRAMES * T * D),
+                mem_pos: zeros(MAX_FRAMES * T * D),
+                ptr: zeros(MAX_PTRS * D),
+                ptr_pos: zeros(MAX_PTRS * D),
+                key_bias,
+                frames: 0,
+                ptrs: 0,
+            }),
+            compiled: l.compiled,
+            load_seconds: l.load_seconds,
+        })
+    }
+
+    pub fn sha256(&self) -> &str {
+        &self.sha256
+    }
+
+    /// One prediction from [`HostMemInputs`]: `[T, D]` after the final norm.
+    pub fn predict(&self, x: &HostMemInputs<'_>) -> Result<Vec<f32>, CoremlError> {
+        use mattn::*;
+        let (f, p) = (x.frames.len(), x.ptrs.len() / D);
+        if f > MAX_FRAMES
+            || p > MAX_PTRS
+            || x.ptrs.len() != p * D
+            || x.ptr_pos.len() != x.ptrs.len()
+        {
+            return Err(fail(format!(
+                "{f} memory frames and {} pointer values ({} positions): the package holds at most {MAX_FRAMES} frames and {MAX_PTRS} pointer tokens of {D}",
+                x.ptrs.len(),
+                x.ptr_pos.len()
+            )));
+        }
+        let one = T * D;
+        if x.image.len() != one || x.src_pos.len() != one {
+            return Err(fail(format!(
+                "image {} and src_pos {} values, want {one}",
+                x.image.len(),
+                x.src_pos.len()
+            )));
+        }
+        for (i, fr) in x.frames.iter().enumerate() {
+            if fr.image.len() != one || fr.memory.len() != one || fr.pos.len() != one {
+                return Err(fail(format!(
+                    "memory frame {i}: inputs are not [{T}, {D}] each"
+                )));
+            }
+        }
+        let mut guard = self
+            .bufs
+            .lock()
+            .map_err(|_| fail("memory-attention buffers poisoned by an earlier panic"))?;
+        let b = &mut *guard;
+        b.image.copy_from_slice(x.image);
+        b.src_pos.copy_from_slice(x.src_pos);
+        for (i, fr) in x.frames.iter().enumerate() {
+            let r = i * one..(i + 1) * one;
+            b.mem_image[r.clone()].copy_from_slice(fr.image);
+            b.mem[r.clone()].copy_from_slice(fr.memory);
+            b.mem_pos[r].copy_from_slice(fr.pos);
+        }
+        for i in f..b.frames {
+            let r = i * one..(i + 1) * one;
+            b.mem_image[r.clone()].fill(0.0);
+            b.mem[r.clone()].fill(0.0);
+            b.mem_pos[r].fill(0.0);
+        }
+        b.ptr[..p * D].copy_from_slice(x.ptrs);
+        b.ptr_pos[..p * D].copy_from_slice(x.ptr_pos);
+        if b.ptrs > p {
+            b.ptr[p * D..b.ptrs * D].fill(0.0);
+            b.ptr_pos[p * D..b.ptrs * D].fill(0.0);
+        }
+        b.key_bias[..MAX_FRAMES * T].fill(MASK);
+        b.key_bias[..f * T].fill(0.0);
+        b.key_bias[MAX_FRAMES * T..].fill(MASK);
+        b.key_bias[MAX_FRAMES * T..MAX_FRAMES * T + p].fill(0.0);
+        b.frames = f;
+        b.ptrs = p;
+        let (t3, frames3, ptrs3, bias4) = (
+            [1, T, D],
+            [1, MAX_FRAMES * T, D],
+            [1, MAX_PTRS, D],
+            [1, 1, 1, NKEYS],
+        );
+        let out = predict_f32(
+            &self.model,
+            &mut [
+                ("image", &mut b.image, &t3),
+                ("src_pos", &mut b.src_pos, &t3),
+                ("mem_image", &mut b.mem_image, &frames3),
+                ("mem", &mut b.mem, &frames3),
+                ("mem_pos", &mut b.mem_pos, &frames3),
+                ("ptr", &mut b.ptr, &ptrs3),
+                ("ptr_pos", &mut b.ptr_pos, &ptrs3),
+                ("key_bias", &mut b.key_bias, &bias4),
+            ],
+            "out",
+            &t3,
+        )?;
+        Ok(out)
+    }
+}
+
+impl ExternalMemAttn for CoremlMemAttn {
+    fn describe(&self) -> String {
+        describe(&self.package, self.units, &self.sha256)
+    }
+
+    fn run(&self, x: &HostMemInputs<'_>) -> Result<Vec<f32>, OjasError> {
+        self.predict(x).map_err(|e| OjasError::Unsupported {
+            op: "st_coreml::CoremlMemAttn::run",
+            detail: e.to_string(),
+        })
+    }
+}
+
+/// The segmentation head's fixed contract (tools/baselines/coreml_seghead.py): prompt slots past
+/// the ones in use hold zeros and are masked out by `prompt_bias`.
+pub mod seghead {
+    pub const T: usize = 72 * 72;
+    pub const D: usize = 256;
+    pub const Q: usize = 200;
+    pub const M: usize = 288;
+    pub const MAX_PROMPT: usize = 33;
+    /// Added to a padded prompt key's logit: large and finite, so an fp16 build cannot produce NaN.
+    pub const MASK: f32 = -1e4;
+}
+
+struct SegBufs {
+    memory: Vec<f32>,
+    prompt: Vec<f32>,
+    prompt_bias: Vec<f32>,
+    fpn0: Vec<f32>,
+    fpn1: Vec<f32>,
+    hs: Vec<f32>,
+}
+
+/// SAM 3.1's detector segmentation head as a Core ML program
+/// (`<model-dir>/coreml/sam3.1_seghead_<precision>.mlpackage`, written by
+/// tools/baselines/coreml_seghead.py), for [`st_model::Detector::set_external_seg_head`].
+pub struct CoremlSegHead {
+    model: Retained<MLModel>,
+    package: PathBuf,
+    sha256: String,
+    units: Units,
+    bufs: std::sync::Mutex<SegBufs>,
+    pub compiled: bool,
+    pub load_seconds: f64,
+}
+
+impl CoremlSegHead {
+    pub fn load(package: &Path, units: Units) -> Result<Self, CoremlError> {
+        use seghead::*;
+        let l = load_package(package, units)?;
+        Ok(Self {
+            model: l.model,
+            package: package.to_path_buf(),
+            sha256: l.sha256,
+            units,
+            bufs: std::sync::Mutex::new(SegBufs {
+                memory: vec![0.0; T * D],
+                prompt: vec![0.0; MAX_PROMPT * D],
+                prompt_bias: vec![MASK; MAX_PROMPT],
+                fpn0: vec![0.0; D * M * M],
+                fpn1: vec![0.0; D * (M / 2) * (M / 2)],
+                hs: vec![0.0; Q * D],
+            }),
+            compiled: l.compiled,
+            load_seconds: l.load_seconds,
+        })
+    }
+
+    /// One prediction: `pred_masks` `[Q, M, M]` and `semantic_seg` `[1, 1, M, M]`.
+    pub fn predict(&self, x: &HostSegInputs<'_>) -> Result<(Vec<f32>, Vec<f32>), CoremlError> {
+        use seghead::*;
+        let plen = x.prompt.len() / D;
+        if x.prompt.len() != plen * D || plen == 0 || plen > MAX_PROMPT {
+            return Err(fail(format!(
+                "prompt has {} values: want 1 to {MAX_PROMPT} tokens of {D}",
+                x.prompt.len()
+            )));
+        }
+        let mut guard = self
+            .bufs
+            .lock()
+            .map_err(|_| fail("segmentation-head buffers poisoned by an earlier panic"))?;
+        let b = &mut *guard;
+        for (name, src, dst) in [
+            ("memory", x.memory, &mut b.memory),
+            ("fpn0", x.fpn0, &mut b.fpn0),
+            ("fpn1", x.fpn1, &mut b.fpn1),
+            ("hs", x.hs, &mut b.hs),
+        ] {
+            if src.len() != dst.len() {
+                return Err(fail(format!(
+                    "{name} has {} values, want {}",
+                    src.len(),
+                    dst.len()
+                )));
+            }
+            dst.copy_from_slice(src);
+        }
+        b.prompt[..plen * D].copy_from_slice(x.prompt);
+        b.prompt[plen * D..].fill(0.0);
+        b.prompt_bias.fill(MASK);
+        b.prompt_bias[..plen].fill(0.0);
+        let mut outs = predict_f32_multi(
+            &self.model,
+            &mut [
+                ("mem", &mut b.memory, &[1, T, D]),
+                ("prompt", &mut b.prompt, &[1, MAX_PROMPT, D]),
+                ("prompt_bias", &mut b.prompt_bias, &[1, 1, 1, MAX_PROMPT]),
+                ("fpn0", &mut b.fpn0, &[1, D, M, M]),
+                ("fpn1", &mut b.fpn1, &[1, D, M / 2, M / 2]),
+                ("hs", &mut b.hs, &[1, Q, D]),
+            ],
+            &[
+                ("pred_masks", &[1, Q, M, M]),
+                ("semantic_seg", &[1, 1, M, M]),
+            ],
+        )?;
+        let semantic = outs.pop().ok_or_else(|| fail("no semantic_seg read"))?;
+        let masks = outs.pop().ok_or_else(|| fail("no pred_masks read"))?;
+        Ok((masks, semantic))
+    }
+}
+
+impl ExternalSegHead for CoremlSegHead {
+    fn describe(&self) -> String {
+        describe(&self.package, self.units, &self.sha256)
+    }
+
+    fn run(&self, x: &HostSegInputs<'_>) -> Result<(Vec<f32>, Vec<f32>), OjasError> {
+        self.predict(x).map_err(|e| OjasError::Unsupported {
+            op: "st_coreml::CoremlSegHead::run",
+            detail: e.to_string(),
+        })
+    }
+}
+
+pub mod detenc {
+    pub const T: usize = 72 * 72;
+    pub const D: usize = 256;
+    pub const GRID: usize = 72;
+    /// Text slots the program takes; the geometry token is one more key.
+    pub const TEXT: usize = 32;
+    /// Added to a padded text key's logit: large and finite, so an fp16 build cannot produce NaN.
+    pub const MASK: f32 = -1e4;
+}
+
+/// The tag a detector-encoder package carries for the adapter baked into it: the first 12 hex of
+/// the adapter file's sha256, or `base` without one (tools/baselines/coreml_detenc.py `adapter_tag`).
+pub fn adapter_tag(adapter: Option<&Path>) -> Result<String, CoremlError> {
+    let Some(path) = adapter else {
+        return Ok("base".into());
+    };
+    let bytes =
+        std::fs::read(path).map_err(|e| fail(format!("reading {}: {e}", path.display())))?;
+    let digest = Sha256::digest(&bytes);
+    Ok(digest.iter().take(6).map(|b| format!("{b:02x}")).collect())
+}
+
+struct EncBufs {
+    fpn2: Vec<f32>,
+    pos: Vec<f32>,
+    text: Vec<f32>,
+    text_bias: Vec<f32>,
+}
+
+/// SAM 3.1's detector geometry + fusion encoders as one Core ML program
+/// (`<model-dir>/coreml/sam3.1_detenc_<precision>_<adapter tag>.mlpackage`, written by
+/// tools/baselines/coreml_detenc.py), for [`st_model::Detector::set_external_encoder`]. The adapter
+/// it was exported with is baked in; [`adapter_tag`] names which.
+pub struct CoremlDetEncoder {
+    model: Retained<MLModel>,
+    package: PathBuf,
+    sha256: String,
+    units: Units,
+    bufs: std::sync::Mutex<EncBufs>,
+    pub compiled: bool,
+    pub load_seconds: f64,
+}
+
+impl CoremlDetEncoder {
+    pub fn load(package: &Path, units: Units) -> Result<Self, CoremlError> {
+        use detenc::*;
+        let l = load_package(package, units)?;
+        Ok(Self {
+            model: l.model,
+            package: package.to_path_buf(),
+            sha256: l.sha256,
+            units,
+            bufs: std::sync::Mutex::new(EncBufs {
+                fpn2: vec![0.0; D * T],
+                pos: vec![0.0; T * D],
+                text: vec![0.0; TEXT * D],
+                text_bias: vec![MASK; TEXT + 1],
+            }),
+            compiled: l.compiled,
+            load_seconds: l.load_seconds,
+        })
+    }
+
+    /// One prediction: the encoder memory `[T, D]` and the geometry token `[D]`.
+    pub fn predict(
+        &self,
+        fpn2: &[f32],
+        pos: &[f32],
+        text: &[f32],
+    ) -> Result<(Vec<f32>, Vec<f32>), CoremlError> {
+        use detenc::*;
+        let n = text.len() / D;
+        if text.len() != n * D || n == 0 || n > TEXT {
+            return Err(fail(format!(
+                "text has {} values: want 1 to {TEXT} tokens of {D}",
+                text.len()
+            )));
+        }
+        let mut guard = self
+            .bufs
+            .lock()
+            .map_err(|_| fail("encoder buffers poisoned by an earlier panic"))?;
+        let b = &mut *guard;
+        for (name, src, dst) in [("fpn2", fpn2, &mut b.fpn2), ("pos", pos, &mut b.pos)] {
+            if src.len() != dst.len() {
+                return Err(fail(format!(
+                    "{name} has {} values, want {}",
+                    src.len(),
+                    dst.len()
+                )));
+            }
+            dst.copy_from_slice(src);
+        }
+        b.text[..n * D].copy_from_slice(text);
+        b.text[n * D..].fill(0.0);
+        b.text_bias.fill(MASK);
+        b.text_bias[..n].fill(0.0);
+        b.text_bias[TEXT] = 0.0;
+        let mut outs = predict_f32_multi(
+            &self.model,
+            &mut [
+                ("fpn2", &mut b.fpn2, &[1, D, GRID, GRID]),
+                ("pos", &mut b.pos, &[1, T, D]),
+                ("text", &mut b.text, &[1, TEXT, D]),
+                ("text_bias", &mut b.text_bias, &[1, 1, 1, TEXT + 1]),
+            ],
+            &[("mem", &[1, T, D]), ("geo", &[1, 1, D])],
+        )?;
+        let geo = outs.pop().ok_or_else(|| fail("no geo read"))?;
+        let mem = outs.pop().ok_or_else(|| fail("no mem read"))?;
+        Ok((mem, geo))
+    }
+}
+
+impl ExternalEncoder for CoremlDetEncoder {
+    fn describe(&self) -> String {
+        describe(&self.package, self.units, &self.sha256)
+    }
+
+    fn run(
+        &self,
+        fpn2: &[f32],
+        pos: &[f32],
+        text: &[f32],
+    ) -> Result<(Vec<f32>, Vec<f32>), OjasError> {
+        self.predict(fpn2, pos, text)
+            .map_err(|e| OjasError::Unsupported {
+                op: "st_coreml::CoremlDetEncoder::run",
+                detail: e.to_string(),
+            })
+    }
+}
+
+pub mod memenc {
+    pub const GRID: usize = 72;
+    pub const D: usize = 256;
+    /// Multiplex slots: the program takes one mask plane and one condition flag per slot.
+    pub const MUX: usize = 16;
+    /// The downsampler's input side, 16 x the grid.
+    pub const S: usize = 16 * GRID;
+}
+
+struct MemEncBufs {
+    pix: Vec<f32>,
+    masks: Vec<f32>,
+    cond: Vec<f32>,
+}
+
+/// SAM 3.1's multiplex memory encoder as one Core ML program
+/// (`<model-dir>/coreml/sam3.1_memenc_<precision>.mlpackage`, written by
+/// tools/baselines/coreml_memenc.py), for [`st_model::tracker::vos::Vos::with_external_mem_encoder`].
+/// Its mask buffer (16 planes of 1152 x 1152) is allocated once, and the caller writes the planes
+/// into it directly.
+pub struct CoremlMemEncoder {
+    model: Retained<MLModel>,
+    package: PathBuf,
+    sha256: String,
+    units: Units,
+    bufs: std::sync::Mutex<MemEncBufs>,
+    pub compiled: bool,
+    pub load_seconds: f64,
+}
+
+impl CoremlMemEncoder {
+    pub fn load(package: &Path, units: Units) -> Result<Self, CoremlError> {
+        use memenc::*;
+        let l = load_package(package, units)?;
+        Ok(Self {
+            model: l.model,
+            package: package.to_path_buf(),
+            sha256: l.sha256,
+            units,
+            bufs: std::sync::Mutex::new(MemEncBufs {
+                pix: vec![0.0; D * GRID * GRID],
+                masks: vec![0.0; MUX * S * S],
+                cond: vec![0.0; MUX],
+            }),
+            compiled: l.compiled,
+            load_seconds: l.load_seconds,
+        })
+    }
+
+    /// One prediction: the features `[256, 72, 72]`.
+    pub fn predict(
+        &self,
+        pix_feat: &[f32],
+        fill: &mut dyn FnMut(&mut [f32]),
+        cond: &[f32],
+    ) -> Result<Vec<f32>, CoremlError> {
+        use memenc::*;
+        let mut guard = self
+            .bufs
+            .lock()
+            .map_err(|_| fail("memory encoder buffers poisoned by an earlier panic"))?;
+        let b = &mut *guard;
+        for (name, src, dst) in [
+            ("pix_feat", pix_feat, &mut b.pix),
+            ("cond", cond, &mut b.cond),
+        ] {
+            if src.len() != dst.len() {
+                return Err(fail(format!(
+                    "{name} has {} values, want {}",
+                    src.len(),
+                    dst.len()
+                )));
+            }
+            dst.copy_from_slice(src);
+        }
+        fill(&mut b.masks);
+        let mut outs = predict_f32_multi(
+            &self.model,
+            &mut [
+                ("pix_feat", &mut b.pix, &[1, D, GRID, GRID]),
+                ("masks", &mut b.masks, &[1, MUX, S, S]),
+                ("cond", &mut b.cond, &[1, MUX, 1, 1]),
+            ],
+            &[("features", &[1, D, GRID, GRID])],
+        )?;
+        outs.pop().ok_or_else(|| fail("no features read"))
+    }
+}
+
+impl ExternalMemEncoder for CoremlMemEncoder {
+    fn describe(&self) -> String {
+        describe(&self.package, self.units, &self.sha256)
+    }
+
+    fn run(
+        &self,
+        pix_feat: &[f32],
+        fill: &mut dyn FnMut(&mut [f32]),
+        cond: &[f32],
+    ) -> Result<Vec<f32>, OjasError> {
+        self.predict(pix_feat, fill, cond)
+            .map_err(|e| OjasError::Unsupported {
+                op: "st_coreml::CoremlMemEncoder::run",
+                detail: e.to_string(),
+            })
+    }
+}
+
+/// What `run.json` records about a loaded package.
+fn describe(package: &Path, units: Units, sha256: &str) -> String {
+    let name = package
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    format!("coreml {name} ({}) sha256 {sha256}", units.name())
 }
 
 fn contiguous_strides(shape: &[usize]) -> Vec<usize> {
@@ -277,8 +1291,10 @@ fn ints_of(a: &NSArray<NSNumber>) -> Result<Vec<usize>, CoremlError> {
 /// The f32 elements of `arr` in row-major order of `want`, honouring Core ML's strides (an output
 /// may be padded); anything but an f32 array of exactly that shape is an error.
 fn read_f32(arr: &MLMultiArray, want: &[usize]) -> Result<Vec<f32>, CoremlError> {
-    if want.len() != 4 {
-        return Err(fail("read_f32 reads 4-d arrays"));
+    if want.is_empty() || want.contains(&0) {
+        return Err(fail(format!(
+            "read_f32 needs a non-empty shape, got {want:?}"
+        )));
     }
     let dtype = unsafe { arr.dataType() };
     if dtype != MLMultiArrayDataType::Float32 {
@@ -322,14 +1338,21 @@ fn read_f32(arr: &MLMultiArray, want: &[usize]) -> Result<Vec<f32>, CoremlError>
             if contiguous {
                 Ok(src[..n].to_vec())
             } else {
+                // Row-major walk over `want`, the last axis innermost, through Core ML's strides.
+                let last = want.len() - 1;
                 let mut out = Vec::with_capacity(n);
-                for a in 0..want[0] {
-                    for b in 0..want[1] {
-                        for c in 0..want[2] {
-                            let row = a * strides[0] + b * strides[1] + c * strides[2];
-                            out.extend((0..want[3]).map(|d| src[row + d * strides[3]]));
+                let mut idx = vec![0usize; want.len()];
+                'rows: loop {
+                    let row: usize = idx[..last].iter().zip(&strides).map(|(i, s)| i * s).sum();
+                    out.extend((0..want[last]).map(|d| src[row + d * strides[last]]));
+                    for ax in (0..last).rev() {
+                        idx[ax] += 1;
+                        if idx[ax] < want[ax] {
+                            continue 'rows;
                         }
+                        idx[ax] = 0;
                     }
+                    break;
                 }
                 Ok(out)
             }

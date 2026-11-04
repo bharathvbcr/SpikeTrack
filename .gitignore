@@ -89,3 +89,10 @@ scratch/
 tmp/
 /tmp/
 *.tmp
+
+# Demo video intermediates (cards, narration audio, segments); make.sh rebuilds them
+bench/results/demo/video/build/
+
+# Arm binaries kept beside their runs (bench/results/**/spiketrack is ignored above)
+bench/results/e23-mattn-kv-cache/spiketrack-1t
+bench/results/e23-mattn-kv-cache/spiketrack-ctl

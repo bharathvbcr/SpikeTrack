@@ -3,6 +3,9 @@
 # 16 objects, one tracker state, steady frames, interleaved in one hold. Pre-stated in
 # bench/results/ab-coreml-tracker/README.md (arms, boundary, decision rule).
 #   AB_RUN=run3 tools/locked.sh ab-coreml bash tools/jobs/ab_coreml_tracker.sh   (a new folder name)
+# The SpikeTrack arm pins --trunk-precision "${AB_TRUNK:-coreml-fp32}". coreml-fp32 (memory attention on
+# Ojas) was the default when run1-run3 were made on 2026-11-03. AB_TRUNK=coreml-fp16 measures the default
+# since 2026-11-04 (the fp16 trunk with fp16 CoreML memory attention).
 # Arms: SpikeTrack (`track`, VISEM 82, --max-objects 16, --profile stages), the port's fp16
 # tracker (+ its fp16 backbone), and the port's fp32 tracker when its package is present. Three
 # rounds, the order rotated each round; unprofiled SpikeTrack controls before and after.
@@ -50,7 +53,7 @@ spiketrack() { # name [extra...]
   rm -rf "$d"; mkdir -p "$d"
   step "$name" "$BIN" track "$M/data/visem/VISEM_Tracking_Train_v4/Train/82/images" --prompt sperm --backend metal \
     --max-frames "$FRAMES" --boxes detector --lora "$M/fixtures/lora_runs/visem-lora-r16/adapter.safetensors" \
-    --max-objects 16 --out "$d" "$@" || return
+    --max-objects 16 --trunk-precision "${AB_TRUNK:-coreml-fp32}" --out "$d" "$@" || return
   rm -rf "$d/masks"
 }
 port() { # precision round

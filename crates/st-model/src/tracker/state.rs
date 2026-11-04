@@ -49,7 +49,7 @@ use ojas_core::{Backend, Conv2dParams, DType, OjasError, Tensor};
 use crate::host;
 use crate::layers::{host_slice, up};
 use crate::tracker::mask_decoder::{high_res, MASKS_PER_OBJ, MUX};
-use crate::tracker::memory_attention::{FrameKv, FramesInputs};
+use crate::tracker::memory_attention::{FrameKv, FramesInputs, HostFrame, HostMemInputs};
 use crate::tracker::vos::{
     bf16_round, nchw_to_tokens, sine_1d, Vos, D, LN2D_EPS, MAX_PTRS, NO_OBJ_SCORE, NUM_MASKMEM,
 };
@@ -94,6 +94,26 @@ pub(crate) fn err(detail: impl Into<String>) -> ModelError {
 /// state that stores a memory for the frame (upstream stores the same tensor in each state's output).
 pub struct FrameFeats {
     pub tokens: Tensor,
+    /// `tokens` on the host, read once by the first frame that needs it (an external memory
+    /// attention only).
+    pub(crate) host: OnceLock<Vec<f32>>,
+}
+
+impl FrameFeats {
+    pub fn new(tokens: Tensor) -> Self {
+        Self {
+            tokens,
+            host: OnceLock::new(),
+        }
+    }
+
+    fn host(&self, budget: &ojas_core::Budget) -> Result<&[f32], ModelError> {
+        if self.host.get().is_none() {
+            let h = self.tokens.to_host(budget)?;
+            let _ = self.host.set(h.f32_slice()?.to_vec());
+        }
+        Ok(self.host.get().map(Vec::as_slice).unwrap_or_default())
+    }
 }
 
 /// A stored frame's memory features (`maskmem_features`, rounded through bf16 as upstream stores
@@ -107,9 +127,18 @@ pub struct MaskMem {
     /// filled by the first frame that attends this memory ([`MaskMem::kv`]), shared by clones,
     /// and dropped by [`TrackerState::prune`] once no later frame can attend it.
     kv: Arc<OnceLock<(Arc<FrameFeats>, FrameKv)>>,
+    /// `nchw` token-major on the host, built once for an external memory attention.
+    host_tokens: Arc<OnceLock<Vec<f32>>>,
 }
 
 impl MaskMem {
+    fn host_tokens(&self) -> &[f32] {
+        self.host_tokens.get_or_init(|| {
+            let tokens = self.nchw.len() / D;
+            nchw_to_tokens(&self.nchw, D, tokens)
+        })
+    }
+
     /// This memory's memory-attention projections with `feats`, the stored frame's own image
     /// features: computed on the first call, then reused.
     fn kv<B: Backend + ?Sized>(
@@ -731,14 +760,25 @@ impl TrackerState {
         } else {
             // Each stored memory brings its projections, computed once by the first frame that
             // attends it, and its temporal position row; the pointer block is uploaded after them.
+            // An external memory attention takes the stored frames' raw inputs on the host instead.
+            let ext = vos.ext_mem_attn.as_deref();
             let mut frames: Vec<(&FrameKv, &Tensor)> = Vec::with_capacity(entries.len());
+            let mut host_frames: Vec<HostFrame<'_>> = Vec::new();
             for &(st, t_pos) in &entries {
                 let feats = st
                     .feats
                     .as_ref()
                     .ok_or_else(|| err("a stored memory without its image features"))?;
                 let mm = st.maskmem.as_ref().expect("filtered on maskmem");
-                frames.push((mm.kv(vos, feats)?, &vos.memory_pos_tokens[tpos(t_pos)]));
+                if ext.is_some() {
+                    host_frames.push(HostFrame {
+                        image: feats.host(be.budget())?,
+                        memory: mm.host_tokens(),
+                        pos: &vos.memory_pos_host[tpos(t_pos)],
+                    });
+                } else {
+                    frames.push((mm.kv(vos, feats)?, &vos.memory_pos_tokens[tpos(t_pos)]));
+                }
             }
             // Object pointers: the conditioning frames at |distance|, then frames before the current one.
             let max_ptr = num_frames.min(MAX_PTRS);
@@ -770,24 +810,37 @@ impl TrackerState {
                 }
             }
             let n_ptr = ptr_frames.len() * MUX;
-            let ptr_dev = if n_ptr > 0 {
-                Some((
-                    up(be, &ptrs, &[1, n_ptr, D])?,
-                    up(be, &ptrs_pos, &[1, n_ptr, D])?,
-                ))
+            let fused = if let Some(ext) = ext {
+                let image = ctx.feats.host(be.budget())?;
+                mark(PROPAGATE_STAGES[1]);
+                let out = ext.run(&HostMemInputs {
+                    image,
+                    src_pos: &vos.pos_host,
+                    frames: &host_frames,
+                    ptrs: &ptrs,
+                    ptr_pos: &ptrs_pos,
+                })?;
+                up(be, &out, &[1, feat * feat, D])?
             } else {
-                None
+                let ptr_dev = if n_ptr > 0 {
+                    Some((
+                        up(be, &ptrs, &[1, n_ptr, D])?,
+                        up(be, &ptrs_pos, &[1, n_ptr, D])?,
+                    ))
+                } else {
+                    None
+                };
+                mark(PROPAGATE_STAGES[1]);
+                vos.mem_attn.fwd_frames(
+                    be,
+                    &FramesInputs {
+                        image: image_dev,
+                        src_pos: &vos.pos_tokens,
+                        frames: &frames,
+                        ptrs: ptr_dev.as_ref().map(|(p, pp)| (p, pp)),
+                    },
+                )?
             };
-            mark(PROPAGATE_STAGES[1]);
-            let fused = vos.mem_attn.fwd_frames(
-                be,
-                &FramesInputs {
-                    image: image_dev,
-                    src_pos: &vos.pos_tokens,
-                    frames: &frames,
-                    ptrs: ptr_dev.as_ref().map(|(p, pp)| (p, pp)),
-                },
-            )?;
             be.permute(&fused, &[0, 2, 1])?
                 .reshape(&[1, D, feat, feat])?
         };
@@ -995,7 +1048,7 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
             prop72: prop[2].clone(),
             ps0,
             ps1,
-            feats: Arc::new(FrameFeats { tokens }),
+            feats: Arc::new(FrameFeats::new(tokens)),
             inter: None,
         })
     }
@@ -1121,65 +1174,107 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
                 )));
             }
         }
-        // The encoder's input is 2 * MUX planes in slot order: each slot's sigmoid mask (0 for an
-        // empty slot), then each slot's condition plane (1 for a conditioning object, else 0). Only
-        // the n object planes cross to the device, in slot order; the constant planes are device
-        // fills and the concat moves bits, so the input is the one the host used to build.
-        let by_slot: Vec<usize> = obj_of_slot.iter().flatten().copied().collect();
-        let objs = if n > 0 {
-            let mut t = Tensor::zeros(&[n, size, size], DType::F32, be.budget())?;
-            let src_rows: Vec<usize> = by_slot.iter().map(|&o| rows[o]).collect();
-            fill_sigmoid_planes(t.f32_slice_mut()?, hr, &src_rows, px);
-            mark(ENCODE_STAGES[1]);
-            Some(be.upload(&t)?)
-        } else {
-            mark(ENCODE_STAGES[1]);
-            None
-        };
-        let zero = be.fill(&[1, size, size], DType::F32, 0.0)?;
-        let one = if cond.is_empty() {
-            None
-        } else {
-            Some(be.fill(&[1, size, size], DType::F32, 1.0)?)
-        };
-        let mut parts: Vec<Tensor> = Vec::with_capacity(2 * MUX);
-        let (mut s, mut k) = (0, 0);
-        while s < MUX {
-            if obj_of_slot[s].is_none() {
-                parts.push(zero.clone());
-                s += 1;
-                continue;
+        let mut feat = match self.ext_mem_enc.as_deref() {
+            Some(ext) if size == self.geo.input_mask() => {
+                mark(ENCODE_STAGES[1]);
+                mark(ENCODE_STAGES[2]);
+                let pix = host_slice(&ctx.prop72, be)?;
+                let mut flags = [0f32; MUX];
+                for (s, o) in obj_of_slot.iter().enumerate() {
+                    if o.is_some_and(|o| cond.contains(&o)) {
+                        flags[s] = 1.0;
+                    }
+                }
+                // The 16 slot planes in slot order, written straight into the encoder's input:
+                // each slot's sigmoid mask, zeros for an empty slot, as the Ojas path builds them.
+                let feat = ext.run(
+                    pix.as_slice(),
+                    &mut |buf| {
+                        for (plane, o) in buf.chunks_exact_mut(px).zip(obj_of_slot) {
+                            match o {
+                                Some(o) => fill_sigmoid_planes(plane, hr, &[rows[o]], px),
+                                None => plane.fill(0.0),
+                            }
+                        }
+                    },
+                    &flags,
+                )?;
+                if feat.len() != D * tokens {
+                    return Err(err(format!(
+                        "encode_mask_memory: the external encoder returned {} values, want {}",
+                        feat.len(),
+                        D * tokens
+                    )));
+                }
+                let [e, o] = self.mem_enc_calls.get();
+                self.mem_enc_calls.set([e + 1, o]);
+                feat
             }
-            let start = k;
-            while s < MUX && obj_of_slot[s].is_some() {
-                s += 1;
-                k += 1;
+            _ => {
+                // The encoder's input is 2 * MUX planes in slot order: each slot's sigmoid mask (0 for an
+                // empty slot), then each slot's condition plane (1 for a conditioning object, else 0). Only
+                // the n object planes cross to the device, in slot order; the constant planes are device
+                // fills and the concat moves bits, so the input is the one the host used to build.
+                let by_slot: Vec<usize> = obj_of_slot.iter().flatten().copied().collect();
+                let objs = if n > 0 {
+                    let mut t = Tensor::zeros(&[n, size, size], DType::F32, be.budget())?;
+                    let src_rows: Vec<usize> = by_slot.iter().map(|&o| rows[o]).collect();
+                    fill_sigmoid_planes(t.f32_slice_mut()?, hr, &src_rows, px);
+                    mark(ENCODE_STAGES[1]);
+                    Some(be.upload(&t)?)
+                } else {
+                    mark(ENCODE_STAGES[1]);
+                    None
+                };
+                let zero = be.fill(&[1, size, size], DType::F32, 0.0)?;
+                let one = if cond.is_empty() {
+                    None
+                } else {
+                    Some(be.fill(&[1, size, size], DType::F32, 1.0)?)
+                };
+                let mut parts: Vec<Tensor> = Vec::with_capacity(2 * MUX);
+                let (mut s, mut k) = (0, 0);
+                while s < MUX {
+                    if obj_of_slot[s].is_none() {
+                        parts.push(zero.clone());
+                        s += 1;
+                        continue;
+                    }
+                    let start = k;
+                    while s < MUX && obj_of_slot[s].is_some() {
+                        s += 1;
+                        k += 1;
+                    }
+                    let objs = objs.as_ref().ok_or_else(|| {
+                        err("encode_mask_memory: an occupied slot with no object planes")
+                    })?;
+                    parts.push(if k - start == n {
+                        objs.clone()
+                    } else {
+                        be.slice(objs, 0, start, k - start)?
+                    });
+                }
+                for o in obj_of_slot {
+                    parts.push(match (o, &one) {
+                        (Some(o), Some(one)) if cond.contains(&o) => one.clone(),
+                        _ => zero.clone(),
+                    });
+                }
+                let refs: Vec<&Tensor> = parts.iter().collect();
+                let masks = be.concat(&refs, 0)?.reshape(&[1, 2 * MUX, size, size])?;
+                drop(refs);
+                drop((parts, objs, zero, one));
+                mark(ENCODE_STAGES[2]);
+                let enc = self.mem_enc.fwd(be, &ctx.prop72, &masks)?;
+                drop(masks);
+                let feat_slice = host_slice(&enc.features, be)?;
+                let feat = feat_slice.to_vec();
+                drop((feat_slice, enc));
+                let [e, o] = self.mem_enc_calls.get();
+                self.mem_enc_calls.set([e, o + 1]);
+                feat
             }
-            let objs = objs
-                .as_ref()
-                .ok_or_else(|| err("encode_mask_memory: an occupied slot with no object planes"))?;
-            parts.push(if k - start == n {
-                objs.clone()
-            } else {
-                be.slice(objs, 0, start, k - start)?
-            });
-        }
-        for o in obj_of_slot {
-            parts.push(match (o, &one) {
-                (Some(o), Some(one)) if cond.contains(&o) => one.clone(),
-                _ => zero.clone(),
-            });
-        }
-        let refs: Vec<&Tensor> = parts.iter().collect();
-        let masks = be.concat(&refs, 0)?.reshape(&[1, 2 * MUX, size, size])?;
-        drop(refs);
-        drop((parts, objs, zero, one));
-        mark(ENCODE_STAGES[2]);
-        let enc = self.mem_enc.fwd(be, &ctx.prop72, &masks)?;
-        drop(masks);
-        let feat_slice = host_slice(&enc.features, be)?;
-        let mut feat = feat_slice.to_vec();
-        drop((feat_slice, enc));
+        };
         mark(ENCODE_STAGES[3]);
         let mut score_of_slot = [0f32; MUX];
         for (o, &s) in slot_of.iter().enumerate() {
@@ -1204,6 +1299,7 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
             nchw: feat,
             tokens,
             kv: Arc::default(),
+            host_tokens: Arc::default(),
         })
     }
 }
@@ -1359,6 +1455,7 @@ mod tests {
             tokens: Tensor::from_f32(&[0.0], &[1, 1, 1], &ojas_core::Budget::new(1 << 20))
                 .expect("tensor"),
             kv: Arc::default(),
+            host_tokens: Arc::default(),
         };
         let mut s = state_with(&[0]);
         s.cond.get_mut(&0).expect("cond").maskmem = Some(mm());

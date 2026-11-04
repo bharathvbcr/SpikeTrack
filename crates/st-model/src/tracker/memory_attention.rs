@@ -84,6 +84,39 @@ pub struct FramesInputs<'a> {
     pub ptrs: Option<(&'a Tensor, &'a Tensor)>,
 }
 
+/// One memory frame on the host for an [`ExternalMemAttn`], token-major `[T, D]` row-major each.
+pub struct HostFrame<'a> {
+    /// The stored frame's image features.
+    pub image: &'a [f32],
+    /// Its mask memory.
+    pub memory: &'a [f32],
+    /// Its position with the temporal encoding of its distance.
+    pub pos: &'a [f32],
+}
+
+/// One step's memory attention inputs on the host, one bucket: the same values as
+/// [`FramesInputs`], before any projection.
+pub struct HostMemInputs<'a> {
+    /// Current frame features `[T, D]` (also the source) and their positions.
+    pub image: &'a [f32],
+    pub src_pos: &'a [f32],
+    /// The memory frames in attention order.
+    pub frames: &'a [HostFrame<'a>],
+    /// Object pointer tokens and their positions, `[P, D]` each (empty for none).
+    pub ptrs: &'a [f32],
+    pub ptr_pos: &'a [f32],
+}
+
+/// Memory attention run outside the Ojas backend (st-coreml's Core ML program). It computes what
+/// [`MemoryAttention::fwd_frames`] computes, to a tolerance its own parity gate states, not bit for
+/// bit.
+pub trait ExternalMemAttn {
+    /// What `run.json` records about it (format, precision, package hash).
+    fn describe(&self) -> String;
+    /// The conditioned features after the final norm, `[T, D]` row-major.
+    fn run(&self, x: &HostMemInputs<'_>) -> Result<Vec<f32>, OjasError>;
+}
+
 impl MemoryAttention {
     /// The memory attention for the native 1008 x 1008 input.
     pub fn load<B: Backend + ?Sized>(be: &B, g: &TensorGroup, p: &str) -> Result<Self, ModelError> {

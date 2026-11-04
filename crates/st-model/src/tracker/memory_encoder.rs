@@ -38,6 +38,24 @@ pub struct MemoryEncoder {
     pos: Tensor,
 }
 
+/// The memory encoder run outside the Ojas backend (st-coreml's Core ML program), for masks already
+/// at the downsampler's input size ([`Geometry::input_mask`]). It computes what
+/// [`MemoryEncoder::fwd`] computes, to a tolerance its own parity gate states, not bit for bit.
+pub trait ExternalMemEncoder {
+    /// What `run.json` records about it (format, precision, package hash).
+    fn describe(&self) -> String;
+    /// `pix_feat` `[256, G, G]`. `fill` writes the 16 slot planes `[16, S, S]` (`S` = 16 G), each
+    /// slot's sigmoid-scaled mask or zeros, into the buffer it is handed. `cond` `[16]` is each
+    /// slot's condition flag (0 or 1), which the encoder broadcasts to the other 16 planes. Returns
+    /// the features `[256, G, G]`.
+    fn run(
+        &self,
+        pix_feat: &[f32],
+        fill: &mut dyn FnMut(&mut [f32]),
+        cond: &[f32],
+    ) -> Result<Vec<f32>, OjasError>;
+}
+
 /// What the encoder returns for one call.
 pub struct MemoryOut {
     /// `[B, 256, grid, grid]` (72 at 1008).

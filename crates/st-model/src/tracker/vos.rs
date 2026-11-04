@@ -13,7 +13,8 @@ use crate::host;
 use crate::layers::{get, host_of, host_slice, up, Conv, Lin, Mlp};
 use crate::tracker::interactive::InteractiveDecoder;
 use crate::tracker::mask_decoder::{high_res, MuxMaskDecoder, MASKS_PER_OBJ, MUX};
-use crate::tracker::memory_attention::{MemoryAttention, MemoryInputs};
+use crate::tracker::memory_attention::{ExternalMemAttn, MemoryAttention, MemoryInputs};
+use crate::tracker::memory_encoder::ExternalMemEncoder;
 use crate::tracker::memory_encoder::MemoryEncoder;
 use crate::ModelError;
 
@@ -89,6 +90,17 @@ pub struct Vos<'b, B: Backend + ?Sized> {
     /// Per `maskmem_tpos_enc` row `i`, `sine_pos` tokens + that row (one add per element) on the
     /// device, `[1, G * G, 256]`: the position of a stored memory `NUM_MASKMEM - 1 - i` frames back.
     pub(crate) memory_pos_tokens: Vec<Tensor>,
+    /// `pos_tokens` and `memory_pos_tokens` on the host, `[G * G * 256]` each, for
+    /// [`Self::with_external_mem_attn`].
+    pub(crate) pos_host: Vec<f32>,
+    pub(crate) memory_pos_host: Vec<Vec<f32>>,
+    /// [`Self::with_external_mem_attn`]: propagation's memory attention runs there.
+    pub(crate) ext_mem_attn: Option<Box<dyn ExternalMemAttn + 'b>>,
+    /// [`Self::with_external_mem_encoder`]: mask memories whose masks arrive at the downsampler's
+    /// input size are encoded there.
+    pub(crate) ext_mem_enc: Option<Box<dyn ExternalMemEncoder + 'b>>,
+    /// Memory encodes run by `ext_mem_enc` and by the Ojas encoder: [`Self::mem_encoder_calls`].
+    pub(crate) mem_enc_calls: std::cell::Cell<[usize; 2]>,
 }
 
 /// SAM's `PositionEmbeddingRandom` over an `h x w` grid: `[256, h, w]`.
@@ -196,18 +208,18 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
         let pos_host = nchw_to_tokens(&sine_pos, D, feat * feat);
         let maskmem_tpos = host_w("maskmem_tpos_enc", &[NUM_MASKMEM, 1, 1, D])?;
         let pos_tokens = up(be, &pos_host, &[1, feat * feat, D])?;
-        let memory_pos_tokens = maskmem_tpos
+        let memory_pos_host: Vec<Vec<f32>> = maskmem_tpos
             .chunks_exact(D)
             .map(|te| {
-                up(
-                    be,
-                    &pos_host
-                        .chunks_exact(D)
-                        .flat_map(|r| r.iter().zip(te).map(|(a, b)| a + b))
-                        .collect::<Vec<f32>>(),
-                    &[1, feat * feat, D],
-                )
+                pos_host
+                    .chunks_exact(D)
+                    .flat_map(|r| r.iter().zip(te).map(|(a, b)| a + b))
+                    .collect()
             })
+            .collect();
+        let memory_pos_tokens = memory_pos_host
+            .iter()
+            .map(|h| up(be, h, &[1, feat * feat, D]))
             .collect::<Result<Vec<_>, _>>()?;
         let inter_gauss = host_w(
             "interactive_sam_prompt_encoder.pe_layer.positional_encoding_gaussian_matrix",
@@ -302,7 +314,46 @@ impl<'b, B: Backend + ?Sized> Vos<'b, B> {
             sine_pos,
             pos_tokens,
             memory_pos_tokens,
+            pos_host,
+            memory_pos_host,
+            ext_mem_attn: None,
+            ext_mem_enc: None,
+            mem_enc_calls: std::cell::Cell::new([0, 0]),
         })
+    }
+
+    /// Propagation's memory attention runs in `ext` instead of on `be` (the VOS driver's
+    /// [`MemoryAttention::fwd`] stays on `be`). The caller refuses this when an adapter or weight
+    /// edit changes memory attention's weights, which `ext` does not see.
+    pub fn with_external_mem_attn(mut self, ext: Box<dyn ExternalMemAttn + 'b>) -> Self {
+        self.ext_mem_attn = Some(ext);
+        self
+    }
+
+    /// Mask memories whose masks arrive at the downsampler's input size ([`Geometry::input_mask`],
+    /// the propagation path) are encoded in `ext` instead of on `be`. A memory encoded from masks at
+    /// another size (a merge at the image size) stays on `be`; [`Self::mem_encoder_calls`] counts
+    /// both. No adapter or weight edit targets the memory encoder's weights today; the caller
+    /// refuses one that does.
+    pub fn with_external_mem_encoder(mut self, ext: Box<dyn ExternalMemEncoder + 'b>) -> Self {
+        self.ext_mem_enc = Some(ext);
+        self
+    }
+
+    /// What [`Self::with_external_mem_encoder`] installed, as [`ExternalMemEncoder::describe`]
+    /// says it.
+    pub fn external_mem_encoder(&self) -> Option<String> {
+        self.ext_mem_enc.as_ref().map(|e| e.describe())
+    }
+
+    /// Memory encodes so far: `[external, Ojas]`.
+    pub fn mem_encoder_calls(&self) -> [usize; 2] {
+        self.mem_enc_calls.get()
+    }
+
+    /// What [`Self::with_external_mem_attn`] installed, as [`ExternalMemAttn::describe`] says it.
+    pub fn external_mem_attn(&self) -> Option<String> {
+        self.ext_mem_attn.as_ref().map(|e| e.describe())
     }
 
     /// The input size the tracker's feature maps, masks and memories follow.

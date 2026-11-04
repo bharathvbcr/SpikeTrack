@@ -183,6 +183,46 @@ pub struct DetectorOut {
     pub semantic_seg: Tensor,
 }
 
+/// The segmentation head's inputs on the host, row-major.
+pub struct HostSegInputs<'a> {
+    /// `[grid^2, 256]`: the fusion encoder's image tokens.
+    pub memory: &'a [f32],
+    /// `[plen, 256]`: the prompt (valid text tokens, then the geometry CLS).
+    pub prompt: &'a [f32],
+    /// `[1, 256, M, M]` and `[1, 256, M/2, M/2]`: the detector neck's two finest levels.
+    pub fpn0: &'a [f32],
+    pub fpn1: &'a [f32],
+    /// `[Q, 256]`: the last decoder layer's normed queries.
+    pub hs: &'a [f32],
+}
+
+/// The segmentation head computed outside the Ojas backend (st-coreml's Core ML program), in place
+/// of [`Detector`]'s own from the cross-attention to the prompt on. It computes what the head
+/// computes, to a tolerance its own parity gate states, not bit for bit.
+pub trait ExternalSegHead {
+    /// What `run.json` records about it (format, precision, package hash).
+    fn describe(&self) -> String;
+    /// Returns `pred_masks` `[Q, M, M]` and `semantic_seg` `[1, 1, M, M]`, row-major.
+    fn run(&self, x: &HostSegInputs<'_>) -> Result<(Vec<f32>, Vec<f32>), OjasError>;
+}
+
+/// The geometry and fusion encoders computed outside the Ojas backend (st-coreml's Core ML program),
+/// in place of [`Detector`]'s own, from the top neck level to the encoder memory. It computes what
+/// the encoders compute, to a tolerance its own parity gate states, not bit for bit.
+pub trait ExternalEncoder {
+    /// What `run.json` records about it (format, precision, package hash, baked adapter).
+    fn describe(&self) -> String;
+    /// `fpn2` `[1, 256, grid, grid]`, `pos` `[grid^2, 256]` and `text` (the valid prompt tokens,
+    /// `[n, 256]`, as [`Detector::forward_inference`] receives them). Returns the encoder memory
+    /// `[grid^2, 256]` and the geometry token `[256]`, row-major.
+    fn run(
+        &self,
+        fpn2: &[f32],
+        pos: &[f32],
+        text: &[f32],
+    ) -> Result<(Vec<f32>, Vec<f32>), OjasError>;
+}
+
 impl DetectorOut {
     /// What upstream's `Sam3Processor` thresholds: `sigmoid(logit) * sigmoid(presence)`.
     pub fn probabilities(&self) -> Vec<f32> {
@@ -237,6 +277,11 @@ pub struct Detector<'b, B: Backend + ?Sized> {
     /// Weight in `[0.0, 1.0]` blending the penultimate decoder layer (`li = 4`) into the final
     /// dot-product and presence logits. `0.0` is the bit-exact identity.
     aux_score_weight: f32,
+    /// When set, the segmentation head runs here instead of on `be`.
+    ext_seg: Option<Box<dyn ExternalSegHead + 'b>>,
+    /// When set, the geometry and fusion encoders run here instead of on `be`, with `pos` read back
+    /// once as its host input.
+    ext_enc: Option<(Box<dyn ExternalEncoder + 'b>, Vec<f32>)>,
 }
 
 /// Detector weight groups, as `st_weights::Sam31Weights` holds them.
@@ -398,7 +443,59 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             pos: up(be, &pos, &[1, tokens, D])?,
             post_box_delta: [0.0; 4],
             aux_score_weight: 0.0,
+            ext_seg: None,
+            ext_enc: None,
         })
+    }
+
+    /// Run the segmentation head on `ext` (a fixed-shape program for the native input) instead of
+    /// on the backend. Refused at any other input size.
+    pub fn set_external_seg_head(
+        &mut self,
+        ext: Box<dyn ExternalSegHead + 'b>,
+    ) -> Result<(), String> {
+        if self.geo != Geometry::SAM3 {
+            return Err(format!(
+                "an external segmentation head is built for the {}-pixel input; this detector is {} pixels",
+                Geometry::SAM3.pixels(),
+                self.geo.pixels()
+            ));
+        }
+        self.ext_seg = Some(ext);
+        Ok(())
+    }
+
+    /// What the external segmentation head is, when one is installed.
+    pub fn external_seg_head(&self) -> Option<String> {
+        self.ext_seg.as_ref().map(|e| e.describe())
+    }
+
+    /// Run the geometry and fusion encoders on `ext` (a fixed-shape program for the native input)
+    /// instead of on the backend, in [`Self::forward_inference`] only: [`Self::forward`], which
+    /// records [`DetectorTaps`], keeps the backend's encoders. Refused at any other input size.
+    pub fn set_external_encoder(
+        &mut self,
+        ext: Box<dyn ExternalEncoder + 'b>,
+    ) -> Result<(), String> {
+        if self.geo != Geometry::SAM3 {
+            return Err(format!(
+                "an external encoder is built for the {}-pixel input; this detector is {} pixels",
+                Geometry::SAM3.pixels(),
+                self.geo.pixels()
+            ));
+        }
+        let pos = host_slice(&self.pos, self.be)
+            .map_err(|e| {
+                format!("reading the position encoding back for the external encoder: {e}")
+            })?
+            .to_vec();
+        self.ext_enc = Some((ext, pos));
+        Ok(())
+    }
+
+    /// What the external encoder is, when one is installed.
+    pub fn external_encoder(&self) -> Option<String> {
+        self.ext_enc.as_ref().map(|(e, _)| e.describe())
     }
 
     /// Set a post-decoder `[dx, dy, dw, dh]` logit shift applied only to `pred_boxes` after
@@ -503,41 +600,73 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
                 }));
             }
         }
-        // Image tokens [1, grid^2, 256] from the grid x grid level (NCHW -> tokens).
-        let img = be.permute(&fpn[2].reshape(&[1, D, tokens])?, &[0, 2, 1])?;
-
-        // Geometry encoder, empty prompt: CLS -> final_proj -> norm -> 3 layers -> encode_norm.
-        let mut geo = self
-            .geo_norm
-            .fwd(be, &self.geo_final_proj.fwd(be, &self.geo_cls)?)?;
-        for l in &self.geo_layers {
-            geo = l.fwd(be, &geo, None, &img, Some(&self.pos))?;
-        }
-        let geo = self.geo_encode_norm.fwd(be, &geo)?;
-        if let Some(t) = taps.as_deref_mut() {
-            t.geo = Some(host_of(&geo, be)?);
-        }
-
-        // Prompt = [valid text tokens; geometry CLS].
-        let text_dev;
-        let text = if text.device() == geo.device() {
-            text
-        } else {
-            text_dev = be.upload(text)?;
-            &text_dev
-        };
-        let prompt = be.concat(&[text, &geo], 1)?;
-        drop(geo);
-        let plen = prompt.shape()[1];
-
-        // Fusion encoder over image tokens, cross-attending to the prompt.
-        let mut mem = img;
-        for l in &self.enc_layers {
-            mem = l.fwd(be, &mem, Some(&self.pos), &prompt, None)?;
-            if let Some(t) = taps.as_deref_mut() {
-                t.enc_layers.push(mem.clone());
+        let (mem, prompt) = match (&self.ext_enc, taps.is_none()) {
+            (Some((ext, pos)), true) => {
+                let text_host = host_slice(text, be)?;
+                let fpn2 = host_slice(&fpn[2], be)?;
+                let (mem, geo) = ext.run(fpn2.as_slice(), pos, text_host.as_slice())?;
+                drop((fpn2, text_host));
+                if mem.len() != tokens * D || geo.len() != D {
+                    return Err(ModelError::Ojas(OjasError::OutOfRange {
+                        op: "st_model::Detector::forward",
+                        detail: format!(
+                            "the external encoder returned {} memory and {} geometry values, want {} and {D}",
+                            mem.len(),
+                            geo.len(),
+                            tokens * D
+                        ),
+                    }));
+                }
+                let geo = up(be, &geo, &[1, 1, D])?;
+                let text_dev;
+                let text = if text.device() == geo.device() {
+                    text
+                } else {
+                    text_dev = be.upload(text)?;
+                    &text_dev
+                };
+                let prompt = be.concat(&[text, &geo], 1)?;
+                (up(be, &mem, &[1, tokens, D])?, prompt)
             }
-        }
+            _ => {
+                // Image tokens [1, grid^2, 256] from the grid x grid level (NCHW -> tokens).
+                let img = be.permute(&fpn[2].reshape(&[1, D, tokens])?, &[0, 2, 1])?;
+
+                // Geometry encoder, empty prompt: CLS -> final_proj -> norm -> 3 layers -> encode_norm.
+                let mut geo = self
+                    .geo_norm
+                    .fwd(be, &self.geo_final_proj.fwd(be, &self.geo_cls)?)?;
+                for l in &self.geo_layers {
+                    geo = l.fwd(be, &geo, None, &img, Some(&self.pos))?;
+                }
+                let geo = self.geo_encode_norm.fwd(be, &geo)?;
+                if let Some(t) = taps.as_deref_mut() {
+                    t.geo = Some(host_of(&geo, be)?);
+                }
+
+                // Prompt = [valid text tokens; geometry CLS].
+                let text_dev;
+                let text = if text.device() == geo.device() {
+                    text
+                } else {
+                    text_dev = be.upload(text)?;
+                    &text_dev
+                };
+                let prompt = be.concat(&[text, &geo], 1)?;
+                drop(geo);
+
+                // Fusion encoder over image tokens, cross-attending to the prompt.
+                let mut mem = img;
+                for l in &self.enc_layers {
+                    mem = l.fwd(be, &mem, Some(&self.pos), &prompt, None)?;
+                    if let Some(t) = taps.as_deref_mut() {
+                        t.enc_layers.push(mem.clone());
+                    }
+                }
+                (mem, prompt)
+            }
+        };
+        let plen = prompt.shape()[1];
         let mem_keys = be.residual_add_forward(&mem, &self.pos)?;
 
         // DETR decoder.
@@ -653,6 +782,40 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
 
         // Segmentation head.
         mark(DETECTOR_STAGES[5]);
+        let mut pred_boxes = refs;
+        apply_post_box_delta(&mut pred_boxes, self.post_box_delta);
+        if let Some(ext) = &self.ext_seg {
+            // Taps' seg_cross_attn and pixel_embed stay None: the program does not expose them.
+            let (mem_h, prompt_h) = (host_slice(&mem, be)?, host_slice(&prompt, be)?);
+            drop((mem, prompt));
+            let (f0, f1) = (host_slice(&fpn[0], be)?, host_slice(&fpn[1], be)?);
+            let (masks, semantic) = ext.run(&HostSegInputs {
+                memory: mem_h.as_slice(),
+                prompt: prompt_h.as_slice(),
+                fpn0: f0.as_slice(),
+                fpn1: f1.as_slice(),
+                hs: &hs_last,
+            })?;
+            let n = QUERIES * mask * mask;
+            if masks.len() != n || semantic.len() != mask * mask {
+                return Err(ModelError::Ojas(OjasError::OutOfRange {
+                    op: "st_model::Detector::forward",
+                    detail: format!(
+                        "the external segmentation head returned {} mask and {} semantic values, want {n} and {}",
+                        masks.len(),
+                        semantic.len(),
+                        mask * mask
+                    ),
+                }));
+            }
+            return Ok(DetectorOut {
+                pred_logits,
+                presence_logit: presence_last,
+                pred_boxes,
+                pred_masks: Tensor::from_f32(&masks, &[QUERIES, mask, mask], be.budget())?,
+                semantic_seg: Tensor::from_f32(&semantic, &[1, 1, mask, mask], be.budget())?,
+            });
+        }
         let t = self.seg_cross_norm.fwd(be, &mem)?;
         let ca = self.seg_cross_attn.fwd(be, &t, &prompt, &prompt, None)?;
         drop((t, prompt));
@@ -682,8 +845,6 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             .linear_forward(&mask_embed, &inst)?
             .reshape(&[QUERIES, mask, mask])?;
 
-        let mut pred_boxes = refs;
-        apply_post_box_delta(&mut pred_boxes, self.post_box_delta);
         Ok(DetectorOut {
             pred_logits,
             presence_logit: presence_last,
