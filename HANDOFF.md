@@ -18,6 +18,33 @@ metal`, `track` runs the ViT trunk as a CoreML fp32 ML Program that we export fr
 frames and the same HOTA, 0.4922 at cap 64. With the default, the trunk is Apple's CoreML, not
 Ojas/tessl. The necks, text encoder, detector and tracker still run on Ojas. `--trunk-precision f32`
 is the all-Ojas path, and `--backend cpu` keeps it as the parity oracle.
+**Metal default changed again (2026-11-04, gates of `bench/results/e25-coreml-frame/RULES.md`):**
+`track` now runs the trunk and the tracker's memory attention as fp16 CoreML programs, with the trunk
+one frame ahead on its own thread.
+- Frame: 0.57-0.60x the coreml-fp32 default (E27, 3 interleaved rounds).
+- Held-out HOTA: 0.6025 on 32 frames (unchanged), and 0.5694 against 0.5700 on 1,500 frames, worst
+  video -0.0012 (`bench/results/track/held300-coreml/README.md`).
+- The CoreML segmentation head failed the in-frame speed gate (host copies, E25-E27) and stays on
+  Ojas.
+- **Later the same day (E30, `bench/results/e30-quiet/README.md`):** the fp16 CoreML necks, on the
+  trunk's worker, passed every gate and joined the default.
+  - Frame 0.916, 0.898 and 0.886x the trunk + memory-attention default (quiet machine).
+  - Held-out HOTA 0.6025 on 32 frames and 0.5697 on 1,500.
+  - `--necks ojas` gives the earlier fp16 default.
+- **Opt-in, not a default (E31, `bench/results/e31-detenc/README.md`):** `--det-encoder coreml-fp16`
+  runs the detector's geometry + fusion encoders as one fp16 CoreML program, with the LoRA adapter
+  folded in at export (`sam3.1_detenc_fp16_<adapter sha256[:12]>.mlpackage`).
+  - Frame 0.818, 0.912 and 0.920x the default with LoRA v3 (run 3, every arm under load 8).
+  - Held-out HOTA 0.6024 on 32 frames and 0.5693 on 1,500.
+  - Not the default, because a new adapter needs a new export, and a missing package is an error.
+- **Later still (E32, `bench/results/e32-memenc/README.md`):** the tracker's memory encoder as one
+  fp16 CoreML program (`sam3.1_memenc_fp16.mlpackage`) passed every gate and joined the default,
+  under memory attention's guard (`Placement::default_mem_encoder`).
+  - Frame 0.865, 0.841 and 0.829x the E30 default (every arm under load 5).
+  - Held-out HOTA 0.6025 on 32 frames (every video unchanged) and 0.5695 on 1,500.
+  - A merge's encode (masks at the image size) stays on Ojas; `run.json` `mem_encoder_calls` counts
+    both. `--mem-encoder ojas` gives the E30 default.
+- `--trunk-precision coreml-fp32` restores the fp32 reference and reproduces every earlier result.
 **E12 (2026-10-30):** the detector's host DETR decoder is 337 -> 62 ms per frame, with predictions
 byte-identical, and the frame is 0.86x on VISEM 22 (`bench/results/e12-host-decoder`). Large host
 linears now use up to `host::MAX_THREADS` = 8 scoped threads each, so a run outside the mac_heavy
@@ -120,7 +147,7 @@ Stretch (only if every gate above is green): gp-cuda-smoke, gp-meta-model-report
 | 8 | gp-tensorops-hot-path | 1 | done (M4 `ojas_attn_fwd_d32`/`d64` flash cross-attention + tile-register `boxRPB`, E10–E22) | 6 |
 | 9 | gp-event-gating | 1 | done (`st-gate` exact & approximate policies verified in `bench/results/gating`) | 6, 7 |
 | 10 | gp-cli-and-no-python-proof | 1 | done (`spiketrack image/track/eval-visem/weights`, `scripts/no_python_check.sh`, 12.0 MB / 11.4 MiB binary) | 6 |
-| 11 | gp-demo-and-submission | 0 | in progress (README, WRITEUP, SUMMARY, demo clip `22-sperm-lora.mp4` done; portal submission pending) | 7–10 |
+| 11 | gp-demo-and-submission | 0 | in progress (README, WRITEUP, SUMMARY, demo clips on the fp16 default (`36-*-fp16.mp4`) and the narrated 2:39 `spiketrack-demo.mp4` done (2026-11-04); upload and portal submission pending) | 7–10 |
 | 12 | gp-cuda-smoke | 3 | backlog | 8 (stretch) |
 | 13 | gp-meta-model-report | 3 | backlog | 10 (stretch) |
 | 14 | gp-zero-shot-check | 0 | done (recall < 0.7) | — (runs before weights arrive) |

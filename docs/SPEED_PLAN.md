@@ -166,6 +166,14 @@ upstream to cosine 0.99995 [V], so it is not exact either.
     0.47 floor and 0.0057 under f32. One near-threshold detection on video 21's first frame drops
     under fp16, and that renumbers the whole video. `--trunk-precision coreml-fp16` stays an explicit,
     unrecommended flag.
+  - **Superseded 2026-11-04.** The refutation above was measured with LoRA v1 at cap 16. On the
+    shipped configuration (LoRA v3 + `lorav3_exact_it_3p00.json`, cap 64), the fp16 trunk together
+    with fp16 memory attention passes the pre-stated gates of `bench/results/e25-coreml-frame/RULES.md`:
+    - HOTA 0.6025 on 32 frames;
+    - 0.5694 against 0.5700 on 1,500 frames, worst video -0.0012 (`bench/results/track/held300-coreml/`);
+    - frame 0.57-0.60x (`bench/results/e27-pipe-necks/`).
+
+    The pair is now the Metal default, and `--trunk-precision coreml-fp32` is the fp32 reference.
 - E11 [V, `bench/results/profile-coreml`]: the profile is valid. Its stage sums are within 1.1% of
   the unprofiled controls, and predictions are byte-identical with the marker on.
   - Steady frames: trunk 925 / 928 ms (38.5% on 22, 32.0% on 82); detector neck + detector 786 / 821

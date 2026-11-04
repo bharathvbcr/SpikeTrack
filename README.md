@@ -39,9 +39,16 @@ Each line links to its evidence below.
   detector LoRA trained on this Mac plus a 768-weight edit reaches **HOTA 0.570 over 1,500 frames**
   (first 300 of each video, 32,949 labelled heads, one run; 4 of 5 videos up on the first adapter's
   0.492, video 47 down 0.031).
-- **Speed, stated plainly:** at 16 objects our tracker step is about 2x the existing CoreML port's
-  at the same fp32 precision (~410 vs ~204 ms) and about 5.5x its fp16 step. That port runs the
-  tracker only: it cannot take a text prompt, detect, or start new tracks.
+- **Speed, stated plainly:** the existing SAM 3.1 CoreML port (`sdkv2/sam3.1-coreml`) is a set of
+  Core ML programs: its speed is Core ML's, whatever calls it (Python, in our harness). It covers
+  only the tracker: it cannot take a text prompt, detect, or start new tracks. SpikeTrack now runs
+  its own heaviest parts as Core ML programs too, called from Rust: the fp16 trunk and fp16 memory
+  attention, exported from the checkpoint. With them, the whole frame is 0.57-0.60x the fp32
+  default's. On 2026-11-03, before that change, our tracker step at 16 objects was about 2x the
+  port's at fp32 (~410 vs ~204 ms) and about 5.5x its fp16 step. Two re-runs of the step A/B on the fp16 default were not readable
+  under its pre-stated rule: the profiled runs drifted more than 10% from the unprofiled controls. Their
+  unread medians put our step at ~205 ms, about the port's fp32 step (~210) and ~2.3-3x its fp16 step
+  ([runs 4 and 5](bench/results/ab-coreml-tracker/README.md)). No parity claim is made from them.
 
 It runs on two pre-existing open-source libraries by the same author:
 - **[Ojas](https://github.com/bharathvbcr/ojas)**: the deep learning framework: tensors, the `Backend` trait SAM 3.1 is written against, memory budgets, and the CPU reference backend.
@@ -50,22 +57,56 @@ It runs on two pre-existing open-source libraries by the same author:
 Event gating (`crates/st-gate`) has its own bitset with no dependencies; the author's sparse library
 [sparsl](https://github.com/bharathvbcr/sparsl) is meant to replace it later and is not linked today.
 
-On Apple Silicon Metal, `track` runs the ViT trunk by default as a CoreML ML Program that we
-export from the checkpoint (`--trunk-precision coreml-fp32`). That makes the frame 0.80x and leaves
-the tracks unchanged. `--trunk-precision f32` keeps the whole model on Ojas/tessl, while `--backend cpu` runs on Ojas's CPU backend. The evaluation is many-sperm tracking in VISEM-Tracking. Built for the Meta
+On Apple Silicon Metal, `track` runs the ViT trunk, the detector and propagation necks, and the
+tracker's memory attention and memory encoder by default as fp16 CoreML ML Programs that we export
+from the checkpoint. The trunk and the necks run one frame ahead on their own thread. These came in
+three steps on 2026-11-04, each judged by gates written before its runs:
+- **The fp16 trunk and memory attention.** Against the fp32 CoreML trunk that was the default until
+  then, the frame takes 0.57-0.60x the time (3 interleaved rounds), and held-out HOTA is 0.5694
+  against 0.5700 over 1,500 frames.
+- **The fp16 necks (E30).** They take that frame to 0.89-0.92x (3 rounds on a quiet machine), and
+  HOTA to 0.5697 over 1,500 frames.
+- **The fp16 memory encoder (E32).** It takes that frame to 0.83-0.87x (3 rounds, every arm under
+  load 5). Held-out HOTA is 0.6025 on 32 frames, the same on every video, and 0.5695 against
+  0.5697 over 1,500 frames ([e32-memenc](bench/results/e32-memenc/README.md)). A merge's memory,
+  whose masks arrive at the image size, stays on Ojas. `run.json` counts both kinds.
+
+One more fp16 program is opt-in, not a default: `--det-encoder coreml-fp16` runs the detector's
+geometry and fusion encoders as one CoreML program, with the `--lora` adapter folded in when it is
+exported. With LoRA v3 the frame takes 0.91-0.92x the default in the two rounds whose baseline ran
+steady, and 0.82x in one whose baseline ran 100 ms slow (3 rounds, every arm under load 8; baseline
+spread 10%). Held-out HOTA is 0.5693 against 0.5697 over 1,500 frames
+([e31-detenc](bench/results/e31-detenc/README.md)). It is opt-in because each adapter needs its own
+export (`tools/baselines/coreml_detenc.py export --precision fp16 --lora FILE`), and a run whose
+package is missing is refused instead of falling back.
+
+On video 36, a dense held-out video, the frame is about 1.0 s
+([e32-memenc](bench/results/e32-memenc/README.md)), from about 1.2 s after E30. `--mem-encoder ojas`
+gives the default as it was after E30, and `--necks ojas` as well gives it as it was before E30.
+The demo clips below were rendered on the E30 default. `--trunk-precision coreml-fp32` is the fp32 reference, a frame 0.80x the all-Ojas one with
+unchanged tracks; it reproduces every result recorded before 2026-11-04. `--trunk-precision f32` keeps the whole model on Ojas/tessl, while `--backend cpu` runs on Ojas's CPU backend. The evaluation is many-sperm tracking in VISEM-Tracking. Built for the Meta
 hackathon, Oct 26 to Nov 4, 2026.
 
-![VISEM-Tracking video 22, frame 30: every sperm head tracked with its id](docs/figures/visem22-frame30-sperm-lora.png)
+![VISEM-Tracking video 36, frame 30: every sperm head tracked with its id](docs/figures/visem36-frame30-sperm-fp16.png)
 
-`spiketrack track` on held-out VISEM video 22 with the prompt "sperm", the first detector LoRA (v1)
-and `--boxes detector`. The clip is [bench/results/demo/22-sperm-lora.mp4](bench/results/demo/22-sperm-lora.mp4)
-(49 frames, made by `tools/jobs/demo_clip.sh 22 49 sperm`).
+`spiketrack track` on held-out VISEM video 36 (27-46 sperm per frame), on the default Metal
+configuration. It uses the prompt "sperm", detector LoRA v3, the 768-weight edit, `--boxes detector`
+and a cap of 64. Clips, 200 frames each, written at 25 fps, which is about half speed:
+- [the adapter clip](bench/results/demo/36-sperm-lora-edit-fp16.mp4);
+- [zero-shot with the prompt "cell"](bench/results/demo/36-cell-zeroshot-fp16.mp4);
+- [both side by side](bench/results/demo/36-before-after-fp16.mp4).
+
+They are made by `tools/locked.sh demo-fp16 bash bench/results/demo/fp16-job.sh`. The 2:39 narrated
+demo, [bench/results/demo/spiketrack-demo.mp4](bench/results/demo/spiketrack-demo.mp4), is built
+from these clips, a live `spiketrack image` run and title cards by
+`tools/locked.sh demo-video bash bench/results/demo/video/make.sh`. The earlier video-22 clip with
+the first adapter (2026-10-27) is [22-sperm-lora.mp4](bench/results/demo/22-sperm-lora.mp4).
 
 Status and plan: [HANDOFF.md](HANDOFF.md) (schedule, gates, task index), [tasks/](tasks/), open
 questions in [gaps.jsonl](gaps.jsonl). What existed before the hackathon and what was built during
 it: [CONTRIBUTIONS.md](CONTRIBUTIONS.md).
 
-## What works (measured, 2026-10-27 to 2026-11-03)
+## What works (measured, 2026-10-27 to 2026-11-04)
 
 Every number links to the log that produced it; parity is against the official SAM 3.1 code run in
 fp32 on CPU (tools/reference).
@@ -87,13 +128,16 @@ fp32 on CPU (tools/reference).
 | Weight-space programming in Rust (`spiketrack weights` + `--weight-edit`, 2026-11-02), unseen held-out VISEM (`5 x 8 = 40` and `5 x 32 = 160` frames, 3,492 GT boxes) | Zero-gradient lexical concept graft (`1,024` / `1,537` of 875.5M params = `0.00012%`–`0.00018%`) lifts `--prompt sperm` from **0.0000 -> 0.1729 / 0.1929 HOTA** (8f) and **0.2106 HOTA** (32f, cap 64); calibrating the frozen `dot_prod_scoring.prompt_mlp.out_norm` (**512 params = 0.0000585%**, zero extra gradients) lifts 600-step LoRA from **0.4515 -> 0.5533 HOTA** (+10.18 pts, 8f) and **0.4751 -> 0.5526 HOTA** (+7.75 pts, DetA 0.316 -> 0.436, 5/5 unseen videos improved, 32f) | [weight-space](bench/results/weight-space) |
 | Enhanced LoRA v2 & v3 (`visem-lora-v2`/`v3`, O2M `topk=4` + scoring/bbox/presence/resizer + CLIP BPE `token_embedding` rows `1375,2629,15595,35781` + focal neg-query suppression, `1.13M` params) + `768`-wt exact IT (`lorav3_exact_it_3p00.json`) + head-box NMS & morphological bulb coasting + `2x2` tiling (2026-11-03) | 120-frame `@0.50` F1 **70.8% -> 74.6%** (v2) / **73.8%** (v3, `100.0%` specificity on 600 everyday negatives; absent VISEM classes cut **33.3% -> 19.9%**, `-40.4%` rel, `presence > 0.5`: **46.8% -> 27.6%**); frame-0 **AP@0.50: 65.3% -> 80.1% -> 83.4%** (v2+`--tile 2x2`) and **`@0.65` birth-gate F1: 83.7%** (`84.1%` peak at `0.66`, v3+`--tile 2x2`); unseen held-out tracking HOTA **0.5533 -> 0.6055** (v2) -> **0.6121** (8f v3, **AssA 0.8115**) and **0.5526 -> 0.5762** (tracker-only) -> **0.6013** (v2) -> **0.6025** (32f v3, **AssA 0.7880**, `74.1%` Prec / **`76.3%` Rec** / `75.2%` F1, all 5 unseen videos improved) | [visem-lora-v3](bench/results/lora/visem-lora-v3/eval.md), [visem-lora-v2-step400](bench/results/lora/visem-lora-v2-step400/eval.md), [weight-space](bench/results/weight-space/README.md) |
 | Tracking, 1,500 held-out frames (first 300 of each of the 5 videos, 32,949 GT boxes), LoRA v3 + 768-weight edit, prompt "sperm", `--boxes detector`, cap 64 (2026-11-03, one run) | **HOTA 0.5700** (DetA 0.483, AssA 0.718, LocA 0.729) against 0.4922 for LoRA v1; per video 21 0.669, 22 0.669, 36 0.533, 47 0.484, 82 0.529 (v1: 0.642, 0.629, 0.352, 0.515, 0.486), so 47 is 0.031 lower; box precision / recall at IoU 0.5: 67.9% / 75.7% (v1 72.8% / 50.5%) | [held300-lorav3](bench/results/track/held300-lorav3-it300-sperm-detector-max64/eval.txt) |
+| fp16 CoreML trunk + fp16 CoreML memory attention, the Metal default since 2026-11-04, against the fp32 CoreML trunk, with gates stated before the runs | frame **0.57-0.60x** (VISEM 36, 32 frames, 3 interleaved rounds: 1.67-1.78 against 2.79-2.96 s); held-out HOTA **0.6025** on 32 frames (unchanged) and **0.5694 against 0.5700** on 1,500 frames, per video 21 +0.0001, 22 +0.0001, 36 -0.0012, 47 -0.0001, 82 -0.0002. The CoreML segmentation head and necks were faster alone but not in the frame (host copies), so they stay on Ojas | [e27-pipe-necks](bench/results/e27-pipe-necks/README.md), [held300-coreml](bench/results/track/held300-coreml/README.md), [held32-coreml](bench/results/track/held32-coreml/README.md), [default-fp16](bench/results/default-fp16) |
 | CoreML port on the same M5 Pro (the speed reference) | 0.272 s backbone + 0.0775 s track step per frame | [baselines](bench/results/baselines) |
 | Tracker step against the CoreML port, 16 objects, VISEM 82, 3 interleaved rounds (rule stated before the run, 2026-11-03) | ours 403-425 ms; port fp32 201-206 ms, fp16 69-83 ms: **1.96-2.11x** the port at equal precision, 5.1-5.9x its fp16 step; memory attention is ~285 ms of ours | [ab-coreml-tracker](bench/results/ab-coreml-tracker/README.md) |
 
 Not yet: the speed target (restated to parity-or-better with the CoreML port's tracker step at 16
-objects). It is not met: our step is about 2x the port's at fp32 and about 5.5x at fp16, and memory
-attention alone (~285 ms) is longer than the port's whole fp32 step
-([ab-coreml-tracker](bench/results/ab-coreml-tracker/README.md)). Upstream caps
+objects). It was not met on 2026-11-03: with memory attention still on Ojas, our step was about 2x
+the port's at fp32 and about 5.5x at fp16
+([ab-coreml-tracker](bench/results/ab-coreml-tracker/README.md)). The fp16 default moves memory
+attention to a CoreML program. The two step A/Bs on it since were not readable under their rule;
+their unread medians put the step at about the port's fp32 step and 2.3-3x its fp16 step. Upstream caps
 tracking at 16 objects, and that cap was binding on the two dense held-out videos (27-46 sperm per
 frame). `track` therefore defaults to `--max-objects 64`; `--max-objects 16` is upstream's setting.
 At 64 on LoRA v1, the 1,500-frame five-video HOTA rises to 0.4922: DetA goes up to 0.373 and AssA down to 0.690
@@ -167,7 +211,15 @@ On the `160`-frame (`5 x 32f`, `3,492` GT boxes) unseen held-out suite, `LoRA v3
 Weights and data are not in the repository. Get `facebook/sam3.1` from Hugging Face (gated, SAM
 License) and VISEM-Tracking from Zenodo 7293726. Convert the checkpoint once, offline:
 `tools/reference/.venv/bin/python -s tools/reference/convert_checkpoint.py`
-(the venv setup is in `tools/reference/README.md`). The workspace builds against Ojas and tessl
+(the venv setup is in `tools/reference/README.md`). On Metal, the default `track` also needs five
+fp16 CoreML packages, exported once into `$SPIKETRACK_MODEL_DIR/coreml/` with the export venv
+(torch 2.7.0 and coremltools 9.0; setup in the docstring of `tools/baselines/coreml_trunk.py`):
+`$PY -s tools/baselines/coreml_trunk.py export --precision fp16`,
+`$PY -s tools/baselines/coreml_mattn.py export --precision fp16`,
+`$PY -s tools/baselines/coreml_necks.py export --neck det --precision fp16` (and `--neck prop`), and
+`$PY -s tools/baselines/coreml_memenc.py export --precision fp16`. A missing package is an error that
+names its export command, never a fallback. `--trunk-precision coreml-fp32` needs the fp32 trunk
+package instead, and `--trunk-precision f32` needs none. The workspace builds against Ojas and tessl
 checked out next to it (path dependencies; commits in CONTRIBUTIONS.md, reproducibility):
 
 ```sh
