@@ -1,0 +1,10 @@
+{
+ "title": "SpikeTrack",
+ "subtitle": "All of Meta's SAM 3.1 on a Mac: from a text prompt to tracked cells",
+ "body": [
+  "One Rust binary on Apple Silicon",
+  "Evaluated on many-sperm tracking in VISEM-Tracking",
+  "Built for the Meta hackathon, Oct 26 to Nov 4, 2026"
+ ],
+ "out": "bench/results/demo/video/build/01-title.png"
+}

@@ -1,0 +1,1 @@
+It is one twelve megabyte Rust binary. At run time it links only macOS system frameworks: no Python, no PyTorch. It runs on our own Metal back end, with the image encoder, the necks, the memory attention and the memory encoder as Core ML programs, exported once from the checkpoint.

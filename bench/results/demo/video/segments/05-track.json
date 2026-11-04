@@ -1,0 +1,8 @@
+{
+ "labels": [
+  "Zero-shot SAM 3.1, prompt \"cell\"",
+  "Adapter + 768-weight edit, prompt \"sperm\""
+ ],
+ "caption": "Held-out video 36, first 200 frames at half speed, looped; boxes and ids are what spiketrack track wrote",
+ "out": "bench/results/demo/video/build/05-track.png"
+}

@@ -1,0 +1,1 @@
+Fertility labs count and follow dozens of sperm cells through microscope video. They often cannot upload clinical video to a cloud service. Meta's SAM 3.1 needs Python, PyTorch and a CUDA GPU, and the existing Core ML port for the Mac runs only its tracker, with no text prompt. SpikeTrack runs the whole model on a Mac.

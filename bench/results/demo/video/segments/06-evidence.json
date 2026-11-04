@@ -1,0 +1,9 @@
+{
+ "title": "It is SAM 3.1, checked against Meta's code",
+ "body": [
+  "Every module against the official SAM 3.1 code: worst cosine 1.0000000, on the CPU and on Metal",
+  "The full text-prompted tracking loop gives the same tracked ids as upstream on 32 of 32 frames",
+  "Every number in this video links to the log that produced it: bench/results/SUMMARY.md"
+ ],
+ "out": "bench/results/demo/video/build/06-evidence.png"
+}

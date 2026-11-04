@@ -1,0 +1,1 @@
+Give it the word sperm. SAM 3.1's detector, plus a small adapter trained on this Mac, finds the heads. On the first frames of five unseen videos, it finds 95 of the 112 sperm heads, at 83.7 percent F1.

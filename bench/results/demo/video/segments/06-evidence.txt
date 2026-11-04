@@ -1,0 +1,1 @@
+Every module was checked against Meta's official code: the worst cosine similarity is 1.0000000, on the CPU and on the GPU. The full tracking loop gives the same tracked ids as upstream, on 32 of 32 frames.

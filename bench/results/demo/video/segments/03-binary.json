@@ -1,0 +1,6 @@
+{
+ "title": "One binary, no Python at run time",
+ "mono_from": "bench/results/demo/video/terminal.txt",
+ "caption": "Rust on Ojas and tessl (Metal); image encoder, necks, memory attention and memory encoder as Core ML programs exported once from the checkpoint",
+ "out": "bench/results/demo/video/build/03-binary.png"
+}

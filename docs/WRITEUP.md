@@ -140,7 +140,13 @@ is where the adapter's learning shows.
 
 ## Limitations, stated plainly
 
-- **Speed and memory footprint.** About 1.85–2.42 s per steady frame on the M5 Pro under quiet load
+- **Speed and memory footprint.** Since 2026-11-04 the Metal default runs the trunk, the necks and
+  the tracker's memory attention and memory encoder as fp16 CoreML programs, each adopted only
+  after gates written before its runs (E24-E32). The frame took 0.57-0.60x, then 0.89-0.92x, then
+  0.83-0.87x, and is about 1.0 s on dense VISEM 36. Held-out HOTA is 0.6025 on 32 frames and 0.5695
+  on 1,500, against 0.5700 on the fp32 trunk (`bench/results/e32-memenc`, README "Speed"). It is
+  not real time. The history below is on the fp32 trunk that was the default until then:
+  about 1.85–2.42 s per steady frame on the M5 Pro under quiet load
   with the CoreML fp32 trunk (down from 2.7 s after E10 and 3.4 s with the Ojas trunk), still
   several times slower than the CoreML port's 0.35 s, which runs only the tracker. Measured step
   for step at 16 objects (2026-11-03, rule stated before the run), our tracker step is 403-425 ms
@@ -180,8 +186,9 @@ is where the adapter's learning shows.
     Since E18b (2026-10-30) the hash is recorded once per package version. The trunk load is then
     0.7 s (min of 3) against 5.8 s, at load ~18, with predictions byte-identical
     (`bench/results/e18b-stat-key`). Core ML's own model load, 0.4-3 s, remains.
-  - An fp16 trunk gives 0.55x the frame but changes close detections. On video 21 that cost the
-    cap-16 HOTA 0.024, so fp16 is not offered as a fast mode.
+  - An fp16 trunk alone gave 0.55x the frame but changed close detections: on video 21 it cost the
+    cap-16 HOTA 0.024. The fp16 default above was judged instead in the shipped configuration (LoRA
+    v3, cap 64) on all five held-out videos, where it passed.
 - **Gating.** Pixel-event gating is exact when it skips nothing. On VISEM, moving sperm change
   most attention windows, so exact gating saves little; the approximate policy skips more, at a
   measured cost.

@@ -1,0 +1,9 @@
+{
+ "title": "SpikeTrack",
+ "subtitle": "github.com/bharathvbcr/SpikeTrack",
+ "body": [
+  "SAM 3.1 is under the SAM License; VISEM-Tracking under CC BY 4.0",
+  "Code, results and the logs behind every number are in the repository"
+ ],
+ "out": "bench/results/demo/video/build/08-end.png"
+}

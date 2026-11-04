@@ -1,0 +1,23 @@
+$ ls -lh target/release/spiketrack
+-rwxr-xr-x@ 12M target/release/spiketrack
+$ otool -L target/release/spiketrack | awk 'NR > 1 {print $1}'
+  /System/Library/Frameworks/CoreML.framework/Versions/A/CoreML
+  /System/Library/Frameworks/ImageIO.framework/Versions/A/ImageIO
+  /System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics
+  /System/Library/Frameworks/CoreVideo.framework/Versions/A/CoreVideo
+  /usr/lib/libobjc.A.dylib
+  /System/Library/Frameworks/Foundation.framework/Versions/C/Foundation
+  /System/Library/Frameworks/AVFoundation.framework/Versions/A/AVFoundation
+  /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation
+  /System/Library/Frameworks/CoreMedia.framework/Versions/A/CoreMedia
+  /System/Library/Frameworks/AudioToolbox.framework/Versions/A/AudioToolbox
+  /System/Library/Frameworks/VideoToolbox.framework/Versions/A/VideoToolbox
+  /System/Library/Frameworks/Metal.framework/Versions/A/Metal
+  /usr/lib/libSystem.B.dylib
+  /usr/lib/libiconv.2.dylib
+  /System/Library/Frameworks/Accelerate.framework/Versions/A/Accelerate
+$ env -i PATH=/usr/bin:/bin target/release/spiketrack --help | head -4
+spiketrack <command> [options]
+
+commands:
+  image        detect and segment a text-prompted concept in one image

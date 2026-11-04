@@ -1,0 +1,227 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp16.mlpackage loaded in 0.9 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 0.86 s), pipelined one frame ahead
+neck on the trunk's worker: coreml sam3.1_neck_det_fp16.mlpackage (cpu_and_gpu) sha256 a763a971280d75e5cb2f46fabc0f4473c288bfe0604cf18f694753665105f12b pipelined
+neck on the trunk's worker: coreml sam3.1_neck_prop_fp16.mlpackage (cpu_and_gpu) sha256 a31be65430724e8bb4d5c095db10ffbe8dd3d65fe6bfb065bcecca1ab05ee64d pipelined
+memory attention: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_mattn_fp16.mlpackage (cached compile, 0.0 s)
+model loaded in 1.2 s on metal; tracking 200 frame(s) of "36"
+frame 0 (1/200): 1.59 s, 13 active track(s), 0 frame(s) released; waits +19 (upload 4, read 15), dispatches +2644, metal allocated 3336 MiB (frame peak 6573 MiB), footprint 5238 MiB, pageouts +4, swapins +0
+frame 1 (2/200): 0.95 s, 20 active track(s), 0 frame(s) released; waits +21 (upload 4, read 17), dispatches +2989, metal allocated 3964 MiB (frame peak 5782 MiB), footprint 5639 MiB, pageouts +0, swapins +4
+frame 2 (3/200): 0.98 s, 21 active track(s), 0 frame(s) released; waits +25 (upload 5, read 20), dispatches +3487, metal allocated 3983 MiB (frame peak 5731 MiB), footprint 5853 MiB, pageouts +0, swapins +0
+frame 3 (4/200): 1.01 s, 24 active track(s), 0 frame(s) released; waits +25 (upload 5, read 20), dispatches +3500, metal allocated 3998 MiB (frame peak 5756 MiB), footprint 6155 MiB, pageouts +0, swapins +0
+frame 4 (5/200): 0.99 s, 25 active track(s), 0 frame(s) released; waits +25 (upload 5, read 20), dispatches +3482, metal allocated 4017 MiB (frame peak 5782 MiB), footprint 5967 MiB, pageouts +0, swapins +0
+frame 5 (6/200): 0.75 s, 25 active track(s), 0 frame(s) released; waits +20 (upload 4, read 16), dispatches +2835, metal allocated 4004 MiB (frame peak 5655 MiB), footprint 5841 MiB, pageouts +0, swapins +0
+frame 6 (7/200): 0.76 s, 25 active track(s), 0 frame(s) released; waits +20 (upload 4, read 16), dispatches +2835, metal allocated 4019 MiB (frame peak 5671 MiB), footprint 5857 MiB, pageouts +0, swapins +0
+frame 7 (8/200): 1.00 s, 26 active track(s), 0 frame(s) released; waits +25 (upload 5, read 20), dispatches +3480, metal allocated 4064 MiB (frame peak 5833 MiB), footprint 6070 MiB, pageouts +5, swapins +0
+frame 8 (9/200): 0.76 s, 26 active track(s), 0 frame(s) released; waits +20 (upload 4, read 16), dispatches +2834, metal allocated 4051 MiB (frame peak 5701 MiB), footprint 6014 MiB, pageouts +0, swapins +0
+frame 9 (10/200): 0.77 s, 26 active track(s), 0 frame(s) released; waits +20 (upload 4, read 16), dispatches +2834, metal allocated 4066 MiB (frame peak 5717 MiB), footprint 6176 MiB, pageouts +0, swapins +0
+frame 10 (11/200): 0.99 s, 27 active track(s), 0 frame(s) released; waits +25 (upload 5, read 20), dispatches +3484, metal allocated 4105 MiB (frame peak 5879 MiB), footprint 6228 MiB, pageouts +0, swapins +0
+frame 11 (12/200): 0.77 s, 27 active track(s), 0 frame(s) released; waits +20 (upload 4, read 16), dispatches +2833, metal allocated 4102 MiB (frame peak 5750 MiB), footprint 6227 MiB, pageouts +0, swapins +0
+frame 12 (13/200): 1.01 s, 29 active track(s), 0 frame(s) released; waits +25 (upload 5, read 20), dispatches +3490, metal allocated 4139 MiB (frame peak 5913 MiB), footprint 6230 MiB, pageouts +0, swapins +0
+frame 13 (14/200): 0.78 s, 29 active track(s), 0 frame(s) released; waits +20 (upload 4, read 16), dispatches +2831, metal allocated 4136 MiB (frame peak 5782 MiB), footprint 6103 MiB, pageouts +0, swapins +0
+frame 14 (15/200): 0.78 s, 29 active track(s), 1 frame(s) released; waits +20 (upload 4, read 16), dispatches +2831, metal allocated 4151 MiB (frame peak 5797 MiB), footprint 5915 MiB, pageouts +0, swapins +0
+frame 15 (16/200): 0.79 s, 29 active track(s), 1 frame(s) released; waits +20 (upload 4, read 16), dispatches +2831, metal allocated 4166 MiB (frame peak 5813 MiB), footprint 5549 MiB, pageouts +2, swapins +0
+frame 16 (17/200): 1.02 s, 30 active track(s), 1 frame(s) released; waits +25 (upload 5, read 20), dispatches +3478, metal allocated 4202 MiB (frame peak 5975 MiB), footprint 5627 MiB, pageouts +0, swapins +0
+frame 17 (18/200): 0.79 s, 30 active track(s), 1 frame(s) released; waits +20 (upload 4, read 16), dispatches +2830, metal allocated 4198 MiB (frame peak 5843 MiB), footprint 5608 MiB, pageouts +0, swapins +0
+frame 18 (19/200): 1.01 s, 31 active track(s), 1 frame(s) released; waits +25 (upload 5, read 20), dispatches +3476, metal allocated 4229 MiB (frame peak 6000 MiB), footprint 5613 MiB, pageouts +0, swapins +0
+frame 19 (20/200): 0.80 s, 31 active track(s), 1 frame(s) released; waits +20 (upload 4, read 16), dispatches +2829, metal allocated 4212 MiB (frame peak 5836 MiB), footprint 5571 MiB, pageouts +0, swapins +0
+frame 20 (21/200): 0.80 s, 31 active track(s), 1 frame(s) released; waits +20 (upload 4, read 16), dispatches +2829, metal allocated 4212 MiB (frame peak 5836 MiB), footprint 5571 MiB, pageouts +0, swapins +0
+frame 21 (22/200): 0.80 s, 31 active track(s), 1 frame(s) released; waits +20 (upload 4, read 16), dispatches +2829, metal allocated 4212 MiB (frame peak 5836 MiB), footprint 5572 MiB, pageouts +0, swapins +0
+frame 22 (23/200): 0.80 s, 31 active track(s), 1 frame(s) released; waits +20 (upload 4, read 16), dispatches +2829, metal allocated 4212 MiB (frame peak 5836 MiB), footprint 5572 MiB, pageouts +0, swapins +0
+frame 23 (24/200): 1.03 s, 32 active track(s), 1 frame(s) released; waits +25 (upload 5, read 20), dispatches +3474, metal allocated 4233 MiB (frame peak 6003 MiB), footprint 5594 MiB, pageouts +0, swapins +0
+frame 24 (25/200): 1.00 s, 34 active track(s), 1 frame(s) released; waits +25 (upload 5, read 20), dispatches +3496, metal allocated 4234 MiB (frame peak 5993 MiB), footprint 5611 MiB, pageouts +0, swapins +0
+frame 25 (26/200): 0.94 s, 34 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3352, metal allocated 4221 MiB (frame peak 5849 MiB), footprint 5598 MiB, pageouts +0, swapins +0
+frame 26 (27/200): 0.95 s, 34 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3352, metal allocated 4226 MiB (frame peak 5857 MiB), footprint 5608 MiB, pageouts +0, swapins +0
+frame 27 (28/200): 0.96 s, 34 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3352, metal allocated 4232 MiB (frame peak 5862 MiB), footprint 5623 MiB, pageouts +0, swapins +0
+frame 28 (29/200): 0.97 s, 34 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3352, metal allocated 4237 MiB (frame peak 5867 MiB), footprint 5639 MiB, pageouts +0, swapins +0
+frame 29 (30/200): 1.18 s, 35 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +4010, metal allocated 4262 MiB (frame peak 6029 MiB), footprint 5699 MiB, pageouts +0, swapins +0
+frame 30 (31/200): 0.97 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4248 MiB (frame peak 5877 MiB), footprint 5675 MiB, pageouts +0, swapins +0
+frame 31 (32/200): 0.98 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4253 MiB (frame peak 5882 MiB), footprint 5685 MiB, pageouts +0, swapins +0
+frame 32 (33/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4258 MiB (frame peak 5887 MiB), footprint 5700 MiB, pageouts +0, swapins +0
+frame 33 (34/200): 1.00 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4263 MiB (frame peak 5892 MiB), footprint 5715 MiB, pageouts +0, swapins +0
+frame 34 (35/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4268 MiB (frame peak 5897 MiB), footprint 5731 MiB, pageouts +0, swapins +0
+frame 35 (36/200): 1.00 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4274 MiB (frame peak 5902 MiB), footprint 5746 MiB, pageouts +0, swapins +0
+frame 36 (37/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4279 MiB (frame peak 5907 MiB), footprint 5761 MiB, pageouts +0, swapins +0
+frame 37 (38/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4284 MiB (frame peak 5912 MiB), footprint 5776 MiB, pageouts +0, swapins +0
+frame 38 (39/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4289 MiB (frame peak 5917 MiB), footprint 5791 MiB, pageouts +0, swapins +0
+frame 39 (40/200): 1.00 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4294 MiB (frame peak 5922 MiB), footprint 5807 MiB, pageouts +0, swapins +0
+frame 40 (41/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4299 MiB (frame peak 5927 MiB), footprint 5826 MiB, pageouts +0, swapins +0
+frame 41 (42/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5938 MiB), footprint 5851 MiB, pageouts +0, swapins +0
+frame 42 (43/200): 0.98 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5851 MiB, pageouts +0, swapins +0
+frame 43 (44/200): 0.98 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5851 MiB, pageouts +0, swapins +0
+frame 44 (45/200): 0.98 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5851 MiB, pageouts +0, swapins +0
+frame 45 (46/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5851 MiB, pageouts +0, swapins +0
+frame 46 (47/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5851 MiB, pageouts +0, swapins +0
+frame 47 (48/200): 0.98 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5938 MiB), footprint 5851 MiB, pageouts +0, swapins +0
+frame 48 (49/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5851 MiB, pageouts +0, swapins +0
+frame 49 (50/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5851 MiB, pageouts +0, swapins +0
+frame 50 (51/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5851 MiB, pageouts +0, swapins +0
+frame 51 (52/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5851 MiB, pageouts +0, swapins +0
+frame 52 (53/200): 1.00 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5765 MiB), footprint 5852 MiB, pageouts +0, swapins +0
+frame 53 (54/200): 0.98 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5852 MiB, pageouts +0, swapins +0
+frame 54 (55/200): 0.96 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5851 MiB, pageouts +0, swapins +0
+frame 55 (56/200): 1.00 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5851 MiB, pageouts +0, swapins +0
+frame 56 (57/200): 0.98 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5938 MiB), footprint 5852 MiB, pageouts +0, swapins +0
+frame 57 (58/200): 1.01 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5938 MiB), footprint 5852 MiB, pageouts +0, swapins +0
+frame 58 (59/200): 1.00 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5852 MiB, pageouts +0, swapins +0
+frame 59 (60/200): 1.00 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5852 MiB, pageouts +0, swapins +0
+frame 60 (61/200): 1.00 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5927 MiB), footprint 5853 MiB, pageouts +0, swapins +0
+frame 61 (62/200): 0.99 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5938 MiB), footprint 5853 MiB, pageouts +0, swapins +0
+frame 62 (63/200): 1.02 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5948 MiB), footprint 5852 MiB, pageouts +0, swapins +0
+frame 63 (64/200): 1.02 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5948 MiB), footprint 5852 MiB, pageouts +0, swapins +0
+frame 64 (65/200): 1.07 s, 35 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3351, metal allocated 4309 MiB (frame peak 5948 MiB), footprint 5852 MiB, pageouts +0, swapins +0
+frame 65 (66/200): 1.29 s, 37 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +4016, metal allocated 4332 MiB (frame peak 6096 MiB), footprint 5909 MiB, pageouts +0, swapins +0
+frame 66 (67/200): 1.04 s, 37 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3349, metal allocated 4314 MiB (frame peak 5929 MiB), footprint 5879 MiB, pageouts +0, swapins +0
+frame 67 (68/200): 1.24 s, 38 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +4004, metal allocated 4335 MiB (frame peak 6098 MiB), footprint 5915 MiB, pageouts +0, swapins +0
+frame 68 (69/200): 1.00 s, 38 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3348, metal allocated 4307 MiB (frame peak 5931 MiB), footprint 5858 MiB, pageouts +0, swapins +0
+frame 69 (70/200): 0.99 s, 38 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3348, metal allocated 4307 MiB (frame peak 5931 MiB), footprint 5858 MiB, pageouts +0, swapins +0
+frame 70 (71/200): 0.99 s, 38 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3348, metal allocated 4307 MiB (frame peak 5941 MiB), footprint 5858 MiB, pageouts +0, swapins +0
+frame 71 (72/200): 0.99 s, 38 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3348, metal allocated 4307 MiB (frame peak 5941 MiB), footprint 5858 MiB, pageouts +0, swapins +0
+frame 72 (73/200): 0.98 s, 38 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3348, metal allocated 4307 MiB (frame peak 5931 MiB), footprint 5858 MiB, pageouts +0, swapins +0
+frame 73 (74/200): 1.22 s, 39 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +4002, metal allocated 4336 MiB (frame peak 6090 MiB), footprint 5900 MiB, pageouts +0, swapins +0
+frame 74 (75/200): 0.99 s, 39 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3347, metal allocated 4308 MiB (frame peak 5931 MiB), footprint 6057 MiB, pageouts +0, swapins +0
+frame 75 (76/200): 0.99 s, 39 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3347, metal allocated 4308 MiB (frame peak 5931 MiB), footprint 6057 MiB, pageouts +0, swapins +0
+frame 76 (77/200): 0.99 s, 39 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3347, metal allocated 4308 MiB (frame peak 5931 MiB), footprint 6057 MiB, pageouts +0, swapins +0
+frame 77 (78/200): 1.00 s, 39 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3347, metal allocated 4308 MiB (frame peak 5941 MiB), footprint 6058 MiB, pageouts +0, swapins +0
+frame 78 (79/200): 1.00 s, 39 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3347, metal allocated 4308 MiB (frame peak 5931 MiB), footprint 6058 MiB, pageouts +0, swapins +0
+frame 79 (80/200): 1.22 s, 40 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +4000, metal allocated 4338 MiB (frame peak 6090 MiB), footprint 6099 MiB, pageouts +0, swapins +0
+frame 80 (81/200): 1.00 s, 40 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3346, metal allocated 4310 MiB (frame peak 5931 MiB), footprint 6261 MiB, pageouts +0, swapins +0
+frame 81 (82/200): 1.00 s, 40 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3346, metal allocated 4310 MiB (frame peak 5931 MiB), footprint 6245 MiB, pageouts +0, swapins +0
+frame 82 (83/200): 1.00 s, 40 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3346, metal allocated 4310 MiB (frame peak 5931 MiB), footprint 6245 MiB, pageouts +0, swapins +0
+frame 83 (84/200): 1.00 s, 40 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3346, metal allocated 4310 MiB (frame peak 5941 MiB), footprint 6245 MiB, pageouts +0, swapins +0
+frame 84 (85/200): 1.01 s, 40 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3346, metal allocated 4310 MiB (frame peak 5931 MiB), footprint 6245 MiB, pageouts +0, swapins +0
+frame 85 (86/200): 1.00 s, 40 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3346, metal allocated 4310 MiB (frame peak 5931 MiB), footprint 6246 MiB, pageouts +0, swapins +0
+frame 86 (87/200): 1.01 s, 40 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3346, metal allocated 4310 MiB (frame peak 5931 MiB), footprint 6246 MiB, pageouts +0, swapins +0
+frame 87 (88/200): 1.24 s, 41 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +3998, metal allocated 4339 MiB (frame peak 6090 MiB), footprint 6291 MiB, pageouts +0, swapins +0
+frame 88 (89/200): 1.03 s, 41 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3345, metal allocated 4311 MiB (frame peak 5931 MiB), footprint 6458 MiB, pageouts +0, swapins +0
+frame 89 (90/200): 1.01 s, 41 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3345, metal allocated 4311 MiB (frame peak 5941 MiB), footprint 6443 MiB, pageouts +0, swapins +0
+frame 90 (91/200): 1.01 s, 41 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3345, metal allocated 4311 MiB (frame peak 5931 MiB), footprint 6443 MiB, pageouts +0, swapins +0
+frame 91 (92/200): 1.01 s, 41 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3345, metal allocated 4311 MiB (frame peak 5941 MiB), footprint 6442 MiB, pageouts +0, swapins +0
+frame 92 (93/200): 1.00 s, 41 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3345, metal allocated 4311 MiB (frame peak 5931 MiB), footprint 6442 MiB, pageouts +0, swapins +0
+frame 93 (94/200): 1.00 s, 41 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3345, metal allocated 4311 MiB (frame peak 5931 MiB), footprint 6442 MiB, pageouts +0, swapins +0
+frame 94 (95/200): 1.22 s, 42 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +3996, metal allocated 4340 MiB (frame peak 6091 MiB), footprint 6486 MiB, pageouts +0, swapins +0
+frame 95 (96/200): 1.00 s, 42 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3344, metal allocated 4313 MiB (frame peak 5931 MiB), footprint 6658 MiB, pageouts +0, swapins +0
+frame 96 (97/200): 1.00 s, 42 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3344, metal allocated 4313 MiB (frame peak 5931 MiB), footprint 6656 MiB, pageouts +0, swapins +0
+frame 97 (98/200): 1.00 s, 42 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3344, metal allocated 4313 MiB (frame peak 5931 MiB), footprint 6656 MiB, pageouts +0, swapins +0
+frame 98 (99/200): 1.00 s, 42 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3344, metal allocated 4313 MiB (frame peak 5931 MiB), footprint 6656 MiB, pageouts +0, swapins +0
+frame 99 (100/200): 1.00 s, 42 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3344, metal allocated 4313 MiB (frame peak 5931 MiB), footprint 6656 MiB, pageouts +0, swapins +0
+frame 100 (101/200): 1.22 s, 43 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +3994, metal allocated 4341 MiB (frame peak 6091 MiB), footprint 6697 MiB, pageouts +0, swapins +0
+frame 101 (102/200): 1.23 s, 44 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +3992, metal allocated 4342 MiB (frame peak 6091 MiB), footprint 6924 MiB, pageouts +0, swapins +0
+frame 102 (103/200): 1.00 s, 44 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3342, metal allocated 4316 MiB (frame peak 5931 MiB), footprint 7111 MiB, pageouts +0, swapins +0
+frame 103 (104/200): 1.02 s, 44 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3342, metal allocated 4316 MiB (frame peak 5931 MiB), footprint 7109 MiB, pageouts +0, swapins +0
+frame 104 (105/200): 1.01 s, 44 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3342, metal allocated 4316 MiB (frame peak 5931 MiB), footprint 7109 MiB, pageouts +0, swapins +0
+frame 105 (106/200): 1.01 s, 44 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3342, metal allocated 4316 MiB (frame peak 5931 MiB), footprint 7109 MiB, pageouts +0, swapins +0
+frame 106 (107/200): 1.02 s, 44 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3342, metal allocated 4316 MiB (frame peak 5931 MiB), footprint 7109 MiB, pageouts +0, swapins +0
+frame 107 (108/200): 1.01 s, 44 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3342, metal allocated 4316 MiB (frame peak 5931 MiB), footprint 7109 MiB, pageouts +0, swapins +0
+frame 108 (109/200): 1.24 s, 45 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +3990, metal allocated 4343 MiB (frame peak 6092 MiB), footprint 7151 MiB, pageouts +0, swapins +0
+frame 109 (110/200): 1.01 s, 45 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3341, metal allocated 4317 MiB (frame peak 5931 MiB), footprint 7346 MiB, pageouts +0, swapins +0
+frame 110 (111/200): 1.22 s, 46 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +3988, metal allocated 4345 MiB (frame peak 6092 MiB), footprint 7383 MiB, pageouts +0, swapins +0
+frame 111 (112/200): 0.99 s, 46 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3340, metal allocated 4319 MiB (frame peak 5931 MiB), footprint 7583 MiB, pageouts +0, swapins +0
+frame 112 (113/200): 0.98 s, 46 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3340, metal allocated 4319 MiB (frame peak 5931 MiB), footprint 7581 MiB, pageouts +0, swapins +0
+frame 113 (114/200): 0.98 s, 46 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3340, metal allocated 4319 MiB (frame peak 5931 MiB), footprint 7581 MiB, pageouts +0, swapins +0
+frame 114 (115/200): 0.99 s, 46 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3340, metal allocated 4319 MiB (frame peak 5931 MiB), footprint 7581 MiB, pageouts +0, swapins +0
+frame 115 (116/200): 0.99 s, 46 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3340, metal allocated 4319 MiB (frame peak 5931 MiB), footprint 7581 MiB, pageouts +0, swapins +0
+frame 116 (117/200): 1.20 s, 47 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +3986, metal allocated 4346 MiB (frame peak 6092 MiB), footprint 7618 MiB, pageouts +0, swapins +0
+frame 117 (118/200): 0.99 s, 47 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3339, metal allocated 4320 MiB (frame peak 5941 MiB), footprint 7816 MiB, pageouts +0, swapins +0
+frame 118 (119/200): 1.21 s, 48 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +3984, metal allocated 4347 MiB (frame peak 6093 MiB), footprint 7857 MiB, pageouts +0, swapins +0
+frame 119 (120/200): 1.01 s, 48 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3338, metal allocated 4322 MiB (frame peak 5931 MiB), footprint 8069 MiB, pageouts +0, swapins +0
+frame 120 (121/200): 0.99 s, 48 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3338, metal allocated 4322 MiB (frame peak 5931 MiB), footprint 8069 MiB, pageouts +0, swapins +0
+frame 121 (122/200): 1.00 s, 48 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3338, metal allocated 4322 MiB (frame peak 5931 MiB), footprint 8069 MiB, pageouts +0, swapins +0
+frame 122 (123/200): 1.00 s, 48 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3338, metal allocated 4322 MiB (frame peak 5931 MiB), footprint 8069 MiB, pageouts +0, swapins +0
+frame 123 (124/200): 1.00 s, 48 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3338, metal allocated 4322 MiB (frame peak 5931 MiB), footprint 8069 MiB, pageouts +0, swapins +0
+frame 124 (125/200): 1.00 s, 48 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3338, metal allocated 4322 MiB (frame peak 5931 MiB), footprint 8069 MiB, pageouts +0, swapins +0
+frame 125 (126/200): 1.00 s, 48 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3338, metal allocated 4322 MiB (frame peak 5941 MiB), footprint 8069 MiB, pageouts +0, swapins +0
+frame 126 (127/200): 1.00 s, 48 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3338, metal allocated 4322 MiB (frame peak 5931 MiB), footprint 8069 MiB, pageouts +0, swapins +0
+frame 127 (128/200): 1.00 s, 48 active track(s), 1 frame(s) released; waits +24 (upload 5, read 19), dispatches +3338, metal allocated 4322 MiB (frame peak 5931 MiB), footprint 8069 MiB, pageouts +0, swapins +0
+frame 128 (129/200): 1.20 s, 49 active track(s), 1 frame(s) released; waits +29 (upload 6, read 23), dispatches +3998, metal allocated 4352 MiB (frame peak 6093 MiB), footprint 8119 MiB, pageouts +0, swapins +0
+frame 129 (130/200): 1.17 s, 49 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3863, metal allocated 4332 MiB (frame peak 5940 MiB), footprint 8335 MiB, pageouts +0, swapins +0
+frame 130 (131/200): 1.14 s, 49 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3863, metal allocated 4337 MiB (frame peak 5945 MiB), footprint 8345 MiB, pageouts +0, swapins +0
+frame 131 (132/200): 1.15 s, 49 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3863, metal allocated 4342 MiB (frame peak 5950 MiB), footprint 8360 MiB, pageouts +0, swapins +0
+frame 132 (133/200): 1.17 s, 49 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3863, metal allocated 4347 MiB (frame peak 5955 MiB), footprint 8375 MiB, pageouts +0, swapins +0
+frame 133 (134/200): 1.22 s, 49 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3863, metal allocated 4352 MiB (frame peak 5960 MiB), footprint 8390 MiB, pageouts +0, swapins +0
+frame 134 (135/200): 1.38 s, 49 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3863, metal allocated 4357 MiB (frame peak 5965 MiB), footprint 8309 MiB, pageouts +0, swapins +0
+frame 135 (136/200): 1.27 s, 49 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3863, metal allocated 4362 MiB (frame peak 5970 MiB), footprint 8425 MiB, pageouts +0, swapins +0
+frame 136 (137/200): 1.26 s, 49 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3863, metal allocated 4368 MiB (frame peak 5975 MiB), footprint 8440 MiB, pageouts +0, swapins +0
+frame 137 (138/200): 1.47 s, 50 active track(s), 1 frame(s) released; waits +33 (upload 7, read 26), dispatches +4522, metal allocated 4396 MiB (frame peak 6143 MiB), footprint 8397 MiB, pageouts +0, swapins +0
+frame 138 (139/200): 1.25 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3862, metal allocated 4379 MiB (frame peak 5986 MiB), footprint 8735 MiB, pageouts +0, swapins +0
+frame 139 (140/200): 1.26 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3862, metal allocated 4384 MiB (frame peak 5991 MiB), footprint 8745 MiB, pageouts +0, swapins +0
+frame 140 (141/200): 1.29 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3862, metal allocated 4389 MiB (frame peak 5996 MiB), footprint 8713 MiB, pageouts +0, swapins +0
+frame 141 (142/200): 1.33 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3862, metal allocated 4394 MiB (frame peak 6001 MiB), footprint 8728 MiB, pageouts +0, swapins +0
+frame 142 (143/200): 1.39 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3862, metal allocated 4399 MiB (frame peak 6006 MiB), footprint 8695 MiB, pageouts +5, swapins +0
+frame 143 (144/200): 1.32 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3862, metal allocated 4404 MiB (frame peak 6011 MiB), footprint 8752 MiB, pageouts +0, swapins +0
+frame 144 (145/200): 1.28 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3862, metal allocated 4410 MiB (frame peak 6016 MiB), footprint 8822 MiB, pageouts +0, swapins +0
+frame 145 (146/200): 1.29 s, 49 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3862, metal allocated 4420 MiB (frame peak 6026 MiB), footprint 8799 MiB, pageouts +0, swapins +0
+frame 146 (147/200): 1.51 s, 50 active track(s), 1 frame(s) released; waits +33 (upload 7, read 26), dispatches +4527, metal allocated 4448 MiB (frame peak 6191 MiB), footprint 8771 MiB, pageouts +0, swapins +0
+frame 147 (148/200): 1.24 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3867, metal allocated 4416 MiB (frame peak 6032 MiB), footprint 8655 MiB, pageouts +0, swapins +0
+frame 148 (149/200): 1.26 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3867, metal allocated 4416 MiB (frame peak 6022 MiB), footprint 8655 MiB, pageouts +0, swapins +0
+frame 149 (150/200): 1.28 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3867, metal allocated 4416 MiB (frame peak 6022 MiB), footprint 8654 MiB, pageouts +0, swapins +0
+frame 150 (151/200): 1.19 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3867, metal allocated 4416 MiB (frame peak 6022 MiB), footprint 8655 MiB, pageouts +0, swapins +0
+frame 151 (152/200): 1.17 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3867, metal allocated 4416 MiB (frame peak 6022 MiB), footprint 8655 MiB, pageouts +0, swapins +0
+frame 152 (153/200): 1.16 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3867, metal allocated 4416 MiB (frame peak 6032 MiB), footprint 8655 MiB, pageouts +0, swapins +0
+frame 153 (154/200): 1.17 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3867, metal allocated 4416 MiB (frame peak 6022 MiB), footprint 8655 MiB, pageouts +0, swapins +0
+frame 154 (155/200): 1.20 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3867, metal allocated 4416 MiB (frame peak 6022 MiB), footprint 8655 MiB, pageouts +0, swapins +0
+frame 155 (156/200): 1.20 s, 50 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3867, metal allocated 4416 MiB (frame peak 6022 MiB), footprint 8655 MiB, pageouts +0, swapins +0
+frame 156 (157/200): 1.39 s, 51 active track(s), 1 frame(s) released; waits +33 (upload 7, read 26), dispatches +4530, metal allocated 4450 MiB (frame peak 6185 MiB), footprint 8701 MiB, pageouts +0, swapins +0
+frame 157 (158/200): 1.17 s, 51 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3866, metal allocated 4416 MiB (frame peak 6022 MiB), footprint 8913 MiB, pageouts +0, swapins +0
+frame 158 (159/200): 1.38 s, 52 active track(s), 1 frame(s) released; waits +33 (upload 7, read 26), dispatches +4528, metal allocated 4443 MiB (frame peak 6184 MiB), footprint 8817 MiB, pageouts +0, swapins +0
+frame 159 (160/200): 1.21 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 9156 MiB, pageouts +0, swapins +0
+frame 160 (161/200): 1.20 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 161 (162/200): 1.19 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8957 MiB, pageouts +0, swapins +0
+frame 162 (163/200): 1.16 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 163 (164/200): 1.16 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8942 MiB, pageouts +0, swapins +0
+frame 164 (165/200): 1.14 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8959 MiB, pageouts +0, swapins +0
+frame 165 (166/200): 1.15 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8959 MiB, pageouts +0, swapins +0
+frame 166 (167/200): 1.16 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 167 (168/200): 1.15 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 168 (169/200): 1.15 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6032 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 169 (170/200): 1.17 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +4
+frame 170 (171/200): 1.18 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8942 MiB, pageouts +0, swapins +0
+frame 171 (172/200): 1.19 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 172 (173/200): 1.19 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 173 (174/200): 1.19 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 174 (175/200): 1.19 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 175 (176/200): 1.19 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8957 MiB, pageouts +0, swapins +0
+frame 176 (177/200): 1.18 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8941 MiB, pageouts +0, swapins +0
+frame 177 (178/200): 1.20 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 178 (179/200): 1.18 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 179 (180/200): 1.23 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 180 (181/200): 1.21 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 181 (182/200): 1.20 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 182 (183/200): 1.22 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 183 (184/200): 1.22 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8958 MiB, pageouts +0, swapins +0
+frame 184 (185/200): 1.19 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6032 MiB), footprint 8956 MiB, pageouts +0, swapins +0
+frame 185 (186/200): 1.20 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8956 MiB, pageouts +0, swapins +0
+frame 186 (187/200): 1.19 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8939 MiB, pageouts +0, swapins +0
+frame 187 (188/200): 1.18 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8956 MiB, pageouts +0, swapins +0
+frame 188 (189/200): 1.22 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8955 MiB, pageouts +0, swapins +0
+frame 189 (190/200): 1.23 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8955 MiB, pageouts +0, swapins +0
+frame 190 (191/200): 1.37 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8908 MiB, pageouts +4, swapins +0
+frame 191 (192/200): 1.27 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8955 MiB, pageouts +2, swapins +0
+frame 192 (193/200): 1.22 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6032 MiB), footprint 8956 MiB, pageouts +0, swapins +0
+frame 193 (194/200): 1.20 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8956 MiB, pageouts +0, swapins +0
+frame 194 (195/200): 1.19 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8956 MiB, pageouts +0, swapins +0
+frame 195 (196/200): 1.20 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6032 MiB), footprint 8955 MiB, pageouts +0, swapins +0
+frame 196 (197/200): 1.22 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8956 MiB, pageouts +0, swapins +0
+frame 197 (198/200): 1.22 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8956 MiB, pageouts +2, swapins +0
+frame 198 (199/200): 1.21 s, 52 active track(s), 1 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8939 MiB, pageouts +0, swapins +0
+frame 199 (200/200): 1.45 s, 52 active track(s), 15 frame(s) released; waits +28 (upload 6, read 22), dispatches +3865, metal allocated 4418 MiB (frame peak 6022 MiB), footprint 8328 MiB, pageouts +0, swapins +0
+200 frame(s) of "36" tracked on metal: 53 track(s) born, 1.08 s/frame (model, mean), 224.2 s total
+  bench/results/demo/run-36-cell-zeroshot-fp16/36.json
+  bench/results/demo/run-36-cell-zeroshot-fp16/36.run.json
+  /Users/bharath/Code/research/SpikeTrack/bench/results/demo/36-cell-zeroshot-fp16.mp4 (overlay video: 200 frame(s) at 25 fps from --overlay-fps, 1.9 MiB)
+      225.22 real        89.01 user        71.66 sys
+          9335816192  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+            11743983  page reclaims
+              117004  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 561  voluntary context switches
+              969721  involuntary context switches
+       2204594000084  instructions retired
+        652755646745  cycles elapsed
+         11207287232  peak memory footprint

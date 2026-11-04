@@ -1,0 +1,4 @@
+mac_heavy: 2026-11-04T15:35:49Z 'spiketrack-demo-fp16' holds the lock (waited 0s; load 5.52, 1263 processes); running: bash -c bash bench/results/demo/fp16-job.sh > bench/results/demo/fp16-job.log 2>&1; echo "clips $?"; DEMO_REUSE_IMAGE=1 bash bench/results/demo/video/make.sh > bench/results/demo/video/make.log 2>&1; echo "video $?"
+clips 0
+video 0
+mac_heavy: 2026-11-04T15:44:08Z 'spiketrack-demo-fp16' finished with exit 0

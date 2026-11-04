@@ -1,0 +1,18 @@
+wrote bench/results/demo/video/build/01-title.png
+wrote bench/results/demo/video/build/02-problem.png
+wrote bench/results/demo/video/build/03-binary.png
+wrote bench/results/demo/video/build/04-image.png
+wrote bench/results/demo/video/build/05-track.png
+wrote bench/results/demo/video/build/06-evidence.png
+wrote bench/results/demo/video/build/07-speed.png
+wrote bench/results/demo/video/build/08-end.png
+01-title: 8.06 s
+02-problem: 21.58 s
+03-binary: 19.26 s
+04-image: 16.77 s
+05-track: 24.47 s
+06-evidence: 16.9 s
+07-speed: 49.73 s
+08-end: 6.01 s
+duration=162.891333
+size=13241874

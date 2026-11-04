@@ -1,5 +1,15 @@
 # Demo video script
 
+The built video is `bench/results/demo/spiketrack-demo.mp4`: 2:43, 1280x720, narrated with the
+macOS voice Samantha. It is made by `tools/locked.sh demo-video bash bench/results/demo/video/make.sh`
+from `bench/results/demo/video/segments/` (one card spec and one narration text per segment). It
+follows this script, with two differences:
+- the one-binary segment says "no Python at run time", because the Core ML programs are exported
+  once with coremltools;
+- "births included" is dropped from the evidence segment, because no result in this repository
+  states it.
+To record a voiced version instead, the narration texts are the lines to read.
+
 Target length about 2:30. Adjust to the Official Rules' limit once read (GAP-OFFICIAL-RULES-UNREAD).
 Everything on screen is a live run or a clip the binary wrote, not a slide. Every number spoken is
 in [bench/results/SUMMARY.md](../bench/results/SUMMARY.md).
@@ -11,9 +21,9 @@ Before recording: `cargo build --release -p spiketrack`, export `SPIKETRACK_WEIG
 
 On screen: a raw VISEM-Tracking frame from video 36 (`data/visem/VISEM_Tracking_Train_v4/Train/36/images/36_frame_0.jpg`).
 
-Say: "Fertility labs count and follow dozens of sperm cells through microscope video. They often
-cannot upload clinical video to a cloud service, and Meta's SAM 3.1 needs Python, PyTorch and a
-CUDA GPU. SpikeTrack runs all of SAM 3.1 on a laptop, from a text prompt to tracked cells."
+Say: the narration in `bench/results/demo/video/segments/02-problem.txt`. It names both
+alternatives up front: Meta's code needs Python, PyTorch and a CUDA GPU, and the Core ML port for
+the Mac runs only the tracker, with no text prompt.
 
 ## 0:20-0:45 One binary, no Python
 
@@ -40,12 +50,14 @@ frames of five unseen videos it finds 95 of the 112 sperm heads, at 83.7% F1."
 
 ## 1:10-1:50 Tracking: before and after
 
-On screen, side by side (any editor, or `ffmpeg -i a.mp4 -i b.mp4 -filter_complex hstack`):
-- left `bench/results/demo/36-cell-zeroshot.mp4`: zero-shot SAM 3.1, prompt "cell"
-- right `bench/results/demo/36-sperm-lora-edit-v3.mp4`: adapter + 768-weight edit, prompt "sperm"
+On screen: `bench/results/demo/36-before-after-fp16.mp4`, already side by side:
+- left (`36-cell-zeroshot-fp16.mp4`): zero-shot SAM 3.1, prompt "cell"
+- right (`36-sperm-lora-edit-fp16.mp4`): adapter + 768-weight edit, prompt "sperm"
 
-Both are 200 frames of held-out video 36 written at 25 fps (about half speed), made by
-`tools/locked.sh demo-v3 bash bench/results/demo/v3-job.sh`.
+Both are 200 frames of held-out video 36 written at 25 fps (about half speed), on the shipped
+default (fp16 Core ML trunk and memory attention), made by
+`tools/locked.sh demo-fp16 bash bench/results/demo/fp16-job.sh`. The v3 clips beside them are the
+same configuration on the fp32 trunk that was the default until 2026-11-04.
 
 Say: "Out of the box SAM 3.1 does not know the word 'sperm', and 'cell' boxes whole cells with
 their tails. With a LoRA adapter and an edit of 768 weights, each head gets a box and keeps its id.
@@ -59,11 +71,19 @@ On screen: the README's "What works" table, scrolled slowly.
 Say: "Every module was checked against Meta's official code: worst cosine 1.0000000 on CPU and on
 the GPU, and the same tracked ids as upstream on 32 of 32 frames, births included."
 
-## 2:15-2:30 Limits, said plainly
+## 2:15-2:30 Speed and limits, said plainly
 
-Say: "It is not fast yet. Step for step at 16 objects our tracker is about twice as slow as the
-existing CoreML port at the same precision. But that port runs only the tracker: it cannot take a
-text prompt, detect, or start new tracks. SpikeTrack runs all of SAM 3.1."
+Say: the narration in `bench/results/demo/video/segments/07-speed.txt`. The point to land is that
+speed comes from Core ML, not from the calling language. SpikeTrack calls the same kind of Core ML
+programs from Rust, and adds what the port cannot do: text prompts, detection, new tracks.
+
+The video makes no speed comparison with the port. The last readable one (2026-11-03, about 2x at
+fp32) predates the fp16 default. The two re-runs on that default (runs 4 and 5) were not readable
+under their pre-stated rule. Quoting either would contradict what the frame does today.
+
+Sources: `bench/results/e27-pipe-necks/README.md` (0.57-0.60x),
+`bench/results/track/held300-coreml/README.md` (HOTA), `bench/results/profile-fp16/` (1.31 s/frame,
+32 frames of video 36, quiet machine), `bench/results/ab-coreml-tracker/README.md` (the port).
 
 ## Not in this video, and why
 
