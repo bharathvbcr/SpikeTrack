@@ -75,14 +75,18 @@ Rules. It is listed here, with commits, before submission either way.
 | `4710bb2..d5d33cc` | CPU `relu_forward`, two-pass f64 LayerNorm, SAM fixture parity and refusal fixes (gp/78-cpu-oracle); Metal `rope_interleaved`, unmasked D=64 self-attention routed to tessl `encoder_attn`, conv2d at any stride/padding, depthwise conv2d, bilinear (both align_corners), `relu` (gp/78-metal) | 2026-10-26/27 | pending the Official Rules |
 | `d2922fb..4710bb2` | Metal `conv2d_forward` (im2col + GEMM) and `conv_transpose2d_forward` (kernel == stride) for the SAM backbone; a ViT attention bench; README acknowledgements | 2026-10-26 | pending the Official Rules |
 
-Reproducibility (2026-11-03): the workspace builds against the sibling checkouts `../ojas` at
-`59adac6` and `../tessl` at `52bdd19` (path dependencies). Neither commit is public yet: Ojas's
-`origin/main` is `09e5ea9` (40 commits behind) and tessl's is `ce5cab1` (31 behind). The repin from
+Reproducibility (2026-11-04): the workspace builds against the sibling checkouts `../ojas` at
+`9aafcdc` and `../tessl` at `52bdd19` (path dependencies), both public. `9aafcdc` is `59adac6` plus
+`MetalBackend::set_overlap_dispatches`, which `track`'s E29 option calls. A clean export of
+SpikeTrack `94312ef` with those two commits beside it built (`cargo build --release -p spiketrack`,
+system libraries only), and the ojas test `set_overlap_dispatches_refuses_zero_and_keeps_the_bits`
+passed; against `59adac6` alone it failed to compile. No other dependency moved, so the checks
+below still describe the model code. Earlier (2026-11-03): the repin from
 `286a444` to `59adac6` was checked before it was written here: every module gate passes as before,
 the detector and D3 gates pass on fixtures whose sha256s match `fixtures/DETECTOR_MANIFEST.json`,
 detect-track parity holds (video 22, id sets equal on 32 of 32 frames), and v3's train-5
-predictions are byte-identical (`bench/results/repin-59adac6/`). Until both are
-pushed, a fresh clone cannot build SpikeTrack. History before that: `ea3cf39` was on Ojas's local main only; Ojas's public `origin/main` is `170b22d` (pushed on Bharath's
+predictions are byte-identical (`bench/results/repin-59adac6/`). Until both were
+pushed, a fresh clone could not build SpikeTrack. History before that: `ea3cf39` was on Ojas's local main only; Ojas's public `origin/main` is `170b22d` (pushed on Bharath's
 instruction 2026-10-27; it contains `cbd5565`, the previous pin). The owner chose to keep main local for now (2026-10-28). Cargo.toml still uses path dependencies on local checkouts (`../ojas`, and tessl as
 ojas-metal's sibling path), so the workspace builds on this machine only. Before submission, Cargo.toml must point at
 the public repositories (Ojas by rev; tessl likewise once its commit is public).

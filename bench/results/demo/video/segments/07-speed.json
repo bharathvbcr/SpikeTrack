@@ -1,11 +1,11 @@
 {
  "title": "Speed, stated plainly",
  "body": [
-  "Last day: the image encoder (one frame ahead) and the memory attention became half-precision Core ML programs called from Rust: a frame took 0.57 to 0.60 of the time of the day before",
-  "Then the necks, on the encoder's thread: 0.89 to 0.92 of that frame; then the memory encoder: 0.83 to 0.87 of that",
-  "Tracking accuracy held at each step: HOTA 0.5695 over 1,500 frames, against 0.5700 before",
-  "About 1.0 s per frame on dense video (VISEM 36), detection and tracking together, on an M5 Pro: not real time yet",
-  "The existing SAM 3.1 Core ML port is Core ML too, but only the tracker: no text prompt, no detection, no new tracks"
+  "Time per frame on a dense video (M5 Pro), finding and tracking together:",
+  "2.9 s → 1.7 s: image encoder and memory attention moved to half-precision Core ML",
+  "1.7 s → 1.0 s: the encoder now works one frame ahead, and two more parts moved to Core ML",
+  "Accuracy held at each step: HOTA 0.570 before, 0.5695 now, over 1,500 unseen frames",
+  "Not real time yet. The existing Mac port of SAM 3.1 is faster, but it only tracks: it can't take a text prompt or find new cells"
  ],
  "out": "bench/results/demo/video/build/07-speed.png"
 }

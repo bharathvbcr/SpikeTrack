@@ -1,6 +1,6 @@
 # Demo video script
 
-The built video is `bench/results/demo/spiketrack-demo.mp4`: 2:43, 1280x720, narrated with the
+The built video is `bench/results/demo/spiketrack-demo.mp4`: 2:24, 1280x720, narrated with the
 macOS voice Samantha. It is made by `tools/locked.sh demo-video bash bench/results/demo/video/make.sh`
 from `bench/results/demo/video/segments/` (one card spec and one narration text per segment). It
 follows this script, with two differences:

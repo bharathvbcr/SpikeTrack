@@ -1,6 +1,6 @@
 {
- "title": "One binary, no Python at run time",
+ "title": "One program, nothing to install",
  "mono_from": "bench/results/demo/video/terminal.txt",
- "caption": "Rust on Ojas and tessl (Metal); image encoder, necks, memory attention and memory encoder as Core ML programs exported once from the checkpoint",
+ "caption": "A 12 MB program that uses only macOS's own libraries: no Python, no PyTorch, no server",
  "out": "bench/results/demo/video/build/03-binary.png"
 }

@@ -1,8 +1,8 @@
 {
  "labels": [
-  "Zero-shot SAM 3.1, prompt \"cell\"",
-  "Adapter + 768-weight edit, prompt \"sperm\""
+  "Before: SAM 3.1 as released (prompt \"cell\")",
+  "After: + our small adapter (prompt \"sperm\")"
  ],
- "caption": "Held-out video 36, first 200 frames at half speed, looped; boxes and ids are what spiketrack track wrote",
+ "caption": "Each sperm keeps its own ID as it swims. Tracking score (HOTA, 1,500 unseen frames): 0.15 before, 0.57 after",
  "out": "bench/results/demo/video/build/05-track.png"
 }

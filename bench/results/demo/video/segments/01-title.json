@@ -1,9 +1,9 @@
 {
  "title": "SpikeTrack",
- "subtitle": "All of Meta's SAM 3.1 on a Mac: from a text prompt to tracked cells",
+ "subtitle": "Meta's SAM 3.1 on a Mac: type a word, get every matching cell tracked",
  "body": [
-  "One Rust binary on Apple Silicon",
-  "Evaluated on many-sperm tracking in VISEM-Tracking",
+  "Runs entirely on a laptop: one program, no cloud, no Python",
+  "Tested on tracking dozens of sperm cells in clinical microscope video",
   "Built for the Meta hackathon, Oct 26 to Nov 4, 2026"
  ],
  "out": "bench/results/demo/video/build/01-title.png"

@@ -224,7 +224,7 @@ checked out next to it (path dependencies; commits in CONTRIBUTIONS.md, reproduc
 
 ```sh
 git clone https://github.com/bharathvbcr/SpikeTrack
-git clone https://github.com/bharathvbcr/ojas   && git -C ojas  checkout 59adac6
+git clone https://github.com/bharathvbcr/ojas   && git -C ojas  checkout 9aafcdc
 git clone https://github.com/bharathvbcr/tessl  && git -C tessl checkout 52bdd19
 ```
 

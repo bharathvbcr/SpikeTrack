@@ -1,1 +1,1 @@
-Every module was checked against Meta's official code: the worst cosine similarity is 1.0000000, on the CPU and on the GPU. The full tracking loop gives the same tracked ids as upstream, on 32 of 32 frames.
+We checked every part of the model against Meta's official code, on the CPU and on the GPU, and the outputs match. The whole tracking loop finds the same cells, with the same IDs, as Meta's code, on 32 of 32 frames.
