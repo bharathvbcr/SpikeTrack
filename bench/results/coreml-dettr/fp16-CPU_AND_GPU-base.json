@@ -1,0 +1,44 @@
+{
+ "precision": "fp16",
+ "units": "CPU_AND_GPU",
+ "adapter": "base",
+ "lora_modules_folded": 0,
+ "reference": "upstream fixture",
+ "parity": {
+  "mem": {
+   "cosine": 0.9999997749656998,
+   "rel_l2": 0.0006800407277365254,
+   "max_abs": 0.027814865112304688,
+   "finite": true
+  },
+  "geo": {
+   "cosine": 0.999999525495286,
+   "rel_l2": 0.000981967162228471,
+   "max_abs": 0.010083198547363281,
+   "finite": true
+  },
+  "hs": {
+   "cosine": 0.9983183236919022,
+   "rel_l2": 0.0579993470162529,
+   "max_abs": 3.8376125395298004,
+   "finite": true
+  },
+  "presence": {
+   "cosine": 0.9999999531823504,
+   "rel_l2": 0.00039453322348619686,
+   "max_abs": 0.0029451847076416016,
+   "finite": true
+  },
+  "boxes": {
+   "cosine": 0.9995765556074534,
+   "rel_l2": 0.029183948932554975,
+   "max_abs": 0.2558283805847168,
+   "finite": true
+  }
+ },
+ "predict_ms": {
+  "n": 10,
+  "median": 19.611270501627587,
+  "min": 19.27708397852257
+ }
+}

@@ -14,6 +14,9 @@ OUT=bench/results/track/held300-lorav3-it300-sperm-detector-max64
   git status --short
   git diff | shasum -a 256
 } > "$OUT/provenance.txt"
+# The trunk is pinned: since 2026-11-04 track's Metal default is the fp16 trunk + fp16 memory
+# attention (../held300-coreml), and this run used the coreml-fp32 default of 2026-11-03.
+SPIKETRACK_TRUNK=coreml-fp32 \
 SPIKETRACK_TRACK_OUT="$OUT" \
 SPIKETRACK_PROMPT=sperm \
 SPIKETRACK_BOXES=detector \

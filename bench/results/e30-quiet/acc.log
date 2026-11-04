@@ -1,0 +1,9 @@
+mac_heavy: 2026-11-04T14:21:14Z 'spiketrack-e30-acc' holds the lock (waited 0s; load 13.25, 1483 processes); running: bash -c bash bench/results/track/held32-coreml/job.sh t16m16n16 > bench/results/track/held32-coreml/job-t16m16n16.log 2>&1; echo "G2 exit $?"; bash bench/results/track/held300-coreml/job.sh t16m16n16 > bench/results/track/held300-coreml/job-t16m16n16.log 2>&1; echo "G3 exit $?"
+G2 exit 0
+/opt/homebrew/Cellar/python@3.15/3.15.2/Frameworks/Python.framework/Versions/3.15/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/bharath/Code/research/Lappi-decision/tools/mac_footprint.py': [Errno 2] No such file or directory
+mac_heavy: 2026-11-04T14:46:19Z 'spiketrack-e30-acc': the footprint reader failed (1 of 3)
+/opt/homebrew/Cellar/python@3.15/3.15.2/Frameworks/Python.framework/Versions/3.15/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/bharath/Code/research/Lappi-decision/tools/mac_footprint.py': [Errno 2] No such file or directory
+mac_heavy: 2026-11-04T14:46:21Z 'spiketrack-e30-acc': the footprint reader failed (2 of 3)
+/opt/homebrew/Cellar/python@3.15/3.15.2/Frameworks/Python.framework/Versions/3.15/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/bharath/Code/research/Lappi-decision/tools/mac_footprint.py': [Errno 2] No such file or directory
+mac_heavy: 2026-11-04T14:46:23Z 'spiketrack-e30-acc': the footprint reader failed (3 of 3)
+mac_heavy: 2026-11-04T14:46:25Z 'spiketrack-e30-acc' was stopped: the memory guard could not run (exit 71); its result does not count

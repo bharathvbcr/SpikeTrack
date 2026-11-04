@@ -1,0 +1,11 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp16.mlpackage loaded in 0.9 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 0.85 s), pipelined one frame ahead
+neck on the trunk's worker: coreml sam3.1_neck_det_fp16.mlpackage (cpu_and_gpu) sha256 a763a971280d75e5cb2f46fabc0f4473c288bfe0604cf18f694753665105f12b pipelined
+neck on the trunk's worker: coreml sam3.1_neck_prop_fp16.mlpackage (cpu_and_gpu) sha256 a31be65430724e8bb4d5c095db10ffbe8dd3d65fe6bfb065bcecca1ab05ee64d pipelined
+memory attention: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_mattn_fp16.mlpackage (cached compile, 0.0 s)
+memory encoder: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_memenc_fp16.mlpackage (cached compile, 0.0 s)
+model loaded in 1.2 s on metal; tracking 2 frame(s) of "36"
+frame 0 (1/2): 4.11 s, 39 active track(s), 0 frame(s) released; waits +33 (upload 7, read 26), dispatches +4882, metal allocated 3456 MiB (frame peak 7312 MiB), footprint 4892 MiB, pageouts +9, swapins +0
+frame 1 (2/2): 1.07 s, 41 active track(s), 2 frame(s) released; waits +26 (upload 6, read 20), dispatches +3510, metal allocated 4117 MiB (frame peak 5873 MiB), footprint 5661 MiB, pageouts +0, swapins +0
+2 frame(s) of "36" tracked on metal: 36 track(s) born, 2.59 s/frame (model, mean), 6.6 s total
+  bench/results/e32-memenc/main-checks/default/36.json
+  bench/results/e32-memenc/main-checks/default/36.run.json

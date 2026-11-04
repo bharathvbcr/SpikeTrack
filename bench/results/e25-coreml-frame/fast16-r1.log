@@ -1,0 +1,1 @@
+spiketrack: error: --trunk-precision coreml-fp16: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp16.mlpackage does not exist; export it with tools/baselines/coreml_trunk.py export --precision fp16, or pass --trunk-precision f32 for the Ojas trunk

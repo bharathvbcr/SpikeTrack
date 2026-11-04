@@ -1,0 +1,79 @@
+{
+ "precision": "fp16",
+ "units": "ALL",
+ "package": "/Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_mattn_fp16.mlpackage",
+ "load_s": 0.33737295801984146,
+ "worst_rel_l2": 0.0008789183832448317,
+ "rows": [
+  {
+   "frame": 1,
+   "memory_frames": 1,
+   "pointer_tokens": 16,
+   "cosine": 0.9999996139508994,
+   "rel_l2": 0.0008789183832448317,
+   "max_abs": 0.013934612274169922,
+   "finite": true
+  },
+  {
+   "frame": 2,
+   "memory_frames": 2,
+   "pointer_tokens": 32,
+   "cosine": 0.9999996241190603,
+   "rel_l2": 0.0008673484556486516,
+   "max_abs": 0.023763716220855713,
+   "finite": true
+  },
+  {
+   "frame": 3,
+   "memory_frames": 3,
+   "pointer_tokens": 48,
+   "cosine": 0.9999996634799896,
+   "rel_l2": 0.0008210347154582742,
+   "max_abs": 0.01613330841064453,
+   "finite": true
+  },
+  {
+   "frame": 4,
+   "memory_frames": 4,
+   "pointer_tokens": 64,
+   "cosine": 0.999999652941137,
+   "rel_l2": 0.0008337264948653627,
+   "max_abs": 0.014047622680664062,
+   "finite": true
+  },
+  {
+   "frame": 5,
+   "memory_frames": 5,
+   "pointer_tokens": 80,
+   "cosine": 0.9999996520785337,
+   "rel_l2": 0.0008345542079071219,
+   "max_abs": 0.018792808055877686,
+   "finite": true
+  },
+  {
+   "frame": 6,
+   "memory_frames": 6,
+   "pointer_tokens": 96,
+   "cosine": 0.9999996551919824,
+   "rel_l2": 0.0008309576290982407,
+   "max_abs": 0.015283584594726562,
+   "finite": true
+  },
+  {
+   "frame": 7,
+   "memory_frames": 7,
+   "pointer_tokens": 112,
+   "cosine": 0.9999996564125638,
+   "rel_l2": 0.0008294378581719021,
+   "max_abs": 0.017883777618408203,
+   "finite": true
+  }
+ ],
+ "predict_ms": {
+  "n": 10,
+  "median": 61.85039598494768,
+  "min": 60.65124997985549,
+  "max": 63.01112499204464
+ },
+ "deterministic": true
+}

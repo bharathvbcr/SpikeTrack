@@ -1,0 +1,23 @@
+{
+ "precision": "fp16",
+ "units": "CPU_AND_GPU",
+ "parity": {
+  "pred_masks": {
+   "cosine": 0.9999999455450524,
+   "rel_l2": 0.00035300674666732975,
+   "max_abs": 0.2164764404296875,
+   "finite": true
+  },
+  "semantic_seg": {
+   "cosine": 0.9999999454798926,
+   "rel_l2": 0.00043027844432315767,
+   "max_abs": 0.031202316284179688,
+   "finite": true
+  }
+ },
+ "predict_ms": {
+  "n": 20,
+  "median": 15.133750493987463,
+  "min": 13.367791980272159
+ }
+}

@@ -1,0 +1,62 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp16.mlpackage loaded in 0.2 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 0.14 s), pipelined one frame ahead
+neck on the trunk's worker: coreml sam3.1_neck_det_fp16.mlpackage (cpu_and_gpu) sha256 a763a971280d75e5cb2f46fabc0f4473c288bfe0604cf18f694753665105f12b pipelined
+neck on the trunk's worker: coreml sam3.1_neck_prop_fp16.mlpackage (cpu_and_gpu) sha256 a31be65430724e8bb4d5c095db10ffbe8dd3d65fe6bfb065bcecca1ab05ee64d pipelined
+neck on the trunk's worker: coreml sam3.1_neck_inter_fp16.mlpackage (cpu_and_gpu) sha256 2f6b85f284a426bae4b65944b56a72854245c971432f2d19c5d19b1e98d966e7 pipelined
+segmentation head: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_seghead_fp16.mlpackage (cached compile, 0.0 s)
+detector transformer: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_dettr_fp16.mlpackage (cached compile, 0.0 s)
+memory attention: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_mattn_fp16.mlpackage (cached compile, 0.0 s)
+memory encoder: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_memenc_fp16.mlpackage (cached compile, 0.0 s)
+model loaded in 0.5 s on metal; tracking 32 frame(s) of "21"
+frame 0 (1/32): 2.00 s, 23 active track(s), 0 frame(s) released; waits +19 (upload 4, read 15), dispatches +2036, metal allocated 4392 MiB (frame peak 7384 MiB), footprint 5907 MiB, pageouts +0, swapins +0
+frame 1 (2/32): 0.64 s, 24 active track(s), 0 frame(s) released; waits +15 (upload 4, read 11), dispatches +1304, metal allocated 5168 MiB (frame peak 6335 MiB), footprint 7665 MiB, pageouts +0, swapins +0
+frame 2 (3/32): 0.50 s, 24 active track(s), 0 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5147 MiB (frame peak 5262 MiB), footprint 6781 MiB, pageouts +0, swapins +0
+frame 3 (4/32): 0.51 s, 24 active track(s), 0 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5147 MiB (frame peak 5302 MiB), footprint 6811 MiB, pageouts +0, swapins +0
+frame 4 (5/32): 0.51 s, 24 active track(s), 0 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5158 MiB (frame peak 5330 MiB), footprint 6847 MiB, pageouts +0, swapins +0
+frame 5 (6/32): 0.51 s, 24 active track(s), 0 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5173 MiB (frame peak 5340 MiB), footprint 6887 MiB, pageouts +0, swapins +0
+frame 6 (7/32): 0.52 s, 24 active track(s), 0 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5188 MiB (frame peak 5355 MiB), footprint 6927 MiB, pageouts +0, swapins +0
+frame 7 (8/32): 0.51 s, 24 active track(s), 0 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5203 MiB (frame peak 5370 MiB), footprint 6969 MiB, pageouts +0, swapins +0
+frame 8 (9/32): 0.52 s, 24 active track(s), 0 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5218 MiB (frame peak 5385 MiB), footprint 7010 MiB, pageouts +0, swapins +0
+frame 9 (10/32): 0.51 s, 24 active track(s), 0 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5234 MiB (frame peak 5401 MiB), footprint 7050 MiB, pageouts +0, swapins +0
+frame 10 (11/32): 0.52 s, 24 active track(s), 0 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5249 MiB (frame peak 5416 MiB), footprint 7091 MiB, pageouts +0, swapins +0
+frame 11 (12/32): 0.51 s, 24 active track(s), 0 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5264 MiB (frame peak 5431 MiB), footprint 7131 MiB, pageouts +0, swapins +0
+frame 12 (13/32): 0.50 s, 24 active track(s), 0 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5279 MiB (frame peak 5446 MiB), footprint 7173 MiB, pageouts +0, swapins +0
+frame 13 (14/32): 0.51 s, 24 active track(s), 0 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5294 MiB (frame peak 5461 MiB), footprint 7213 MiB, pageouts +0, swapins +0
+frame 14 (15/32): 0.53 s, 24 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5309 MiB (frame peak 5477 MiB), footprint 7253 MiB, pageouts +0, swapins +0
+frame 15 (16/32): 0.53 s, 24 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5325 MiB (frame peak 5492 MiB), footprint 7294 MiB, pageouts +0, swapins +0
+frame 16 (17/32): 0.78 s, 24 active track(s), 1 frame(s) released; waits +16 (upload 5, read 11), dispatches +1553, metal allocated 5423 MiB (frame peak 8135 MiB), footprint 7426 MiB, pageouts +0, swapins +0
+frame 17 (18/32): 0.63 s, 25 active track(s), 1 frame(s) released; waits +15 (upload 4, read 11), dispatches +1303, metal allocated 5448 MiB (frame peak 6800 MiB), footprint 7850 MiB, pageouts +0, swapins +0
+frame 18 (19/32): 0.53 s, 25 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5415 MiB (frame peak 5588 MiB), footprint 7344 MiB, pageouts +0, swapins +0
+frame 19 (20/32): 0.54 s, 25 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5415 MiB (frame peak 5588 MiB), footprint 7344 MiB, pageouts +0, swapins +0
+frame 20 (21/32): 0.53 s, 25 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5415 MiB (frame peak 5588 MiB), footprint 7344 MiB, pageouts +0, swapins +0
+frame 21 (22/32): 0.52 s, 25 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5415 MiB (frame peak 5588 MiB), footprint 7344 MiB, pageouts +0, swapins +0
+frame 22 (23/32): 0.52 s, 25 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5415 MiB (frame peak 5588 MiB), footprint 7344 MiB, pageouts +0, swapins +0
+frame 23 (24/32): 0.54 s, 25 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5415 MiB (frame peak 5588 MiB), footprint 7344 MiB, pageouts +0, swapins +0
+frame 24 (25/32): 0.54 s, 25 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5415 MiB (frame peak 5588 MiB), footprint 7344 MiB, pageouts +0, swapins +0
+frame 25 (26/32): 0.53 s, 25 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5415 MiB (frame peak 5588 MiB), footprint 7344 MiB, pageouts +0, swapins +0
+frame 26 (27/32): 0.53 s, 25 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5415 MiB (frame peak 5588 MiB), footprint 7344 MiB, pageouts +0, swapins +0
+frame 27 (28/32): 0.52 s, 25 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5415 MiB (frame peak 5588 MiB), footprint 7344 MiB, pageouts +0, swapins +0
+frame 28 (29/32): 0.54 s, 25 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5415 MiB (frame peak 5588 MiB), footprint 7344 MiB, pageouts +0, swapins +0
+frame 29 (30/32): 0.64 s, 26 active track(s), 1 frame(s) released; waits +15 (upload 4, read 11), dispatches +1302, metal allocated 5448 MiB (frame peak 6761 MiB), footprint 7632 MiB, pageouts +0, swapins +0
+frame 30 (31/32): 0.52 s, 26 active track(s), 1 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5410 MiB (frame peak 5582 MiB), footprint 7342 MiB, pageouts +0, swapins +0
+frame 31 (32/32): 0.40 s, 26 active track(s), 15 frame(s) released; waits +10 (upload 3, read 7), dispatches +716, metal allocated 5410 MiB (frame peak 5561 MiB), footprint 7295 MiB, pageouts +0, swapins +0
+32 frame(s) of "21" tracked on metal: 26 track(s) born, 0.58 s/frame (model, mean), 19.6 s total
+  /Users/bharath/Code/research/SpikeTrack/bench/results/track/held32-coreml/t16m16n16me16all16/run/21.json
+  /Users/bharath/Code/research/SpikeTrack/bench/results/track/held32-coreml/t16m16n16me16all16/run/21.run.json
+       20.48 real         9.55 user         4.43 sys
+          6093307904  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             1463004  page reclaims
+               64091  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 467  voluntary context switches
+               89841  involuntary context switches
+        182297670798  instructions retired
+         56143936432  cycles elapsed
+         10604435744  peak memory footprint

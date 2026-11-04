@@ -1,0 +1,79 @@
+{
+ "precision": "fp32",
+ "units": "CPU_AND_GPU",
+ "package": "/Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_mattn_fp32.mlpackage",
+ "load_s": 0.19024970900500193,
+ "worst_rel_l2": 2.425628868781144e-06,
+ "rows": [
+  {
+   "frame": 1,
+   "memory_frames": 1,
+   "pointer_tokens": 16,
+   "cosine": 0.9999999999993335,
+   "rel_l2": 1.1480934275014105e-06,
+   "max_abs": 1.9550323486328125e-05,
+   "finite": true
+  },
+  {
+   "frame": 2,
+   "memory_frames": 2,
+   "pointer_tokens": 32,
+   "cosine": 0.9999999999992856,
+   "rel_l2": 1.189302920277536e-06,
+   "max_abs": 1.33514404296875e-05,
+   "finite": true
+  },
+  {
+   "frame": 3,
+   "memory_frames": 3,
+   "pointer_tokens": 48,
+   "cosine": 0.9999999999990996,
+   "rel_l2": 1.3361262547490845e-06,
+   "max_abs": 1.6450881958007812e-05,
+   "finite": true
+  },
+  {
+   "frame": 4,
+   "memory_frames": 4,
+   "pointer_tokens": 64,
+   "cosine": 0.9999999999988569,
+   "rel_l2": 1.5072399212458543e-06,
+   "max_abs": 2.002716064453125e-05,
+   "finite": true
+  },
+  {
+   "frame": 5,
+   "memory_frames": 5,
+   "pointer_tokens": 80,
+   "cosine": 0.9999999999984128,
+   "rel_l2": 1.7781683912123632e-06,
+   "max_abs": 2.7179718017578125e-05,
+   "finite": true
+  },
+  {
+   "frame": 6,
+   "memory_frames": 6,
+   "pointer_tokens": 96,
+   "cosine": 0.9999999999982249,
+   "rel_l2": 1.8802905593158243e-06,
+   "max_abs": 2.1219253540039062e-05,
+   "finite": true
+  },
+  {
+   "frame": 7,
+   "memory_frames": 7,
+   "pointer_tokens": 112,
+   "cosine": 0.999999999997052,
+   "rel_l2": 2.425628868781144e-06,
+   "max_abs": 3.3915042877197266e-05,
+   "finite": true
+  }
+ ],
+ "predict_ms": {
+  "n": 10,
+  "median": 182.1122914989246,
+  "min": 179.94633299531415,
+  "max": 189.57720801699907
+ },
+ "deterministic": true
+}

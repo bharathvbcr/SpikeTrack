@@ -1,0 +1,15 @@
+mac_heavy: 2026-11-04T17:52:14Z 'spiketrack-e32-main-checks' holds the lock (waited 0s; load 5.69, 1357 processes); running: bash bench/results/e32-memenc/main-checks.sh
+fmt ok
+clippy ok
+clippy checked: st-model st-coreml spiketrack
+tests ok
+test binaries 3, passed 158, failed 0
+test track_cmd::tests::coreml_placements_refuse_edits_of_the_weights_their_packages_bake_in ... ok
+test track_cmd::tests::the_memory_encoder_defaults_as_memory_attention_does ... ok
+build ok
+default mem_encoder coreml-fp16 | coreml sam3.1_memenc_fp16.mlpackage (cpu_and_gpu) sha256 8412789550bb0e287ff2eff44f33a4c24a8a3b14d93e36e4b246d63b8115566f | calls {'external': 6, 'ojas': 4} | mem_attn coreml-fp16
+ojas mem_encoder ojas | None | calls {'external': 0, 'ojas': 10} | mem_attn coreml-fp16
+fp32-trunk mem_encoder ojas | None | calls {'external': 0, 'ojas': 10} | mem_attn ojas
+small-input refused: spiketrack: --mem-encoder coreml-fp16: the CoreML package is for --backend metal at the native 1008 input; pass --mem-encoder ojas
+checks status 0
+mac_heavy: 2026-11-04T17:53:14Z 'spiketrack-e32-main-checks' finished with exit 0

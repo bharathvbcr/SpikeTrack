@@ -1,0 +1,36 @@
+mac_heavy: 2026-11-04T00:15:07Z 'spiketrack-st-build' waiting 0s for the lock; holder: label=spiketrack-cml-check pid=56042 start=2026-11-04T00:14:58Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-04T00:20:07Z 'spiketrack-st-build' waiting 300s for the lock; holder: label=spiketrack-cml-ane pid=56755 start=2026-11-04T00:16:14Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-04T00:25:08Z 'spiketrack-st-build' waiting 600s for the lock; holder: label=spiketrack-cml-ane pid=56755 start=2026-11-04T00:16:14Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-04T00:30:09Z 'spiketrack-st-build' waiting 900s for the lock; holder: label=spiketrack-cml-ane pid=56755 start=2026-11-04T00:16:14Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-04T00:30:49Z 'spiketrack-st-build' holds the lock (waited 940s; load 9.67, 1468 processes); running: bash -c cargo clippy --release -j 2 -p st-model -p st-coreml -p spiketrack --all-targets -- -D warnings 2>&1 | tail -30; echo clippy ${PIPESTATUS[0]}; cargo test --release -j 2 -p st-model -p st-coreml 2>&1 | rg "test result|FAILED|panicked" ; cargo build --release -j 2 -p spiketrack 2>&1 | tail -2
+    Checking ojas-metal v0.1.0 (/Users/bharath/Code/research/ojas/ojas-metal)
+    Checking st-coreml v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-coreml)
+    Checking st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+    Checking spiketrack v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/spiketrack)
+    Finished `release` profile [optimized] target(s) in 6.49s
+clippy 0
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 60 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.04s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 7 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 15.02s
+test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.26s
+test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   Compiling spiketrack v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/spiketrack)
+    Finished `release` profile [optimized] target(s) in 22.92s
+mac_heavy: 2026-11-04T00:32:27Z 'spiketrack-st-build' finished with exit 0

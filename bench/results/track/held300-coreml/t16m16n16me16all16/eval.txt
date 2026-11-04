@@ -1,0 +1,8 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+21         300      5635        6656        0  0.6681 0.5925 0.7623 0.7865
+22         300      3229        3211        0  0.6691 0.6489 0.6997 0.7543
+36         300     13847       15253        0  0.5312 0.4612 0.6306 0.7118
+47         300      2045        2891        0  0.4605 0.4012 0.5302 0.7274
+82         300      8193        8877        0  0.5286 0.4239 0.7770 0.7011
+all       1500     32949       36888        0  0.5670 0.4808 0.7140 0.7286
+wrote /Users/bharath/Code/research/SpikeTrack/bench/results/track/held300-coreml/t16m16n16me16all16/eval.json

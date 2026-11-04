@@ -1,0 +1,54 @@
+mac_heavy: 2026-11-04T13:51:39Z 'spiketrack-e29-overlap' holds the lock (waited 0s; load 7.20, 1449 processes); running: bash bench/results/e29-overlap/job.sh
+    Finished `release` profile [optimized] target(s) in 0.99s
+test track_cmd::tests::bad_command_lines_fail_before_any_model_work ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 95 filtered out; finished in 0.00s
+test backend::tests::set_overlap_dispatches_refuses_zero_and_keeps_the_bits ... ok
+test backend::tests::overlap_commits_from_many_threads_match_a_serial_run_bit_for_bit ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 87 filtered out; finished in 0.18s
+== o256 r1 exit 0 load 5.81 5.24 6.29
+== o32 r1 exit 0 load 8.30 5.89 6.46
+== o8 r1 exit 0 load 9.58 6.72 6.73
+== o1 r1 exit 0 load 9.11 7.12 6.88
+O1 o32 r1: byte-identical to o256
+O1 o8 r1: byte-identical to o256
+O1 o1 r1: byte-identical to o256
+== o32 r2 exit 0 load 9.00 7.40 7.00
+== o8 r2 exit 0 load 7.00 7.10 6.91
+== o1 r2 exit 0 load 10.41 7.94 7.23
+== o256 r2 exit 0 load 13.46 9.34 7.80
+O1 o32 r2: byte-identical to o256
+O1 o8 r2: byte-identical to o256
+O1 o1 r2: byte-identical to o256
+== o8 r3 exit 0 load 14.58 10.51 8.34
+== o1 r3 exit 0 load 14.88 11.36 8.80
+== o256 r3 exit 0 load 16.23 12.41 9.36
+== o32 r3 exit 0 load 13.83 12.48 9.59
+O1 o32 r3: byte-identical to o256
+O1 o8 r3: byte-identical to o256
+O1 o1 r3: byte-identical to o256
+# Whole-frame ms, VISEM 36, steady frames >= 8: push_frame median / wall per frame
+
+| round | o256 | o32 | o8 | o1 | o32 / o256 (push, wall) | o8 / o256 (push, wall) | o1 / o256 (push, wall) |
+|---|---|---|---|---|---|---|---|
+| 1 | 1380 / 1445 | 1355 / 1526 | 1620 / 1734 | 1470 / 1663 | 0.982, 1.056 | 1.174, 1.200 | 1.065, 1.151 |
+| 2 | 1550 / 1742 | 1315 / 1512 | 1260 / 1341 | 1595 / 1688 | 0.848, 0.868 | 0.813, 0.770 | 1.029, 0.969 |
+| 3 | 1580 / 1765 | 1460 / 1597 | 1465 / 1546 | 1455 / 1663 | 0.924, 0.905 | 0.927, 0.876 | 0.921, 0.943 |
+
+Median (and worst) over rounds of the per-round ratio: o32 push 0.924 (max 0.982), wall 0.905 (max 1.056) over 3 round(s); o8 push 0.927 (max 1.174), wall 0.876 (max 1.200) over 3 round(s); o1 push 1.029 (max 1.065), wall 0.969 (max 1.151) over 3 round(s)
+
+## Tracks against o256 (same round)
+
+| round | arm | frames with equal id sets | mean box IoU over shared ids | min box IoU | byte-identical predictions |
+|---|---|---|---|---|---|
+| 1 | o32 | 32/32 | 1.0000 | 1.0000 | yes |
+| 1 | o8 | 32/32 | 1.0000 | 1.0000 | yes |
+| 1 | o1 | 32/32 | 1.0000 | 1.0000 | yes |
+| 2 | o32 | 32/32 | 1.0000 | 1.0000 | yes |
+| 2 | o8 | 32/32 | 1.0000 | 1.0000 | yes |
+| 2 | o1 | 32/32 | 1.0000 | 1.0000 | yes |
+| 3 | o32 | 32/32 | 1.0000 | 1.0000 | yes |
+| 3 | o8 | 32/32 | 1.0000 | 1.0000 | yes |
+| 3 | o1 | 32/32 | 1.0000 | 1.0000 | yes |
+
+E29 status 0
+mac_heavy: 2026-11-04T14:02:32Z 'spiketrack-e29-overlap' finished with exit 0

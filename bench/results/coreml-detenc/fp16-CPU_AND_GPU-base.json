@@ -1,0 +1,25 @@
+{
+ "precision": "fp16",
+ "units": "CPU_AND_GPU",
+ "adapter": "base",
+ "parity": {
+  "mem": {
+   "cosine": 0.9999997966775163,
+   "rel_l2": 0.000647187735214761,
+   "max_abs": 0.024595260620117188,
+   "finite": true
+  },
+  "geo": {
+   "cosine": 0.999999525495286,
+   "rel_l2": 0.000981967162228471,
+   "max_abs": 0.010083198547363281,
+   "finite": true
+  }
+ },
+ "reference": "upstream fixture",
+ "predict_ms": {
+  "n": 10,
+  "median": 12.563291500555351,
+  "min": 12.345208000624552
+ }
+}

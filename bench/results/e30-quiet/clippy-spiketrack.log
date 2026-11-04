@@ -1,0 +1,5 @@
+    Checking ojas-metal v0.1.0 (/Users/bharath/Code/research/ojas/ojas-metal)
+    Checking st-weights v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-weights)
+    Checking st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/st-model)
+    Checking spiketrack v0.1.0 (/Users/bharath/Code/research/SpikeTrack/crates/spiketrack)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.36s

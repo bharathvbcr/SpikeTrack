@@ -1,0 +1,197 @@
+{
+ "source": "huggingface.co/sdkv2/sam3.1-coreml @ 9668c4964e216cf9e3a64f0ad812af9d62b33642",
+ "compute_units": "CPU_AND_GPU",
+ "packages": {
+  "tracker": "tracker/models/dense_sam3_trackstep_fp32.mlpackage"
+ },
+ "coremltools": "9.0",
+ "macos": "27.2",
+ "machine": "Apple M5 Pro",
+ "load_avg_start": [
+  28.7060546875,
+  23.84912109375,
+  21.8125
+ ],
+ "models": {
+  "tracker": {
+   "inputs": {
+    "vis72": {
+     "shape": [
+      5184,
+      1,
+      256
+     ],
+     "dtype": "FLOAT32"
+    },
+    "hires0": {
+     "shape": [
+      1,
+      32,
+      288,
+      288
+     ],
+     "dtype": "FLOAT32"
+    },
+    "hires1": {
+     "shape": [
+      1,
+      64,
+      144,
+      144
+     ],
+     "dtype": "FLOAT32"
+    },
+    "cond_mem": {
+     "shape": [
+      1,
+      256,
+      72,
+      72
+     ],
+     "dtype": "FLOAT32"
+    },
+    "cond_img": {
+     "shape": [
+      5184,
+      1,
+      256
+     ],
+     "dtype": "FLOAT32"
+    },
+    "cond_ptr": {
+     "shape": [
+      1,
+      16,
+      256
+     ],
+     "dtype": "FLOAT32"
+    },
+    "frame_pos": {
+     "shape": [
+      1
+     ],
+     "dtype": "FLOAT32"
+    }
+   },
+   "outputs": {
+    "unsqueeze_15": {
+     "shape": [
+      16,
+      1,
+      288,
+      288
+     ],
+     "dtype": "FLOAT32"
+    },
+    "unsqueeze_16": {
+     "shape": [
+      16,
+      1,
+      1008,
+      1008
+     ],
+     "dtype": "FLOAT32"
+    },
+    "view_173": {
+     "shape": [
+      16,
+      1
+     ],
+     "dtype": "FLOAT32"
+    },
+    "view_171": {
+     "shape": [
+      16,
+      3
+     ],
+     "dtype": "FLOAT32"
+    }
+   },
+   "states": {
+    "mem_bank": {
+     "shape": [
+      6,
+      1,
+      256,
+      72,
+      72
+     ]
+    },
+    "img_bank": {
+     "shape": [
+      6,
+      5184,
+      1,
+      256
+     ]
+    },
+    "ptr_bank": {
+     "shape": [
+      15,
+      1,
+      16,
+      256
+     ]
+    },
+    "mem_valid": {
+     "shape": [
+      6
+     ]
+    },
+    "ptr_valid": {
+     "shape": [
+      15
+     ]
+    }
+   }
+  }
+ },
+ "tracker": {
+  "load_s": 0.46,
+  "first_call_s": 0.338,
+  "untimed_calls_before": 2,
+  "n": 32,
+  "median_s": 0.21,
+  "min_s": 0.205,
+  "max_s": 0.2469,
+  "all_s": [
+   0.2097,
+   0.2089,
+   0.205,
+   0.2088,
+   0.2101,
+   0.2117,
+   0.2087,
+   0.2062,
+   0.2095,
+   0.2103,
+   0.2079,
+   0.2075,
+   0.2104,
+   0.2106,
+   0.21,
+   0.2094,
+   0.2102,
+   0.212,
+   0.2106,
+   0.2093,
+   0.2083,
+   0.2105,
+   0.2092,
+   0.2076,
+   0.2097,
+   0.2204,
+   0.212,
+   0.2136,
+   0.2135,
+   0.2237,
+   0.2389,
+   0.2469
+  ]
+ },
+ "load_avg_end": [
+  29.2099609375,
+  24.0341796875,
+  21.8896484375
+ ]
+}

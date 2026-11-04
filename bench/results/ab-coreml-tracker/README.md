@@ -4,6 +4,52 @@ Each run writes its own folder (`AB_RUN=run2 tools/locked.sh ab-coreml bash
 tools/jobs/ab_coreml_tracker.sh`); run 1's outputs are in `run1/`. Run 2 repeats run 1 unchanged,
 same rule and threshold, because run 1's verdict was not read.
 
+## Run 4, on the fp16 default (2026-11-04 03:45-03:54 UTC, `run4-fp16-default/`): NOT READ
+
+This run uses the same job (`AB_TRUNK=coreml-fp16`), the same arms and the same pre-stated rule. The
+SpikeTrack arm runs the Metal default since 2026-11-04: the fp16 CoreML trunk, with memory attention as
+an fp16 CoreML program.
+
+The precondition failed. The profiled runs landed +10.5%, -11.9% and +16.8% from the unprofiled
+controls (limit 10%), with a machine load average of 20-25 from other sessions. Under the rule, the
+stage times are not taken literally and there is no verdict. Every SpikeTrack run was byte-identical
+to control 1.
+
+Medians, indicative only (not read):
+
+| round | SpikeTrack step | port fp32 | port fp16 |
+|---|---|---|---|
+| 1 | 214.2 ms | 234.2 | 74.1 |
+| 2 | 180.1 | 212.8 | 71.0 |
+| 3 | 275.8 | 222.4 | 70.3 |
+
+SpikeTrack's round-to-round spread was 53%. Read with that caveat, the step fell from ~410 ms (run 2)
+to roughly the port's fp32 step, and it is still ~2.5-4x the port's fp16 step. A readable verdict needs
+a rerun on a quieter machine: `AB_RUN=<new> AB_TRUNK=coreml-fp16 tools/locked.sh ab-coreml bash
+tools/jobs/ab_coreml_tracker.sh`.
+
+## Run 5, repeat of run 4 (2026-11-04 ~03:56-04:06 UTC, `run5-fp16-default/`): NOT READ
+
+This run used the same job and rule, starting at a load average of ~14.
+
+The precondition failed again: the profiled runs were +15.5%, +22.3% and +7.4% against the controls,
+so rounds 1 and 2 fall outside the 10% limit. Every SpikeTrack run was byte-identical to control 1.
+
+This time the medians were steady. They are still not read under the rule.
+
+| round | SpikeTrack step | port fp32 | port fp16 | ours / fp32 | ours / fp16 |
+|---|---|---|---|---|---|
+| 1 | 203.2 ms | 209.6 | 72.2 | 0.97 | 2.81 |
+| 2 | 207.7 | 210.2 | 69.9 | 0.99 | 2.97 |
+| 3 | 204.9 | 213.2 | 89.7 | 0.96 | 2.28 |
+
+Spread: SpikeTrack 2.2%, port fp32 1.7%, port fp16 28.3%.
+
+[I] Runs 4 and 5 both put the profiled runs above the controls, mostly. The stage profiler's device
+syncs around the CoreML memory-attention program may cost more than the 10% this precondition allows,
+which would make the rule unreadable on this path even on a quiet machine. Telling that apart from load
+needs a run with a profile-free tracker-step measure. Until then, no parity claim is made.
+
 ## Result: NOT MET against either port precision (run 2, 02:20-02:28 UTC, `run2/`)
 
 Read under the pre-stated rule [V]. Every precondition held:

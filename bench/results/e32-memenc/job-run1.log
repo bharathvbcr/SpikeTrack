@@ -1,0 +1,28 @@
+mac_heavy: 2026-11-04T17:22:48Z 'spiketrack-e32-speed' holds the lock (waited 0s; load 4.37, 1298 processes); running: bash ../SpikeTrack/bench/results/e32-memenc/job.sh
+    Finished `release` profile [optimized] target(s) in 0.95s
+== waited 0s for a quiet machine
+== base r1 exit 0 load start 4.37 end 4.19: read
+== me16 r1 exit 0 load start 4.19 end 4.63: read
+== me16 r2 exit 0 load start 4.63 end 4.01: read
+== base r2 exit 0 load start 4.01 end 4.30: read
+== base r3 exit 0 load start 4.30 end 4.07: read
+== me16 r3 exit 0 load start 4.07 end 3.92: read
+# Whole-frame ms, VISEM 36, steady frames >= 8: push_frame median / wall per frame
+
+| round | base | me16 | me16 / base (push, wall) |
+|---|---|---|---|
+| 1 | 1165 / 1248 | 950 / 1080 | 0.815, 0.865 |
+| 2 | 1165 / 1241 | 910 / 1044 | 0.781, 0.841 |
+| 3 | 1130 / 1183 | 890 / 981 | 0.788, 0.829 |
+
+Median (and worst) over rounds of the per-round ratio: me16 push 0.788 (max 0.815), wall 0.841 (max 0.865) over 3 round(s)
+
+## Tracks against base (same round)
+
+| round | arm | frames with equal id sets | mean box IoU over shared ids | min box IoU | byte-identical predictions |
+|---|---|---|---|---|---|
+| 1 | me16 | 32/32 | 1.0000 | 0.9919 | no |
+| 2 | me16 | 32/32 | 1.0000 | 0.9919 | no |
+| 3 | me16 | 32/32 | 1.0000 | 0.9919 | no |
+
+mac_heavy: 2026-11-04T17:26:35Z 'spiketrack-e32-speed' finished with exit 0

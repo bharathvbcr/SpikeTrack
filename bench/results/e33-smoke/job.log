@@ -1,0 +1,8 @@
+mac_heavy: 2026-11-04T18:01:27Z 'spiketrack-e33-smoke' holds the lock (waited 0s; load 4.20, 1386 processes); running: bash ../SpikeTrack/bench/results/e33-smoke/job.sh
+base: load 4.70, inter-neck ojas (none), seg-head ojas, 39 tracks, frames 2.. 0.81 1.03 0.77 0.77 1.01 1.04 (mean 905 ms)
+ni16: load 4.72, inter-neck coreml-fp16 (set), seg-head ojas, 39 tracks, frames 2.. 0.77 0.91 0.77 0.78 0.90 0.94 (mean 845 ms)
+sh16: load 4.93, inter-neck ojas (none), seg-head coreml-fp16, 39 tracks, frames 2.. 0.70 0.91 0.70 0.70 0.90 0.96 (mean 812 ms)
+both: load 4.56, inter-neck coreml-fp16 (set), seg-head coreml-fp16, 39 tracks, frames 2.. 0.71 0.83 0.72 0.72 0.86 0.85 (mean 782 ms)
+base-2: load 4.80, inter-neck ojas (none), seg-head ojas, 39 tracks, frames 2.. 0.77 1.04 0.78 0.75 1.01 1.05 (mean 900 ms)
+smoke status 0
+mac_heavy: 2026-11-04T18:02:35Z 'spiketrack-e33-smoke' finished with exit 0

@@ -1,0 +1,12 @@
+{
+  "metric": "HOTA, TrackEval definition (st_eval): mean over alpha 0.05..0.95 step 0.05",
+  "classes": ["sperm"],
+  "videos": [
+    {"id": "21", "frames": 300, "gt_boxes": 5635, "pred_boxes": 6656, "pred_frames_outside_gt": 0, "hota": 0.6695420550869223, "det_a": 0.5934021621248219, "ass_a": 0.7647139211849886, "loc_a": 0.787149326854483},
+    {"id": "22", "frames": 300, "gt_boxes": 3229, "pred_boxes": 3211, "pred_frames_outside_gt": 0, "hota": 0.6690726986247338, "det_a": 0.6492081793758071, "ass_a": 0.6988590952629785, "loc_a": 0.7533857192759995},
+    {"id": "36", "frames": 300, "gt_boxes": 13847, "pred_boxes": 15141, "pred_frames_outside_gt": 0, "hota": 0.5342979705398894, "det_a": 0.46509986875811515, "ass_a": 0.6324152967423122, "loc_a": 0.7144202544319246},
+    {"id": "47", "frames": 300, "gt_boxes": 2045, "pred_boxes": 2752, "pred_frames_outside_gt": 0, "hota": 0.48388725658513004, "det_a": 0.4155074559199041, "ass_a": 0.5650760189175627, "loc_a": 0.7280881718544078},
+    {"id": "82", "frames": 300, "gt_boxes": 8193, "pred_boxes": 8876, "pred_frames_outside_gt": 0, "hota": 0.529088297182045, "det_a": 0.42441507384951077, "ass_a": 0.7774961904024181, "loc_a": 0.7014207404528208}
+  ],
+  "combined": {"hota": 0.5705245323753368, "det_a": 0.4840657659835449, "ass_a": 0.7182039170990686, "loc_a": 0.7287748095663378}
+}

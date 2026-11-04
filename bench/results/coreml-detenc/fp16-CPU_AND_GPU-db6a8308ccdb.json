@@ -1,0 +1,25 @@
+{
+ "precision": "fp16",
+ "units": "CPU_AND_GPU",
+ "adapter": "db6a8308ccdb",
+ "parity": {
+  "mem": {
+   "cosine": 0.9999997824342552,
+   "rel_l2": 0.0006673729241000509,
+   "max_abs": 0.022072792053222656,
+   "finite": true
+  },
+  "geo": {
+   "cosine": 0.9999995254934048,
+   "rel_l2": 0.0009819693669810318,
+   "max_abs": 0.010083198547363281,
+   "finite": true
+  }
+ },
+ "reference": "torch mirror with the same fold",
+ "predict_ms": {
+  "n": 10,
+  "median": 13.876437005819753,
+  "min": 13.491999998223037
+ }
+}

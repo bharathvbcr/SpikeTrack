@@ -1,0 +1,7 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 2.0 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 2.01 s), pipelined one frame ahead
+model loaded in 2.4 s on metal; tracking 2 frame(s) of "36"
+frame 0 (1/2): 3.90 s, 39 active track(s), 0 frame(s) released; waits +36 (upload 7, read 29), dispatches +5512, metal allocated 3833 MiB (frame peak 7744 MiB), footprint 3917 MiB, pageouts +7, swapins +0
+frame 1 (2/2): 1.27 s, 41 active track(s), 2 frame(s) released; waits +28 (upload 6, read 22), dispatches +5776, metal allocated 3986 MiB (frame peak 5914 MiB), footprint 3864 MiB, pageouts +0, swapins +0
+2 frame(s) of "36" tracked on metal: 36 track(s) born, 2.59 s/frame (model, mean), 7.6 s total
+  bench/results/e30-quiet/default-checks/fp32-trunk/36.json
+  bench/results/e30-quiet/default-checks/fp32-trunk/36.run.json

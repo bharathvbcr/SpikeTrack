@@ -1,0 +1,8 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp16.mlpackage loaded in 0.8 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 0.84 s)
+memory attention: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_mattn_fp16.mlpackage (cached compile, 0.0 s)
+model loaded in 1.2 s on metal; tracking 2 frame(s) of "36"
+frame 0 (1/2): 2.76 s, 39 active track(s), 0 frame(s) released; waits +36 (upload 7, read 29), dispatches +5513, metal allocated 2663 MiB (frame peak 6600 MiB), footprint 3789 MiB, pageouts +0, swapins +0
+frame 1 (2/2): 1.53 s, 41 active track(s), 2 frame(s) released; waits +29 (upload 6, read 23), dispatches +4138, metal allocated 3305 MiB (frame peak 5062 MiB), footprint 4466 MiB, pageouts +0, swapins +0
+2 frame(s) of "36" tracked on metal: 36 track(s) born, 2.15 s/frame (model, mean), 5.6 s total
+  bench/results/e30-quiet/default-checks/no-pipeline/36.json
+  bench/results/e30-quiet/default-checks/no-pipeline/36.run.json

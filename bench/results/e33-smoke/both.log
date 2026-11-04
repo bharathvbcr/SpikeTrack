@@ -1,0 +1,19 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp16.mlpackage loaded in 0.2 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 0.14 s), pipelined one frame ahead
+neck on the trunk's worker: coreml sam3.1_neck_det_fp16.mlpackage (cpu_and_gpu) sha256 a763a971280d75e5cb2f46fabc0f4473c288bfe0604cf18f694753665105f12b pipelined
+neck on the trunk's worker: coreml sam3.1_neck_prop_fp16.mlpackage (cpu_and_gpu) sha256 a31be65430724e8bb4d5c095db10ffbe8dd3d65fe6bfb065bcecca1ab05ee64d pipelined
+neck on the trunk's worker: coreml sam3.1_neck_inter_fp16.mlpackage (cpu_and_gpu) sha256 2f6b85f284a426bae4b65944b56a72854245c971432f2d19c5d19b1e98d966e7 pipelined
+segmentation head: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_seghead_fp16.mlpackage (cached compile, 0.0 s)
+memory attention: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_mattn_fp16.mlpackage (cached compile, 0.0 s)
+memory encoder: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_memenc_fp16.mlpackage (cached compile, 0.0 s)
+model loaded in 0.6 s on metal; tracking 8 frame(s) of "36"
+frame 0 (1/8): 2.69 s, 39 active track(s), 0 frame(s) released; waits +32 (upload 6, read 26), dispatches +4712, metal allocated 4139 MiB (frame peak 7933 MiB), footprint 5746 MiB, pageouts +0, swapins +0
+frame 1 (2/8): 0.88 s, 41 active track(s), 0 frame(s) released; waits +24 (upload 5, read 19), dispatches +3340, metal allocated 4930 MiB (frame peak 6271 MiB), footprint 7438 MiB, pageouts +0, swapins +0
+frame 2 (3/8): 0.71 s, 41 active track(s), 0 frame(s) released; waits +19 (upload 4, read 15), dispatches +2744, metal allocated 4924 MiB (frame peak 5398 MiB), footprint 7021 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 0.83 s, 42 active track(s), 0 frame(s) released; waits +24 (upload 5, read 19), dispatches +3330, metal allocated 4965 MiB (frame peak 6309 MiB), footprint 7417 MiB, pageouts +0, swapins +0
+frame 4 (5/8): 0.72 s, 42 active track(s), 0 frame(s) released; waits +19 (upload 4, read 15), dispatches +2744, metal allocated 4963 MiB (frame peak 5432 MiB), footprint 7345 MiB, pageouts +0, swapins +0
+frame 5 (6/8): 0.72 s, 42 active track(s), 0 frame(s) released; waits +19 (upload 4, read 15), dispatches +2744, metal allocated 4983 MiB (frame peak 5463 MiB), footprint 7406 MiB, pageouts +0, swapins +0
+frame 6 (7/8): 0.86 s, 43 active track(s), 0 frame(s) released; waits +24 (upload 5, read 19), dispatches +3329, metal allocated 5032 MiB (frame peak 6378 MiB), footprint 7790 MiB, pageouts +0, swapins +0
+frame 7 (8/8): 0.85 s, 44 active track(s), 8 frame(s) released; waits +24 (upload 5, read 19), dispatches +3328, metal allocated 5047 MiB (frame peak 6396 MiB), footprint 7591 MiB, pageouts +0, swapins +0
+8 frame(s) of "36" tracked on metal: 39 track(s) born, 1.03 s/frame (model, mean), 9.1 s total
+  /Users/bharath/Code/research/SpikeTrack/bench/results/e33-smoke/both/36.json
+  /Users/bharath/Code/research/SpikeTrack/bench/results/e33-smoke/both/36.run.json

@@ -1,0 +1,8 @@
+mac_heavy: 2026-11-04T03:37:06Z 'spiketrack-default-fp16' holds the lock (waited 0s; load 11.28, 1490 processes); running: bash /private/tmp/claude-501/-Users-bharath-Code-research-ojas/5fb0daf7-60f3-4eaa-b3c2-af0627b7fb33/scratchpad/flip_checks.sh
+clippy exit 0
+tests exit 0
+noflags exit 0
+explicit exit 0
+fp32ref exit 0
+noflags == explicit: byte-identical 36.json
+mac_heavy: 2026-11-04T03:38:31Z 'spiketrack-default-fp16' finished with exit 0

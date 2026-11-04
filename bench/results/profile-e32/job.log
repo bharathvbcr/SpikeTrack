@@ -1,0 +1,14 @@
+mac_heavy: 2026-11-04T17:57:40Z 'spiketrack-e32-profile' holds the lock (waited 0s; load 6.01, 1384 processes); running: bash bench/results/profile-e32/job.sh
+== control-1 load { 6.01 5.66 5.36 }
+control-1: trunk coreml-fp16, mem-attn coreml-fp16, necks coreml-fp16, mem-enc coreml-fp16, profile None, 51 tracks, frames 1.. mean 918.4 ms (frame 0 3500 ms)
+== stages load { 6.93 5.95 5.48 }
+stages: trunk coreml-fp16, mem-attn coreml-fp16, necks coreml-fp16, mem-enc coreml-fp16, profile stages, 51 tracks, frames 1.. mean 930.0 ms (frame 0 3070 ms)
+== control-2 load { 6.21 5.89 5.47 }
+control-2: trunk coreml-fp16, mem-attn coreml-fp16, necks coreml-fp16, mem-enc coreml-fp16, profile None, 51 tracks, frames 1.. mean 952.6 ms (frame 0 3170 ms)
+== ops load { 6.05 5.88 5.49 }
+ops: trunk coreml-fp16, mem-attn coreml-fp16, necks coreml-fp16, mem-enc coreml-fp16, profile ops, 39 tracks, frames 1.. mean 1177.1 ms (frame 0 3140 ms)
+stages: predictions byte-identical to control-1
+control-2: predictions byte-identical to control-1
+11:59  up 2 days, 22:55, 1 user, load averages: 5.75 5.82 5.47
+profile-e32 status 0
+mac_heavy: 2026-11-04T17:59:43Z 'spiketrack-e32-profile' finished with exit 0

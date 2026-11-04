@@ -23,6 +23,8 @@ For scale, on visem_22:
 
 Each JSON holds the rerun. The first-run numbers above are from the export logs. Between the two runs the
 GPU load from other sessions differed; the frame-level interleaved A/B is the speed number, not these.
+`fp16-CPU_AND_GPU.json` has since been overwritten by the GPU side of the Neural Engine comparison below
+(2026-11-03, macOS 27.2, n = 5, median 0.260 s), so its numbers differ from the fp16 rerun row above.
 
 Reading [V for the numbers, I for the cause]:
 - fp32 CoreML is in the same exactness class as the Ojas f32 path. It became the Metal default after
@@ -74,3 +76,16 @@ speed number.
 
 The packages are derived from gated weights. They live in `$SPIKETRACK_MODEL_DIR/coreml/` and are
 never committed.
+
+**Superseded 2026-11-04.** The fp16 refutation above is for LoRA v1 at cap 16. On the shipped
+configuration (LoRA v3 + `lorav3_exact_it_3p00.json`, cap 64), the fp16 trunk with fp16 memory
+attention passes G2 and G3 of `../e25-coreml-frame/RULES.md`: 0.5694 against 0.5700 over 1,500
+frames (`../track/held300-coreml/README.md`). It became the Metal default.
+
+## The Neural Engine (2026-11-03)
+
+`check --precision fp16 --units CPU_AND_NE -n 5` (`check-fp16-ane-2026-11-03.log`, `fp16-CPU_AND_NE.json`) [V]:
+- median 2.39 s per call, against 0.26 s on CPU_AND_GPU the same evening;
+- rel L2 2.4e-2 .. 4.4e-2 against upstream, about twice the GPU fp16 error.
+
+Running the trunk on the Neural Engine, in parallel with the Metal tracker, is refuted as a speed path. The trunk stays on CPU_AND_GPU.

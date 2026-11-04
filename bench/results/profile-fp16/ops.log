@@ -1,0 +1,15 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp16.mlpackage loaded in 0.1 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 0.14 s), pipelined one frame ahead
+memory attention: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_mattn_fp16.mlpackage (cached compile, 0.0 s)
+model loaded in 0.5 s on metal; tracking 8 frame(s) of "36"
+frame 0 (1/8): 3.16 s, 39 active track(s), 0 frame(s) released; waits +1574 (sync 1574), dispatches +5511, metal allocated 2667 MiB (frame peak 3365 MiB), footprint 3606 MiB, pageouts +0, swapins +0
+frame 1 (2/8): 1.62 s, 41 active track(s), 0 frame(s) released; waits +1201 (sync 1201), dispatches +4137, metal allocated 3291 MiB (frame peak 4385 MiB), footprint 4490 MiB, pageouts +0, swapins +0
+frame 2 (3/8): 1.31 s, 41 active track(s), 0 frame(s) released; waits +1021 (sync 1021), dispatches +3475, metal allocated 3311 MiB (frame peak 4377 MiB), footprint 4845 MiB, pageouts +0, swapins +0
+frame 3 (4/8): 1.54 s, 42 active track(s), 0 frame(s) released; waits +1193 (sync 1193), dispatches +4125, metal allocated 3323 MiB (frame peak 4402 MiB), footprint 4782 MiB, pageouts +0, swapins +0
+frame 4 (5/8): 1.33 s, 42 active track(s), 0 frame(s) released; waits +1021 (sync 1021), dispatches +3474, metal allocated 3325 MiB (frame peak 4440 MiB), footprint 5020 MiB, pageouts +0, swapins +0
+frame 5 (6/8): 1.31 s, 42 active track(s), 0 frame(s) released; waits +1021 (sync 1021), dispatches +3474, metal allocated 3345 MiB (frame peak 4440 MiB), footprint 5121 MiB, pageouts +0, swapins +0
+frame 6 (7/8): 1.60 s, 43 active track(s), 0 frame(s) released; waits +1193 (sync 1193), dispatches +4123, metal allocated 3400 MiB (frame peak 4460 MiB), footprint 5129 MiB, pageouts +0, swapins +0
+frame 7 (8/8): 1.73 s, 44 active track(s), 8 frame(s) released; waits +1193 (sync 1193), dispatches +4121, metal allocated 3431 MiB (frame peak 4494 MiB), footprint 5336 MiB, pageouts +0, swapins +0
+profile (ops) written to bench/results/profile-fp16/ops/36.profile-ops.md
+8 frame(s) of "36" tracked on metal: 39 track(s) born, 1.70 s/frame (model, mean), 14.4 s total
+  bench/results/profile-fp16/ops/36.json
+  bench/results/profile-fp16/ops/36.run.json

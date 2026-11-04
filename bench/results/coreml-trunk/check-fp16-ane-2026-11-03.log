@@ -1,0 +1,12 @@
+mac_heavy: 2026-11-04T00:14:34Z 'spiketrack-cml-ane' waiting 0s for the lock; holder: label=spiketrack-st-build pid=55151 start=2026-11-04T00:14:24Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-04T00:16:14Z 'spiketrack-cml-ane' holds the lock (waited 100s; load 4.80, 1459 processes); running: tools/baselines/.venv-export/bin/python -s tools/baselines/coreml_trunk.py check --precision fp16 --units CPU_AND_NE -n 5
+/Users/bharath/Code/research/SpikeTrack/tools/baselines/.venv-export/lib/python3.12/site-packages/coremltools/optimize/torch/palettization/fake_palettize.py:82: SyntaxWarning: invalid escape sequence '\_'
+  n_bits (:obj:`int`): Number of palettization bits. There would be :math:`2^{n\_bits}` unique weights in the ``LUT``.
+visem_22_f0 {'cosine': 0.999467374787143, 'rel_l2': 0.03267528373117926, 'max_abs': 72.56354713439941, 'ref_max_abs': 213.60865783691406, 'finite': True}
+visem_47_f300 {'cosine': 0.9997214600105453, 'rel_l2': 0.02363220555420603, 'max_abs': 32.72363471984863, 'ref_max_abs': 234.56407165527344, 'finite': True}
+visem_82_f600 {'cosine': 0.9990367013033602, 'rel_l2': 0.04393175645692017, 'max_abs': 79.13400840759277, 'ref_max_abs': 234.803955078125, 'finite': True}
+sam3_truck {'cosine': 0.9992521487331084, 'rel_l2': 0.038716968877582573, 'max_abs': 73.18663787841797, 'ref_max_abs': 211.2041015625, 'finite': True}
+sam3_groceries {'cosine': 0.9990578384091326, 'rel_l2': 0.043496674372242417, 'max_abs': 84.09168338775635, 'ref_max_abs': 230.0897674560547, 'finite': True}
+two calls on the same input byte-identical: True
+median 2.3909 s, min 2.3775, max 2.3935 over 5; wrote /Users/bharath/Code/research/SpikeTrack/bench/results/coreml-trunk/fp16-CPU_AND_NE.json
+mac_heavy: 2026-11-04T00:30:42Z 'spiketrack-cml-ane' finished with exit 0

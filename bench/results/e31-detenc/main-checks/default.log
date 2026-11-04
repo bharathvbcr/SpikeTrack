@@ -1,0 +1,10 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp16.mlpackage loaded in 0.1 s (compiled model reused; hash 0.00 s recorded, compile 0.00 s, model load 0.12 s), pipelined one frame ahead
+neck on the trunk's worker: coreml sam3.1_neck_det_fp16.mlpackage (cpu_and_gpu) sha256 a763a971280d75e5cb2f46fabc0f4473c288bfe0604cf18f694753665105f12b pipelined
+neck on the trunk's worker: coreml sam3.1_neck_prop_fp16.mlpackage (cpu_and_gpu) sha256 a31be65430724e8bb4d5c095db10ffbe8dd3d65fe6bfb065bcecca1ab05ee64d pipelined
+memory attention: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_mattn_fp16.mlpackage (cached compile, 0.0 s)
+model loaded in 0.4 s on metal; tracking 2 frame(s) of "36"
+frame 0 (1/2): 2.97 s, 39 active track(s), 0 frame(s) released; waits +36 (upload 7, read 29), dispatches +5383, metal allocated 3386 MiB (frame peak 7312 MiB), footprint 5045 MiB, pageouts +4, swapins +0
+frame 1 (2/2): 1.11 s, 41 active track(s), 2 frame(s) released; waits +29 (upload 6, read 23), dispatches +4008, metal allocated 4007 MiB (frame peak 5763 MiB), footprint 5254 MiB, pageouts +0, swapins +0
+2 frame(s) of "36" tracked on metal: 36 track(s) born, 2.04 s/frame (model, mean), 4.6 s total
+  bench/results/e31-detenc/main-checks/default/36.json
+  bench/results/e31-detenc/main-checks/default/36.run.json

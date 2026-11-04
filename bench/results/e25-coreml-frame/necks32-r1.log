@@ -1,0 +1,39 @@
+CoreML trunk /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_trunk_fp32.mlpackage loaded in 2.5 s (compiled model reused; hash 0.01 s recorded, compile 0.00 s, model load 2.51 s)
+det neck: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_neck_det_fp32.mlpackage (compiled now, 0.2 s)
+prop neck: /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_neck_prop_fp32.mlpackage (compiled now, 0.2 s)
+model loaded in 3.2 s on metal; tracking 32 frame(s) of "36"
+frame 0 (1/32): 4.73 s, 39 active track(s), 0 frame(s) released; waits +36 (upload 7, read 29), dispatches +5382, metal allocated 4346 MiB (frame peak 8577 MiB), footprint 4594 MiB, pageouts +12, swapins +8
+frame 1 (2/32): 2.73 s, 41 active track(s), 0 frame(s) released; waits +28 (upload 6, read 22), dispatches +5646, metal allocated 4849 MiB (frame peak 6614 MiB), footprint 4721 MiB, pageouts +0, swapins +0
+frame 2 (3/32): 2.35 s, 41 active track(s), 0 frame(s) released; waits +23 (upload 5, read 18), dispatches +5016, metal allocated 4968 MiB (frame peak 6470 MiB), footprint 5152 MiB, pageouts +0, swapins +0
+frame 3 (4/32): 2.76 s, 42 active track(s), 0 frame(s) released; waits +28 (upload 6, read 22), dispatches +5700, metal allocated 5124 MiB (frame peak 6885 MiB), footprint 5201 MiB, pageouts +0, swapins +4
+frame 4 (5/32): 2.68 s, 42 active track(s), 0 frame(s) released; waits +23 (upload 5, read 18), dispatches +5081, metal allocated 5240 MiB (frame peak 6753 MiB), footprint 5823 MiB, pageouts +0, swapins +0
+frame 5 (6/32): 2.84 s, 42 active track(s), 0 frame(s) released; waits +26 (upload 8, read 18), dispatches +5108, metal allocated 5381 MiB (frame peak 6893 MiB), footprint 5810 MiB, pageouts +0, swapins +0
+frame 6 (7/32): 5.62 s, 43 active track(s), 0 frame(s) released; waits +31 (upload 9, read 22), dispatches +5791, metal allocated 5456 MiB (frame peak 7280 MiB), footprint 5870 MiB, pageouts +0, swapins +0
+frame 7 (8/32): 4.76 s, 44 active track(s), 0 frame(s) released; waits +31 (upload 9, read 22), dispatches +5822, metal allocated 5702 MiB (frame peak 7410 MiB), footprint 6208 MiB, pageouts +0, swapins +4
+frame 8 (9/32): 3.64 s, 44 active track(s), 0 frame(s) released; waits +26 (upload 8, read 18), dispatches +5172, metal allocated 5699 MiB (frame peak 7196 MiB), footprint 6427 MiB, pageouts +0, swapins +0
+frame 9 (10/32): 3.33 s, 44 active track(s), 0 frame(s) released; waits +26 (upload 8, read 18), dispatches +5172, metal allocated 5719 MiB (frame peak 7216 MiB), footprint 6461 MiB, pageouts +0, swapins +64
+frame 10 (11/32): 4.13 s, 44 active track(s), 0 frame(s) released; waits +31 (upload 9, read 22), dispatches +5820, metal allocated 5749 MiB (frame peak 7475 MiB), footprint 6525 MiB, pageouts +0, swapins +0
+frame 11 (12/32): 5.41 s, 45 active track(s), 0 frame(s) released; waits +31 (upload 9, read 22), dispatches +5832, metal allocated 5782 MiB (frame peak 7499 MiB), footprint 6556 MiB, pageouts +0, swapins +28
+frame 12 (13/32): 3.82 s, 44 active track(s), 0 frame(s) released; waits +26 (upload 8, read 18), dispatches +5181, metal allocated 5770 MiB (frame peak 7281 MiB), footprint 5649 MiB, pageouts +0, swapins +4
+frame 13 (14/32): 2.72 s, 44 active track(s), 0 frame(s) released; waits +26 (upload 8, read 18), dispatches +5187, metal allocated 5788 MiB (frame peak 7301 MiB), footprint 5761 MiB, pageouts +0, swapins +0
+frame 14 (15/32): 2.89 s, 45 active track(s), 1 frame(s) released; waits +31 (upload 9, read 22), dispatches +5838, metal allocated 5834 MiB (frame peak 7564 MiB), footprint 5864 MiB, pageouts +0, swapins +0
+frame 15 (16/32): 2.51 s, 45 active track(s), 1 frame(s) released; waits +26 (upload 8, read 18), dispatches +5186, metal allocated 5830 MiB (frame peak 7342 MiB), footprint 5841 MiB, pageouts +0, swapins +0
+frame 16 (17/32): 3.04 s, 45 active track(s), 1 frame(s) released; waits +34 (upload 10, read 24), dispatches +6499, metal allocated 5884 MiB (frame peak 8291 MiB), footprint 5080 MiB, pageouts +0, swapins +0
+frame 17 (18/32): 2.51 s, 45 active track(s), 1 frame(s) released; waits +26 (upload 8, read 18), dispatches +5186, metal allocated 5871 MiB (frame peak 7382 MiB), footprint 5084 MiB, pageouts +0, swapins +0
+frame 18 (19/32): 2.47 s, 45 active track(s), 1 frame(s) released; waits +26 (upload 8, read 18), dispatches +5186, metal allocated 5871 MiB (frame peak 7382 MiB), footprint 5094 MiB, pageouts +0, swapins +0
+frame 19 (20/32): 2.44 s, 45 active track(s), 1 frame(s) released; waits +26 (upload 8, read 18), dispatches +5186, metal allocated 5871 MiB (frame peak 7382 MiB), footprint 5178 MiB, pageouts +0, swapins +0
+frame 20 (21/32): 2.45 s, 45 active track(s), 1 frame(s) released; waits +26 (upload 8, read 18), dispatches +5186, metal allocated 5871 MiB (frame peak 7382 MiB), footprint 5092 MiB, pageouts +0, swapins +0
+frame 21 (22/32): 2.47 s, 45 active track(s), 1 frame(s) released; waits +26 (upload 8, read 18), dispatches +5186, metal allocated 5871 MiB (frame peak 7382 MiB), footprint 5084 MiB, pageouts +0, swapins +0
+frame 22 (23/32): 2.51 s, 45 active track(s), 1 frame(s) released; waits +26 (upload 8, read 18), dispatches +5186, metal allocated 5871 MiB (frame peak 7382 MiB), footprint 5090 MiB, pageouts +0, swapins +0
+frame 23 (24/32): 2.66 s, 45 active track(s), 1 frame(s) released; waits +31 (upload 9, read 22), dispatches +5846, metal allocated 5901 MiB (frame peak 7626 MiB), footprint 5145 MiB, pageouts +0, swapins +0
+frame 24 (25/32): 2.82 s, 46 active track(s), 1 frame(s) released; waits +35 (upload 10, read 25), dispatches +6917, metal allocated 5954 MiB (frame peak 7714 MiB), footprint 5205 MiB, pageouts +0, swapins +0
+frame 25 (26/32): 2.66 s, 46 active track(s), 1 frame(s) released; waits +30 (upload 9, read 21), dispatches +6268, metal allocated 5973 MiB (frame peak 7432 MiB), footprint 5452 MiB, pageouts +0, swapins +0
+frame 26 (27/32): 2.66 s, 46 active track(s), 1 frame(s) released; waits +30 (upload 9, read 21), dispatches +6279, metal allocated 6013 MiB (frame peak 7477 MiB), footprint 5491 MiB, pageouts +0, swapins +0
+frame 27 (28/32): 2.71 s, 46 active track(s), 1 frame(s) released; waits +30 (upload 9, read 21), dispatches +6290, metal allocated 6059 MiB (frame peak 7523 MiB), footprint 5538 MiB, pageouts +0, swapins +0
+frame 28 (29/32): 2.94 s, 47 active track(s), 1 frame(s) released; waits +36 (upload 11, read 25), dispatches +6957, metal allocated 6142 MiB (frame peak 7878 MiB), footprint 5647 MiB, pageouts +0, swapins +0
+frame 29 (30/32): 3.03 s, 48 active track(s), 1 frame(s) released; waits +36 (upload 11, read 25), dispatches +6966, metal allocated 6173 MiB (frame peak 7919 MiB), footprint 5917 MiB, pageouts +0, swapins +0
+frame 30 (31/32): 2.88 s, 48 active track(s), 1 frame(s) released; waits +31 (upload 10, read 21), dispatches +6319, metal allocated 6203 MiB (frame peak 7659 MiB), footprint 6191 MiB, pageouts +0, swapins +0
+frame 31 (32/32): 3.19 s, 48 active track(s), 15 frame(s) released; waits +31 (upload 10, read 21), dispatches +6319, metal allocated 6208 MiB (frame peak 7665 MiB), footprint 6195 MiB, pageouts +0, swapins +0
+32 frame(s) of "36" tracked on metal: 51 track(s) born, 3.14 s/frame (model, mean), 104.5 s total
+  bench/results/e25-coreml-frame/necks32-r1/36.json
+  bench/results/e25-coreml-frame/necks32-r1/36.run.json

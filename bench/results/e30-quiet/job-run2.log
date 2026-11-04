@@ -1,0 +1,30 @@
+mac_heavy: 2026-11-04T15:27:51Z 'spiketrack-e30-speed2' holds the lock (waited 0s; load 7.57, 1271 processes); running: bash bench/results/e30-quiet/job.sh
+    Finished `release` profile [optimized] target(s) in 1.04s
+== waited 0s for a quiet machine
+== t16m16 r1 exit 0 load start 7.57 end 5.97: read
+== t16m16n16 r1 exit 0 load start 5.97 end 5.27: read
+== t16m16n16 r2 exit 0 load start 5.27 end 3.95: read
+== t16m16 r2 exit 0 load start 3.95 end 4.38: read
+== t16m16 r3 exit 0 load start 4.38 end 3.81: read
+== t16m16n16 r3 exit 0 load start 3.81 end 5.01: read
+# Whole-frame ms, VISEM 36, steady frames >= 8: push_frame median / wall per frame
+
+| round | t16m16 | t16m16n16 | t16m16n16 / t16m16 (push, wall) |
+|---|---|---|---|
+| 1 | 1265 / 1365 | 1180 / 1250 | 0.933, 0.916 |
+| 2 | 1290 / 1361 | 1150 / 1222 | 0.891, 0.898 |
+| 3 | 1285 / 1338 | 1110 / 1186 | 0.864, 0.886 |
+
+Median (and worst) over rounds of the per-round ratio: t16m16n16 push 0.891 (max 0.933), wall 0.898 (max 0.916) over 3 round(s)
+
+## Tracks against t16m16 (same round)
+
+| round | arm | frames with equal id sets | mean box IoU over shared ids | min box IoU | byte-identical predictions |
+|---|---|---|---|---|---|
+| 1 | t16m16n16 | 32/32 | 0.9999 | 0.9907 | no |
+| 2 | t16m16n16 | 32/32 | 0.9999 | 0.9907 | no |
+| 3 | t16m16n16 | 32/32 | 0.9999 | 0.9907 | no |
+
+== clippy SpikeTrack exit 0
+== clippy ojas exit 0
+mac_heavy: 2026-11-04T15:32:07Z 'spiketrack-e30-speed2' finished with exit 0

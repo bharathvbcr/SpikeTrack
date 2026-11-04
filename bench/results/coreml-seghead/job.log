@@ -1,0 +1,12 @@
+mac_heavy: 2026-11-04T00:14:33Z 'spiketrack-cml-seg' waiting 0s for the lock; holder: label=spiketrack-st-build pid=55151 start=2026-11-04T00:14:24Z cwd=/Users/bharath/Code/research/SpikeTrack 
+mac_heavy: 2026-11-04T00:15:33Z 'spiketrack-cml-seg' holds the lock (waited 60s; load 4.81, 1480 processes); running: bash bench/results/coreml-seghead/job.sh
+4 prompt tokens; pred_masks {'cosine': 0.9999999999997877, 'rel_l2': 6.724963008333525e-07, 'max_abs': 0.00034332275390625, 'finite': True}; semantic {'cosine': 0.9999999999997026, 'rel_l2': 9.058796242550279e-07, 'max_abs': 0.000102996826171875, 'finite': True}
+Running MIL backend_mlprogram pipeline:   0%|          | 0/12 [00:00<?, ? passes/s]Running MIL backend_mlprogram pipeline: 100%|██████████| 12/12 [00:00<00:00, 2225.59 passes/s]
+saved /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_seghead_fp32.mlpackage
+{'pred_masks': {'cosine': 0.9999999999972508, 'rel_l2': 6.538099833640009e-06, 'max_abs': 0.0013427734375, 'finite': True}, 'semantic_seg': {'cosine': 0.9999999999965573, 'rel_l2': 5.455430478525128e-06, 'max_abs': 0.0003604888916015625, 'finite': True}}
+worst rel_l2 6.538e-06; predict median 24.8 ms (min 24.3, n 20)
+Running MIL backend_mlprogram pipeline:   0%|          | 0/12 [00:00<?, ? passes/s]Running MIL backend_mlprogram pipeline: 100%|██████████| 12/12 [00:00<00:00, 2010.37 passes/s]
+saved /Users/bharath/Code/research/models/sam3.1/coreml/sam3.1_seghead_fp16.mlpackage
+{'pred_masks': {'cosine': 0.9999999455450524, 'rel_l2': 0.00035300674666732975, 'max_abs': 0.2164764404296875, 'finite': True}, 'semantic_seg': {'cosine': 0.9999999454798926, 'rel_l2': 0.00043027844432315767, 'max_abs': 0.031202316284179688, 'finite': True}}
+worst rel_l2 4.303e-04; predict median 15.1 ms (min 13.4, n 20)
+mac_heavy: 2026-11-04T00:15:58Z 'spiketrack-cml-seg' finished with exit 0

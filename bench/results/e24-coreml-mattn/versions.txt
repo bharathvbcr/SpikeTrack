@@ -1,0 +1,6 @@
+date 2026-11-03T23:45:27Z
+SpikeTrack ca4ffac docs(readme): why SpikeTrack is needed, with sources, dirty 7 (binary f4723d6541aba3f6)
+ojas 59adac6 Merge branch 'claude/flash-fwd-specialize-1103': in-place f32 bias for linear_bias_forward (bit-identical, 11-13% faster per op) and the flash forward A/B negative (dirty files: 3)
+tessl 52bdd19 Merge fix/hosted-lib-device-check (PR #5): validate the hosted manifest's entries instead of assuming them (dirty files: 0)
+mattn fp32: hash recorded on first load
+mattn fp16: hash recorded on first load

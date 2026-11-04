@@ -1,0 +1,4 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+47         300      2045        2891        0  0.4605 0.4012 0.5302 0.7274
+all        300      2045        2891        0  0.4605 0.4012 0.5302 0.7274
+wrote /Users/bharath/Code/research/SpikeTrack/bench/results/e36-combined/diag47/dt16.eval.json

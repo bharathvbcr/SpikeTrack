@@ -1,0 +1,8 @@
+video   frames  gt boxes  pred boxes  outside   HOTA   DetA   AssA   LocA
+21          32       612         704        0  0.6745 0.5920 0.7985 0.7777
+22          32       401         393        0  0.6816 0.6394 0.7462 0.7629
+36          32      1409        1330        0  0.5755 0.4898 0.7127 0.7212
+47          32       238         307        0  0.5595 0.4783 0.6561 0.7464
+82          32       832         864        0  0.5533 0.4291 0.8655 0.7002
+all        160      3492        3598        0  0.6023 0.5025 0.7855 0.7334
+wrote /Users/bharath/Code/research/SpikeTrack/bench/results/track/held32-coreml/t16m16n16me16all16/eval.json

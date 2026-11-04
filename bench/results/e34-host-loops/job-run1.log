@@ -1,0 +1,34 @@
+mac_heavy: 2026-11-04T18:10:05Z 'spiketrack-e34' holds the lock (waited 0s; load 6.52, 1395 processes); running: bash bench/results/e34-host-loops/job.sh
+== base r1 load start 5.95 end 5.35: read
+== e34 r1 load start 5.35 end 6.05: read
+== e34 r2 load start 5.47 end 5.99: read
+== base r2 load start 5.99 end 6.16: read
+== base r3 load start 5.46 end 5.57: read
+== e34 r3 load start 5.57 end 7.23: read
+# Whole-frame ms, VISEM 36, steady frames >= 8: push_frame median / wall per frame
+
+| round | base | e34 | e34 / base (push, wall) |
+|---|---|---|---|
+| 1 | 905 / 1029 | 920 / 1022 | 1.017, 0.993 |
+| 2 | 940 / 1038 | 905 / 1034 | 0.963, 0.996 |
+| 3 | 895 / 1021 | 930 / 1045 | 1.039, 1.024 |
+
+Median (and worst) over rounds of the per-round ratio: e34 push 1.017 (max 1.039), wall 0.996 (max 1.024) over 3 round(s)
+
+## Tracks against base (same round)
+
+| round | arm | frames with equal id sets | mean box IoU over shared ids | min box IoU | byte-identical predictions |
+|---|---|---|---|---|---|
+| 1 | e34 | 32/32 | 1.0000 | 1.0000 | yes |
+| 2 | e34 | 32/32 | 1.0000 | 1.0000 | yes |
+| 3 | e34 | 32/32 | 1.0000 | 1.0000 | yes |
+
+H-same video 36 round 1: byte-identical
+H-same video 36 round 2: byte-identical
+H-same video 36 round 3: byte-identical
+H-same video 21: byte-identical
+H-same video 22: byte-identical
+H-same video 47: byte-identical
+H-same video 82: byte-identical
+E34 status 0
+mac_heavy: 2026-11-04T18:18:27Z 'spiketrack-e34' finished with exit 0

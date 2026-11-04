@@ -1,0 +1,16 @@
+    Checking ojas-core v0.1.0 (/Users/bharath/Code/research/ojas/ojas-core)
+    Checking ojas-simd v0.1.0 (/Users/bharath/Code/research/ojas/ojas-simd)
+   Compiling ojas-metal v0.1.0 (/Users/bharath/Code/research/ojas/ojas-metal)
+    Checking ojas-cpu v0.1.0 (/Users/bharath/Code/research/ojas/ojas-cpu)
+error: using `chunks_exact` with a constant chunk size
+   --> ojas-cpu/src/quant_sparse.rs:468:14
+    |
+468 |             .chunks_exact(4)
+    |              ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#chunks_exact_to_as_chunks
+    = note: `-D clippy::chunks-exact-to-as-chunks` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::chunks_exact_to_as_chunks)]`
+
+error: could not compile `ojas-cpu` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

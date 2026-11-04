@@ -1,0 +1,283 @@
+{
+ "source": "huggingface.co/sdkv2/sam3.1-coreml @ 9668c4964e216cf9e3a64f0ad812af9d62b33642",
+ "compute_units": "CPU_AND_GPU",
+ "packages": {
+  "backbone": "backbone/models/sam3_vision_backbone.mlpackage",
+  "tracker": "tracker/models/dense_sam3_trackstep.mlpackage"
+ },
+ "coremltools": "9.0",
+ "macos": "27.2",
+ "machine": "Apple M5 Pro",
+ "load_avg_start": [
+  38.8720703125,
+  30.1015625,
+  21.97412109375
+ ],
+ "models": {
+  "backbone": {
+   "inputs": {
+    "image": {
+     "shape": [
+      1,
+      3,
+      1008,
+      1008
+     ],
+     "dtype": "FLOAT32"
+    }
+   },
+   "outputs": {
+    "vis72": {
+     "shape": [
+      5184,
+      1,
+      256
+     ],
+     "dtype": "FLOAT16"
+    },
+    "hires0": {
+     "shape": [
+      1,
+      32,
+      288,
+      288
+     ],
+     "dtype": "FLOAT16"
+    },
+    "hires1": {
+     "shape": [
+      1,
+      64,
+      144,
+      144
+     ],
+     "dtype": "FLOAT16"
+    }
+   },
+   "states": {}
+  },
+  "tracker": {
+   "inputs": {
+    "vis72": {
+     "shape": [
+      5184,
+      1,
+      256
+     ],
+     "dtype": "FLOAT32"
+    },
+    "hires0": {
+     "shape": [
+      1,
+      32,
+      288,
+      288
+     ],
+     "dtype": "FLOAT32"
+    },
+    "hires1": {
+     "shape": [
+      1,
+      64,
+      144,
+      144
+     ],
+     "dtype": "FLOAT32"
+    },
+    "cond_mem": {
+     "shape": [
+      1,
+      256,
+      72,
+      72
+     ],
+     "dtype": "FLOAT32"
+    },
+    "cond_img": {
+     "shape": [
+      5184,
+      1,
+      256
+     ],
+     "dtype": "FLOAT32"
+    },
+    "cond_ptr": {
+     "shape": [
+      1,
+      16,
+      256
+     ],
+     "dtype": "FLOAT32"
+    },
+    "frame_pos": {
+     "shape": [
+      1
+     ],
+     "dtype": "FLOAT32"
+    }
+   },
+   "outputs": {
+    "unsqueeze_15": {
+     "shape": [
+      16,
+      1,
+      288,
+      288
+     ],
+     "dtype": "FLOAT16"
+    },
+    "unsqueeze_16": {
+     "shape": [
+      16,
+      1,
+      1008,
+      1008
+     ],
+     "dtype": "FLOAT16"
+    },
+    "view_173": {
+     "shape": [
+      16,
+      1
+     ],
+     "dtype": "FLOAT16"
+    },
+    "view_171": {
+     "shape": [
+      16,
+      3
+     ],
+     "dtype": "FLOAT16"
+    }
+   },
+   "states": {
+    "mem_bank": {
+     "shape": [
+      6,
+      1,
+      256,
+      72,
+      72
+     ]
+    },
+    "img_bank": {
+     "shape": [
+      6,
+      5184,
+      1,
+      256
+     ]
+    },
+    "ptr_bank": {
+     "shape": [
+      15,
+      1,
+      16,
+      256
+     ]
+    },
+    "mem_valid": {
+     "shape": [
+      6
+     ]
+    },
+    "ptr_valid": {
+     "shape": [
+      15
+     ]
+    }
+   }
+  }
+ },
+ "backbone": {
+  "load_s": 2.2,
+  "first_call_s": 0.6,
+  "untimed_calls_before": 2,
+  "n": 32,
+  "median_s": 0.2768,
+  "min_s": 0.2635,
+  "max_s": 0.284,
+  "all_s": [
+   0.2646,
+   0.2682,
+   0.2722,
+   0.2693,
+   0.2639,
+   0.2835,
+   0.2688,
+   0.2664,
+   0.2635,
+   0.2649,
+   0.2666,
+   0.2696,
+   0.2731,
+   0.2705,
+   0.2723,
+   0.2748,
+   0.2782,
+   0.2774,
+   0.2762,
+   0.2775,
+   0.2776,
+   0.2779,
+   0.2795,
+   0.2791,
+   0.2795,
+   0.28,
+   0.28,
+   0.2811,
+   0.2804,
+   0.28,
+   0.2825,
+   0.284
+  ]
+ },
+ "tracker": {
+  "load_s": 0.4,
+  "first_call_s": 0.207,
+  "untimed_calls_before": 2,
+  "n": 32,
+  "median_s": 0.0746,
+  "min_s": 0.0723,
+  "max_s": 0.083,
+  "all_s": [
+   0.0731,
+   0.0745,
+   0.0754,
+   0.076,
+   0.0782,
+   0.0784,
+   0.083,
+   0.077,
+   0.0759,
+   0.0747,
+   0.0724,
+   0.0735,
+   0.0723,
+   0.0723,
+   0.0758,
+   0.0735,
+   0.0724,
+   0.0734,
+   0.0765,
+   0.0738,
+   0.0743,
+   0.0739,
+   0.0727,
+   0.0734,
+   0.0751,
+   0.0739,
+   0.0754,
+   0.0723,
+   0.0748,
+   0.078,
+   0.0751,
+   0.077
+  ]
+ },
+ "load_avg_end": [
+  32.23583984375,
+  29.05322265625,
+  21.7412109375
+ ]
+}

@@ -1,0 +1,4 @@
+mac_heavy: 2026-11-04T14:52:36Z 'spiketrack-e30-g3' waiting 0s for the lock; holder: label=spiketrack-e30-acc pid=76308 start=2026-11-04T14:21:13Z cwd=/Users/bharath/Code/research/SpikeTrack  STALE (pid 76308 is gone; the lead clears it)
+mac_heavy: 2026-11-04T14:53:56Z 'spiketrack-e30-g3' holds the lock (waited 80s; load 17.73, 1513 processes); running: bash -c bash bench/results/track/held300-coreml/job.sh t16m16n16 > bench/results/track/held300-coreml/job-t16m16n16.log 2>&1; echo "G3 exit $?"
+G3 exit 0
+mac_heavy: 2026-11-04T15:18:50Z 'spiketrack-e30-g3' finished with exit 0

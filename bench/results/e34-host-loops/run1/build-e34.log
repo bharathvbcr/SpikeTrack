@@ -1,0 +1,17 @@
+   Compiling version_check v0.9.5
+   Compiling typenum v1.20.1
+   Compiling generic-array v0.14.7
+   Compiling cpufeatures v0.2.17
+   Compiling objc2-image-io v0.3.2
+   Compiling objc2-core-video v0.3.2
+   Compiling objc2-core-graphics v0.3.2
+   Compiling cfg-if v1.0.5
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling digest v0.10.7
+   Compiling st-model v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e34/crates/st-model)
+   Compiling sha2 v0.10.9
+   Compiling objc2-core-ml v0.3.2
+   Compiling st-coreml v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e34/crates/st-coreml)
+   Compiling spiketrack v0.1.0 (/Users/bharath/Code/research/SpikeTrack-e34/crates/spiketrack)
+    Finished `release` profile [optimized] target(s) in 16.23s

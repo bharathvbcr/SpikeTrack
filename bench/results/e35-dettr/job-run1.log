@@ -1,0 +1,28 @@
+mac_heavy: 2026-11-04T18:20:09Z 'spiketrack-e35-speed' holds the lock (waited 0s; load 5.41, 1397 processes); running: bash ../SpikeTrack/bench/results/e35-dettr/job.sh
+    Finished `release` profile [optimized] target(s) in 17.33s
+== waited 0s for a quiet machine
+== base r1 exit 0 load start 5.49 end 5.86: read
+== dt16 r1 exit 0 load start 5.86 end 7.68: read
+== dt16 r2 exit 0 load start 5.82 end 5.14: read
+== base r2 exit 0 load start 5.14 end 4.96: read
+== base r3 exit 0 load start 4.96 end 4.82: read
+== dt16 r3 exit 0 load start 4.82 end 4.91: read
+# Whole-frame ms, VISEM 36, steady frames >= 8: push_frame median / wall per frame
+
+| round | base | dt16 | dt16 / base (push, wall) |
+|---|---|---|---|
+| 1 | 860 / 997 | 870 / 932 | 1.012, 0.935 |
+| 2 | 870 / 970 | 770 / 880 | 0.885, 0.907 |
+| 3 | 875 / 970 | 825 / 1049 | 0.943, 1.082 |
+
+Median (and worst) over rounds of the per-round ratio: dt16 push 0.943 (max 1.012), wall 0.935 (max 1.082) over 3 round(s)
+
+## Tracks against base (same round)
+
+| round | arm | frames with equal id sets | mean box IoU over shared ids | min box IoU | byte-identical predictions |
+|---|---|---|---|---|---|
+| 1 | dt16 | 31/32 | 0.9872 | 0.3640 | no |
+| 2 | dt16 | 31/32 | 0.9872 | 0.3640 | no |
+| 3 | dt16 | 31/32 | 0.9872 | 0.3640 | no |
+
+mac_heavy: 2026-11-04T18:25:03Z 'spiketrack-e35-speed' finished with exit 0

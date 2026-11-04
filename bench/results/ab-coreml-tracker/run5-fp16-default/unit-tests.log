@@ -1,0 +1,9 @@
+    Finished `release` profile [optimized] target(s) in 2.26s
+     Running unittests src/main.rs (target/release/deps/spiketrack-e551d509e8706cd4)
+
+running 2 tests
+test track_profile::tests::the_report_keeps_frame_0_apart_and_sums_the_steady_frames ... ok
+test track_profile::tests::profile_modes_parse_and_nothing_else ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 94 filtered out; finished in 0.02s
+
