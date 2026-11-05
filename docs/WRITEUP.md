@@ -1,9 +1,7 @@
 # SpikeTrack: the whole of SAM 3.1 on a laptop, with no Python
 
-Draft of the hackathon submission text, 2026-10-27. Every number is in
-[bench/results/SUMMARY.md](../bench/results/SUMMARY.md) with the command that produced it. Still open:
-the Official Rules' wording on length, prior work and required Meta models (unread,
-GAP-OFFICIAL-RULES-UNREAD).
+Hackathon submission text, 2026-11-04. Every number is in
+[bench/results/SUMMARY.md](../bench/results/SUMMARY.md) with the command that produced it.
 
 ## The problem
 
@@ -19,8 +17,9 @@ One Rust binary, `spiketrack`, that runs all of SAM 3.1 on Apple silicon, from a
 tracked masks: the PE ViT backbone, the CLIP text encoder, the DETR detector, the multiplex
 tracker, and the detect -> associate -> track loop that starts and keeps tracks. It runs on
 Ojas's Metal backend, built on tessl, or on Ojas's CPU backend. On Metal, `track` by default runs
-the ViT trunk as a CoreML fp32 ML Program exported from the checkpoint. That makes the frame 0.80x
-and leaves the tracks unchanged on all 1,500 held-out frames. `--trunk-precision f32` keeps every
+the ViT trunk, the necks and the tracker's memory attention and memory encoder as fp16 Core ML
+programs exported from the checkpoint: about 1.0 s per frame on dense video 36 (2.9 s with the
+whole model on Metal), HOTA 0.5695 on 1,500 held-out frames. `--trunk-precision f32` keeps every
 module on Ojas/tessl.
 
 - `spiketrack image <img> --prompt cell`: boxes, scores and masks for every instance.
@@ -28,7 +27,7 @@ module on Ojas/tessl.
 - `spiketrack weights`: weight-space inspection (norms, `f64` SVD spectra, BPE/prompt cosines, adapter/edit diffs) and declarative surgical edits (`--weight-edit` on `weights`, `image` and `track`).
 - `spiketrack eval-visem`: HOTA against VISEM-Tracking.
 
-The binary is 12.0 MB (11.4 MiB), links only macOS system frameworks, and runs with no Python on the
+The binary is about 12 MB, links only macOS system frameworks, and runs with no Python on the
 machine. JPEG frames decode byte-identically to Pillow through our own decoder, so the model sees
 exactly the pixels the official code sees.
 
@@ -116,8 +115,8 @@ is where the adapter's learning shows.
   at `G = 3.20`) lifts unseen held-out HOTA to **`0.6121`** (8 frames, `AssA = 0.8115`, `880` pred vs
   `879` GT; `0.6055` on v2) and **`0.6025`** (32 frames, `160` frames / `3,492` GT: `DetA = 0.5026`,
   **`AssA = 0.7880`**, `LocA = 0.7338`, `74.1%` box precision / **`76.3%` recall** / `75.2%` F1, all 5
-  unseen videos improved: `0.674 / 0.680 / 0.575 / 0.560 / 0.555`; `0.6013` on v2). *(Note: the
-  1,500-frame `5 x 300f` horizon was measured on v1 at `0.4922` and has not been re-run on v2/v3.)*
+  unseen videos improved: `0.674 / 0.680 / 0.575 / 0.560 / 0.555`; `0.6013` on v2). *(Note: on the
+  1,500-frame `5 x 300f` horizon, v1 scored `0.4922`; v3 + `768`-wt scores `0.5700`, and `0.5695` on the fp16 default.)*
 - **ROC, Precision–Recall, and box-level accuracy (`EVALUATION.md`, `bench/results/weight-space/roc_pr_held_out_f0.json`).**
   Across the 5 unseen held-out videos on frame `0` (`112` ground-truth sperm, `IoU >= 0.50`), query
   classifier **AUROC** rises from `0.452` (zero-shot `"sperm"`) to `0.983` (v1), **`0.987`** (v2),
@@ -144,7 +143,7 @@ is where the adapter's learning shows.
   the tracker's memory attention and memory encoder as fp16 CoreML programs, each adopted only
   after gates written before its runs (E24-E32). The frame took 0.57-0.60x, then 0.89-0.92x, then
   0.83-0.87x, and is about 1.0 s on dense VISEM 36. Held-out HOTA is 0.6025 on 32 frames and 0.5695
-  on 1,500, against 0.5700 on the fp32 trunk (`bench/results/e32-memenc`, README "Speed"). It is
+  on 1,500, against 0.5700 on the fp32 trunk (`bench/results/e32-memenc`, README "At a glance"). It is
   not real time. The history below is on the fp32 trunk that was the default until then:
   about 1.85–2.42 s per steady frame on the M5 Pro under quiet load
   with the CoreML fp32 trunk (down from 2.7 s after E10 and 3.4 s with the Ojas trunk), still

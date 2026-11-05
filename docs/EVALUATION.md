@@ -111,7 +111,7 @@ Sources: [`bench/results/weight-space/README.md`](../bench/results/weight-space/
 | **1,500 frames** (`5 x 300f`, `32,949` GT) | LoRA v1 `"sperm"` (upstream cap, old tracker) | `detector` / `16` | `0.4695` | `0.3198` | **`0.7250`** | `0.713` | `3.0x` zero-shot HOTA (`bench/results/track/held300-lora600-sperm-detector`) |
 | **1,500 frames** (`5 x 300f`, `32,949` GT) | **LoRA v1 `"sperm"` (Ojas `f32` & CoreML `fp32`)** | `detector` / `64` | **`0.4922`** | **`0.3734`** | `0.6903` | `0.708` | **`72.8%` Prec / `50.5%` Rec / `59.6%` F1 / `42.5%` Box Acc** (`16,639` TP, `6,221` FP = `4.15` FP/f) |
 
-*(Note: The `1,500`-frame `5 x 300f` runs were measured on `visem-lora-r16` prior to `visem-lora-v2`/`v3` and the head-box NMS / morphological bulb tracker upgrades; `visem-lora-v3` + `768`-wt exact IT [`G = 3.00`] was evaluated on the `5 x 8f = 40`-frame [`0.6121` HOTA, `AssA = 0.8115`] and `5 x 32f = 160`-frame [`0.6025` HOTA, `AssA = 0.7880`] unseen held-out suites.)*
+*(Note: The `1,500`-frame `5 x 300f` runs were measured on `visem-lora-r16` prior to `visem-lora-v2`/`v3` and the head-box NMS / morphological bulb tracker upgrades; `visem-lora-v3` + `768`-wt exact IT [`G = 3.00`] was evaluated on the `5 x 8f = 40`-frame [`0.6121` HOTA, `AssA = 0.8115`] and `5 x 32f = 160`-frame [`0.6025` HOTA, `AssA = 0.7880`] unseen held-out suites, and on the `1,500`-frame suite at `0.5700` HOTA (`0.5695` on the fp16 default, `bench/results/track/held300-coreml/`).)*
 
 ---
 

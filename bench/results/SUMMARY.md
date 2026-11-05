@@ -2,7 +2,7 @@
 
 Every number SpikeTrack reports, with the file it comes from and the command that produced it.
 Machine: Apple M5 Pro, macOS 27.0.1, shared with other sessions (load averages are in the logs).
-Ojas `cbd5565` and tessl as pinned in CONTRIBUTIONS.md unless a row says otherwise. Reference:
+Rows record the Ojas and tessl commits they ran on (CONTRIBUTIONS.md has the history); the pushed build pins ojas `9aafcdc` and tessl `52bdd19`. Reference:
 the official SAM 3.1 code run in fp32 on CPU (`tools/reference`).
 
 Heavy jobs run under the machine lock: `tools/locked.sh <label> bash tools/jobs/<script>`.

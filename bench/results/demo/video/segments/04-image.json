@@ -1,6 +1,6 @@
 {
  "title": "Type \"sperm\": every head gets a box",
  "image": "bench/results/demo/video/image-36-0/overlay.png",
- "caption": "Live run on a video the model never trained on. On 5 such videos it finds 95 of 112 heads (84% F1)",
+ "caption": "Live run on a video it never trained on. On the first frame of 5 such videos it finds 95 of the 112 heads (accuracy score 84%)",
  "out": "bench/results/demo/video/build/04-image.png"
 }

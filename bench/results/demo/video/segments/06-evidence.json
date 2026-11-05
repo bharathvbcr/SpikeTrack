@@ -1,9 +1,9 @@
 {
  "title": "Same answers as Meta's own code",
  "body": [
-  "Each part of the model was compared with Meta's official PyTorch code: same outputs (similarity 1.0000000, the maximum), on CPU and GPU",
-  "The whole tracker finds the same cells with the same IDs as Meta's code on 32 of 32 frames",
-  "Every number in this video comes from a saved run log: bench/results/SUMMARY.md"
+  "Each part of the model was checked against Meta's official PyTorch code, on CPU and on GPU: same outputs",
+  "On a test video, the whole tracker finds the same cells, with the same IDs, as Meta's code on 32 of 32 frames",
+  "The faster half-precision version scores the same tracking accuracy: 0.5695 against 0.570"
  ],
  "out": "bench/results/demo/video/build/06-evidence.png"
 }

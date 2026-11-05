@@ -1,5 +1,7 @@
 # SpikeTrack — Meta Global AI Developer Hackathon handoff
 
+Historical plan and task log. Current state: [README.md](README.md) and [bench/results/SUMMARY.md](bench/results/SUMMARY.md).
+
 Written 2026-10-25 for the hackathon window **Mon Oct 26 → Wed Nov 4, 9:00 PM ET (8:00 PM CT) submission**.
 Track: **Indie**. Theme: **Push the Frontier** (accelerate a scientific experiment).
 Evidence labels used everywhere: **[V]** verified against a primary source or a run, **[I]** inferred, **[U]** unverified — check before relying on it.
@@ -147,7 +149,7 @@ Stretch (only if every gate above is green): gp-cuda-smoke, gp-meta-model-report
 | 8 | gp-tensorops-hot-path | 1 | done (M4 `ojas_attn_fwd_d32`/`d64` flash cross-attention + tile-register `boxRPB`, E10–E22) | 6 |
 | 9 | gp-event-gating | 1 | done (`st-gate` exact & approximate policies verified in `bench/results/gating`) | 6, 7 |
 | 10 | gp-cli-and-no-python-proof | 1 | done (`spiketrack image/track/eval-visem/weights`, `scripts/no_python_check.sh`, 12.0 MB / 11.4 MiB binary) | 6 |
-| 11 | gp-demo-and-submission | 0 | in progress (README, WRITEUP, SUMMARY, demo clips on the fp16 default (`36-*-fp16.mp4`) and the narrated 2:24 `spiketrack-demo.mp4` on the E32 default done (2026-11-04); upload and portal submission pending) | 7–10 |
+| 11 | gp-demo-and-submission | 0 | in progress (README, WRITEUP, SUMMARY, demo clips on the fp16 default (`36-*-fp16.mp4`) and the narrated 2:32 `spiketrack-demo.mp4` on the E32 default done (2026-11-04); upload and portal submission pending) | 7–10 |
 | 12 | gp-cuda-smoke | 3 | backlog | 8 (stretch) |
 | 13 | gp-meta-model-report | 3 | backlog | 10 (stretch) |
 | 14 | gp-zero-shot-check | 0 | done (recall < 0.7) | — (runs before weights arrive) |

@@ -1,6 +1,6 @@
 {
  "title": "The problem: dozens of moving cells, and video that can't leave the lab",
  "image": "data/visem/VISEM_Tracking_Train_v4/Train/36/images/36_frame_0.jpg",
- "caption": "A fertility-clinic microscope video (VISEM-Tracking): 27 to 46 sperm per frame, each to be found and followed",
+ "caption": "A fertility-clinic microscope video (VISEM-Tracking): up to 46 sperm in a frame, each to be found and followed",
  "out": "bench/results/demo/video/build/02-problem.png"
 }

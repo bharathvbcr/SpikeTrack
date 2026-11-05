@@ -2,9 +2,9 @@
  "title": "Speed, stated plainly",
  "body": [
   "Time per frame on a dense video (M5 Pro), finding and tracking together:",
-  "2.9 s → 1.7 s: image encoder and memory attention moved to half-precision Core ML",
-  "1.7 s → 1.0 s: the encoder now works one frame ahead, and two more parts moved to Core ML",
-  "Accuracy held at each step: HOTA 0.570 before, 0.5695 now, over 1,500 unseen frames",
+  "2.9 s → 1.7 s: the two heaviest steps now run through Apple's Core ML, at half the numeric precision",
+  "1.7 s → 1.0 s: it reads the next frame while tracking this one, and two more steps moved to Core ML",
+  "Accuracy held at each step: tracking score 0.570 before, 0.5695 now, on 1,500 unseen frames",
   "Not real time yet. The existing Mac port of SAM 3.1 is faster, but it only tracks: it can't take a text prompt or find new cells"
  ],
  "out": "bench/results/demo/video/build/07-speed.png"

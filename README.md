@@ -1,7 +1,7 @@
 # SpikeTrack
 
 SAM 3.1, Meta's Segment Anything with its Object Multiplex video tracker, built as one Rust binary
-with no Python at runtime, and adapted to track dozens of sperm cells in clinical microscope video.
+with no Python at run time (its Core ML programs are exported once, ahead of time), and adapted to track dozens of sperm cells in clinical microscope video.
 
 ## Why it's needed
 
@@ -31,24 +31,21 @@ a research tool, not a medical device.
 Each line links to its evidence below.
 
 - **The whole of SAM 3.1** (CLIP text encoder, DETR detector, PE ViT backbone, multiplex tracker
-  with births) in a 12.0 MB binary that links only macOS system libraries. Every module matches the
+  with births) in a 12 MB binary that links only macOS system libraries. Every module matches the
   official code (worst cosine 1.0000000 on CPU and Metal); the full text-prompted tracking loop
-  gives the same tracked ids as upstream on 32/32 frames.
+  gives the same tracked ids as upstream on 32/32 frames. These checks ran on the f32 path; the
+  fp16 Core ML default is gated on held-out HOTA and id sets against it.
 - **Sperm tracking on five unseen VISEM-Tracking videos:** zero-shot SAM 3.1 does not ground
   "sperm" (HOTA 0.000 on the first 32 frames; 0.155 over 1,500 frames with the prompt "cell"). A
   detector LoRA trained on this Mac plus a 768-weight edit reaches **HOTA 0.570 over 1,500 frames**
-  (first 300 of each video, 32,949 labelled heads, one run; 4 of 5 videos up on the first adapter's
+  (0.5695 on today's fp16 default; prompt, box convention and cap differ from the zero-shot row; first 300 of each video, 32,949 labelled heads, one run; 4 of 5 videos up on the first adapter's
   0.492, video 47 down 0.031).
-- **Speed, stated plainly:** the existing SAM 3.1 CoreML port (`sdkv2/sam3.1-coreml`) is a set of
-  Core ML programs: its speed is Core ML's, whatever calls it (Python, in our harness). It covers
-  only the tracker: it cannot take a text prompt, detect, or start new tracks. SpikeTrack now runs
-  its own heaviest parts as Core ML programs too, called from Rust: the fp16 trunk and fp16 memory
-  attention, exported from the checkpoint. With them, the whole frame is 0.57-0.60x the fp32
-  default's. On 2026-11-03, before that change, our tracker step at 16 objects was about 2x the
-  port's at fp32 (~410 vs ~204 ms) and about 5.5x its fp16 step. Two re-runs of the step A/B on the fp16 default were not readable
-  under its pre-stated rule: the profiled runs drifted more than 10% from the unprofiled controls. Their
-  unread medians put our step at ~205 ms, about the port's fp32 step (~210) and ~2.3-3x its fp16 step
-  ([runs 4 and 5](bench/results/ab-coreml-tracker/README.md)). No parity claim is made from them.
+- **Speed, stated plainly:** about 1.0 s per frame on dense held-out video 36 (M5 Pro), from 2.9 s
+  with the whole model on Metal ([e32-memenc](bench/results/e32-memenc/README.md)). It is not real
+  time. The existing SAM 3.1 CoreML port (`sdkv2/sam3.1-coreml`) is faster per frame, but it covers
+  only the tracker: it cannot take a text prompt, detect, or start new tracks. SpikeTrack runs its
+  own heaviest parts as fp16 Core ML programs too, called from Rust (below); the tracker-step A/B
+  against the port is in [ab-coreml-tracker](bench/results/ab-coreml-tracker/README.md).
 
 It runs on two pre-existing open-source libraries by the same author:
 - **[Ojas](https://github.com/bharathvbcr/ojas)**: the deep learning framework: tensors, the `Backend` trait SAM 3.1 is written against, memory budgets, and the CPU reference backend.
@@ -96,7 +93,7 @@ and a cap of 64. Clips, 200 frames each, written at 25 fps, which is about half 
 - [zero-shot with the prompt "cell"](bench/results/demo/36-cell-zeroshot-fp16.mp4);
 - [both side by side](bench/results/demo/36-before-after-fp16.mp4).
 
-They are made by `tools/locked.sh demo-fp16 bash bench/results/demo/fp16-job.sh`. The 2:39 narrated
+They are made by `tools/locked.sh demo-fp16 bash bench/results/demo/fp16-job.sh`. The 2:32 narrated
 demo, [bench/results/demo/spiketrack-demo.mp4](bench/results/demo/spiketrack-demo.mp4), is built
 from these clips, a live `spiketrack image` run and title cards by
 `tools/locked.sh demo-video bash bench/results/demo/video/make.sh`. The earlier video-22 clip with
@@ -245,6 +242,10 @@ target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/imag
 target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/images \
   --prompt cell --backend metal --max-frames 64 --overlay-video out/track/22-overlay.mp4 --out out/track
 
+# The commands below need the VISEM adapter, which is not in the repository (fixtures/ is
+# git-ignored, like the weights). Train it with tools/jobs/lora_train.sh: v3 continues v2's step-400
+# adapter for 160 steps; the exact settings are the "config" block of each run's
+# bench/results/lora/<run>/train_log.json. Without --lora the commands run the released weights.
 # Best VISEM sperm configuration: LoRA v3 + 768-weight exact inverse-temperature + --boxes detector
 target/release/spiketrack track data/visem/VISEM_Tracking_Train_v4/Train/22/images \
   --prompt sperm --backend metal --max-frames 32 \
@@ -297,9 +298,10 @@ decoder ran. mp4 input does not match upstream's OpenCV path (GAP-MP4-PREPROCESS
 
 ## Rules
 
-Meta's Official Rules have not been read yet. They are on the hackathon portal, and only Bharath
-can reach them (gaps.jsonl `GAP-OFFICIAL-RULES-UNREAD`). Their wording on prior work, required
-Meta models, repository visibility and the demo video goes here once read.
+Prior work: Ojas and tessl are pre-existing open-source libraries by the same author, used as
+dependencies. Everything in this repository, and the Ojas and tessl commits added for SpikeTrack
+during the window, is listed by date in [CONTRIBUTIONS.md](CONTRIBUTIONS.md). The Meta model used
+is SAM 3.1.
 
 ## Licences
 

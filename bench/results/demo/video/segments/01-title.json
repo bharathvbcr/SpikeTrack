@@ -3,7 +3,7 @@
  "subtitle": "Meta's SAM 3.1 on a Mac: type a word, get every matching cell tracked",
  "body": [
   "Runs entirely on a laptop: one program, no cloud, no Python",
-  "Tested on tracking dozens of sperm cells in clinical microscope video",
+  "Tested on microscope video of dozens of swimming sperm cells",
   "Built for the Meta hackathon, Oct 26 to Nov 4, 2026"
  ],
  "out": "bench/results/demo/video/build/01-title.png"

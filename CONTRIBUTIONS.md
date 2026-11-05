@@ -1,8 +1,9 @@
 # Contributions: what existed before the hackathon, and what was built during it
 
 Hackathon window: Mon 2026-10-26 to Wed 2026-11-04, 8:00 PM CT.
-How to read the Official Rules on prior work is still open (gaps.jsonl `GAP-OFFICIAL-RULES-UNREAD`).
-This file records dates and commits so they can be classified once the rules are read.
+This file records what existed before the window and what was added during it, by date and commit.
+The submitted build pins ojas `9aafcdc` and tessl `52bdd19` (public; path dependencies `../ojas` and
+`../tessl`).
 
 ## Pre-existing libraries (used as dependencies, not hackathon work)
 
@@ -66,14 +67,14 @@ Rules. It is listed here, with commits, before submission either way.
 
 | Ojas range | Content | Dates | Classification |
 |---|---|---|---|
-| `ea3cf39..59adac6` (243 commits, most of them other Ojas lanes) | For SAM: the f32 `linear_bias_forward` adding its bias in place on the GEMM output, 11-13% faster per call with identical output bits (`aade8fa`, merge `59adac6`; ojas `bench/results/2026-11-03-linear-bias-inplace`), and a flash forward A/B at SpikeTrack's cross-attention that did not move it (`a40b82d`); tiled flash cross-attention with bias and key lengths (`d92a2e7`, `610921b`, merge `d74f0d8`) and its routing measurement (`c47986b`..`9d56bf0`); zero-copy mapped tensors and unified-memory payloads (`0e1c6bc`, `e74f1e0`, `7087da0`, `96c8412`); SAM training-side Backend methods and backwards (`b5abe74`, `f4b68da`, `5f34923`, `15ffe43`) | 2026-10-29 to 11-03 | pending the Official Rules |
-| tessl `789a132..52bdd19` | `SharedBuf` / `SharedAlloc` zero-copy CPU/GPU buffers fenced on the commit timeline (`029e2f5`, `bee513c`, `37e686c`), `SharedBuf::to_gpu_buffer` (`80caf39`); a SAM trunk-linear GEMM bench lane (`daff7db`, `f535dd3`) | 2026-10-28 to 11-02 | pending the Official Rules |
-| `83d7a29..d2922fb` | `attention_forward` (bidirectional/cross, bias, key_lens), `layer_norm`, `channel_layer_norm`, `gelu_erf`, `linear_bias`, `broadcast_*`, `conv2d`, `conv_transpose2d`, `max_pool2d`, bilinear interpolation, `rope_interleaved`, axial RoPE tables, window partition/merge, pixel shuffle (CPU; some Metal) | 2026-10-26 (commit times in ojas-78's report) | pending the Official Rules |
-| `8b88328..ea3cf39` | `MetalBackend::set_mem_cap` / `mem_cap` as public API, and the resource plan sets aside the memory caps (1ca5286, ab36b24, fa1b328, 7b6152b); SAM ops dedup: one rank4 helper, one refusal helper, one softmax row kernel, the SAM Autocast policy in one test (b4a92af); CPU softmax row max (8cb6c5d); a test pinning the pre-cast bf16 weight route (017f5c0); a target-excluded cross-entropy merged and then reverted (net unchanged); unrelated ojas lanes (wgpu scratch, CUDA syntax check, gated RMSNorm backward, LoRA draw order, oracle NaN gates, Tape shape check), WIP preservation commits, and bench records | 2026-10-27/29 | pending the Official Rules |
-| `cbd5565..8b88328` | Metal permute plans (row copies, a transpose tile; 170b22d) and a TensorOps flash cross-attention route for head dim 32 with no bias or key lengths (821c874, 2b14dca); the rest of the range is ojas bench records and rules | 2026-10-27/28 | pending the Official Rules |
-| `d5d33cc..cbd5565` | Metal D32 attention routed to tessl `encoder_attn`; memory cross-attention (Tq < Tk) through a pad-q route or a split-K tiled kernel with bias (stage 1); `group_norm_forward`, `concat`, `slice`, `fill` on CPU and Metal; routing fallbacks, bilinear full-input scan, bitwise tests; SpikeTrack attention benches | 2026-10-27 | pending the Official Rules |
-| `4710bb2..d5d33cc` | CPU `relu_forward`, two-pass f64 LayerNorm, SAM fixture parity and refusal fixes (gp/78-cpu-oracle); Metal `rope_interleaved`, unmasked D=64 self-attention routed to tessl `encoder_attn`, conv2d at any stride/padding, depthwise conv2d, bilinear (both align_corners), `relu` (gp/78-metal) | 2026-10-26/27 | pending the Official Rules |
-| `d2922fb..4710bb2` | Metal `conv2d_forward` (im2col + GEMM) and `conv_transpose2d_forward` (kernel == stride) for the SAM backbone; a ViT attention bench; README acknowledgements | 2026-10-26 | pending the Official Rules |
+| `ea3cf39..59adac6` (243 commits, most of them other Ojas lanes) | For SAM: the f32 `linear_bias_forward` adding its bias in place on the GEMM output, 11-13% faster per call with identical output bits (`aade8fa`, merge `59adac6`; ojas `bench/results/2026-11-03-linear-bias-inplace`), and a flash forward A/B at SpikeTrack's cross-attention that did not move it (`a40b82d`); tiled flash cross-attention with bias and key lengths (`d92a2e7`, `610921b`, merge `d74f0d8`) and its routing measurement (`c47986b`..`9d56bf0`); zero-copy mapped tensors and unified-memory payloads (`0e1c6bc`, `e74f1e0`, `7087da0`, `96c8412`); SAM training-side Backend methods and backwards (`b5abe74`, `f4b68da`, `5f34923`, `15ffe43`) | 2026-10-29 to 11-03 | added during the window, in a pre-existing library |
+| tessl `789a132..52bdd19` | `SharedBuf` / `SharedAlloc` zero-copy CPU/GPU buffers fenced on the commit timeline (`029e2f5`, `bee513c`, `37e686c`), `SharedBuf::to_gpu_buffer` (`80caf39`); a SAM trunk-linear GEMM bench lane (`daff7db`, `f535dd3`) | 2026-10-28 to 11-02 | added during the window, in a pre-existing library |
+| `83d7a29..d2922fb` | `attention_forward` (bidirectional/cross, bias, key_lens), `layer_norm`, `channel_layer_norm`, `gelu_erf`, `linear_bias`, `broadcast_*`, `conv2d`, `conv_transpose2d`, `max_pool2d`, bilinear interpolation, `rope_interleaved`, axial RoPE tables, window partition/merge, pixel shuffle (CPU; some Metal) | 2026-10-26 (commit times in ojas-78's report) | added during the window, in a pre-existing library |
+| `8b88328..ea3cf39` | `MetalBackend::set_mem_cap` / `mem_cap` as public API, and the resource plan sets aside the memory caps (1ca5286, ab36b24, fa1b328, 7b6152b); SAM ops dedup: one rank4 helper, one refusal helper, one softmax row kernel, the SAM Autocast policy in one test (b4a92af); CPU softmax row max (8cb6c5d); a test pinning the pre-cast bf16 weight route (017f5c0); a target-excluded cross-entropy merged and then reverted (net unchanged); unrelated ojas lanes (wgpu scratch, CUDA syntax check, gated RMSNorm backward, LoRA draw order, oracle NaN gates, Tape shape check), WIP preservation commits, and bench records | 2026-10-27/29 | added during the window, in a pre-existing library |
+| `cbd5565..8b88328` | Metal permute plans (row copies, a transpose tile; 170b22d) and a TensorOps flash cross-attention route for head dim 32 with no bias or key lengths (821c874, 2b14dca); the rest of the range is ojas bench records and rules | 2026-10-27/28 | added during the window, in a pre-existing library |
+| `d5d33cc..cbd5565` | Metal D32 attention routed to tessl `encoder_attn`; memory cross-attention (Tq < Tk) through a pad-q route or a split-K tiled kernel with bias (stage 1); `group_norm_forward`, `concat`, `slice`, `fill` on CPU and Metal; routing fallbacks, bilinear full-input scan, bitwise tests; SpikeTrack attention benches | 2026-10-27 | added during the window, in a pre-existing library |
+| `4710bb2..d5d33cc` | CPU `relu_forward`, two-pass f64 LayerNorm, SAM fixture parity and refusal fixes (gp/78-cpu-oracle); Metal `rope_interleaved`, unmasked D=64 self-attention routed to tessl `encoder_attn`, conv2d at any stride/padding, depthwise conv2d, bilinear (both align_corners), `relu` (gp/78-metal) | 2026-10-26/27 | added during the window, in a pre-existing library |
+| `d2922fb..4710bb2` | Metal `conv2d_forward` (im2col + GEMM) and `conv_transpose2d_forward` (kernel == stride) for the SAM backbone; a ViT attention bench; README acknowledgements | 2026-10-26 | added during the window, in a pre-existing library |
 
 Reproducibility (2026-11-04): the workspace builds against the sibling checkouts `../ojas` at
 `9aafcdc` and `../tessl` at `52bdd19` (path dependencies), both public. `9aafcdc` is `59adac6` plus
@@ -85,8 +86,7 @@ below still describe the model code. Earlier (2026-11-03): the repin from
 `286a444` to `59adac6` was checked before it was written here: every module gate passes as before,
 the detector and D3 gates pass on fixtures whose sha256s match `fixtures/DETECTOR_MANIFEST.json`,
 detect-track parity holds (video 22, id sets equal on 32 of 32 frames), and v3's train-5
-predictions are byte-identical (`bench/results/repin-59adac6/`). Until both were
-pushed, a fresh clone could not build SpikeTrack. History before that: `ea3cf39` was on Ojas's local main only; Ojas's public `origin/main` is `170b22d` (pushed on Bharath's
-instruction 2026-10-27; it contains `cbd5565`, the previous pin). The owner chose to keep main local for now (2026-10-28). Cargo.toml still uses path dependencies on local checkouts (`../ojas`, and tessl as
-ojas-metal's sibling path), so the workspace builds on this machine only. Before submission, Cargo.toml must point at
-the public repositories (Ojas by rev; tessl likewise once its commit is public).
+predictions are byte-identical (`bench/results/repin-59adac6/`). Both pins are now
+the tips of the public `main` branches of github.com/bharathvbcr/ojas and github.com/bharathvbcr/tessl,
+so a fresh clone laid out as in the README builds; the path dependencies (`../ojas`, and tessl as
+ojas-metal's sibling) only require that layout.

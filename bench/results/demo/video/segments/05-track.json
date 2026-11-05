@@ -1,8 +1,8 @@
 {
  "labels": [
   "Before: SAM 3.1 as released (prompt \"cell\")",
-  "After: + our small adapter (prompt \"sperm\")"
+  "After: + a small add-on we trained (prompt \"sperm\")"
  ],
- "caption": "Each sperm keeps its own ID as it swims. Tracking score (HOTA, 1,500 unseen frames): 0.15 before, 0.57 after",
+ "caption": "Each sperm keeps its own ID as it swims. Tracking score (1.0 = perfect) on 1,500 unseen frames: 0.15 before, 0.57 after",
  "out": "bench/results/demo/video/build/05-track.png"
 }

@@ -1,6 +1,6 @@
 # Demo video script
 
-The built video is `bench/results/demo/spiketrack-demo.mp4`: 2:24, 1280x720, narrated with the
+The built video is `bench/results/demo/spiketrack-demo.mp4`: 2:32, 1280x720, narrated with the
 macOS voice Samantha. It is made by `tools/locked.sh demo-video bash bench/results/demo/video/make.sh`
 from `bench/results/demo/video/segments/` (one card spec and one narration text per segment). It
 follows this script, with two differences:
@@ -10,7 +10,7 @@ follows this script, with two differences:
   states it.
 To record a voiced version instead, the narration texts are the lines to read.
 
-Target length about 2:30. Adjust to the Official Rules' limit once read (GAP-OFFICIAL-RULES-UNREAD).
+Target length about 2:30.
 Everything on screen is a live run or a clip the binary wrote, not a slide. Every number spoken is
 in [bench/results/SUMMARY.md](../bench/results/SUMMARY.md).
 
@@ -82,8 +82,8 @@ fp32) predates the fp16 default. The two re-runs on that default (runs 4 and 5) 
 under their pre-stated rule. Quoting either would contradict what the frame does today.
 
 Sources: `bench/results/e27-pipe-necks/README.md` (0.57-0.60x),
-`bench/results/track/held300-coreml/README.md` (HOTA), `bench/results/profile-fp16/` (1.31 s/frame,
-32 frames of video 36, quiet machine), `bench/results/ab-coreml-tracker/README.md` (the port).
+`bench/results/track/held300-coreml/README.md` (HOTA), `bench/results/e32-memenc/README.md` (about 1.0 s/frame on
+video 36, 981-1,080 ms), `bench/results/ab-coreml-tracker/README.md` (the port).
 
 ## Not in this video, and why
 
