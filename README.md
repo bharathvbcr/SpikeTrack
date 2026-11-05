@@ -41,7 +41,7 @@ Each line links to its evidence below.
   (0.5695 on today's fp16 default; prompt, box convention and cap differ from the zero-shot row; first 300 of each video, 32,949 labelled heads, one run; 4 of 5 videos up on the first adapter's
   0.492, video 47 down 0.031).
 - **Speed, stated plainly:** about 1.0 s per frame on dense held-out video 36 (M5 Pro), from 2.9 s
-  with the whole model on Metal ([e32-memenc](bench/results/e32-memenc/README.md)). It is not real
+  with the earlier fp32 Core ML trunk ([e32-memenc](bench/results/e32-memenc/README.md)). It is not real
   time. The existing SAM 3.1 CoreML port (`sdkv2/sam3.1-coreml`) is faster per frame, but it covers
   only the tracker: it cannot take a text prompt, detect, or start new tracks. SpikeTrack runs its
   own heaviest parts as fp16 Core ML programs too, called from Rust (below); the tracker-step A/B

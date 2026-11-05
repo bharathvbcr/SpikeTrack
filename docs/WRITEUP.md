@@ -19,7 +19,7 @@ tracker, and the detect -> associate -> track loop that starts and keeps tracks.
 Ojas's Metal backend, built on tessl, or on Ojas's CPU backend. On Metal, `track` by default runs
 the ViT trunk, the necks and the tracker's memory attention and memory encoder as fp16 Core ML
 programs exported from the checkpoint: about 1.0 s per frame on dense video 36 (2.9 s with the
-whole model on Metal), HOTA 0.5695 on 1,500 held-out frames. `--trunk-precision f32` keeps every
+earlier fp32 Core ML trunk), HOTA 0.5695 on 1,500 held-out frames. `--trunk-precision f32` keeps every
 module on Ojas/tessl.
 
 - `spiketrack image <img> --prompt cell`: boxes, scores and masks for every instance.
