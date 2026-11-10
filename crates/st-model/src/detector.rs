@@ -223,6 +223,43 @@ pub trait ExternalEncoder {
     ) -> Result<(Vec<f32>, Vec<f32>), OjasError>;
 }
 
+/// What an [`ExternalTransformer`] returns, row-major.
+pub struct TransformerOut {
+    /// `[grid^2, 256]`: the fusion encoder's image tokens.
+    pub memory: Vec<f32>,
+    /// `[256]`: the geometry token.
+    pub geo: Vec<f32>,
+    /// `[layers, Q, 256]`: every decoder layer's normed queries.
+    pub hs: Vec<f32>,
+    /// `[layers]`: every decoder layer's presence logit.
+    pub presence: Vec<f32>,
+    /// `[Q, 4]`: the reference boxes after the last layer (cxcywh in [0, 1]).
+    pub boxes: Vec<f32>,
+}
+
+/// The geometry and fusion encoders and the DETR decoder computed outside the Ojas backend
+/// (st-coreml's Core ML program), in place of [`Detector`]'s own, from the top neck level to the
+/// last decoder layer. It computes what they compute, to a tolerance its own parity gate states,
+/// not bit for bit.
+pub trait ExternalTransformer {
+    /// What `run.json` records about it (format, precision, package hash).
+    fn describe(&self) -> String;
+    /// The inputs of [`ExternalEncoder::run`].
+    fn run(&self, fpn2: &[f32], pos: &[f32], text: &[f32]) -> Result<TransformerOut, OjasError>;
+}
+
+/// The encoder memory and prompt (on the backend), the boxes after the last layer, the last and
+/// (with the aux blend) penultimate normed queries, and their presence logits.
+type EncDec = (
+    Tensor,
+    Tensor,
+    Vec<f32>,
+    Vec<f32>,
+    Option<Vec<f32>>,
+    f32,
+    f32,
+);
+
 impl DetectorOut {
     /// What upstream's `Sam3Processor` thresholds: `sigmoid(logit) * sigmoid(presence)`.
     pub fn probabilities(&self) -> Vec<f32> {
@@ -282,6 +319,7 @@ pub struct Detector<'b, B: Backend + ?Sized> {
     /// When set, the geometry and fusion encoders run here instead of on `be`, with `pos` read back
     /// once as its host input.
     ext_enc: Option<(Box<dyn ExternalEncoder + 'b>, Vec<f32>)>,
+    ext_tr: Option<(Box<dyn ExternalTransformer + 'b>, Vec<f32>)>,
 }
 
 /// Detector weight groups, as `st_weights::Sam31Weights` holds them.
@@ -445,6 +483,7 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
             aux_score_weight: 0.0,
             ext_seg: None,
             ext_enc: None,
+            ext_tr: None,
         })
     }
 
@@ -496,6 +535,101 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
     /// What the external encoder is, when one is installed.
     pub fn external_encoder(&self) -> Option<String> {
         self.ext_enc.as_ref().map(|(e, _)| e.describe())
+    }
+
+    /// Run the geometry and fusion encoders and the DETR decoder on `ext` (a fixed-shape program
+    /// for the native input) instead of on the backend, in [`Self::forward_inference`] only, as
+    /// [`Self::set_external_encoder`]. Refused at any other input size, or beside an external
+    /// encoder (the transformer replaces it).
+    pub fn set_external_transformer(
+        &mut self,
+        ext: Box<dyn ExternalTransformer + 'b>,
+    ) -> Result<(), String> {
+        if self.geo != Geometry::SAM3 {
+            return Err(format!(
+                "an external transformer is built for the {}-pixel input; this detector is {} pixels",
+                Geometry::SAM3.pixels(),
+                self.geo.pixels()
+            ));
+        }
+        if self.ext_enc.is_some() {
+            return Err(
+                "an external transformer replaces the external encoder; install one or the other"
+                    .into(),
+            );
+        }
+        let pos = host_slice(&self.pos, self.be)
+            .map_err(|e| {
+                format!("reading the position encoding back for the external transformer: {e}")
+            })?
+            .to_vec();
+        self.ext_tr = Some((ext, pos));
+        Ok(())
+    }
+
+    /// What the external transformer is, when one is installed.
+    pub fn external_transformer(&self) -> Option<String> {
+        self.ext_tr.as_ref().map(|(e, _)| e.describe())
+    }
+
+    /// The encoders and decoder on `ext`: the memory and prompt uploaded for the segmentation head,
+    /// the rest as the backend path leaves them.
+    fn run_external_transformer(
+        &self,
+        ext: &dyn ExternalTransformer,
+        pos: &[f32],
+        fpn2: &Tensor,
+        text: &Tensor,
+        use_aux: bool,
+    ) -> Result<EncDec, ModelError> {
+        let be = self.be;
+        let tokens = self.geo.tokens();
+        let n_dec = self.dec_layers.len();
+        let text_host = host_slice(text, be)?;
+        let fpn2_host = host_slice(fpn2, be)?;
+        let out = ext.run(fpn2_host.as_slice(), pos, text_host.as_slice())?;
+        drop((fpn2_host, text_host));
+        let want = [tokens * D, D, n_dec * QUERIES * D, n_dec, QUERIES * 4];
+        let got = [
+            out.memory.len(),
+            out.geo.len(),
+            out.hs.len(),
+            out.presence.len(),
+            out.boxes.len(),
+        ];
+        if got != want {
+            return Err(ModelError::Ojas(OjasError::OutOfRange {
+                op: "st_model::Detector::forward",
+                detail: format!(
+                    "the external transformer returned {got:?} memory, geometry, query, presence and box values, want {want:?}"
+                ),
+            }));
+        }
+        let geo = up(be, &out.geo, &[1, 1, D])?;
+        let text_dev;
+        let text = if text.device() == geo.device() {
+            text
+        } else {
+            text_dev = be.upload(text)?;
+            &text_dev
+        };
+        let prompt = be.concat(&[text, &geo], 1)?;
+        let layer = |l: usize| out.hs[l * QUERIES * D..(l + 1) * QUERIES * D].to_vec();
+        let hs_prev = use_aux.then(|| layer(n_dec - 2));
+        let presence_prev = if use_aux {
+            out.presence[n_dec - 2]
+        } else {
+            0.0
+        };
+        Ok((
+            up(be, &out.memory, &[1, tokens, D])?,
+            prompt,
+            out.boxes,
+            layer(n_dec - 1),
+            hs_prev,
+            out.presence[n_dec - 1],
+            presence_prev,
+        ))
     }
 
     /// Set a post-decoder `[dx, dy, dw, dh]` logit shift applied only to `pred_boxes` after
@@ -600,140 +734,158 @@ impl<'b, B: Backend + ?Sized> Detector<'b, B> {
                 }));
             }
         }
-        let (mem, prompt) = match (&self.ext_enc, taps.is_none()) {
-            (Some((ext, pos)), true) => {
-                let text_host = host_slice(text, be)?;
-                let fpn2 = host_slice(&fpn[2], be)?;
-                let (mem, geo) = ext.run(fpn2.as_slice(), pos, text_host.as_slice())?;
-                drop((fpn2, text_host));
-                if mem.len() != tokens * D || geo.len() != D {
-                    return Err(ModelError::Ojas(OjasError::OutOfRange {
-                        op: "st_model::Detector::forward",
-                        detail: format!(
-                            "the external encoder returned {} memory and {} geometry values, want {} and {D}",
-                            mem.len(),
-                            geo.len(),
-                            tokens * D
-                        ),
-                    }));
-                }
-                let geo = up(be, &geo, &[1, 1, D])?;
-                let text_dev;
-                let text = if text.device() == geo.device() {
-                    text
-                } else {
-                    text_dev = be.upload(text)?;
-                    &text_dev
-                };
-                let prompt = be.concat(&[text, &geo], 1)?;
-                (up(be, &mem, &[1, tokens, D])?, prompt)
-            }
-            _ => {
-                // Image tokens [1, grid^2, 256] from the grid x grid level (NCHW -> tokens).
-                let img = be.permute(&fpn[2].reshape(&[1, D, tokens])?, &[0, 2, 1])?;
-
-                // Geometry encoder, empty prompt: CLS -> final_proj -> norm -> 3 layers -> encode_norm.
-                let mut geo = self
-                    .geo_norm
-                    .fwd(be, &self.geo_final_proj.fwd(be, &self.geo_cls)?)?;
-                for l in &self.geo_layers {
-                    geo = l.fwd(be, &geo, None, &img, Some(&self.pos))?;
-                }
-                let geo = self.geo_encode_norm.fwd(be, &geo)?;
-                if let Some(t) = taps.as_deref_mut() {
-                    t.geo = Some(host_of(&geo, be)?);
-                }
-
-                // Prompt = [valid text tokens; geometry CLS].
-                let text_dev;
-                let text = if text.device() == geo.device() {
-                    text
-                } else {
-                    text_dev = be.upload(text)?;
-                    &text_dev
-                };
-                let prompt = be.concat(&[text, &geo], 1)?;
-                drop(geo);
-
-                // Fusion encoder over image tokens, cross-attending to the prompt.
-                let mut mem = img;
-                for l in &self.enc_layers {
-                    mem = l.fwd(be, &mem, Some(&self.pos), &prompt, None)?;
-                    if let Some(t) = taps.as_deref_mut() {
-                        t.enc_layers.push(mem.clone());
-                    }
-                }
-                (mem, prompt)
-            }
-        };
-        let plen = prompt.shape()[1];
-        let mem_keys = be.residual_add_forward(&mem, &self.pos)?;
-
-        // DETR decoder.
-        let mut refs: Vec<f32> = self.ref_points.iter().map(|&v| host::sigmoid(v)).collect();
-        let presence = if self.presence_token.shape().len() == 2 {
-            self.presence_token.reshape(&[1, 1, D])?
-        } else {
-            self.presence_token.clone()
-        };
-        let query_embed = if self.query_embed.shape().len() == 2 {
-            self.query_embed.reshape(&[1, QUERIES, D])?
-        } else {
-            self.query_embed.clone()
-        };
-        let mut x = be.concat(&[&presence, &query_embed], 1)?;
-        drop((presence, query_embed));
-        let mut hs_prev: Option<Vec<f32>> = None;
-        let mut hs_last = Vec::new();
-        let mut presence_prev = 0.0f32;
-        let mut presence_last = 0.0f32;
         let n_dec = self.dec_layers.len();
         let use_aux = self.aux_score_weight > 0.0 && n_dec >= 2;
-        for (li, layer) in self.dec_layers.iter().enumerate() {
-            mark(DETECTOR_STAGES[1]);
-            if let Some(t) = taps.as_deref_mut() {
-                t.ref_boxes.push(refs.clone());
-            }
-            let sine = host::sine_embed_boxes(&refs);
-            let qpos = self.ref_point_head.host(&sine, QUERIES);
-            let mut pos = vec![0f32; D];
-            pos.extend_from_slice(&qpos);
-            let pos = up(be, &pos, &[1, 1 + QUERIES, D])?;
-            let rpb = self.rpb_bias(&refs)?;
-            mark(DETECTOR_STAGES[2]);
-            x = layer.fwd(be, &x, &pos, &prompt, &mem, &mem_keys, &rpb)?;
-            drop((pos, rpb));
-            mark(DETECTOR_STAGES[3]);
-            let xh = host_slice(&x, be)?;
-            let (presence_tok, queries) = xh.as_slice().split_at(D);
-            let hs = self.dec_norm.host(queries);
-            if taps.is_some() || li + 1 == n_dec || (use_aux && li + 2 == n_dec) {
-                // Upstream calls .clamp() on the presence logits and discards the result: no clamp.
-                let pres = self
-                    .presence_head
-                    .host(&self.presence_out_norm.host(presence_tok), 1)[0];
-                if use_aux && li + 2 == n_dec {
-                    presence_prev = pres;
+        let (mem, prompt, refs, hs_last, hs_prev, mut presence_last, presence_prev) = if let (
+            Some((ext, pos)),
+            true,
+        ) =
+            (&self.ext_tr, taps.is_none())
+        {
+            self.run_external_transformer(ext.as_ref(), pos, &fpn[2], text, use_aux)?
+        } else {
+            let (mem, prompt) = match (&self.ext_enc, taps.is_none()) {
+                (Some((ext, pos)), true) => {
+                    let text_host = host_slice(text, be)?;
+                    let fpn2 = host_slice(&fpn[2], be)?;
+                    let (mem, geo) = ext.run(fpn2.as_slice(), pos, text_host.as_slice())?;
+                    drop((fpn2, text_host));
+                    if mem.len() != tokens * D || geo.len() != D {
+                        return Err(ModelError::Ojas(OjasError::OutOfRange {
+                            op: "st_model::Detector::forward",
+                            detail: format!(
+                                "the external encoder returned {} memory and {} geometry values, want {} and {D}",
+                                mem.len(),
+                                geo.len(),
+                                tokens * D
+                            ),
+                        }));
+                    }
+                    let geo = up(be, &geo, &[1, 1, D])?;
+                    let text_dev;
+                    let text = if text.device() == geo.device() {
+                        text
+                    } else {
+                        text_dev = be.upload(text)?;
+                        &text_dev
+                    };
+                    let prompt = be.concat(&[text, &geo], 1)?;
+                    (up(be, &mem, &[1, tokens, D])?, prompt)
                 }
-                presence_last = pres;
+                _ => {
+                    // Image tokens [1, grid^2, 256] from the grid x grid level (NCHW -> tokens).
+                    let img = be.permute(&fpn[2].reshape(&[1, D, tokens])?, &[0, 2, 1])?;
+
+                    // Geometry encoder, empty prompt: CLS -> final_proj -> norm -> 3 layers -> encode_norm.
+                    let mut geo = self
+                        .geo_norm
+                        .fwd(be, &self.geo_final_proj.fwd(be, &self.geo_cls)?)?;
+                    for l in &self.geo_layers {
+                        geo = l.fwd(be, &geo, None, &img, Some(&self.pos))?;
+                    }
+                    let geo = self.geo_encode_norm.fwd(be, &geo)?;
+                    if let Some(t) = taps.as_deref_mut() {
+                        t.geo = Some(host_of(&geo, be)?);
+                    }
+
+                    // Prompt = [valid text tokens; geometry CLS].
+                    let text_dev;
+                    let text = if text.device() == geo.device() {
+                        text
+                    } else {
+                        text_dev = be.upload(text)?;
+                        &text_dev
+                    };
+                    let prompt = be.concat(&[text, &geo], 1)?;
+                    drop(geo);
+
+                    // Fusion encoder over image tokens, cross-attending to the prompt.
+                    let mut mem = img;
+                    for l in &self.enc_layers {
+                        mem = l.fwd(be, &mem, Some(&self.pos), &prompt, None)?;
+                        if let Some(t) = taps.as_deref_mut() {
+                            t.enc_layers.push(mem.clone());
+                        }
+                    }
+                    (mem, prompt)
+                }
+            };
+            let mem_keys = be.residual_add_forward(&mem, &self.pos)?;
+
+            // DETR decoder.
+            let mut refs: Vec<f32> = self.ref_points.iter().map(|&v| host::sigmoid(v)).collect();
+            let presence = if self.presence_token.shape().len() == 2 {
+                self.presence_token.reshape(&[1, 1, D])?
+            } else {
+                self.presence_token.clone()
+            };
+            let query_embed = if self.query_embed.shape().len() == 2 {
+                self.query_embed.reshape(&[1, QUERIES, D])?
+            } else {
+                self.query_embed.clone()
+            };
+            let mut x = be.concat(&[&presence, &query_embed], 1)?;
+            drop((presence, query_embed));
+            let mut hs_prev: Option<Vec<f32>> = None;
+            let mut hs_last = Vec::new();
+            let mut presence_prev = 0.0f32;
+            let mut presence_last = 0.0f32;
+            for (li, layer) in self.dec_layers.iter().enumerate() {
+                mark(DETECTOR_STAGES[1]);
+                if let Some(t) = taps.as_deref_mut() {
+                    t.ref_boxes.push(refs.clone());
+                }
+                let sine = host::sine_embed_boxes(&refs);
+                let qpos = self.ref_point_head.host(&sine, QUERIES);
+                let mut pos = vec![0f32; D];
+                pos.extend_from_slice(&qpos);
+                let pos = up(be, &pos, &[1, 1 + QUERIES, D])?;
+                let rpb = self.rpb_bias(&refs)?;
+                mark(DETECTOR_STAGES[2]);
+                x = layer.fwd(be, &x, &pos, &prompt, &mem, &mem_keys, &rpb)?;
+                drop((pos, rpb));
+                mark(DETECTOR_STAGES[3]);
+                let xh = host_slice(&x, be)?;
+                let (presence_tok, queries) = xh.as_slice().split_at(D);
+                let hs = self.dec_norm.host(queries);
+                if taps.is_some() || li + 1 == n_dec || (use_aux && li + 2 == n_dec) {
+                    // Upstream calls .clamp() on the presence logits and discards the result: no clamp.
+                    let pres = self
+                        .presence_head
+                        .host(&self.presence_out_norm.host(presence_tok), 1)[0];
+                    if use_aux && li + 2 == n_dec {
+                        presence_prev = pres;
+                    }
+                    presence_last = pres;
+                }
+                drop(xh);
+                let delta = self.bbox_embed.host(&hs, QUERIES);
+                refs = refs
+                    .iter()
+                    .zip(&delta)
+                    .map(|(&r, &d)| host::sigmoid(host::inverse_sigmoid(r) + d))
+                    .collect();
+                if let Some(t) = taps.as_deref_mut() {
+                    t.presence_logits.push(presence_last);
+                    t.hs.push(hs.clone());
+                }
+                if use_aux && li + 2 == n_dec {
+                    hs_prev = Some(hs.clone());
+                }
+                hs_last = hs;
             }
-            drop(xh);
-            let delta = self.bbox_embed.host(&hs, QUERIES);
-            refs = refs
-                .iter()
-                .zip(&delta)
-                .map(|(&r, &d)| host::sigmoid(host::inverse_sigmoid(r) + d))
-                .collect();
-            if let Some(t) = taps.as_deref_mut() {
-                t.presence_logits.push(presence_last);
-                t.hs.push(hs.clone());
-            }
-            if use_aux && li + 2 == n_dec {
-                hs_prev = Some(hs.clone());
-            }
-            hs_last = hs;
-        }
-        drop((x, mem_keys));
+            drop((x, mem_keys));
+            (
+                mem,
+                prompt,
+                refs,
+                hs_last,
+                hs_prev,
+                presence_last,
+                presence_prev,
+            )
+        };
+        let plen = prompt.shape()[1];
 
         // Dot-product scoring on the last layer (with optional penultimate-layer blend), then the
         // joint presence score.

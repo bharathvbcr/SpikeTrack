@@ -13,7 +13,7 @@
 use std::cell::RefCell;
 use std::time::Instant;
 
-use ojas_core::Backend;
+use ojas_core::BackendCore;
 use ojas_metal::MetalBackend;
 use st_model::profile::Profiled;
 

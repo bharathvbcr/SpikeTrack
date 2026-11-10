@@ -74,12 +74,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use ojas_core::{Autocast, Backend, Budget, Tensor};
+use ojas_core::{Autocast, Backend, BackendCore, Budget, Tensor};
 use ojas_cpu::CpuBackend;
 use ojas_metal::{MetalBackend, WaitCounts};
 use st_coreml::{
-    CoremlDetEncoder, CoremlMemAttn, CoremlMemEncoder, CoremlNeck, CoremlSegHead, CoremlTrunk,
-    PipelinedTrunk, Units,
+    CoremlDetEncoder, CoremlDetTransformer, CoremlMemAttn, CoremlMemEncoder, CoremlNeck,
+    CoremlSegHead, CoremlTrunk, PipelinedTrunk, Units,
 };
 use st_model::tile::{TileSpec, DEFAULT_TILE_SPAN};
 use st_model::tracker::associate::Bitmask;
@@ -118,7 +118,8 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
                  [--lora FILE] [--weight-edit FILE] [--model-dir DIR] [--threads N] [--trim-pool-every K] [--overlap-dispatches N]
                  [--trunk-precision f32|bf16-linears|coreml-fp32|coreml-fp16]
                  [--trunk-pipeline on|off] [--mem-attn ojas|coreml-fp32|coreml-fp16]
-                 [--necks ojas|coreml-fp32|coreml-fp16] [--seg-head ojas|coreml-fp32|coreml-fp16]
+                 [--necks ojas|coreml-fp32|coreml-fp16] [--inter-neck ojas|coreml-fp32|coreml-fp16]
+                 [--seg-head ojas|coreml-fp32|coreml-fp16]
                  [--max-objects N]
                  [--input-size N] [--post-box-delta dx,dy,dw,dh] [--aux-score-weight W]
                  [--tile-every K] [--profile stages|ops]
@@ -200,6 +201,11 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
                     coreml-fp16: CoreML ML Programs from
                     <model-dir>/coreml/sam3.1_neck_<det|prop>_<fp32|fp16>.mlpackage, exported by
                     tools/baselines/coreml_necks.py export --neck det|prop. Same rules as --mem-attn.
+  --inter-neck M    what runs the interactive neck, which births and reconditions use (default:
+                    ojas). coreml-fp32 / coreml-fp16: <model-dir>/coreml/sam3.1_neck_inter_<p>.mlpackage,
+                    exported by tools/baselines/coreml_necks.py export --neck inter. With a pipelined
+                    trunk it runs on the trunk's worker every frame, so a frame that needs it finds
+                    it computed. Same rules as --mem-attn.
   --seg-head M      what runs the detector's segmentation head (default: ojas). coreml-fp32 /
                     coreml-fp16: one CoreML ML Program from
                     <model-dir>/coreml/sam3.1_seghead_<fp32|fp16>.mlpackage, exported by
@@ -220,6 +226,15 @@ spiketrack track <input> --prompt <text> [--out DIR] [--backend metal|cpu] [--ma
                     the first 12 hex of the --lora file's sha256 (base without --lora): the adapter is
                     folded into the package, so each adapter needs its own export. Refuses a
                     --weight-edit inside the encoders and an --input-size other than 1008.
+  --det-transformer M  what runs the detector's geometry and fusion encoders and its DETR
+                    decoder (default: ojas). coreml-fp32 / coreml-fp16: one CoreML ML Program from
+                    <model-dir>/coreml/sam3.1_dettr_<fp32|fp16>.mlpackage, exported by
+                    tools/baselines/coreml_dettr.py export --precision P. The weights an adapter
+                    can change (every attention projection, bbox_embed, presence_token_head) are
+                    the program's inputs, fed from the loaded weights with --lora folded, so one
+                    package serves every adapter that changes only those. Refuses an adapter or
+                    edit of any other weight there, --det-encoder beside it, and an --input-size
+                    other than 1008.
   --trunk-precision P  what runs the ViT trunk (default: coreml-fp16 on --backend metal, f32 on
                     --backend cpu). The Metal default runs at 0.57-0.60x the coreml-fp32 frame
                     with held-out HOTA 0.5694 against 0.5700 (bench/results/e27-pipe-necks,
@@ -1416,12 +1431,16 @@ struct Options {
     mem_attn: Placement,
     /// `--necks`: the detector and propagation necks.
     necks: Placement,
+    /// `--inter-neck`: the interactive neck.
+    inter_neck: Placement,
     /// `--seg-head`: the detector's segmentation head.
     seg_head: Placement,
     /// `--mem-encoder`: the tracker's memory encoder.
     mem_encoder: Placement,
     /// `--det-encoder`, with its package: the detector's geometry and fusion encoders.
     det_encoder: (Placement, Option<PathBuf>),
+    /// `--det-transformer`, with its package: the detector's encoders and DETR decoder.
+    det_transformer: (Placement, Option<PathBuf>),
     /// `--max-objects`.
     max_objects: usize,
     /// `--input-size`, validated: the model's token grid and every size derived from it.
@@ -1508,6 +1527,8 @@ const NECK_PREFIXES: [&str; 2] = [
     "detector.backbone.vision_backbone.convs.",
     "detector.backbone.vision_backbone.propagation_convs.",
 ];
+/// The checkpoint prefix of the interactive neck, which `--inter-neck`'s package bakes in.
+const INTER_NECK_PREFIX: &str = "detector.backbone.vision_backbone.interactive_convs.";
 /// The checkpoint prefix of the segmentation head, which `--seg-head`'s package bakes in.
 const SEG_HEAD_PREFIX: &str = "detector.segmentation_head.";
 /// The checkpoint prefix of the tracker's memory encoder, which `--mem-encoder`'s package bakes in.
@@ -1615,6 +1636,50 @@ impl Placement {
     }
 }
 
+/// The checkpoint prefixes of the weights `--det-transformer`'s package reads.
+const DET_TRANSFORMER_PREFIXES: [&str; 3] = [
+    "detector.geometry_encoder.",
+    "detector.transformer.encoder.",
+    "detector.transformer.decoder.",
+];
+
+/// Refuses an adapter or weight edit that changes a weight `--det-transformer` bakes in: one under
+/// [`DET_TRANSFORMER_PREFIXES`] that is not among the program's inputs
+/// ([`st_coreml::dettr::dynamic_params`]), which it is fed with the change applied.
+fn check_transformer_weights(
+    placement: Placement,
+    adapter: Option<&st_weights::lora::LoraAdapter>,
+    plan: Option<&st_weights::edit::WeightEditPlan>,
+) -> Result<(), CliError> {
+    if placement == Placement::Ojas {
+        return Ok(());
+    }
+    let inputs: std::collections::BTreeSet<String> = st_coreml::dettr::dynamic_params()
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+    let touched = adapter
+        .into_iter()
+        .flat_map(|a| a.targets.iter().map(|t| t.param.as_str()))
+        .chain(
+            plan.into_iter()
+                .flat_map(|p| p.edits.iter().map(|e| e.param())),
+        );
+    for param in touched {
+        if DET_TRANSFORMER_PREFIXES
+            .iter()
+            .any(|p| param.starts_with(p))
+            && !inputs.contains(param)
+        {
+            return Err(CliError::usage(format!(
+                "--lora or --weight-edit targets {param:?}, which --det-transformer {} bakes in (its inputs are the attention projections, bbox_embed and presence_token_head); pass --det-transformer ojas",
+                placement.name()
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Refuses an adapter or weight edit that changes weights under `prefixes` while `--<flag>` runs
 /// them from an exported CoreML package, which would silently bypass the change.
 fn check_placement_weights(
@@ -1657,10 +1722,14 @@ struct Timing {
     external_mem_attn: Option<String>,
     /// `Backbone::external_neck` for the detector and propagation necks.
     external_necks: [Option<String>; 2],
+    /// `Backbone::external_neck` for the interactive neck.
+    external_inter_neck: Option<String>,
     /// `Detector::external_seg_head`.
     external_seg_head: Option<String>,
     /// `Detector::external_encoder`.
     external_det_encoder: Option<String>,
+    /// `Detector::external_transformer`.
+    external_det_transformer: Option<String>,
     /// `Vos::external_mem_encoder`, and `Vos::mem_encoder_calls` at the end: `[external, Ojas]`.
     external_mem_encoder: Option<String>,
     mem_encoder_calls: [usize; 2],
@@ -1863,18 +1932,22 @@ fn track_on<B: Backend>(
     drop(text);
     drop(tok);
     let mut trunk_prefetch: Option<PipelinedTrunk> = None;
-    // `--necks coreml-*`: the detector and propagation neck packages, which run on the trunk's worker
-    // when the trunk is pipelined.
+    // `--necks coreml-*`: the detector and propagation neck packages, and `--inter-neck coreml-*`: the
+    // interactive neck's, which run on the trunk's worker when the trunk is pipelined.
     let mut neck_packages: Vec<(Neck, PathBuf)> = Vec::new();
-    for (which, stem, neck) in [
-        (Neck::Detector, "neck_det", "det"),
-        (Neck::Propagation, "neck_prop", "prop"),
+    for (which, stem, neck, placement, flag) in [
+        (Neck::Detector, "neck_det", "det", opts.necks, "necks"),
+        (Neck::Propagation, "neck_prop", "prop", opts.necks, "necks"),
+        (
+            Neck::Interactive,
+            "neck_inter",
+            "inter",
+            opts.inter_neck,
+            "inter-neck",
+        ),
     ] {
         let script = format!("coreml_necks.py export --neck {neck}");
-        if let Some(package) =
-            opts.necks
-                .existing_package(&opts.model_dir, stem, "necks", &script)?
-        {
+        if let Some(package) = placement.existing_package(&opts.model_dir, stem, flag, &script)? {
             neck_packages.push((which, package));
         }
     }
@@ -1969,6 +2042,7 @@ fn track_on<B: Backend>(
         backbone.external_neck(Neck::Detector),
         backbone.external_neck(Neck::Propagation),
     ];
+    let external_inter_neck = backbone.external_neck(Neck::Interactive);
     let external_trunk = backbone.external_trunk();
     let mut detector = Detector::new_at(
         be,
@@ -2026,6 +2100,30 @@ fn track_on<B: Backend>(
             .map_err(CliError::from_err)?;
     }
     let external_det_encoder = detector.external_encoder();
+    if let (_, Some(package)) = &opts.det_transformer {
+        let weight = |name: &str| {
+            detector_transformer
+                .tensors
+                .get(name)
+                .map(|w| w.data.clone())
+        };
+        let t = CoremlDetTransformer::load(package, Units::CpuAndGpu, &weight)
+            .map_err(CliError::from_err)?;
+        println!(
+            "detector transformer: {} ({}, {:.1} s)",
+            package.display(),
+            if t.compiled {
+                "compiled now"
+            } else {
+                "cached compile"
+            },
+            t.load_seconds
+        );
+        detector
+            .set_external_transformer(Box::new(t))
+            .map_err(CliError::usage)?;
+    }
+    let external_det_transformer = detector.external_transformer();
     drop((
         detector_transformer,
         geometry_encoder,
@@ -2098,33 +2196,38 @@ fn track_on<B: Backend>(
     let mut frame_seconds = Vec::with_capacity(stream.len);
     let mut index = 0usize;
     // With --trunk-pipeline the next frame is decoded and its trunk queued before this frame is
-    // tracked, so the trunk of frame t + 1 runs while the detector and tracker run frame t.
-    let mut lookahead: Option<(u32, Rgb8)> = None;
+    // tracked, so the trunk of frame t + 1 runs while the detector and tracker run frame t. The
+    // model input made for the prefetch is kept for that frame's own turn, not made twice.
+    let mut lookahead: Option<(u32, Rgb8, Vec<f32>)> = None;
+    let prefetch_next = |stream: &mut FrameStream,
+                         pipe: &PipelinedTrunk|
+     -> Result<Option<(u32, Rgb8, Vec<f32>)>, CliError> {
+        let Some((n, img)) = stream.next_frame()? else {
+            return Ok(None);
+        };
+        let input = upstream_input(&img, side);
+        pipe.prefetch(input.clone()).map_err(CliError::from_err)?;
+        Ok(Some((n, img, input)))
+    };
     if let Some(pipe) = &trunk_prefetch {
-        lookahead = stream.next_frame()?;
-        if let Some((_, img)) = &lookahead {
-            pipe.prefetch(upstream_input(img, side))
-                .map_err(CliError::from_err)?;
-        }
+        lookahead = prefetch_next(stream, pipe)?;
     }
     loop {
         if let Some(p) = profile {
             p.enter(track_profile::DECODE);
         }
         let next = if trunk_prefetch.is_some() {
-            lookahead.take()
+            lookahead
+                .take()
+                .map(|(n, img, input)| (n, img, Some(input)))
         } else {
-            stream.next_frame()?
+            stream.next_frame()?.map(|(n, img)| (n, img, None))
         };
-        let Some((n, image)) = next else {
+        let Some((n, image, made_input)) = next else {
             break;
         };
         if let Some(pipe) = &trunk_prefetch {
-            lookahead = stream.next_frame()?;
-            if let Some((_, img)) = &lookahead {
-                pipe.prefetch(upstream_input(img, side))
-                    .map_err(CliError::from_err)?;
-            }
+            lookahead = prefetch_next(stream, pipe)?;
         }
         collector.keep_image(index, &image);
         let tile_tensors: Vec<(TileSpec, Tensor)> =
@@ -2153,7 +2256,7 @@ fn track_on<B: Backend>(
             } else {
                 Vec::new()
             };
-        let input = upstream_input(&image, side);
+        let input = made_input.unwrap_or_else(|| upstream_input(&image, side));
         drop(image);
         let tensor = Tensor::from_f32(&input, &[1, 3, side, side], be.budget())
             .map_err(CliError::from_err)?;
@@ -2205,8 +2308,10 @@ fn track_on<B: Backend>(
         external_trunk,
         external_mem_attn,
         external_necks,
+        external_inter_neck,
         external_seg_head,
         external_det_encoder,
+        external_det_transformer,
         external_mem_encoder,
         mem_encoder_calls: vos.mem_encoder_calls(),
     })
@@ -2297,8 +2402,10 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
             "trunk-pipeline",
             "mem-attn",
             "necks",
+            "inter-neck",
             "seg-head",
             "det-encoder",
+            "det-transformer",
             "mem-encoder",
             "max-objects",
             "input-size",
@@ -2414,8 +2521,15 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         "necks",
         Placement::default_necks(trunk, backend, geometry, trunk_pipeline),
     )?;
+    let inter_neck = placement("inter-neck", Placement::Ojas)?;
     let seg_head = placement("seg-head", Placement::Ojas)?;
     let det_encoder = placement("det-encoder", Placement::Ojas)?;
+    let det_transformer = placement("det-transformer", Placement::Ojas)?;
+    if det_encoder != Placement::Ojas && det_transformer != Placement::Ojas {
+        return Err(CliError::usage(
+            "--det-transformer runs the encoders too: pass --det-encoder ojas beside it",
+        ));
+    }
     let mem_encoder = placement(
         "mem-encoder",
         Placement::default_mem_encoder(trunk, backend, geometry),
@@ -2518,6 +2632,13 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         plan.as_ref(),
     )?;
     check_placement_weights(
+        inter_neck,
+        "inter-neck",
+        &[INTER_NECK_PREFIX],
+        adapter.as_ref(),
+        plan.as_ref(),
+    )?;
+    check_placement_weights(
         seg_head,
         "seg-head",
         &[SEG_HEAD_PREFIX],
@@ -2548,6 +2669,16 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         det_encoder,
         det_encoder_package(det_encoder, &model_dir, lora.as_deref())?,
     );
+    check_transformer_weights(det_transformer, adapter.as_ref(), plan.as_ref())?;
+    let det_transformer = (
+        det_transformer,
+        det_transformer.existing_package(
+            &model_dir,
+            "dettr",
+            "det-transformer",
+            "coreml_dettr.py export --precision P",
+        )?,
+    );
     let opts = Options {
         prompt,
         out,
@@ -2563,8 +2694,10 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         trunk_pipeline,
         mem_attn,
         necks,
+        inter_neck,
         seg_head,
         det_encoder,
+        det_transformer,
         mem_encoder,
         max_objects,
         geometry,
@@ -2746,7 +2879,7 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
 
     let mean = timing.frame_seconds.iter().sum::<f64>() / timing.frame_seconds.len().max(1) as f64;
     let run_text = format!(
-        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"weight_edit\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"trunk_pipeline\": {},\n  \"external_trunk\": {},\n  \"mem_attn\": {},\n  \"external_mem_attn\": {},\n  \"necks\": {},\n  \"external_necks\": [{}, {}],\n  \"seg_head\": {},\n  \"external_seg_head\": {},\n  \"det_encoder\": {},\n  \"external_det_encoder\": {},\n  \"mem_encoder\": {},\n  \"external_mem_encoder\": {},\n  \"mem_encoder_calls\": {{\"external\": {}, \"ojas\": {}}},\n  \"max_objects\": {},\n  \"metal_mem_cap_bytes\": {},\n  \"metal_overlap_dispatches\": {},\n  \"input_size\": {},\n  \"profile\": {}\n}}\n",
+        "{{\n  \"video\": {},\n  \"input\": {},\n  \"prompt\": {},\n  \"backend\": {},\n  \"start\": {},\n  \"frames\": {},\n  \"width\": {},\n  \"height\": {},\n  \"tracks\": {},\n  \"boxes_widened_to_one_pixel\": {},\n  \"model_load_seconds\": {},\n  \"mean_seconds_per_frame\": {},\n  \"total_seconds\": {},\n  \"frame_precision\": \"float16 normalisation as upstream's loader, widened to f32\",\n  \"preprocessing\": {},\n  \"decoders\": {},\n  \"lora\": {},\n  \"weight_edit\": {},\n  \"boxes\": {},\n  \"boxes_reported\": {},\n  \"boxes_from_detector\": {},\n  \"overlay_video\": {},\n  \"overlay_video_fps\": {},\n  \"overlay_video_fps_source\": {},\n  \"overlay_video_frames\": {},\n  \"trunk_precision\": {},\n  \"trunk_pipeline\": {},\n  \"external_trunk\": {},\n  \"mem_attn\": {},\n  \"external_mem_attn\": {},\n  \"necks\": {},\n  \"external_necks\": [{}, {}],\n  \"inter_neck\": {},\n  \"external_inter_neck\": {},\n  \"seg_head\": {},\n  \"external_seg_head\": {},\n  \"det_encoder\": {},\n  \"external_det_encoder\": {},\n  \"det_transformer\": {},\n  \"external_det_transformer\": {},\n  \"mem_encoder\": {},\n  \"external_mem_encoder\": {},\n  \"mem_encoder_calls\": {{\"external\": {}, \"ojas\": {}}},\n  \"max_objects\": {},\n  \"metal_mem_cap_bytes\": {},\n  \"metal_overlap_dispatches\": {},\n  \"input_size\": {},\n  \"profile\": {}\n}}\n",
         json::string(&stream.video),
         json::string(&input.to_string_lossy()),
         json::string(&opts.prompt),
@@ -2779,10 +2912,14 @@ pub fn run(raw: &[String]) -> Result<(), CliError> {
         json::string(opts.necks.name()),
         timing.external_necks[0].as_deref().map_or_else(|| "null".to_string(), json::string),
         timing.external_necks[1].as_deref().map_or_else(|| "null".to_string(), json::string),
+        json::string(opts.inter_neck.name()),
+        timing.external_inter_neck.as_deref().map_or_else(|| "null".to_string(), json::string),
         json::string(opts.seg_head.name()),
         timing.external_seg_head.as_deref().map_or_else(|| "null".to_string(), json::string),
         json::string(opts.det_encoder.0.name()),
         timing.external_det_encoder.as_deref().map_or_else(|| "null".to_string(), json::string),
+        json::string(opts.det_transformer.0.name()),
+        timing.external_det_transformer.as_deref().map_or_else(|| "null".to_string(), json::string),
         json::string(opts.mem_encoder.name()),
         timing.external_mem_encoder.as_deref().map_or_else(|| "null".to_string(), json::string),
         timing.mem_encoder_calls[0],
@@ -4635,7 +4772,7 @@ mod tests {
             ))
             .unwrap()
         };
-        let cases: [(&str, &[&str], &str); 6] = [
+        let cases: [(&str, &[&str], &str); 7] = [
             (
                 "mem-encoder",
                 &[MEM_ENCODER_PREFIX],
@@ -4662,6 +4799,11 @@ mod tests {
                 "detector.backbone.vision_backbone.convs.0.conv_1x1.bias",
             ),
             (
+                "inter-neck",
+                &[INTER_NECK_PREFIX],
+                "detector.backbone.vision_backbone.interactive_convs.0.conv_1x1.bias",
+            ),
+            (
                 "mem-attn",
                 &[MEM_ATTN_PREFIX],
                 "tracker.model.transformer.encoder.layers.0.norm1.bias",
@@ -4684,6 +4826,53 @@ mod tests {
                 check_placement_weights(Placement::Ojas, flag, prefixes, None, Some(&touched))
                     .is_ok()
             );
+        }
+    }
+
+    #[test]
+    fn det_transformer_allows_dynamic_inputs_and_refuses_baked_in_weights() {
+        let plan = |param: &str| {
+            st_weights::edit::WeightEditPlan::parse(&format!(
+                r#"{{"format": "spiketrack-weight-edit-v1", "edits": [{{"op": "add_1d", "param": "{param}", "range": [0, 1], "values": [0.5]}}]}}"#
+            ))
+            .unwrap()
+        };
+        let dynamic_allowed = [
+            "detector.transformer.encoder.layers.0.self_attn.in_proj_weight",
+            "detector.transformer.decoder.layers.5.cross_attn.out_proj.weight",
+            "detector.transformer.decoder.bbox_embed.layers.2.weight",
+            "detector.transformer.decoder.presence_token_head.layers.0.weight",
+            "detector.dot_prod_scoring.prompt_proj.bias",
+        ];
+        let baked_in_refused = [
+            "detector.geometry_encoder.norm.bias",
+            "detector.transformer.encoder.layers.0.norm1.bias",
+            "detector.transformer.decoder.layers.0.norm1.bias",
+            "detector.transformer.decoder.bbox_embed.layers.2.bias",
+        ];
+        for p in [Placement::Coreml("fp32"), Placement::Coreml("fp16")] {
+            for param in dynamic_allowed {
+                let edit = plan(param);
+                assert!(
+                    check_transformer_weights(p, None, Some(&edit)).is_ok(),
+                    "expected {param} to be allowed for {}",
+                    p.name()
+                );
+            }
+            for param in baked_in_refused {
+                let edit = plan(param);
+                let err = check_transformer_weights(p, None, Some(&edit))
+                    .unwrap_err()
+                    .to_string();
+                assert!(
+                    err.contains(param) && err.contains("--det-transformer ojas"),
+                    "{err}"
+                );
+            }
+        }
+        for param in baked_in_refused {
+            let edit = plan(param);
+            assert!(check_transformer_weights(Placement::Ojas, None, Some(&edit)).is_ok());
         }
     }
 

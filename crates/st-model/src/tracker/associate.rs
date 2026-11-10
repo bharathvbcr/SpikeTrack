@@ -19,9 +19,56 @@ pub struct Bitmask {
 }
 
 impl Bitmask {
-    /// `logits > 0`.
+    /// `logits > 0`, built a word at a time.
     pub fn from_logits(logits: &[f32]) -> Self {
-        Self::from_fn(logits.len(), |i| logits[i] > 0.0)
+        let mut words = Vec::with_capacity(logits.len().div_ceil(64));
+        let mut area = 0u32;
+        for chunk in logits.chunks(64) {
+            let mut word = 0u64;
+            for (b, &v) in chunk.iter().enumerate() {
+                word |= u64::from(v > 0.0) << b;
+            }
+            area += word.count_ones();
+            words.push(word);
+        }
+        Self {
+            words,
+            pixels: logits.len(),
+            area,
+        }
+    }
+
+    /// Calls `f` with every set pixel's index, in increasing order.
+    pub fn for_each_set(&self, mut f: impl FnMut(usize)) {
+        for (wi, &word) in self.words.iter().enumerate() {
+            let mut m = word;
+            while m != 0 {
+                f(wi * 64 + m.trailing_zeros() as usize);
+                m &= m - 1;
+            }
+        }
+    }
+
+    /// The set pixels `keep` accepts; the others cleared.
+    pub fn retain(&self, mut keep: impl FnMut(usize) -> bool) -> Self {
+        let mut words = vec![0u64; self.words.len()];
+        let mut area = 0u32;
+        for (wi, (&word, out)) in self.words.iter().zip(&mut words).enumerate() {
+            let mut m = word;
+            while m != 0 {
+                let b = m.trailing_zeros();
+                m &= m - 1;
+                if keep(wi * 64 + b as usize) {
+                    *out |= 1 << b;
+                    area += 1;
+                }
+            }
+        }
+        Self {
+            words,
+            pixels: self.pixels,
+            area,
+        }
     }
 
     pub fn from_fn(pixels: usize, mut on: impl FnMut(usize) -> bool) -> Self {

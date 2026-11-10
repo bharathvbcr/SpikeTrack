@@ -40,7 +40,10 @@ use objc2_foundation::{NSArray, NSDictionary, NSError, NSInteger, NSNumber, NSSt
 use ojas_core::OjasError;
 use sha2::{Digest, Sha256};
 use st_model::tracker::{ExternalMemAttn, ExternalMemEncoder, HostMemInputs};
-use st_model::{ExternalEncoder, ExternalNeck, ExternalSegHead, ExternalTrunk, HostSegInputs};
+use st_model::{
+    ExternalEncoder, ExternalNeck, ExternalSegHead, ExternalTransformer, ExternalTrunk,
+    HostSegInputs, TransformerOut,
+};
 
 const INPUT: &str = "image";
 const OUTPUT: &str = "trunk";
@@ -1143,6 +1146,200 @@ impl ExternalEncoder for CoremlDetEncoder {
         self.predict(fpn2, pos, text)
             .map_err(|e| OjasError::Unsupported {
                 op: "st_coreml::CoremlDetEncoder::run",
+                detail: e.to_string(),
+            })
+    }
+}
+
+pub mod dettr {
+    pub use super::detenc::{D, GRID, MASK, T, TEXT};
+    /// Decoder queries and layers.
+    pub const Q: usize = 200;
+    pub const LAYERS: usize = 6;
+
+    /// The checkpoint weights the program takes as inputs, in the order
+    /// tools/baselines/coreml_dettr.py `DYNAMIC` lists them, with their shapes: every attention
+    /// projection of the fusion encoder and the decoder, bbox_embed and presence_token_head.
+    pub fn dynamic_params() -> Vec<(String, Vec<usize>)> {
+        let mut v = Vec::new();
+        for i in 0..6 {
+            for a in ["self_attn", "cross_attn_image"] {
+                let p = format!("detector.transformer.encoder.layers.{i}.{a}");
+                v.push((format!("{p}.in_proj_weight"), vec![3 * D, D]));
+                v.push((format!("{p}.out_proj.weight"), vec![D, D]));
+            }
+        }
+        for i in 0..6 {
+            for a in ["self_attn", "ca_text", "cross_attn"] {
+                let p = format!("detector.transformer.decoder.layers.{i}.{a}");
+                v.push((format!("{p}.in_proj_weight"), vec![3 * D, D]));
+                v.push((format!("{p}.out_proj.weight"), vec![D, D]));
+            }
+        }
+        for (head, last) in [("bbox_embed", 4), ("presence_token_head", 1)] {
+            for i in 0..3 {
+                let rows = if i == 2 { last } else { D };
+                v.push((
+                    format!("detector.transformer.decoder.{head}.layers.{i}.weight"),
+                    vec![rows, D],
+                ));
+            }
+        }
+        v
+    }
+}
+
+struct DetTrBufs {
+    enc: EncBufs,
+    /// One per [`dettr::dynamic_params`], in its order.
+    weights: Vec<Vec<f32>>,
+}
+
+/// SAM 3.1's detector encoders and DETR decoder as one Core ML program
+/// (`<model-dir>/coreml/sam3.1_dettr_<precision>.mlpackage`, written by
+/// tools/baselines/coreml_dettr.py), for [`st_model::Detector::set_external_transformer`]. The
+/// weights an adapter can change are inputs: [`Self::load`] takes them as the caller loaded them,
+/// adapter folded, and hands the same buffers to every prediction.
+pub struct CoremlDetTransformer {
+    model: Retained<MLModel>,
+    package: PathBuf,
+    sha256: String,
+    units: Units,
+    names: Vec<(String, Vec<usize>)>,
+    bufs: std::sync::Mutex<DetTrBufs>,
+    pub compiled: bool,
+    pub load_seconds: f64,
+}
+
+impl CoremlDetTransformer {
+    /// `weight(name)` returns each [`dettr::dynamic_params`] weight, row-major; a missing one or
+    /// one of another size is refused.
+    pub fn load(
+        package: &Path,
+        units: Units,
+        weight: &dyn Fn(&str) -> Option<Vec<f32>>,
+    ) -> Result<Self, CoremlError> {
+        use dettr::*;
+        let names = dynamic_params();
+        let mut weights = Vec::with_capacity(names.len());
+        for (name, shape) in &names {
+            let w = weight(name).ok_or_else(|| fail(format!("no weight {name:?}")))?;
+            let n: usize = shape.iter().product();
+            if w.len() != n {
+                return Err(fail(format!(
+                    "weight {name:?} has {} values, want {n} ({shape:?})",
+                    w.len()
+                )));
+            }
+            weights.push(w);
+        }
+        let l = load_package(package, units)?;
+        Ok(Self {
+            model: l.model,
+            package: package.to_path_buf(),
+            sha256: l.sha256,
+            units,
+            names,
+            bufs: std::sync::Mutex::new(DetTrBufs {
+                enc: EncBufs {
+                    fpn2: vec![0.0; D * T],
+                    pos: vec![0.0; T * D],
+                    text: vec![0.0; TEXT * D],
+                    text_bias: vec![MASK; TEXT + 1],
+                },
+                weights,
+            }),
+            compiled: l.compiled,
+            load_seconds: l.load_seconds,
+        })
+    }
+
+    /// One prediction: memory `[T, D]`, geometry token `[D]`, normed queries `[LAYERS, Q, D]`,
+    /// presence logits `[LAYERS]` and boxes `[Q, 4]`.
+    pub fn predict(
+        &self,
+        fpn2: &[f32],
+        pos: &[f32],
+        text: &[f32],
+    ) -> Result<TransformerOut, CoremlError> {
+        use dettr::*;
+        let n = text.len() / D;
+        if text.len() != n * D || n == 0 || n > TEXT {
+            return Err(fail(format!(
+                "text has {} values: want 1 to {TEXT} tokens of {D}",
+                text.len()
+            )));
+        }
+        let mut guard = self
+            .bufs
+            .lock()
+            .map_err(|_| fail("transformer buffers poisoned by an earlier panic"))?;
+        let DetTrBufs { enc: b, weights } = &mut *guard;
+        for (name, src, dst) in [("fpn2", fpn2, &mut b.fpn2), ("pos", pos, &mut b.pos)] {
+            if src.len() != dst.len() {
+                return Err(fail(format!(
+                    "{name} has {} values, want {}",
+                    src.len(),
+                    dst.len()
+                )));
+            }
+            dst.copy_from_slice(src);
+        }
+        b.text[..n * D].copy_from_slice(text);
+        b.text[n * D..].fill(0.0);
+        b.text_bias.fill(MASK);
+        b.text_bias[..n].fill(0.0);
+        b.text_bias[TEXT] = 0.0;
+        let input_names: Vec<String> = self
+            .names
+            .iter()
+            .map(|(name, _)| name.replace('.', "_"))
+            .collect();
+        let mut inputs: Vec<(&str, &mut [f32], &[usize])> = vec![
+            ("fpn2", &mut b.fpn2, &[1, D, GRID, GRID]),
+            ("pos", &mut b.pos, &[1, T, D]),
+            ("text", &mut b.text, &[1, TEXT, D]),
+            ("text_bias", &mut b.text_bias, &[1, 1, 1, TEXT + 1]),
+        ];
+        for ((input, (_, shape)), w) in input_names.iter().zip(&self.names).zip(weights.iter_mut())
+        {
+            inputs.push((input.as_str(), w.as_mut_slice(), shape.as_slice()));
+        }
+        let mut outs = predict_f32_multi(
+            &self.model,
+            &mut inputs,
+            &[
+                ("mem", &[1, T, D]),
+                ("geo", &[1, 1, D]),
+                ("hs", &[LAYERS, Q, D]),
+                ("presence", &[LAYERS]),
+                ("boxes", &[Q, 4]),
+            ],
+        )?;
+        let boxes = outs.pop().ok_or_else(|| fail("no boxes read"))?;
+        let presence = outs.pop().ok_or_else(|| fail("no presence read"))?;
+        let hs = outs.pop().ok_or_else(|| fail("no hs read"))?;
+        let geo = outs.pop().ok_or_else(|| fail("no geo read"))?;
+        let memory = outs.pop().ok_or_else(|| fail("no mem read"))?;
+        Ok(TransformerOut {
+            memory,
+            geo,
+            hs,
+            presence,
+            boxes,
+        })
+    }
+}
+
+impl ExternalTransformer for CoremlDetTransformer {
+    fn describe(&self) -> String {
+        describe(&self.package, self.units, &self.sha256)
+    }
+
+    fn run(&self, fpn2: &[f32], pos: &[f32], text: &[f32]) -> Result<TransformerOut, OjasError> {
+        self.predict(fpn2, pos, text)
+            .map_err(|e| OjasError::Unsupported {
+                op: "st_coreml::CoremlDetTransformer::run",
                 detail: e.to_string(),
             })
     }

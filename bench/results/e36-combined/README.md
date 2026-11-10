@@ -15,8 +15,9 @@ changes, in both arms.
 | A-G2, 32 frames x 5 videos (`../track/held32-coreml/t16m16n16me16all16/`, `g2.log`) | HOTA **0.6023** against 0.6025; per video -0.0003, +0.0015, -0.0001, -0.0004, -0.0011 | **pass** |
 | A-G3, 1,500 frames (`../track/held300-coreml/t16m16n16me16all16/`, `g3.log`) | HOTA **0.56703** against 0.56952, which passes the 0.567 bar by 0.00003. Per video: 21 -0.0014, 22 +0.0001, 36 -0.0007, **47 -0.0233**, 82 -0.0005 | **fail**: video 47 is 0.0233 below t16m16n16me16's 0.4838, beyond the 0.01 allowed |
 
-**E36 is not adopted.** Nothing moves into the main tree, which stays at the E32 default. The three
-flags stay in `SpikeTrack-e34`. A port was staged in the scratchpad while G3 ran and was not applied.
+**E36 is not adopted.** `main` stays at the E32 default; the opt-in flags (`--inter-neck`,
+`--det-transformer`, `--seg-head`) were merged into `main` with `ojas` defaults when
+`SpikeTrack-e34` was cleaned up.
 
 All three programs ran in every accuracy run. Each video's `run.json` in G2 records
 `det_transformer`, `seg_head` and `inter_neck` as `coreml-fp16`, with the package named.

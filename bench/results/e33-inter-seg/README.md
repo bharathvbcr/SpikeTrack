@@ -10,9 +10,9 @@ The rules are in `RULES.md`, written before any run. The arm `is16` is the E32 d
 | IS-G2 | stopped after the speed gate failed, during video 21; its partial output (4 files, no evaluation) was deleted | **not read** |
 | IS-G3 | not run | **not read** |
 
-**E33 is not adopted.** As RULES.md decided before the result, `--inter-neck` stays in the build
-copy only, and `--seg-head` keeps its Ojas default. The accuracy gates were not needed for the
-verdict, so the job was stopped to free the machine.
+**E33 is not adopted as a default.** `--inter-neck` (ported into `main` when `SpikeTrack-pipe` was
+cleaned up) and `--seg-head` both keep their `ojas` default. The accuracy gates were not needed for
+the verdict, so the job was stopped to free the machine.
 
 Tracks against base in the speed rounds: 32/32 frames with equal id sets in every round, mean box IoU
 1.0000, min 0.9919.

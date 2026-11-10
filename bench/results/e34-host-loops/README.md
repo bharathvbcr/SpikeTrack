@@ -19,6 +19,7 @@ changes:
 most of that. The measurement says it was not. That stage's time goes somewhere this change does not
 touch. Nothing moves into the main tree.
 
-`exclusive_masks_equal_the_dense_loop_they_replaced` stays in the `SpikeTrack-e34` copy with the
-code. Its first run caught a real difference: a NaN score on the first object blocks the pixels it
-covers in the old loop. The new code was then made to match.
+The two exact changes and `exclusive_masks_equal_the_dense_loop_they_replaced` were later merged
+into `main` when `SpikeTrack-e34` was cleaned up. Its first run caught a real difference: a NaN
+score on the first object blocks the pixels it covers in the old loop. The new code was then made to
+match.

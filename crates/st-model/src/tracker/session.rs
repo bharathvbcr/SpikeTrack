@@ -634,26 +634,9 @@ impl<'a, B: Backend + ?Sized> Session<'a, B> {
             .iter()
             .flat_map(|(_, m, _, _, _)| mask_box_xywh(m, h, w))
             .collect();
-        // Object-wise non-overlap: at each pixel only the covering object with the highest
-        // tracker score keeps it (first index on ties), and only if that score is positive.
         let masks: Vec<Bitmask> = if kept.len() > 1 {
-            let mut winner = vec![0usize; hw];
-            for (p, win) in winner.iter_mut().enumerate() {
-                let mut best = if kept[0].1.get(p) { kept[0].3 } else { 0.0 };
-                for (o, item) in kept.iter().enumerate().skip(1) {
-                    let v = if item.1.get(p) { item.3 } else { 0.0 };
-                    if v > best {
-                        best = v;
-                        *win = o;
-                    }
-                }
-            }
-            kept.iter()
-                .enumerate()
-                .map(|(o, item)| {
-                    Bitmask::from_fn(hw, |p| item.1.get(p) && winner[p] == o && item.3 > 0.0)
-                })
-                .collect()
+            let items: Vec<(&Bitmask, f32)> = kept.iter().map(|k| (&k.1, k.3)).collect();
+            exclusive_masks(&items, hw)
         } else {
             kept.iter().map(|item| item.1.clone()).collect()
         };
@@ -1097,10 +1080,124 @@ fn process_detections_with_cfg(cfg: &SessionConfig, det: &Detections) -> DetStag
     }
 }
 
+/// Object-wise non-overlap over `hw` pixels: at each pixel only the covering object with the
+/// highest tracker score keeps it (first index on ties), and only if that score is positive. It
+/// visits only set pixels, so it costs the masks' area, not objects x pixels.
+fn exclusive_masks(items: &[(&Bitmask, f32)], hw: usize) -> Vec<Bitmask> {
+    const NONE: u32 = u32::MAX;
+    let mut best = vec![0f32; hw];
+    let mut winner = vec![NONE; hw];
+    // As the per-pixel loop this replaced did: it started each pixel at the first object's score
+    // when that object covers it, so a NaN there let no object keep the pixel.
+    if let Some(&(m, score)) = items.first() {
+        if score.is_nan() {
+            m.for_each_set(|p| best[p] = f32::INFINITY);
+        }
+    }
+    for (o, &(m, score)) in items.iter().enumerate() {
+        if score > 0.0 {
+            m.for_each_set(|p| {
+                if score > best[p] {
+                    best[p] = score;
+                    winner[p] = o as u32;
+                }
+            });
+        }
+    }
+    items
+        .iter()
+        .enumerate()
+        .map(|(o, &(m, _))| m.retain(|p| winner[p] == o as u32))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::tracker::vos::bf16_round;
+
+    /// The per-pixel loop `exclusive_masks` replaced, kept as its oracle.
+    fn exclusive_masks_dense(items: &[(&Bitmask, f32)], hw: usize) -> Vec<Bitmask> {
+        let mut winner = vec![0usize; hw];
+        for (p, win) in winner.iter_mut().enumerate() {
+            let mut best = if items[0].0.get(p) { items[0].1 } else { 0.0 };
+            for (o, item) in items.iter().enumerate().skip(1) {
+                let v = if item.0.get(p) { item.1 } else { 0.0 };
+                if v > best {
+                    best = v;
+                    *win = o;
+                }
+            }
+        }
+        items
+            .iter()
+            .enumerate()
+            .map(|(o, item)| {
+                Bitmask::from_fn(hw, |p| item.0.get(p) && winner[p] == o && item.1 > 0.0)
+            })
+            .collect()
+    }
+
+    /// `exclusive_masks` equals the dense loop on random overlapping masks with tied, zero,
+    /// negative, NaN and infinite scores, at sizes that do and do not fill the last word; and
+    /// `Bitmask::from_logits` equals `from_fn(logits > 0)`, NaN and -0.0 included.
+    #[test]
+    fn exclusive_masks_equal_the_dense_loop_they_replaced() {
+        let mut x = 0x9e37_79b9u32;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            x
+        };
+        let scores = [
+            0.7,
+            0.7,
+            0.0,
+            -0.3,
+            f32::NAN,
+            0.2,
+            0.9,
+            0.2,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+        ];
+        for hw in [1usize, 63, 64, 65, 640 * 48 + 7] {
+            for round in 0..20 {
+                let n = 2 + round % 7;
+                let masks: Vec<Bitmask> = (0..n)
+                    .map(|_| {
+                        let density = next() % 4;
+                        Bitmask::from_fn(hw, |_| next() % 4 < density)
+                    })
+                    .collect();
+                let items: Vec<(&Bitmask, f32)> = masks
+                    .iter()
+                    .enumerate()
+                    .map(|(o, m)| (m, scores[(o + round) % scores.len()]))
+                    .collect();
+                assert_eq!(
+                    exclusive_masks(&items, hw),
+                    exclusive_masks_dense(&items, hw),
+                    "hw {hw}, round {round}"
+                );
+            }
+            let logits: Vec<f32> = (0..hw)
+                .map(|i| match i % 9 {
+                    0 => f32::NAN,
+                    1 => -0.0,
+                    2 => 0.0,
+                    3 => f32::MIN_POSITIVE,
+                    _ => (next() as i32) as f32 * 1e-9,
+                })
+                .collect();
+            assert_eq!(
+                Bitmask::from_logits(&logits),
+                Bitmask::from_fn(hw, |i| logits[i] > 0.0),
+                "from_logits at hw {hw}"
+            );
+        }
+    }
 
     /// `round_bf16` (Backend::cast_bf16) equals the host rounding it replaced, `vos::bf16_round`,
     /// bit for bit on every non-NaN input: random values over the whole exponent range, ties

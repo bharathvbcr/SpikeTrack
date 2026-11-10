@@ -8,12 +8,12 @@ commands:
 
 `spiketrack <command> --help` shows a command's options.
         0.01 real         0.00 user         0.00 sys
-             7471104  maximum resident set size
+             7454720  maximum resident set size
                    0  average shared memory size
                    0  average unshared data size
                    0  average unshared stack size
-                 657  page reclaims
-                  32  page faults
+                 690  page reclaims
+                   0  page faults
                    0  swaps
                    0  block input operations
                    0  block output operations
@@ -21,7 +21,7 @@ commands:
                    0  messages received
                    0  signals received
                    0  voluntary context switches
-                  50  involuntary context switches
-            42386245  instructions retired
-            19640113  cycles elapsed
+                  56  involuntary context switches
+            39054757  instructions retired
+            27895107  cycles elapsed
              2163240  peak memory footprint

@@ -1,7 +1,7 @@
 //! Adversarial Verification Test for Milestone M3: Zero-Copy Frame Pipeline & On-Device Broadcast/Concat Parity
 #![cfg(target_os = "macos")]
 
-use ojas_core::{Backend, Budget, DType, Tensor};
+use ojas_core::{BackendCore, BackendFloat, Budget, DType, Tensor};
 use ojas_cpu::CpuBackend;
 use ojas_metal::MetalBackend;
 

@@ -1,4 +1,4 @@
-"""SAM 3.1's detector and propagation necks as one CoreML ML Program.
+"""SAM 3.1's necks as CoreML ML Programs: the detector and propagation necks in one, or any neck alone.
 
     PY=tools/baselines/.venv-export/bin/python   (torch 2.7.0, coremltools 9.0, safetensors, numpy<2.3)
     $PY -s tools/baselines/coreml_necks.py torch-check
@@ -6,8 +6,9 @@
     tools/locked.sh cml-necks $PY -s tools/baselines/coreml_necks.py check --precision fp32
 
 The module mirrors st-model's `Backbone::neck` (crates/st-model/src/backbone.rs) for the two necks a
-steady frame runs (`convs`, the detector's, and `propagation_convs`); the interactive neck runs only on
-births and stays on the backend. Per neck, levels at 288, 144 and 72:
+steady frame runs (`convs`, the detector's, and `propagation_convs`), and for `interactive_convs`, the
+neck births and reconditions use (`--neck inter`, a one-neck package only). Per neck, levels at 288,
+144 and 72:
     Up4:  dconv_2x2_0 (stride 2) -> GELU -> dconv_2x2_1 (stride 2) -> conv_1x1 -> conv_3x3 (pad 1)
     Up2:  dconv_2x2 (stride 2) -> conv_1x1 -> conv_3x3
     Same: conv_1x1 -> conv_3x3
@@ -35,8 +36,10 @@ CKPT = MODEL_DIR / "sam3.1_multiplex.safetensors"
 PREFIX = "detector.backbone.vision_backbone."
 FIXTURES = ["visem_22_f0", "visem_47_f300", "visem_82_f600", "sam3_truck", "sam3_groceries"]
 OUT = REPO / "bench/results/coreml-necks"
-NECKS = {"det": "convs", "prop": "propagation_convs"}
-NAMES = [f"{n}{i}" for n in NECKS for i in range(3)]
+NECKS = {"det": "convs", "prop": "propagation_convs", "inter": "interactive_convs"}
+# The two-neck package (no --neck) holds these.
+PAIR = ("det", "prop")
+NAMES = [f"{n}{i}" for n in PAIR for i in range(3)]
 
 
 def package(precision, neck=None):
@@ -90,7 +93,7 @@ def build(only=None):
             super().__init__()
             self.necks = torch.nn.ModuleList(
                 torch.nn.ModuleList(Level(f"{v}.{i}", k) for i, k in enumerate(("up4", "up2", "same")))
-                for n, v in NECKS.items() if only in (None, n)
+                for n, v in NECKS.items() if (n in PAIR if only is None else n == only)
             )
 
         def forward(self, trunk):

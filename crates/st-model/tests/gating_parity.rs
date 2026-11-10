@@ -26,7 +26,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use ojas_core::{Backend, Budget, Numerics, Tensor};
+use ojas_core::{Backend, BackendCore, Budget, Numerics, Tensor};
 use ojas_cpu::CpuBackend;
 use st_gate::{Decision, Frame, Gate, GateConfig, GatePolicy, Geometry, WindowSet};
 use st_model::backbone::{GatedMode, GatedStats, TrunkCache};

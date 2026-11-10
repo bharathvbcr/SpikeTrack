@@ -1,7 +1,7 @@
 //! Adversarial Boundary & Stress Verification Test for Milestone M5
 //! Tests input shape validation, zero/empty states, non-finite handling, and edge conditions.
 
-use ojas_core::{Backend, Budget, OjasError, Tensor};
+use ojas_core::{BackendFloat, BackendModule, Budget, OjasError, Tensor};
 use ojas_cpu::CpuBackend;
 use ojas_metal::MetalBackend;
 use st_model::tracker::associate::{

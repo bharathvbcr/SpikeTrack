@@ -20,6 +20,8 @@
 # `track --necks|--mem-attn|--mem-encoder|--seg-head P` (ojas, coreml-fp32 or coreml-fp16; track's
 # default: coreml-fp16 memory attention, memory encoder (since E32) and necks (pipelined trunk only)
 # beside the default fp16 trunk, ojas otherwise; the segmentation head is always ojas by default).
+# SPIKETRACK_INTER_NECK=P passes `track --inter-neck P`.
+# SPIKETRACK_DET_TRANSFORMER=P passes `track --det-transformer P`.
 # SPIKETRACK_TRUNK_PIPELINE=on|off passes `track --trunk-pipeline`.
 # SPIKETRACK_DET_ENCODER=P passes `track --det-encoder P` (opt-in; its package carries the --lora adapter).
 # usage: tools/locked.sh track-visem bash tools/jobs/track_visem.sh [N=300]       all videos, then eval
@@ -66,6 +68,8 @@ TRUNK_ARGS=()
 [ -n "${SPIKETRACK_TRUNK_PIPELINE:-}" ] && TRUNK_ARGS+=(--trunk-pipeline "$SPIKETRACK_TRUNK_PIPELINE")
 [ -n "${SPIKETRACK_DET_ENCODER:-}" ] && TRUNK_ARGS+=(--det-encoder "$SPIKETRACK_DET_ENCODER")
 [ -n "${SPIKETRACK_MEM_ENCODER:-}" ] && TRUNK_ARGS+=(--mem-encoder "$SPIKETRACK_MEM_ENCODER")
+[ -n "${SPIKETRACK_INTER_NECK:-}" ] && TRUNK_ARGS+=(--inter-neck "$SPIKETRACK_INTER_NECK")
+[ -n "${SPIKETRACK_DET_TRANSFORMER:-}" ] && TRUNK_ARGS+=(--det-transformer "$SPIKETRACK_DET_TRANSFORMER")
 EDIT_ARGS=()
 if [ -n "${SPIKETRACK_WEIGHT_EDIT:-}" ]; then
   [ -f "$SPIKETRACK_WEIGHT_EDIT" ] || { echo "SPIKETRACK_WEIGHT_EDIT=$SPIKETRACK_WEIGHT_EDIT is not a file" >&2; exit 2; }

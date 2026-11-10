@@ -282,8 +282,8 @@ fn mlp_host_panics_on_nonempty_input_when_n_is_zero() {
 #[test]
 fn view_f32_and_host_of_respect_subview_window_strided_and_bf16_on_metal() {
     use ojas_core::{
-        Backend, BackendId, DType, DeviceBuffer, FenceError, HostLease, HostLeaseMut, MappedBuffer,
-        OjasError, Timeline,
+        BackendCore, BackendId, DType, DeviceBuffer, FenceError, HostLease, HostLeaseMut,
+        MappedBuffer, OjasError, Timeline,
     };
     use std::any::Any;
     use std::sync::Arc;

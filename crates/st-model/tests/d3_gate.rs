@@ -9,7 +9,7 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
-use ojas_core::{Autocast, AutocastGuard, AutocastMode, Backend, Budget, Tensor};
+use ojas_core::{Autocast, AutocastGuard, AutocastMode, Backend, BackendCore, Budget, Tensor};
 use ojas_cpu::CpuBackend;
 use ojas_io::SafeTensors;
 use ojas_metal::MetalBackend;

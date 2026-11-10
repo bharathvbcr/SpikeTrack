@@ -202,8 +202,14 @@ impl<T> DescribeOther for &Arg<'_, T> {
 }
 
 macro_rules! profile_methods {
-    ({ $s:ident } $($kind:ident fn $name:ident(&self $(, $arg:ident : $ty:ty)*) -> $ret:ty;)*) => {
-        $( profile_methods!(@one $s, $kind, $name, [$($arg: $ty),*], $ret); )*
+    ({ $s:ident, $group:ident } $($kind:ident fn $name:ident(&self $(, $arg:ident : $ty:ty)*) -> $ret:ty;)*) => {
+        $(
+            ojas_core::emit_in_group!(
+                $group,
+                $name,
+                profile_methods!(@one $s, $kind, $name, [$($arg: $ty),*], $ret);
+            );
+        )*
     };
     (@one $s:ident, pure, $name:ident, [$($arg:ident : $ty:ty),*], $ret:ty) => {
         #[allow(clippy::too_many_arguments)]
@@ -231,6 +237,18 @@ macro_rules! profile_methods {
     };
 }
 
-impl<B: Backend> Backend for Profiled<B> {
-    with_backend_methods!(profile_methods, { self });
+impl<B: Backend> ojas_core::BackendCore for Profiled<B> {
+    with_backend_methods!(profile_methods, { self, core });
+}
+
+impl<B: Backend> ojas_core::BackendFloat for Profiled<B> {
+    with_backend_methods!(profile_methods, { self, float });
+}
+
+impl<B: Backend> ojas_core::BackendInt for Profiled<B> {
+    with_backend_methods!(profile_methods, { self, int });
+}
+
+impl<B: Backend> ojas_core::BackendModule for Profiled<B> {
+    with_backend_methods!(profile_methods, { self, module });
 }

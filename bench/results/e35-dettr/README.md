@@ -24,7 +24,8 @@ Both arms ran on one binary from `SpikeTrack-e34`, which also carries E34's exac
 | T-speed, run 1 (`job-run1.log`, `run1/`) | wall dt16/base **0.935, 0.907, 1.082** (median 0.935); push 1.012, 0.885, 0.943. Every arm started below load 6; start and end load 4.8-7.7, every arm read | **fail**: round 3 is above 0.95, and the median is above 0.92 |
 | T-G2, T-G3 | not run, as RULES.md says after a failed T-speed | **not read** |
 
-**E35 is not adopted.** The flag stays in `SpikeTrack-e34` only.
+**E35 is not adopted as a default.** `--det-transformer` (ported into `main` when `SpikeTrack-e34`
+was cleaned up) stays opt-in (`default: ojas`).
 
 Round 3's dt16 arm stalled early: frames 1 and 2 took 2.18 and 1.65 s, against 0.92 and 0.67 s in
 round 2, and its steady push median (825 ms) is in line with the other rounds. The rule judges wall
